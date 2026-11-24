@@ -27,6 +27,7 @@ from titanspan.support.encoded_html_string import (
     EncodedHtmlString,
     HtmlEncodable,
 )
+from titanspan.support.env import Env
 from titanspan.support.exceptions import AsyncCallbackUsageError
 
 T = TypeVar("T")
@@ -140,6 +141,19 @@ def filled(candidate: object) -> bool:
         The inverse of :func:`blank`.
     """
     return not blank(candidate)
+
+
+def env(key: str, default: object = None) -> object:
+    """Read a normalized environment value through the Env utility.
+
+    Args:
+        key: Environment variable name to read.
+        default: Constant or zero-argument callback used when absent.
+
+    Returns:
+        The normalized environment value or its resolved default.
+    """
+    return Env.get(key, default)
 
 
 @overload

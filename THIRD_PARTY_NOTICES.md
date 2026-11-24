@@ -15,7 +15,8 @@ preserves attribution for the upstream API and behavior reference. Future
 adaptations of upstream source or tests must retain applicable notices.
 Sleep compatibility tests translate behavior from Laravel's upstream test
 suite; the pinned source and test paths are listed in the compatibility
-inventory.
+inventory. Environment compatibility cases translate the environment helper
+and bootstrap expectations from Laravel's Support and Foundation test suites.
 
 Copyright (c) Taylor Otwell
 

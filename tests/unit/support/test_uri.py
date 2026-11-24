@@ -111,8 +111,7 @@ def test_uri_transformations_are_immutable_and_keep_query_components() -> None:
         == _URI_TEST_PORT
     )
     assert (
-        Uri.of(
-            "https://[2001:db8::1]:8080").with_port(_URI_UPDATED_PORT).port()
+        Uri.of("https://[2001:db8::1]:8080").with_port(_URI_UPDATED_PORT).port()
         == _URI_UPDATED_PORT
     )
     assert changed.with_path("/already-rooted").path() == "already-rooted"
@@ -764,8 +763,7 @@ def test_uri_camel_case_query_aliases_share_python_implementations() -> None:
         == uri.with_query({"added": "2"}).value()
     )
     assert (
-        uri.withQueryIfMissing(
-            {"existing": "3"}).query().get("existing") == "1"
+        uri.withQueryIfMissing({"existing": "3"}).query().get("existing") == "1"
     )
     assert uri.pushOntoQuery("existing", "2").query().get("existing") == [
         "1",

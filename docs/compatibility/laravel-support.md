@@ -30,17 +30,20 @@ A method is not counted as compatible because it has a similarly named Python me
 ## Measured status
 
 - Exact behavioural parity: 0.
-- Python-adapted parity: 400.
+- Python-adapted parity: 409.
 - Delegated: 0.
 - Blocked: 3141.
 - Not applicable: 32.
-- Pending: 477.
-- Verified compatibility: 400/4050 listed member entries (9.88%).
+- Pending: 468.
+- Verified compatibility: 409/4050 listed member entries (10.10%).
 
 For the timing utilities in this implementation slice, behavior was checked
 against the pinned upstream tests for [Benchmark](https://github.com/laravel/framework/blob/8a8c4a84852869e13190d89f9da873cd9a70f14c/tests/Support/SupportBenchmarkTest.php),
 [Lottery](https://github.com/laravel/framework/blob/8a8c4a84852869e13190d89f9da873cd9a70f14c/tests/Support/LotteryTest.php),
 and [Timebox](https://github.com/laravel/framework/blob/8a8c4a84852869e13190d89f9da873cd9a70f14c/tests/Support/SupportTimeboxTest.php). Sleep behavior is traced to the pinned [Sleep tests](https://github.com/laravel/framework/blob/8a8c4a84852869e13190d89f9da873cd9a70f14c/tests/Support/SleepTest.php).
+Environment parsing and dotenv writes are traced to the pinned
+[Support helper tests](https://github.com/laravel/framework/blob/8a8c4a84852869e13190d89f9da873cd9a70f14c/tests/Support/SupportHelpersTest.php)
+and [environment bootstrap tests](https://github.com/laravel/framework/blob/8a8c4a84852869e13190d89f9da873cd9a70f14c/tests/Foundation/Bootstrap/LoadEnvironmentVariablesTest.php).
 
 ## Method-level inventory
 
@@ -769,14 +772,14 @@ and [Timebox](https://github.com/laravel/framework/blob/8a8c4a84852869e13190d89f
 
 | Upstream class | Upstream API | Titanspan API | Implementation location | Compatibility status | Test evidence | Differences | Upstream reference |
 |---|---|---|---|---|---|---|---|
-| `Illuminate\Support\Env` | `enablePutenv()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-29] |
-| `Illuminate\Support\Env` | `disablePutenv()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-29] |
-| `Illuminate\Support\Env` | `extend()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-29] |
-| `Illuminate\Support\Env` | `getRepository()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-29] |
-| `Illuminate\Support\Env` | `get()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-29] |
-| `Illuminate\Support\Env` | `getOrFail()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-29] |
-| `Illuminate\Support\Env` | `writeVariables()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-29] |
-| `Illuminate\Support\Env` | `writeVariable()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-29] |
+| `Illuminate\Support\Env` | `enablePutenv()` | `Env.enable_putenv()` / `Env.enablePutenv()` | `src/titanspan/support/env.py` | **Python-adapted parity** | `tests/unit/support/test_env.py::test_disable_putenv_skips_process_environment_but_keeps_adapters` | Toggles reads from Python's `os.environ`; there is no separate PHP putenv adapter. | [source][source-29] |
+| `Illuminate\Support\Env` | `disablePutenv()` | `Env.disable_putenv()` / `Env.disablePutenv()` | `src/titanspan/support/env.py` | **Python-adapted parity** | `tests/unit/support/test_env.py::test_disable_putenv_skips_process_environment_but_keeps_adapters` | Custom adapters remain enabled while the native process mapping is disabled in the active context. | [source][source-29] |
+| `Illuminate\Support\Env` | `extend()` | `Env.extend()` | `src/titanspan/support/env.py` | **Python-adapted parity** | `tests/unit/support/test_env.py::test_named_adapters_are_lazy_replaceable_and_fallback_sources` | Adapter factories return string mappings which are snapshotted into a read-only repository. | [source][source-29] |
+| `Illuminate\Support\Env` | `getRepository()` | `Env.get_repository()` / `Env.getRepository()` | `src/titanspan/support/env.py` | **Python-adapted parity** | `tests/unit/support/test_env.py::test_repository_prefers_process_environment_and_is_cached` | Returns a cached typed repository over the process mapping and custom adapter snapshots, not Dotenv's repository interface. | [source][source-29] |
+| `Illuminate\Support\Env` | `get()` | `Env.get()` | `src/titanspan/support/env.py` | **Python-adapted parity** | `tests/unit/support/test_env.py::test_get_normalizes_dotenv_tokens_and_balanced_quotes` | Converts Laravel boolean, empty, null, and balanced quote literals; callable defaults are evaluated only when the value resolves as missing. | [source][source-29] |
+| `Illuminate\Support\Env` | `getOrFail()` | `Env.get_or_fail()` / `Env.getOrFail()` | `src/titanspan/support/env.py` | **Python-adapted parity** | `tests/unit/support/test_env.py::test_get_or_fail_returns_values_and_reports_missing_keys` | Raises Python `RuntimeError` for missing and null values. | [source][source-29] |
+| `Illuminate\Support\Env` | `writeVariables()` | `Env.write_variables()` / `Env.writeVariables()` | `src/titanspan/support/env.py` | **Python-adapted parity** | `tests/unit/support/test_env.py::test_write_variables_matches_laravel_grouping_and_overwrite_rules` | Restricts writes to valid variable names and single-line scalar values; preserves the existing newline convention. | [source][source-29] |
+| `Illuminate\Support\Env` | `writeVariable()` | `Env.write_variable()` / `Env.writeVariable()` | `src/titanspan/support/env.py` | **Python-adapted parity** | `tests/unit/support/test_env.py::test_write_variable_escapes_quotes_and_backslashes`; `test_write_variable_preserves_newline_style_and_trailing_newline` | Uses the same quote selection and escaping behavior while rejecting newline and NUL injection. | [source][source-29] |
 
 </details>
 
@@ -5259,7 +5262,7 @@ and [Timebox](https://github.com/laravel/framework/blob/8a8c4a84852869e13190d89f
 | `\Support.helpers.php` | `class_basename()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-147] |
 | `\Support.helpers.php` | `class_uses_recursive()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-147] |
 | `\Support.helpers.php` | `e()` | `e` | `src/titanspan/support/helpers.py` | **Python-adapted parity** | `tests/unit/support/test_helpers.py` | Delegates escaping, deferred values, trusted HTML, and encoder overrides to EncodedHtmlString; Python strings cannot contain invalid UTF-8 byte sequences. | [source][source-147] |
-| `\Support.helpers.php` | `env()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-147] |
+| `\Support.helpers.php` | `env()` | `env()` | `src/titanspan/support/helpers.py` | **Python-adapted parity** | `tests/unit/support/test_env.py::test_get_normalizes_dotenv_tokens_and_balanced_quotes` | Delegates to `Env.get`; process access follows Python `os.environ` semantics. | [source][source-147] |
 | `\Support.helpers.php` | `filled()` | `filled` | `src/titanspan/support/helpers.py` | **Python-adapted parity** | `tests/unit/support/test_helpers.py` | Uses Titanspan blank-value rules for Python containers and scalar values. | [source][source-147] |
 | `\Support.helpers.php` | `fluent()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-147] |
 | `\Support.helpers.php` | `literal()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-147] |

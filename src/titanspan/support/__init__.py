@@ -8,6 +8,7 @@ from titanspan.support.arr import Arr
 from titanspan.support.benchmark import Benchmark
 from titanspan.support.conditionable import Conditionable
 from titanspan.support.encoded_html_string import EncodedHtmlString
+from titanspan.support.env import Env
 from titanspan.support.exceptions import (
     ArrayConversionError,
     ArrayMutationError,
@@ -32,6 +33,7 @@ from titanspan.support.helpers import (
     data_set,
     e,
     enum_value,
+    env,
     filled,
     head,
     last,
@@ -65,6 +67,7 @@ __all__ = [
     "Benchmark",
     "Conditionable",
     "EncodedHtmlString",
+    "Env",
     "Fluent",
     "HigherOrderTapProxy",
     "HtmlString",
@@ -95,6 +98,7 @@ __all__ = [
     "data_set",
     "e",
     "enum_value",
+    "env",
     "filled",
     "head",
     "last",

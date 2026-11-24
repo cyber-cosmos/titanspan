@@ -9,6 +9,8 @@ The current implementation includes:
 - Shared value, nested-data, escaping, and exception helpers.
 - `Fluent` for typed, mutable attribute data and nested path access.
 - `Optional` for null-safe access and explicit method delegation.
+- `Env` and `env` for normalized process environment access, scoped adapters,
+  and explicit dotenv file updates.
 - `Str` for tested string transformations and validators.
 - `Stringable` for explicit chainable transformations over `Str`.
 - `HtmlString` and `EncodedHtmlString` for trusted markup and escaped text.
@@ -36,12 +38,13 @@ from titanspan.support import Arr, Conditionable, Macroable
 Value helpers are available from the same package:
 
 ```python
-from titanspan.support import blank, data_get, optional, tap
+from titanspan.support import blank, data_get, env, optional, tap
 
 profile = {"user": {"name": "Ada"}}
 assert data_get(profile, "user.name") == "Ada"
 assert blank("  ")
 assert optional(None).get("name") is None
+debug = env("TITANSPAN_DEBUG", False)
 ```
 
 The module has no optional AI, database, queue, or infrastructure
@@ -57,7 +60,8 @@ been verified. Macroable has tested explicit invocation equivalents for
 Laravel's dynamic calls. Conditionable supports direct callback forms;
 Laravel's higher-order proxy forms remain planned.
 
-See [arrays](./arrays), [Fluent](./fluent), [helpers](./helpers),
+See [arrays](./arrays), [environment utilities](./environment),
+[Fluent](./fluent), [helpers](./helpers),
 [message bags](./message-bag),
 [optional values](./optional), [strings](./strings), and [extensions](./extensions)
 for the implemented surface. See [URI utilities](./uris) and

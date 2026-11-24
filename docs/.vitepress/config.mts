@@ -50,6 +50,7 @@ export default defineConfig({
         items: [
           { text: "Overview", link: "/support/" },
           { text: "Arrays", link: "/support/arrays" },
+          { text: "Environment", link: "/support/environment" },
           { text: "Fluent", link: "/support/fluent" },
           { text: "Helpers", link: "/support/helpers" },
           { text: "Message bags", link: "/support/message-bag" },
