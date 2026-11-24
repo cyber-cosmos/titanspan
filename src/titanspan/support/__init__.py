@@ -62,6 +62,7 @@ from titanspan.support.html_string import HtmlString
 from titanspan.support.lottery import Lottery
 from titanspan.support.macroable import Macroable
 from titanspan.support.message_bag import MessageBag
+from titanspan.support.namespaced_item_resolver import NamespacedItemResolver
 from titanspan.support.number import Number, NumberParseType
 from titanspan.support.optional import Optional, optional, optional_async
 from titanspan.support.sleep import Sleep
@@ -103,6 +104,7 @@ __all__ = [
     "MessageBag",
     "MissingNumberDependencyError",
     "MultipleMatchingArrayItemsError",
+    "NamespacedItemResolver",
     "NoMatchingArrayItemError",
     "NonAdvancingNumberRangeError",
     "Number",

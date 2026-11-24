@@ -30,12 +30,12 @@ A method is not counted as compatible because it has a similarly named Python me
 ## Measured status
 
 - Exact behavioural parity: 0.
-- Python-adapted parity: 439.
+- Python-adapted parity: 442.
 - Delegated: 0.
 - Blocked: 3141.
 - Not applicable: 32.
-- Pending: 438.
-- Verified compatibility: 439/4050 listed member entries (10.84%).
+- Pending: 435.
+- Verified compatibility: 442/4050 listed member entries (10.91%).
 
 For the timing utilities in this implementation slice, behavior was checked
 against the pinned upstream tests for [Benchmark](https://github.com/laravel/framework/blob/8a8c4a84852869e13190d89f9da873cd9a70f14c/tests/Support/SupportBenchmarkTest.php),
@@ -49,6 +49,8 @@ Configuration URL parsing follows the pinned
 and its SQL Server DSN parser trait. The Python implementation uses the
 standard library and keeps the mutable alias registry behind a thread-safe
 registration method.
+Namespaced item parsing and cache behavior are traced to the pinned
+[NamespacedItemResolver tests](https://github.com/laravel/framework/blob/8a8c4a84852869e13190d89f9da873cd9a70f14c/tests/Support/SupportNamespacedItemResolverTest.php).
 
 ## Method-level inventory
 
@@ -3994,9 +3996,9 @@ registration method.
 
 | Upstream class | Upstream API | Titanspan API | Implementation location | Compatibility status | Test evidence | Differences | Upstream reference |
 |---|---|---|---|---|---|---|---|
-| `Illuminate\Support\NamespacedItemResolver` | `parseKey()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-92] |
-| `Illuminate\Support\NamespacedItemResolver` | `setParsedKey()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-92] |
-| `Illuminate\Support\NamespacedItemResolver` | `flushParsedKeys()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-92] |
+| `Illuminate\Support\NamespacedItemResolver` | `parseKey()` | `NamespacedItemResolver.parse_key()`, `NamespacedItemResolver.parseKey()` | `src/titanspan/support/namespaced_item_resolver.py` | **Python-adapted parity** | `tests/unit/support/test_namespaced_item_resolver.py::test_parse_key_splits_namespace_group_and_item` | Returns a fresh Python list on every call so caller mutation cannot change cached results. | [source][source-92] |
+| `Illuminate\Support\NamespacedItemResolver` | `setParsedKey()` | `NamespacedItemResolver.set_parsed_key()`, `NamespacedItemResolver.setParsedKey()` | `src/titanspan/support/namespaced_item_resolver.py` | **Python-adapted parity** | `tests/unit/support/test_namespaced_item_resolver.py::test_explicitly_cached_keys_skip_parsing_and_are_copied` | Accepts a typed sequence of string or null segments and stores an immutable snapshot. | [source][source-92] |
+| `Illuminate\Support\NamespacedItemResolver` | `flushParsedKeys()` | `NamespacedItemResolver.flush_parsed_keys()`, `NamespacedItemResolver.flushParsedKeys()` | `src/titanspan/support/namespaced_item_resolver.py` | **Python-adapted parity** | `tests/unit/support/test_namespaced_item_resolver.py::test_camel_case_aliases_share_the_python_implementations` | Clears only the instance-local parsed-key cache. | [source][source-92] |
 
 </details>
 
@@ -5437,3 +5439,4 @@ registration method.
 [source-145]: https://github.com/laravel/framework/blob/8a8c4a84852869e13190d89f9da873cd9a70f14c/src/Illuminate/Collections/helpers.php
 [source-146]: https://github.com/laravel/framework/blob/8a8c4a84852869e13190d89f9da873cd9a70f14c/src/Illuminate/Reflection/helpers.php
 [source-147]: https://github.com/laravel/framework/blob/8a8c4a84852869e13190d89f9da873cd9a70f14c/src/Illuminate/Support/helpers.php
+[source-148]: https://github.com/laravel/framework/blob/8a8c4a84852869e13190d89f9da873cd9a70f14c/tests/Support/SupportNamespacedItemResolverTest.php

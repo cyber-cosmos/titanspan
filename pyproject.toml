@@ -168,6 +168,9 @@ ignore = [
     "N802", # Preserve Illuminate's public camelCase method aliases.
     "N815", # Preserve Illuminate's class-level camelCase method aliases.
 ]
+"src/titanspan/support/namespaced_item_resolver.py" = [
+    "N815", # Preserve Illuminate's class-level camelCase method aliases.
+]
 "src/titanspan/support/conditionable.py" = [
     "N815", # Laravel-compatible async aliases retain camelCase.
 ]

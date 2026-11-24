@@ -19,6 +19,8 @@ The current implementation includes:
   identifiers, with process-local custom codec registration.
 - `ConfigurationUrlParser` for database connection URLs, nested query
   options, driver aliases, and SQL Server DSN parsing.
+- `NamespacedItemResolver` for resolving dotted and namespaced keys with a
+  per-instance parsed-value cache.
 - `HtmlString` and `EncodedHtmlString` for trusted markup and escaped text.
 - `MessageBag` for keyed messages, wildcard reads, formatting, and JSON output.
 - `Benchmark`, `Lottery`, `Sleep`, and `Timebox` for measured execution,
@@ -79,4 +81,5 @@ waiting. See [Number utilities](./numbers) for numeric formatting, locale
 scopes, optional dependencies, and Python-specific behavior, and
 [binary codecs](./binary-codecs) for UUID and ULID conversion.
 See [configuration URLs](./configuration-urls) for parsing database URLs and
-SQL Server DSN values.
+SQL Server DSN values, and [namespaced item keys](./namespaced-items) for
+dotted-key parsing and cache control.

@@ -63,6 +63,10 @@ export default defineConfig({
             text: "Configuration URLs",
             link: "/support/configuration-urls",
           },
+          {
+            text: "Namespaced items",
+            link: "/support/namespaced-items",
+          },
           { text: "URI utilities", link: "/support/uris" },
           { text: "Timing utilities", link: "/support/timing" },
           { text: "Sleep", link: "/support/sleep" },
