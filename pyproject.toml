@@ -210,6 +210,10 @@ ignore = [
     "N802", # Preserve the Laravel-compatible earlyReturn property.
     "N815", # Laravel-compatible aliases intentionally retain camelCase.
 ]
+"src/titanspan/support/sleep.py" = [
+    "N802", # Preserve the Laravel-compatible fakeSleepCallbacks property.
+    "N815", # Preserve Laravel-compatible camelCase assertion aliases.
+]
 "src/titanspan/contracts/htmlable.py" = [
     "N802", # Preserve the Laravel-compatible Protocol method spelling.
 ]

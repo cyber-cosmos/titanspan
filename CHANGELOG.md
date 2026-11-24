@@ -7,5 +7,7 @@ public release.
 
 - Established the installable package, CLI, FastAPI application lifecycle,
   Dishka dependency integration, and typed settings.
+- Added explicit synchronous and AnyIO-based asynchronous Support sleep
+  builders with context-local fakes and upstream-compatible assertions.
 - Added initial tests, architecture decisions, contributor documentation, and
   repository automation.

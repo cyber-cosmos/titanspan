@@ -13,6 +13,9 @@ independent project and is not affiliated with or endorsed by Laravel. The
 current Python Support implementation is written for Titanspan; this notice
 preserves attribution for the upstream API and behavior reference. Future
 adaptations of upstream source or tests must retain applicable notices.
+Sleep compatibility tests translate behavior from Laravel's upstream test
+suite; the pinned source and test paths are listed in the compatibility
+inventory.
 
 Copyright (c) Taylor Otwell
 
@@ -37,7 +40,8 @@ SOFTWARE.
 ## AnyIO
 
 Titanspan uses AnyIO for backend-neutral asynchronous waiting in the Support
-timebox. Titanspan does not adapt or redistribute AnyIO source code.
+timebox and Sleep utilities. Titanspan does not adapt or redistribute AnyIO
+source code.
 
 AnyIO 4.16.0 is distributed under the MIT License. Copyright (c) 2018 Alex
 Grönholm. See the [official AnyIO 4.16.0 license](https://github.com/agronholm/anyio/blob/4.16.0/LICENSE)

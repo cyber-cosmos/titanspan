@@ -12,7 +12,7 @@ The baseline is pinned to an immutable commit rather than the moving `13.x` bran
 
 ## Inventory scope and measurement
 
-The source scan accounts for **147 declared symbols** and **4048 member entries**: 4025 declared public methods, documented facade `@method` proxies, and namespace-level helper functions; 13 public constants; and 10 public properties. Each member is listed below. The scan covers Support, Collections, Macroable, Conditionable, Reflection, and Contracts/Support source trees so cross-package ownership remains visible.
+The source scan accounts for **147 declared symbols** and **4050 member entries**: 4025 declared public methods, documented facade `@method` proxies, and namespace-level helper functions; 13 public constants; and 12 public properties. Each member is listed below. The scan covers Support, Collections, Macroable, Conditionable, Reflection, and Contracts/Support source trees so cross-package ownership remains visible.
 
 This source scan is not a complete PHP reflection dump. Inherited methods not declared or documented on a symbol are not expanded into a separate row, and PHPDoc parameter and return signatures are not normalized yet. Those inherited surfaces and signatures remain audit work; the compatibility percentage below is a lower bound over listed entries, not a claim that the entire Illuminate ecosystem is covered.
 
@@ -30,17 +30,17 @@ A method is not counted as compatible because it has a similarly named Python me
 ## Measured status
 
 - Exact behavioural parity: 0.
-- Python-adapted parity: 372.
+- Python-adapted parity: 400.
 - Delegated: 0.
-- Blocked: 3140.
-- Not applicable: 31.
-- Pending: 505.
-- Verified compatibility: 372/4048 listed member entries (9.19%).
+- Blocked: 3141.
+- Not applicable: 32.
+- Pending: 477.
+- Verified compatibility: 400/4050 listed member entries (9.88%).
 
 For the timing utilities in this implementation slice, behavior was checked
 against the pinned upstream tests for [Benchmark](https://github.com/laravel/framework/blob/8a8c4a84852869e13190d89f9da873cd9a70f14c/tests/Support/SupportBenchmarkTest.php),
 [Lottery](https://github.com/laravel/framework/blob/8a8c4a84852869e13190d89f9da873cd9a70f14c/tests/Support/LotteryTest.php),
-and [Timebox](https://github.com/laravel/framework/blob/8a8c4a84852869e13190d89f9da873cd9a70f14c/tests/Support/SupportTimeboxTest.php).
+and [Timebox](https://github.com/laravel/framework/blob/8a8c4a84852869e13190d89f9da873cd9a70f14c/tests/Support/SupportTimeboxTest.php). Sleep behavior is traced to the pinned [Sleep tests](https://github.com/laravel/framework/blob/8a8c4a84852869e13190d89f9da873cd9a70f14c/tests/Support/SleepTest.php).
 
 ## Method-level inventory
 
@@ -4206,38 +4206,40 @@ and [Timebox](https://github.com/laravel/framework/blob/8a8c4a84852869e13190d89f
 </details>
 
 <details>
-<summary>Illuminate\Support\Sleep — 28 listed public members (class)</summary>
+<summary>Illuminate\Support\Sleep — 30 listed public members and properties (class)</summary>
 
 | Upstream class | Upstream API | Titanspan API | Implementation location | Compatibility status | Test evidence | Differences | Upstream reference |
 |---|---|---|---|---|---|---|---|
-| `Illuminate\Support\Sleep` | `__construct()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-108] |
-| `Illuminate\Support\Sleep` | `for()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-108] |
-| `Illuminate\Support\Sleep` | `until()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-108] |
-| `Illuminate\Support\Sleep` | `usleep()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-108] |
-| `Illuminate\Support\Sleep` | `sleep()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-108] |
-| `Illuminate\Support\Sleep` | `minutes()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-108] |
-| `Illuminate\Support\Sleep` | `minute()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-108] |
-| `Illuminate\Support\Sleep` | `seconds()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-108] |
-| `Illuminate\Support\Sleep` | `second()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-108] |
-| `Illuminate\Support\Sleep` | `milliseconds()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-108] |
-| `Illuminate\Support\Sleep` | `millisecond()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-108] |
-| `Illuminate\Support\Sleep` | `microseconds()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-108] |
-| `Illuminate\Support\Sleep` | `microsecond()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-108] |
-| `Illuminate\Support\Sleep` | `and()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-108] |
-| `Illuminate\Support\Sleep` | `while()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-108] |
-| `Illuminate\Support\Sleep` | `then()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-108] |
-| `Illuminate\Support\Sleep` | `__destruct()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-108] |
-| `Illuminate\Support\Sleep` | `fake()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-108] |
-| `Illuminate\Support\Sleep` | `assertSlept()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-108] |
-| `Illuminate\Support\Sleep` | `assertSleptTimes()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-108] |
-| `Illuminate\Support\Sleep` | `assertSequence()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-108] |
-| `Illuminate\Support\Sleep` | `assertNeverSlept()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-108] |
-| `Illuminate\Support\Sleep` | `assertInsomniac()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-108] |
-| `Illuminate\Support\Sleep` | `when()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-108] |
-| `Illuminate\Support\Sleep` | `unless()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-108] |
-| `Illuminate\Support\Sleep` | `whenFakingSleep()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-108] |
-| `Illuminate\Support\Sleep` | `syncWithCarbon()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-108] |
-| `Illuminate\Support\Sleep` | `fakeSleepCallbacks` (property) | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-108] |
+| `Illuminate\Support\Sleep` | `__construct()` | `Sleep(duration)` | `src/titanspan/support/sleep.py` | **Python-adapted parity** | `tests/unit/support/test_sleep.py::test_duration_builder_supports_all_units_and_chaining` | Accepts finite numeric durations or `datetime.timedelta`; negative complete durations clamp to zero. | [source][source-108] |
+| `Illuminate\Support\Sleep` | `for()` | `Sleep.for_()` | `src/titanspan/support/sleep.py` | **Python-adapted parity** | `tests/unit/support/test_sleep.py::test_duration_builder_supports_all_units_and_chaining` | The reserved Python keyword is exposed as `for_`; execution is explicit through `sleep_sync` or `sleep_async`. | [source][source-108] |
+| `Illuminate\Support\Sleep` | `until()` | `Sleep.until()` | `src/titanspan/support/sleep.py` | **Python-adapted parity** | `tests/unit/support/test_sleep.py::test_timestamp_factory_uses_an_injected_clock` | Accepts `datetime` and Unix timestamps, with an injectable clock; Carbon test clocks are not integrated. | [source][source-108] |
+| `Illuminate\Support\Sleep` | `usleep()` | `Sleep.usleep()` | `src/titanspan/support/sleep.py` | **Python-adapted parity** | `tests/unit/support/test_sleep.py::test_singular_units_and_static_factories_match_plural_units` | Returns a completed builder; callers explicitly execute it. | [source][source-108] |
+| `Illuminate\Support\Sleep` | `sleep()` | `Sleep.sleep()` | `src/titanspan/support/sleep.py` | **Python-adapted parity** | `tests/unit/support/test_sleep.py::test_singular_units_and_static_factories_match_plural_units` | Returns a completed builder; callers explicitly execute it. | [source][source-108] |
+| `Illuminate\Support\Sleep` | `minutes()` | `Sleep.minutes()` | `src/titanspan/support/sleep.py` | **Python-adapted parity** | `tests/unit/support/test_sleep.py::test_duration_builder_supports_all_units_and_chaining` | Python `timedelta` precision and range apply. | [source][source-108] |
+| `Illuminate\Support\Sleep` | `minute()` | `Sleep.minute()` | `src/titanspan/support/sleep.py` | **Python-adapted parity** | `tests/unit/support/test_sleep.py::test_singular_units_and_static_factories_match_plural_units` | Python `timedelta` precision and range apply. | [source][source-108] |
+| `Illuminate\Support\Sleep` | `seconds()` | `Sleep.seconds()` | `src/titanspan/support/sleep.py` | **Python-adapted parity** | `tests/unit/support/test_sleep.py::test_duration_builder_supports_all_units_and_chaining` | Python `timedelta` precision and range apply. | [source][source-108] |
+| `Illuminate\Support\Sleep` | `second()` | `Sleep.second()` | `src/titanspan/support/sleep.py` | **Python-adapted parity** | `tests/unit/support/test_sleep.py::test_singular_units_and_static_factories_match_plural_units` | Python `timedelta` precision and range apply. | [source][source-108] |
+| `Illuminate\Support\Sleep` | `milliseconds()` | `Sleep.milliseconds()` | `src/titanspan/support/sleep.py` | **Python-adapted parity** | `tests/unit/support/test_sleep.py::test_duration_builder_supports_all_units_and_chaining` | Python `timedelta` precision and range apply. | [source][source-108] |
+| `Illuminate\Support\Sleep` | `millisecond()` | `Sleep.millisecond()` | `src/titanspan/support/sleep.py` | **Python-adapted parity** | `tests/unit/support/test_sleep.py::test_singular_units_and_static_factories_match_plural_units` | Python `timedelta` precision and range apply. | [source][source-108] |
+| `Illuminate\Support\Sleep` | `microseconds()` | `Sleep.microseconds()` | `src/titanspan/support/sleep.py` | **Python-adapted parity** | `tests/unit/support/test_sleep.py::test_fractional_microseconds_truncate_to_python_time_resolution` | Fractional values truncate at the smallest representable unit: one microsecond. | [source][source-108] |
+| `Illuminate\Support\Sleep` | `microsecond()` | `Sleep.microsecond()` | `src/titanspan/support/sleep.py` | **Python-adapted parity** | `tests/unit/support/test_sleep.py::test_singular_units_and_static_factories_match_plural_units` | Fractional values truncate at the smallest representable unit: one microsecond. | [source][source-108] |
+| `Illuminate\Support\Sleep` | `and()` | `Sleep.and_()` | `src/titanspan/support/sleep.py` | **Python-adapted parity** | `tests/unit/support/test_sleep.py::test_duration_builder_supports_all_units_and_chaining` | The reserved Python keyword is exposed as `and_`. | [source][source-108] |
+| `Illuminate\Support\Sleep` | `while()` | `Sleep.while_()` / `Sleep.while_async()` | `src/titanspan/support/sleep.py` | **Python-adapted parity** | `tests/unit/support/test_sleep.py::test_while_callback_controls_repeat_count` | The reserved keyword is exposed as `while_`; `while_async` is a Titanspan extension. Fake sleep records once and does not evaluate the predicate. | [source][source-108] |
+| `Illuminate\Support\Sleep` | `then()` | `Sleep.then()` / `Sleep.then_async()` | `src/titanspan/support/sleep.py` | **Python-adapted parity** | `tests/unit/support/test_sleep.py::test_then_executes_after_sync_sleep_and_does_not_sleep_twice` | Waiting is explicit; `then_async` is a Titanspan extension and does not create an event loop. | [source][source-108] |
+| `Illuminate\Support\Sleep` | `__destruct()` | — | — | **Not applicable** | — | Destructor-triggered waiting would block unpredictably during Python garbage collection; use explicit execution methods. | [source][source-108] |
+| `Illuminate\Support\Sleep` | `fake()` | `Sleep.fake()` | `src/titanspan/support/sleep.py` | **Python-adapted parity** | `tests/unit/support/test_sleep.py::test_explicit_sleep_fake_records_duration_without_blocking` | Fake state is context-local. Carbon clock synchronization is not part of this method. | [source][source-108] |
+| `Illuminate\Support\Sleep` | `assertSlept()` | `Sleep.assert_slept()` / `Sleep.assertSlept()` | `src/titanspan/support/sleep.py` | **Python-adapted parity** | `tests/unit/support/test_sleep.py::test_explicit_sleep_fake_records_duration_without_blocking` | Accepts a `timedelta`, a Sleep builder, or a Python predicate over recorded `timedelta` values. | [source][source-108] |
+| `Illuminate\Support\Sleep` | `assertSleptTimes()` | `Sleep.assert_slept_times()` / `Sleep.assertSleptTimes()` | `src/titanspan/support/sleep.py` | **Python-adapted parity** | `tests/unit/support/test_sleep.py::test_assertions_report_sleep_count_duration_and_insomniac_state` | Assertion counts must be non-negative Python integers; booleans are rejected. | [source][source-108] |
+| `Illuminate\Support\Sleep` | `assertSequence()` | `Sleep.assert_sequence()` / `Sleep.assertSequence()` | `src/titanspan/support/sleep.py` | **Python-adapted parity** | `tests/unit/support/test_sleep.py::test_assert_sequence_cleans_expected_builders_on_failure` | Sequences compare `timedelta` values and always disable expected Sleep builders after the assertion. | [source][source-108] |
+| `Illuminate\Support\Sleep` | `assertNeverSlept()` | `Sleep.assert_never_slept()` / `Sleep.assertNeverSlept()` | `src/titanspan/support/sleep.py` | **Python-adapted parity** | `tests/unit/support/test_sleep.py::test_assertions_report_sleep_count_duration_and_insomniac_state` | Checks that the context-local fake sequence is empty. | [source][source-108] |
+| `Illuminate\Support\Sleep` | `assertInsomniac()` | `Sleep.assert_insomniac()` / `Sleep.assertInsomniac()` | `src/titanspan/support/sleep.py` | **Python-adapted parity** | `tests/unit/support/test_sleep.py::test_assertions_report_sleep_count_duration_and_insomniac_state` | Accepts zero-duration fake entries and rejects positive durations. | [source][source-108] |
+| `Illuminate\Support\Sleep` | `when()` | `Sleep.when()` / `Sleep.when_async()` | `src/titanspan/support/sleep.py` | **Python-adapted parity** | `tests/unit/support/test_sleep.py::test_condition_methods_skip_or_enable_sleep` | The async condition form is a Titanspan extension; synchronous callbacks returning awaitables are rejected. | [source][source-108] |
+| `Illuminate\Support\Sleep` | `unless()` | `Sleep.unless()` / `Sleep.unless_async()` | `src/titanspan/support/sleep.py` | **Python-adapted parity** | `tests/unit/support/test_sleep.py::test_condition_methods_skip_or_enable_sleep` | The async condition form is a Titanspan extension; synchronous callbacks returning awaitables are rejected. | [source][source-108] |
+| `Illuminate\Support\Sleep` | `whenFakingSleep()` | `Sleep.when_faking_sleep()` / `Sleep.whenFakingSleep()` | `src/titanspan/support/sleep.py` | **Python-adapted parity** | `tests/unit/support/test_sleep.py::test_sleep_fake_aliases_and_callback_property_are_context_local` | Callbacks receive Python `timedelta` values and are held in context-local fake state. | [source][source-108] |
+| `Illuminate\Support\Sleep` | `syncWithCarbon()` | — | — | **Blocked** | — | Requires a Carbon-compatible clock service; Titanspan has no canonical date factory or test clock yet. | [source][source-108] |
+| `Illuminate\Support\Sleep` | `fakeSleepCallbacks` (property) | `Sleep.fake_sleep_callbacks` / `Sleep.fakeSleepCallbacks` | `src/titanspan/support/sleep.py` | **Python-adapted parity** | `tests/unit/support/test_sleep.py::test_sleep_fake_aliases_and_callback_property_are_context_local` | The class-level property exposes the active context callback list rather than process-global mutable state. | [source][source-108] |
+| `Illuminate\Support\Sleep` | `duration` (property) | `Sleep.duration` | `src/titanspan/support/sleep.py` | **Python-adapted parity** | `tests/unit/support/test_sleep.py::test_public_duration_and_repeat_properties_can_be_replaced` | The property can be assigned a new immutable `datetime.timedelta`; CarbonInterval in-place mutation is not reproduced. | [source][source-108] |
+| `Illuminate\Support\Sleep` | `while` (property) | `Sleep.while_callback` | `src/titanspan/support/sleep.py` | **Python-adapted parity** | `tests/unit/support/test_sleep.py::test_public_duration_and_repeat_properties_can_be_replaced` | Writable Python property for the repetition callback; callable builder methods are `while_` and `while_async`. | [source][source-108] |
 
 </details>
 

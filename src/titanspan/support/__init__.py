@@ -48,6 +48,7 @@ from titanspan.support.lottery import Lottery
 from titanspan.support.macroable import Macroable
 from titanspan.support.message_bag import MessageBag
 from titanspan.support.optional import Optional, optional, optional_async
+from titanspan.support.sleep import Sleep
 from titanspan.support.str import Str
 from titanspan.support.stringable import Stringable
 from titanspan.support.tappable import Tappable
@@ -78,6 +79,7 @@ __all__ = [
     "NoMatchingArrayItemError",
     "Optional",
     "RandomSelectionError",
+    "Sleep",
     "Str",
     "Stringable",
     "Tappable",
