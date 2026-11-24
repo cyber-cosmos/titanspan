@@ -11,7 +11,7 @@ from titanspan.console.cli import _show_version, app, root_command
 
 def test_help_lists_the_version_option() -> None:
     """Show usage and the version option in the top-level help."""
-    result = CliRunner().invoke(app, ["--help"])
+    result = CliRunner().invoke(app, ["--help"], color=False)
 
     assert result.exit_code == 0
     assert "Usage:" in result.stdout
@@ -20,7 +20,7 @@ def test_help_lists_the_version_option() -> None:
 
 def test_version_prints_the_distribution_version() -> None:
     """Print the distribution version and exit successfully."""
-    result = CliRunner().invoke(app, ["--version"])
+    result = CliRunner().invoke(app, ["--version"], color=False)
 
     assert result.exit_code == 0
     assert "Titanspan 0.1.0.dev0" in result.stdout
