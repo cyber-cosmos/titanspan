@@ -7,10 +7,13 @@ insert_final_newline = true
 indent_style = space
 indent_size = 4
 trim_trailing_whitespace = true
+max_line_length = 80
+
+[*.{js,ts,jsx,tsx,mjs,mts}]
+indent_size = 2
 
 [*.{yml,yaml}]
 indent_size = 2
 
 [Makefile]
 indent_style = tab
-

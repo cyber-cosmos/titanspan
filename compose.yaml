@@ -64,4 +64,3 @@ volumes:
   postgres-data:
   pgvector-data:
   redis-data:
-

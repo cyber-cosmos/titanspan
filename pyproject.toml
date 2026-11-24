@@ -10,13 +10,7 @@ readme = "README.md"
 requires-python = ">=3.12"
 license = "MIT"
 authors = [{ name = "Cyber Cosmos" }]
-keywords = [
-    "ai",
-    "async",
-    "framework",
-    "python",
-    "workflow-orchestration",
-]
+keywords = ["ai", "async", "framework", "python", "workflow-orchestration"]
 classifiers = [
     "Development Status :: 2 - Pre-Alpha",
     "Framework :: FastAPI",
@@ -126,4 +120,3 @@ include = ["src"]
 exclude = ["**/__pycache__", "tests", "benchmarks"]
 venvPath = "."
 venv = ".venv"
-
