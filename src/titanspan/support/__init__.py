@@ -6,6 +6,7 @@ values, macro and conditional mixins, and typed support exceptions.
 
 from titanspan.support.arr import Arr
 from titanspan.support.benchmark import Benchmark
+from titanspan.support.binary_codec import BinaryCodec
 from titanspan.support.conditionable import Conditionable
 from titanspan.support.encoded_html_string import EncodedHtmlString
 from titanspan.support.env import Env
@@ -77,6 +78,7 @@ __all__ = [
     "ArrayValueError",
     "AsyncCallbackUsageError",
     "Benchmark",
+    "BinaryCodec",
     "Conditionable",
     "EncodedHtmlString",
     "Env",

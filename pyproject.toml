@@ -159,6 +159,11 @@ ignore = [
 "src/titanspan/support/arr.py" = [
     "N815", # Laravel-compatible aliases intentionally retain camelCase.
 ]
+"src/titanspan/support/binary_codec.py" = [
+    "A002", # Preserve Laravel's public format parameter name.
+    "N802", # Preserve Laravel's isBinary compatibility method.
+    "N815", # Preserve Laravel's isBinary compatibility alias.
+]
 "src/titanspan/support/conditionable.py" = [
     "N815", # Laravel-compatible async aliases retain camelCase.
 ]

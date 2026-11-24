@@ -30,12 +30,12 @@ A method is not counted as compatible because it has a similarly named Python me
 ## Measured status
 
 - Exact behavioural parity: 0.
-- Python-adapted parity: 431.
+- Python-adapted parity: 436.
 - Delegated: 0.
 - Blocked: 3141.
 - Not applicable: 32.
-- Pending: 446.
-- Verified compatibility: 431/4050 listed member entries (10.64%).
+- Pending: 441.
+- Verified compatibility: 436/4050 listed member entries (10.77%).
 
 For the timing utilities in this implementation slice, behavior was checked
 against the pinned upstream tests for [Benchmark](https://github.com/laravel/framework/blob/8a8c4a84852869e13190d89f9da873cd9a70f14c/tests/Support/SupportBenchmarkTest.php),
@@ -260,11 +260,11 @@ and [environment bootstrap tests](https://github.com/laravel/framework/blob/8a8c
 
 | Upstream class | Upstream API | Titanspan API | Implementation location | Compatibility status | Test evidence | Differences | Upstream reference |
 |---|---|---|---|---|---|---|---|
-| `Illuminate\Support\BinaryCodec` | `register()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-16] |
-| `Illuminate\Support\BinaryCodec` | `encode()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-16] |
-| `Illuminate\Support\BinaryCodec` | `decode()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-16] |
-| `Illuminate\Support\BinaryCodec` | `formats()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-16] |
-| `Illuminate\Support\BinaryCodec` | `isBinary()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-16] |
+| `Illuminate\Support\BinaryCodec` | `register()` | `BinaryCodec.register()` | `src/titanspan/support/binary_codec.py` | **Python-adapted parity** | `tests/unit/support/test_binary_codec.py` | Uses Python callbacks and a thread-safe process-local registry. | [source][source-16] |
+| `Illuminate\Support\BinaryCodec` | `encode()` | `BinaryCodec.encode()` | `src/titanspan/support/binary_codec.py` | **Python-adapted parity** | `tests/unit/support/test_binary_codec.py`; `tests/integration/support/test_binary_codec_integration.py` | Returns `bytes`; accepts `uuid.UUID` and byte-convertible ULID objects. | [source][source-16] |
+| `Illuminate\Support\BinaryCodec` | `decode()` | `BinaryCodec.decode()` | `src/titanspan/support/binary_codec.py` | **Python-adapted parity** | `tests/unit/support/test_binary_codec.py`; `tests/integration/support/test_binary_codec_integration.py` | Accepts `str` or `bytes` and returns canonical Python text. | [source][source-16] |
+| `Illuminate\Support\BinaryCodec` | `formats()` | `BinaryCodec.formats()` | `src/titanspan/support/binary_codec.py` | **Python-adapted parity** | `tests/unit/support/test_binary_codec.py` | Returns an ordered Python list with duplicate names removed. | [source][source-16] |
+| `Illuminate\Support\BinaryCodec` | `isBinary()` | `BinaryCodec.isBinary()`, `BinaryCodec.is_binary()` | `src/titanspan/support/binary_codec.py` | **Python-adapted parity** | `tests/unit/support/test_binary_codec.py` | Preserves the Laravel spelling and provides a Python alias; bytes are checked as UTF-8. | [source][source-16] |
 
 </details>
 

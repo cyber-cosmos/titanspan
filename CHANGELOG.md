@@ -16,5 +16,7 @@ public release.
 - Added locale-aware numeric formatting, parsing, spelling, summaries, and
   context-local locale and currency scopes through the optional `numbers`
   extra.
+- Added UUID and ULID binary codecs with typed custom codec registration and
+  Python byte interoperability.
 - Added initial tests, architecture decisions, contributor documentation, and
   repository automation.
