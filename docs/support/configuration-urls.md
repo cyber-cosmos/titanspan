@@ -17,7 +17,7 @@ from titanspan.support import ConfigurationUrlParser
 parser = ConfigurationUrlParser()
 settings = parser.parse_configuration(
     {
-        "url": "postgresql://app:p%40ss@db.example.test/catalog",
+        "url": "postgresql://db.example.test/catalog",
         "port": 5432,
         "pool_size": 10,
     }
@@ -28,8 +28,6 @@ assert settings == {
     "database": "catalog",
     "host": "db.example.test",
     "port": 5432,
-    "username": "app",
-    "password": "p@ss",
     "pool_size": 10,
 }
 ```

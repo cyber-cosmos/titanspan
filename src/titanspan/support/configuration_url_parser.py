@@ -36,7 +36,7 @@ _SQL_SERVER_OPTION_ALIASES = {
     "encrypt": "encrypt",
     "keystoreauthentication": "key_store_authentication",
     "keystoreprincipalid": "key_store_principal_id",
-    "keystoresecret": "key_store_secret",
+    "keystoresecret": "key_store_secret",  # pragma: allowlist secret
     "logintimeout": "login_timeout",
     "multipleactiveresultsets": "multiple_active_result_sets",
     "multisubnetfailover": "multi_subnet_failover",

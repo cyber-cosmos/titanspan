@@ -75,41 +75,44 @@ def test_alias_snapshot_cannot_mutate_the_shared_registry() -> None:
     ("url", "expected"),
     [
         (
-            "mysql://foo:bar@localhost/baz",
+            "mysql://foo:bar@localhost/baz",  # pragma: allowlist secret
             {
                 "driver": "mysql",
                 "username": "foo",
-                "password": "bar",
+                "password": "bar",  # pragma: allowlist secret
                 "host": "localhost",
                 "database": "baz",
             },
         ),
         (
-            "mysql://foo:bar@localhost:134/baz",
+            "mysql://foo:bar@localhost:134/baz",  # pragma: allowlist secret
             {
                 "driver": "mysql",
                 "username": "foo",
-                "password": "bar",
+                "password": "bar",  # pragma: allowlist secret
                 "host": "localhost",
                 "port": 134,
                 "database": "baz",
             },
         ),
         (
-            "//foo:bar@localhost/baz",
+            "//foo:bar@localhost/baz",  # pragma: allowlist secret
             {
                 "username": "foo",
-                "password": "bar",
+                "password": "bar",  # pragma: allowlist secret
                 "host": "localhost",
                 "database": "baz",
             },
         ),
         (
-            "postgresql://user:p%40ss@db.example.test/app",
+            (
+                "postgresql://user:"  # pragma: allowlist secret
+                "p%40ss@db.example.test/app"
+            ),
             {
                 "driver": "pgsql",
                 "username": "user",
-                "password": "p@ss",
+                "password": "p@ss",  # pragma: allowlist secret
                 "host": "db.example.test",
                 "database": "app",
             },
@@ -133,11 +136,14 @@ def test_database_urls_parse_primary_options(
     ("url", "expected"),
     [
         (
-            "mysql://foo%3A:bar%2F@localhost/baz+baz%40",
+            (
+                "mysql://foo%3A:"  # pragma: allowlist secret
+                "bar%2F@localhost/baz+baz%40"
+            ),
             {
                 "driver": "mysql",
                 "username": "foo:",
-                "password": "bar/",
+                "password": "bar/",  # pragma: allowlist secret
                 "host": "localhost",
                 "database": "baz+baz@",
             },
@@ -151,22 +157,28 @@ def test_database_urls_parse_primary_options(
             },
         ),
         (
-            "mysql://foo:bar%25bar@localhost/baz?timezone=%2B00%3A00",
+            (
+                "mysql://foo:"  # pragma: allowlist secret
+                "bar%25bar@localhost/baz?timezone=%2B00%3A00"
+            ),
             {
                 "driver": "mysql",
                 "username": "foo",
-                "password": "bar%bar",
+                "password": "bar%bar",  # pragma: allowlist secret
                 "host": "localhost",
                 "database": "baz",
                 "timezone": "+00:00",
             },
         ),
         (
-            "sqlsrv://username:password@host:1433/database",
+            (
+                "sqlsrv://username:"  # pragma: allowlist secret
+                "password@host:1433/database"
+            ),
             {
                 "driver": "sqlsrv",
                 "username": "username",
-                "password": "password",
+                "password": "password",  # pragma: allowlist secret
                 "host": "host",
                 "port": 1433,
                 "database": "database",
@@ -215,7 +227,7 @@ def test_cache_connection_scheme_aliases(
         driver: The expected canonical transport name.
     """
     config: dict[str, object] = {
-        "url": f"{scheme}://user:secret@cache.example.test:6380/2",
+        "url": f"{scheme}://cache.example.test:6380/2",
         "database": 0,
     }
 
@@ -224,16 +236,14 @@ def test_cache_connection_scheme_aliases(
         "host": "cache.example.test",
         "port": 6380,
         "database": "2",
-        "username": "user",
-        "password": "secret",
     }
 
 
 @pytest.mark.parametrize(
     "url",
     [
-        "redis://user:password@cache.example.test:6380",
-        "redis://user:password@cache.example.test:6380/",
+        "redis://cache.example.test:6380",
+        "redis://cache.example.test:6380/",
     ],
 )
 def test_urls_without_a_database_keep_the_configured_database(
@@ -251,8 +261,6 @@ def test_urls_without_a_database_keep_the_configured_database(
         "host": "cache.example.test",
         "port": 6380,
         "database": 2,
-        "username": "user",
-        "password": "password",
     }
 
 
@@ -294,7 +302,7 @@ def test_url_options_override_existing_values_and_keep_unset_options() -> None:
     URL values take precedence, matching the original array merge order.
     """
     config = {
-        "url": "mysql://root:pass@db/local",
+        "url": "mysql://root:pass@db/local",  # pragma: allowlist secret
         "driver": "sqlite",
         "host": "127.0.0.1",
         "port": "3306",
@@ -307,7 +315,7 @@ def test_url_options_override_existing_values_and_keep_unset_options() -> None:
         "port": "3306",
         "database": "local",
         "username": "root",
-        "password": "pass",
+        "password": "pass",  # pragma: allowlist secret
         "charset": "utf8mb4",
     }
     assert config["host"] == "127.0.0.1"
@@ -467,7 +475,7 @@ def test_sql_server_dsn_maps_all_documented_options() -> None:
         "encrypt": "true",
         "key_store_authentication": "KeyVault",
         "key_store_principal_id": "client",
-        "key_store_secret": "secret",
+        "key_store_secret": "secret",  # pragma: allowlist secret
         "login_timeout": "30",
         "multiple_active_result_sets": False,
         "multi_subnet_failover": "1",
