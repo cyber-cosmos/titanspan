@@ -11,5 +11,7 @@ public release.
   builders with context-local fakes and upstream-compatible assertions.
 - Added Laravel-compatible environment value parsing, scoped mapping adapters,
   and validated dotenv file updates.
+- Added synchronous and AnyIO-based asynchronous retry helpers backed by
+  Tenacity.
 - Added initial tests, architecture decisions, contributor documentation, and
   repository automation.

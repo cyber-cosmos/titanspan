@@ -219,6 +219,42 @@ class AsyncCallbackUsageError(TypeError):
         super().__init__(message)
 
 
+class InvalidRetryConfigurationError(ValueError):
+    """Report an invalid retry count or delay value.
+
+    The exception distinguishes invalid configuration values from errors
+    raised by the operation being retried.
+    """
+
+    def __init__(self, parameter: str, requirement: str) -> None:
+        """Describe the rejected retry parameter.
+
+        Args:
+            parameter: The retry argument that failed validation.
+            requirement: The value constraint that was violated.
+        """
+        message = f"{parameter} must be {requirement}."
+        super().__init__(message)
+
+
+class InvalidRetryConfigurationTypeError(TypeError):
+    """Report a retry argument with an unsupported value type.
+
+    The exception separates argument type errors from invalid numeric values
+    and from failures raised by the operation itself.
+    """
+
+    def __init__(self, parameter: str, expected: str) -> None:
+        """Describe the expected type for a retry argument.
+
+        Args:
+            parameter: The retry argument with an unsupported type.
+            expected: The supported type or types.
+        """
+        message = f"{parameter} must be {expected}."
+        super().__init__(message)
+
+
 __all__ = [
     "ArrayConversionError",
     "ArrayMutationError",
@@ -226,6 +262,8 @@ __all__ = [
     "AsyncCallbackUsageError",
     "InvalidMacroCallbackError",
     "InvalidMacroNameError",
+    "InvalidRetryConfigurationError",
+    "InvalidRetryConfigurationTypeError",
     "InvalidSortCriterionError",
     "MacroNotFoundError",
     "MultipleMatchingArrayItemsError",

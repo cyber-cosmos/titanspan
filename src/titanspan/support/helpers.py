@@ -9,8 +9,10 @@ from __future__ import annotations
 
 import builtins
 import inspect
+import math
 import numbers
 import re
+import time
 from collections.abc import (
     Awaitable,
     Callable,
@@ -20,15 +22,33 @@ from collections.abc import (
     Sequence,
     Sized,
 )
+from datetime import timedelta
 from enum import Enum
-from typing import TypeVar, cast, overload
+from typing import TYPE_CHECKING, TypeVar, cast, overload
+
+import anyio
+from tenacity import (
+    AsyncRetrying,
+    RetryCallState,
+    Retrying,
+    retry_if_exception,
+    stop_after_attempt,
+)
+from tenacity.wait import wait_base
 
 from titanspan.support.encoded_html_string import (
     EncodedHtmlString,
     HtmlEncodable,
 )
 from titanspan.support.env import Env
-from titanspan.support.exceptions import AsyncCallbackUsageError
+from titanspan.support.exceptions import (
+    AsyncCallbackUsageError,
+    InvalidRetryConfigurationError,
+    InvalidRetryConfigurationTypeError,
+)
+
+if TYPE_CHECKING:
+    from concurrent.futures import Future
 
 T = TypeVar("T")
 R = TypeVar("R")
@@ -36,6 +56,222 @@ D = TypeVar("D")
 _MISSING = object()
 _Path = str | int | Sequence[object] | None
 _Segment = str | int | None
+type RetryDelay = int | timedelta
+type RetrySleep = RetryDelay | Callable[[int, Exception], RetryDelay]
+type RetryTimes = int | Sequence[int]
+_RETRY_DELAY_ARGUMENT = "sleep_milliseconds"
+_RETRY_DELAY_EXPECTED = "integer milliseconds or a timedelta"
+_RETRY_DELAY_REQUIREMENT = "finite and non-negative"
+_RETRY_LIMIT_ARGUMENT = "times"
+_RETRY_LIMIT_EXPECTED = "an integer count or a sequence of integer delays"
+_RETRY_SEQUENCE_EXPECTED = "a sequence of integer delay values"
+_RETRY_SEQUENCE_REQUIREMENT = "a sequence of non-negative integer delays"
+_RETRY_PREDICATE_ARGUMENT = "when"
+_RETRY_PREDICATE_EXPECTED = "a callable"
+
+
+class _RetryWait(wait_base):
+    """Translate retry timing values into Tenacity wait durations.
+
+    The schedule stores delays in milliseconds, matching the upstream helper.
+    A callable delay receives the one-based failed attempt and its exception.
+    """
+
+    def __init__(
+        self,
+        schedule: tuple[int, ...],
+        fallback: RetrySleep,
+    ) -> None:
+        """Store per-attempt delays and their fallback.
+
+        Args:
+            schedule: Millisecond delays indexed by failed attempt.
+            fallback: A shared or callable delay for unscheduled retries.
+        """
+        self._schedule = schedule
+        self._fallback = fallback
+
+    def __call__(self, retry_state: RetryCallState) -> float:
+        """Return the wait after the current failed attempt.
+
+        Args:
+            retry_state: Tenacity's state for the failed operation.
+
+        Returns:
+            The retry delay in seconds.
+
+        Raises:
+            TypeError: If a dynamic delay returns an unsupported value.
+            ValueError: If a delay is negative or not finite.
+
+        Notes:
+            Tenacity invokes wait strategies only for retryable failures.
+        """
+        # Tenacity calls this strategy after its retry predicate approves an
+        # exception, so the outcome and exception are present by contract.
+        outcome = cast("Future[object]", retry_state.outcome)
+        error = cast("Exception", outcome.exception())
+
+        attempt = retry_state.attempt_number
+        schedule_index = attempt - 1
+        if schedule_index < len(self._schedule):
+            delay: RetrySleep = self._schedule[schedule_index]
+        else:
+            delay = self._fallback
+
+        if callable(delay):
+            delay = delay(attempt, error)
+
+        return _retry_delay_seconds(delay)
+
+
+def _retry_delay_seconds(delay: object) -> float:
+    """Convert a valid retry delay into seconds.
+
+    Args:
+        delay: A non-negative integer millisecond value or duration.
+
+    Returns:
+        A finite, non-negative delay in seconds.
+
+    Raises:
+        TypeError: If the delay is not an integer or duration.
+        ValueError: If the delay is negative or not finite.
+    """
+    if isinstance(delay, bool):
+        raise InvalidRetryConfigurationTypeError(
+            _RETRY_DELAY_ARGUMENT,
+            _RETRY_DELAY_EXPECTED,
+        )
+    if isinstance(delay, int):
+        seconds = delay / 1000
+    elif isinstance(delay, timedelta):
+        seconds = delay.total_seconds()
+    else:
+        raise InvalidRetryConfigurationTypeError(
+            _RETRY_DELAY_ARGUMENT,
+            _RETRY_DELAY_EXPECTED,
+        )
+
+    if not math.isfinite(seconds) or seconds < 0:
+        raise InvalidRetryConfigurationError(
+            _RETRY_DELAY_ARGUMENT,
+            _RETRY_DELAY_REQUIREMENT,
+        )
+    return seconds
+
+
+def _retry_configuration(
+    times: object,
+) -> tuple[int, tuple[int, ...]]:
+    """Resolve Laravel-style attempt limits and delay schedules.
+
+    Args:
+        times: A total attempt count or delays between attempts.
+
+    Returns:
+        The minimum effective attempt count and validated delay schedule.
+
+    Raises:
+        TypeError: If the count or scheduled delay has an unsupported type.
+        ValueError: If a scheduled delay is negative.
+    """
+    if isinstance(times, bool):
+        raise InvalidRetryConfigurationTypeError(
+            _RETRY_LIMIT_ARGUMENT,
+            _RETRY_LIMIT_EXPECTED,
+        )
+    if isinstance(times, int):
+        # Laravel invokes the callback before checking the remaining count.
+        return max(1, times), ()
+    if isinstance(times, (str, bytes)) or not isinstance(times, Sequence):
+        raise InvalidRetryConfigurationTypeError(
+            _RETRY_LIMIT_ARGUMENT,
+            _RETRY_LIMIT_EXPECTED,
+        )
+
+    schedule: list[int] = []
+    delay_values = cast("Sequence[object]", times)
+    for delay in delay_values:
+        if isinstance(delay, bool) or not isinstance(delay, int):
+            raise InvalidRetryConfigurationTypeError(
+                _RETRY_LIMIT_ARGUMENT,
+                _RETRY_SEQUENCE_EXPECTED,
+            )
+        if delay < 0:
+            raise InvalidRetryConfigurationError(
+                _RETRY_LIMIT_ARGUMENT,
+                _RETRY_SEQUENCE_REQUIREMENT,
+            )
+        schedule.append(delay)
+    return len(schedule) + 1, tuple(schedule)
+
+
+def _retry_predicate(
+    when: Callable[[Exception], bool] | None,
+    attempts: int,
+    attempt_number: Callable[[], int],
+) -> Callable[[BaseException], bool]:
+    """Build a Tenacity predicate matching the helper retry contract.
+
+    Args:
+        when: Optional predicate deciding whether an exception is retryable.
+        attempts: Maximum number of callback executions.
+        attempt_number: Getter for the currently executing attempt.
+
+    Returns:
+        A predicate that retries ordinary exceptions only.
+    """
+
+    def should_retry(error: BaseException) -> bool:
+        """Check retry eligibility without catching process cancellation.
+
+        Args:
+            error: An exception raised by the operation.
+
+        Returns:
+            Whether another callback execution should be scheduled.
+        """
+        if not isinstance(error, Exception):
+            return False
+        if isinstance(error, AsyncCallbackUsageError):
+            return False
+        if attempt_number() >= attempts:
+            return False
+        if when is None:
+            return True
+
+        result = when(error)
+        _reject_awaitable(result, "retry predicate")
+        return bool(result)
+
+    return should_retry
+
+
+def _retry_sleep(delay: float) -> None:
+    """Wait synchronously between retry attempts.
+
+    Args:
+        delay: The requested wait in seconds.
+
+    Returns:
+        None.
+    """
+    if delay > 0:
+        time.sleep(delay)
+
+
+async def _retry_sleep_async(delay: float) -> None:
+    """Wait asynchronously between retry attempts.
+
+    Args:
+        delay: The requested wait in seconds.
+
+    Returns:
+        None.
+    """
+    if delay > 0:
+        await anyio.sleep(delay)
 
 
 class HigherOrderTapProxy[T]:
@@ -154,6 +390,150 @@ def env(key: str, default: object = None) -> object:
         The normalized environment value or its resolved default.
     """
     return Env.get(key, default)
+
+
+def retry[T](
+    times: RetryTimes,
+    callback: Callable[[int], T],
+    sleep_milliseconds: RetrySleep = 0,
+    when: Callable[[Exception], bool] | None = None,
+) -> T:
+    """Retry a synchronous operation with bounded attempts and backoff.
+
+    Delegate retry state, exception handling, and wait scheduling to Tenacity.
+    Integer ``times`` values specify total callback attempts. A sequence
+    specifies the delay in milliseconds after each failed attempt, so its
+    length plus one determines the maximum attempts.
+
+    Args:
+        times: Total attempts or per-retry millisecond delays.
+        callback: Operation receiving its one-based attempt number.
+        sleep_milliseconds: Shared delay or callback returning a delay.
+        when: Optional predicate that permits retrying an exception.
+
+    Returns:
+        The first successful callback result.
+
+    Raises:
+        TypeError: If ``when`` is not callable or a callback is asynchronous.
+        ValueError: If attempt or delay values are invalid.
+        Exception: The final or non-retryable callback exception.
+
+    Notes:
+        Counts below one still execute once, matching the upstream helper's
+        initial-call behavior. Cancellation and process-control exceptions
+        are never retried.
+    """
+    attempts, schedule = _retry_configuration(times)
+    if when is not None and not callable(when):
+        raise InvalidRetryConfigurationTypeError(
+            _RETRY_PREDICATE_ARGUMENT,
+            _RETRY_PREDICATE_EXPECTED,
+        )
+
+    attempt_number = 0
+
+    def current_attempt() -> int:
+        """Return the attempt currently executing in this retry call.
+
+        Returns:
+            The one-based attempt number.
+        """
+        return attempt_number
+
+    def invoke() -> T:
+        """Run one callback attempt and reject hidden async execution.
+
+        Returns:
+            The operation result.
+
+        Raises:
+            AsyncCallbackUsageError: If the callback returns an awaitable.
+        """
+        nonlocal attempt_number
+        attempt_number += 1
+        result = callback(attempt_number)
+        _reject_awaitable(result, "retry callback")
+        return result
+
+    retrying = Retrying(
+        stop=stop_after_attempt(attempts),
+        retry=retry_if_exception(
+            _retry_predicate(when, attempts, current_attempt),
+        ),
+        wait=_RetryWait(schedule, sleep_milliseconds),
+        sleep=_retry_sleep,
+        reraise=True,
+    )
+    return retrying(invoke)
+
+
+async def retry_async[T](
+    times: RetryTimes,
+    callback: Callable[[int], Awaitable[T]],
+    sleep_milliseconds: RetrySleep = 0,
+    when: Callable[[Exception], bool] | None = None,
+) -> T:
+    """Retry an asynchronous operation without blocking its event loop.
+
+    Use Tenacity's asynchronous controller with AnyIO-backed waiting. The
+    operation must be idempotent or otherwise safe to repeat after failure.
+
+    Args:
+        times: Total attempts or per-retry millisecond delays.
+        callback: Async operation receiving its one-based attempt number.
+        sleep_milliseconds: Shared delay or callback returning a delay.
+        when: Optional predicate that permits retrying an exception.
+
+    Returns:
+        The first successful callback result.
+
+    Raises:
+        TypeError: If ``when`` is not callable.
+        ValueError: If attempt or delay values are invalid.
+        Exception: The final or non-retryable callback exception.
+
+    Notes:
+        Cancellation and process-control exceptions propagate without retry.
+        Callbacks should avoid repeating non-idempotent side effects.
+    """
+    attempts, schedule = _retry_configuration(times)
+    if when is not None and not callable(when):
+        raise InvalidRetryConfigurationTypeError(
+            _RETRY_PREDICATE_ARGUMENT,
+            _RETRY_PREDICATE_EXPECTED,
+        )
+
+    attempt_number = 0
+
+    def current_attempt() -> int:
+        """Return the attempt currently executing in this retry call.
+
+        Returns:
+            The one-based attempt number.
+        """
+        return attempt_number
+
+    async def invoke() -> T:
+        """Await one callback attempt within Tenacity's retry controller.
+
+        Returns:
+            The operation result.
+        """
+        nonlocal attempt_number
+        attempt_number += 1
+        return await callback(attempt_number)
+
+    retrying = AsyncRetrying(
+        stop=stop_after_attempt(attempts),
+        retry=retry_if_exception(
+            _retry_predicate(when, attempts, current_attempt),
+        ),
+        wait=_RetryWait(schedule, sleep_milliseconds),
+        sleep=_retry_sleep_async,
+        reraise=True,
+    )
+    return await retrying(invoke)
 
 
 @overload
@@ -1156,6 +1536,8 @@ __all__ = [
     "filled",
     "head",
     "last",
+    "retry",
+    "retry_async",
     "tap",
     "tap_async",
     "throw_if",

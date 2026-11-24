@@ -17,6 +17,8 @@ Sleep compatibility tests translate behavior from Laravel's upstream test
 suite; the pinned source and test paths are listed in the compatibility
 inventory. Environment compatibility cases translate the environment helper
 and bootstrap expectations from Laravel's Support and Foundation test suites.
+Retry helper behavior follows the pinned Support helper implementation; its
+test evidence is listed in the compatibility inventory.
 
 Copyright (c) Taylor Otwell
 
@@ -47,3 +49,9 @@ source code.
 AnyIO 4.16.0 is distributed under the MIT License. Copyright (c) 2018 Alex
 Grönholm. See the [official AnyIO 4.16.0 license](https://github.com/agronholm/anyio/blob/4.16.0/LICENSE)
 for the complete notice.
+
+## Tenacity
+
+Titanspan delegates bounded retry execution to Tenacity 9.2.1. No Tenacity
+source code is copied into Titanspan. Tenacity is distributed under the
+Apache License 2.0; see the [official Tenacity 9.2.1 license](https://github.com/jd/tenacity/blob/9.2.1/LICENSE).

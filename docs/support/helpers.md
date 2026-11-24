@@ -25,6 +25,12 @@ data_set(document, "author.role", "maintainer")
   underscore is required because `with` is a Python keyword.
 - `transform(value, callback, default=None)` transforms filled values and
   resolves a value or callback for blank values.
+- `retry(times, callback, sleep_milliseconds=0, when=None)` retries a
+  synchronous operation with one-based attempt numbers. `times` may be a
+  total attempt count or a sequence of millisecond delays between attempts.
+- `retry_async(...)` is the explicit asynchronous extension. It uses AnyIO
+  for waits and propagates cancellation. Both retry helpers delegate their
+  retry controller to Tenacity.
 - `tap(value, callback=None)` runs a synchronous side effect and returns the
   original value. Its callback-free form returns a method forwarding proxy;
   call `.call("method", ...)` for a statically discoverable invocation.
@@ -32,6 +38,44 @@ data_set(document, "author.role", "maintainer")
 
 Synchronous callback helpers reject awaitable results. Use their async form
 where available; Titanspan never creates an event loop inside a utility.
+
+Retry callbacks receive the current attempt number starting at `1`. Retry
+predicates run only when another attempt remains. Use retries for operations
+that are safe to repeat; Titanspan cannot undo external side effects from a
+failed attempt.
+
+```python
+from titanspan.support import retry
+
+attempts: list[int] = []
+
+def fetch(attempt: int) -> str:
+    attempts.append(attempt)
+    if attempt < 2:
+        raise ConnectionError
+    return "response"
+
+response = retry(3, fetch, sleep_milliseconds=0)
+assert response == "response"
+```
+
+The asynchronous form accepts an async callback and never blocks the event
+loop:
+
+```python
+from titanspan.support import retry_async
+
+async def fetch_async(attempt: int) -> str:
+    if attempt < 2:
+        raise ConnectionError
+    return "response"
+
+response = await retry_async([10, 25], fetch_async)
+```
+
+Integer delays are milliseconds. A `datetime.timedelta` or a callable
+`(attempt, exception) -> delay` is also accepted. Cancellation and
+process-control exceptions are propagated without retry.
 
 ## Nested data helpers
 

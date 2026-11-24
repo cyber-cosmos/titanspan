@@ -30,12 +30,12 @@ A method is not counted as compatible because it has a similarly named Python me
 ## Measured status
 
 - Exact behavioural parity: 0.
-- Python-adapted parity: 409.
+- Python-adapted parity: 410.
 - Delegated: 0.
 - Blocked: 3141.
 - Not applicable: 32.
-- Pending: 468.
-- Verified compatibility: 409/4050 listed member entries (10.10%).
+- Pending: 467.
+- Verified compatibility: 410/4050 listed member entries (10.12%).
 
 For the timing utilities in this implementation slice, behavior was checked
 against the pinned upstream tests for [Benchmark](https://github.com/laravel/framework/blob/8a8c4a84852869e13190d89f9da873cd9a70f14c/tests/Support/SupportBenchmarkTest.php),
@@ -5271,7 +5271,7 @@ and [environment bootstrap tests](https://github.com/laravel/framework/blob/8a8c
 | `\Support.helpers.php` | `once()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-147] |
 | `\Support.helpers.php` | `optional()` | `optional` | `src/titanspan/support/optional.py` | **Python-adapted parity** | `tests/unit/support/test_helpers.py` | Provides typed wrapper and callback forms; async callbacks use optional_async. | [source][source-147] |
 | `\Support.helpers.php` | `preg_replace_array()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-147] |
-| `\Support.helpers.php` | `retry()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-147] |
+| `\Support.helpers.php` | `retry()` | `retry()` | `src/titanspan/support/helpers.py` | **Python-adapted parity** | `tests/unit/support/test_retry.py`; `tests/integration/support/test_retry_integration.py` | Delegates retry control to Tenacity; integer counts preserve the upstream initial callback behavior, sequences specify millisecond delays, booleans are rejected as counts, and async execution is exposed separately as `retry_async()`. `datetime.timedelta` adapts CarbonInterval; cancellation and process-control exceptions are not retried. | [source][source-147] |
 | `\Support.helpers.php` | `str()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-147] |
 | `\Support.helpers.php` | `tap()` | `tap` | `src/titanspan/support/helpers.py` | **Python-adapted parity** | `tests/unit/support/test_helpers.py` | Synchronous callbacks preserve the original value; awaitables require tap_async, and method forwarding has a typed call API. | [source][source-147] |
 | `\Support.helpers.php` | `throw_if()` | `throw_if` | `src/titanspan/support/helpers.py` | **Python-adapted parity** | `tests/unit/support/test_helpers.py` | Uses Python truthiness and Python exception classes; recognized built-in exception names are supported. | [source][source-147] |
