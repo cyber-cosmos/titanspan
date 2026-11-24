@@ -13,6 +13,8 @@ The current implementation includes:
 - `Stringable` for explicit chainable transformations over `Str`.
 - `HtmlString` and `EncodedHtmlString` for trusted markup and escaped text.
 - `MessageBag` for keyed messages, wildcard reads, formatting, and JSON output.
+- `Uri` and `UriQueryString` for immutable URL components and nested query
+  data, with Starlette redirect interoperability.
 - `Macroable` for explicit, typed macro registration and invocation.
 - `Conditionable` for synchronous and asynchronous conditional callbacks.
 - `Tappable` for callback observation while preserving instance identity.
@@ -41,7 +43,9 @@ assert optional(None).get("name") is None
 ```
 
 The module has no optional AI, database, queue, or infrastructure
-dependencies. Its current implementation uses the Python standard library.
+dependencies. URI redirects reuse the Starlette version already installed
+through the web foundation; URI parsing and encoding otherwise use the Python
+standard library and Titanspan's `Arr` helpers.
 
 ## Compatibility status
 
@@ -54,6 +58,7 @@ Laravel's higher-order proxy forms remain planned.
 See [arrays](./arrays), [Fluent](./fluent), [helpers](./helpers),
 [message bags](./message-bag),
 [optional values](./optional), [strings](./strings), and [extensions](./extensions)
-for the implemented surface. See [fluent strings](./stringable) for the
-implemented `Stringable` methods and their Python behavior, and
-[HTML values](./html) for context-aware rendering guidance.
+for the implemented surface. See [URI utilities](./uris) and
+[fluent strings](./stringable) for the implemented `Stringable` methods and
+their Python behavior, and [HTML values](./html) for context-aware rendering
+guidance.

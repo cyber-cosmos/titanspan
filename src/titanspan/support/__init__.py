@@ -49,6 +49,8 @@ from titanspan.support.optional import Optional, optional, optional_async
 from titanspan.support.str import Str
 from titanspan.support.stringable import Stringable
 from titanspan.support.tappable import Tappable
+from titanspan.support.uri import Uri, UriUrlGenerator
+from titanspan.support.uri_query_string import UriQueryString
 
 __all__ = [
     "Arr",
@@ -74,6 +76,9 @@ __all__ = [
     "Str",
     "Stringable",
     "Tappable",
+    "Uri",
+    "UriQueryString",
+    "UriUrlGenerator",
     "blank",
     "data_fill",
     "data_forget",

@@ -192,6 +192,13 @@ ignore = [
 "src/titanspan/support/encoded_html_string.py" = [
     "N815", # Laravel-compatible aliases intentionally retain camelCase.
 ]
+"src/titanspan/support/uri.py" = [
+    "N815", # Laravel-compatible aliases intentionally retain camelCase.
+]
+"src/titanspan/support/uri_query_string.py" = [
+    "N815",   # Preserve the Laravel-compatible toArray alias.
+    "SLF001", # The paired adapter reads its owning URI's private state.
+]
 "src/titanspan/contracts/htmlable.py" = [
     "N802", # Preserve the Laravel-compatible Protocol method spelling.
 ]

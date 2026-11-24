@@ -56,6 +56,7 @@ export default defineConfig({
           { text: "Optional values", link: "/support/optional" },
           { text: "Strings", link: "/support/strings" },
           { text: "Fluent strings", link: "/support/stringable" },
+          { text: "URI utilities", link: "/support/uris" },
           { text: "HTML values", link: "/support/html" },
           { text: "Extensions", link: "/support/extensions" },
           {
