@@ -1,0 +1,75 @@
+name: Bug report
+description: Report reproducible unexpected behavior.
+title: "bug: "
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: >-
+        Search existing issues first. Include enough detail to reproduce the
+        problem without sharing secrets or private data.
+  - type: input
+    id: version
+    attributes:
+      label: Titanspan version
+      description: Include the release or commit hash.
+      placeholder: 0.1.0.dev0
+    validations:
+      required: true
+  - type: dropdown
+    id: python
+    attributes:
+      label: Python version
+      options: ["3.12", "3.13", "3.14", "3.15", Other]
+    validations:
+      required: true
+  - type: input
+    id: operating-system
+    attributes:
+      label: Operating system and version
+      placeholder: Ubuntu 24.04, macOS 15, Windows 11
+    validations:
+      required: true
+  - type: textarea
+    id: dependencies
+    attributes:
+      label: Relevant dependency versions
+      description: Include FastAPI, Dishka, and other relevant packages.
+      render: text
+    validations:
+      required: true
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Steps to reproduce
+      description: List the commands and steps in order.
+    validations:
+      required: true
+  - type: textarea
+    id: example
+    attributes:
+      label: Minimal reproducible example
+      description: Remove credentials, private data, and unrelated code.
+      render: python
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual behavior
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs or traceback
+      render: text
+    validations:
+      required: false
+

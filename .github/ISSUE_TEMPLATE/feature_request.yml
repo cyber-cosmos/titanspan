@@ -1,0 +1,42 @@
+name: Feature request
+description: Propose a focused framework capability.
+title: "feature: "
+labels: [enhancement]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem to solve
+      description: Explain the user need and current workaround.
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed behavior
+      description: Describe the desired API or workflow with a small example.
+    validations:
+      required: true
+  - type: textarea
+    id: architecture
+    attributes:
+      label: Architectural considerations
+      description: Mention module boundaries, integrations, and alternatives.
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+    validations:
+      required: false
+  - type: checkboxes
+    id: scope
+    attributes:
+      label: Scope
+      options:
+        - label: I checked the roadmap and searched existing issues.
+          required: true
+        - label: This request does not require a paid service.
+          required: false
+

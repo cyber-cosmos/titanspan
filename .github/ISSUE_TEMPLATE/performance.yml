@@ -1,0 +1,54 @@
+name: Performance report
+description: Report a reproducible performance or memory concern.
+title: "performance: "
+labels: [performance]
+body:
+  - type: input
+    id: version
+    attributes:
+      label: Titanspan and Python versions
+    validations:
+      required: true
+  - type: input
+    id: environment
+    attributes:
+      label: Operating system and hardware
+      description: Include CPU, RAM, and relevant runtime details.
+    validations:
+      required: true
+  - type: textarea
+    id: workload
+    attributes:
+      label: Workload characteristics
+      description: Data size, payload shape, I/O profile, and duration.
+    validations:
+      required: true
+  - type: input
+    id: concurrency
+    attributes:
+      label: Concurrency levels and resource limits
+    validations:
+      required: true
+  - type: textarea
+    id: baseline
+    attributes:
+      label: Baseline comparison
+      description: Include the baseline library or previous version and method.
+    validations:
+      required: true
+  - type: textarea
+    id: memory
+    attributes:
+      label: Memory consumption
+      description: Include peak memory and how it was measured.
+    validations:
+      required: true
+  - type: textarea
+    id: benchmark
+    attributes:
+      label: Reproducible benchmark results
+      description: Include commands, code, raw results, and dependency versions.
+      render: text
+    validations:
+      required: true
+
