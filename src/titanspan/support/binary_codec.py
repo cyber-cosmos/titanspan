@@ -33,7 +33,11 @@ type _Encoder = Callable[[BinaryCodecValue], bytes | None]
 type _Decoder = Callable[[str | bytes | None], str | None]
 type _Codec = tuple[_Encoder, _Decoder]
 
-_ULID_ALPHABET = "0123456789ABCDEFGHJKMNPQRSTVWXYZ"
+# The standard Crockford alphabet is public encoding data, not a credential.
+_ULID_ALPHABET = (
+    "0123456789"
+    "ABCDEFGHJKMNPQRSTVWXYZ"  # pragma: allowlist secret
+)
 _ULID_VALUES = {
     character: value for value, character in enumerate(_ULID_ALPHABET)
 }
