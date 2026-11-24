@@ -50,6 +50,11 @@ export default defineConfig({
         items: [
           { text: "Testing", link: "/testing/" },
           { text: "Deployment", link: "/deployment/" },
+          { text: "Development standards", link: "/development/standards" },
+          {
+            text: "AI agent compatibility",
+            link: "/development/agent-compatibility",
+          },
         ],
       },
     ],

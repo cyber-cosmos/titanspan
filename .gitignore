@@ -23,6 +23,8 @@ node_modules/
 docs/.vitepress/cache/
 docs/.vitepress/dist/
 .cache/
+.aider.chat.history.md
+.aider.input.history
 .DS_Store
 Thumbs.db
 

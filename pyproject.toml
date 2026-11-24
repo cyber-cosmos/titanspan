@@ -65,6 +65,9 @@ dev = [
 [tool.uv]
 default-groups = ["dev"]
 
+[tool.uv.build-backend]
+wheel-exclude = ["**/AGENTS.md"]
+
 [tool.pytest.ini_options]
 addopts = "-ra"
 pythonpath = ["src", "examples/hello-world"]

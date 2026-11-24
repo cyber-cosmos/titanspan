@@ -37,7 +37,7 @@ jobs:
       - name: Run local quality checks
         run: make check
       - name: Build distributions
-        run: uv build --no-sources
+        run: make build
       - name: Install wheel in an isolated environment
         shell: bash
         run: |

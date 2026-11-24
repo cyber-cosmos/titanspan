@@ -1,85 +1,171 @@
-# Agent Guidance for Titanspan
+# Titanspan Agent Instructions
 
-This file is the durable project-specific instruction set for coding agents.
-Read it together with `ARCHITECTURE.md`, `ROADMAP.md`, and the relevant ADRs.
+This is the canonical repository-wide instruction file for AI coding agents.
+Read it before work, then consult the relevant scoped `AGENTS.md`,
+`ARCHITECTURE.md`, `ROADMAP.md`, `CONTRIBUTING.md`, `SECURITY.md`, ADRs, and
+development standards. This file is also the source of truth for harness
+adapters. Do not maintain a competing copy of these rules.
 
-## Before changing code
+## Project identity and status
 
-- Inspect the current checkout and `git status` first; preserve existing work.
-- Read architecture documentation before major changes or new module
-  boundaries.
-- Preserve the project's modular, async-first direction and the decisions in
-  accepted ADRs. Propose an ADR when a major decision changes.
-- Use Laravel as an architectural and developer-experience reference, not as
-  PHP syntax to translate. Preserve idiomatic Python conventions.
-- Verify third-party APIs and compatibility against current official
-  documentation before relying on them.
+Titanspan is an open-source, async-first Python application framework for
+building intelligent systems at scale. It combines Laravel-inspired
+developer experience with asynchronous web development, stateful AI workflow
+orchestration, agents and tools, structured concurrency, CPU parallelism,
+distributed execution, and streaming data processing.
 
-## Architecture
+The framework owns expressive APIs, conventions, lifecycle, integration
+coordination, and testing support. Mature libraries own their underlying
+infrastructure. The package is early-stage: verify implementation and tests
+before describing any feature as available. The `ROADMAP.md` is not an API
+specification.
 
-- Prefer mature libraries over recreating servers, dependency resolvers, ORM
-  engines, queue systems, or graph runtimes.
-- Keep abstractions thin and tied to a real public API, contract, lifecycle, or
-  test seam. Avoid speculative frameworks inside the framework.
-- Prefer composition, protocols, explicit providers, and replaceable adapters.
-- Prevent circular dependencies. Keep optional AI, database, queue, and
-  infrastructure adapters out of core module imports.
-- Keep async I/O explicit, propagate cancellation, and do not block the event
-  loop. Bound concurrency and memory use for large inputs.
-- Preserve access to the underlying library APIs.
-- Clearly label planned modules and do not advertise unimplemented behavior as
-  supported functionality.
+## Before meaningful changes
 
-## Python quality
+1. Inspect `git status`, the relevant files, tests, and existing conventions.
+   Preserve user changes and avoid unrelated edits.
+2. Read the applicable scoped instructions and architecture documents.
+3. Verify unfamiliar or version-sensitive third-party APIs against official
+   documentation and the installed package version.
+4. For non-trivial work, state scope, affected modules, behavior, architecture
+   impact, tests, risks, and acceptance criteria before implementing.
+5. Use test-driven development for meaningful behavior: add a focused failing
+   regression test, verify it fails for the intended reason, then implement.
+6. Review the final diff and report only checks actually run.
 
-- Support Python 3.12 and later versions verified by CI.
-- Use uv for Python dependency, environment, lock, build, and publish commands.
-- Use four-space indentation, 80-column lines, explicit types, and meaningful
-  docstrings for public APIs.
-- Keep strict Pyright and Ruff checks enabled. Avoid unexplained `Any`, blanket
-  ignores, broad exception handling, wildcard imports, blocking calls, and
-  mutable defaults.
-- Use timezone-aware datetimes and `pathlib` for filesystem paths.
+Use [the agent workflow](docs/development/agent-workflow.md) and
+[engineering standards](docs/development/standards.md) for details.
 
-## Tests and verification
+## Architecture and library choices
 
-- Follow test-driven development for meaningful behavior: write and run a
-  failing test before implementation.
-- Test success, failure, cleanup, scope isolation, cancellation, and concurrent
-  behavior where they apply.
-- Run `make check` after code changes and the relevant docs, build, security,
-  integration, or platform checks for the files changed.
-- Report only checks actually run. Never fabricate test, CI, build, benchmark,
-  or coverage results.
-- Never fabricate throughput or performance claims.
-- Do not make the default test suite depend on paid services or live commercial
-  AI APIs.
+Respect accepted ADRs and the current implementation. Preferred foundations
+are FastAPI/Starlette for web, Dishka for dependency resolution, SQLAlchemy
+and Alembic for persistence/migrations, Pydantic and Pydantic Settings for
+validation/configuration, LangGraph for graph execution, LangChain for AI
+integrations, AnyIO for async concurrency, process pools or native libraries
+for CPU parallelism, Taskiq for distributed jobs, Blinker for events, Cashews
+for caching, Structlog for logging, fsspec for filesystem adapters, HTTPX for
+HTTP, Polars and Apache Arrow for data, APScheduler for scheduling, OpenTelemetry
+for telemetry, Typer and Rich for the CLI, and Pytest for testing.
 
-## Dependencies and public APIs
+These are architecture choices, not a reason to install every package. Do not
+add unused or duplicate dependencies. Do not replace an accepted dependency
+or architectural decision without verified evidence, a focused proposal, and
+an ADR when the change is significant.
 
-- Add dependencies only when the functionality needs them. Keep integrations
-  optional unless the framework's core lifecycle depends on them.
-- Verify maintenance status, Python support, async behavior, licensing, and
-  known advisories before selecting a new dependency.
-- Update `uv.lock` with `uv lock`; commit the lockfile with dependency changes.
-- Preserve backward compatibility where applicable. Document public API
-  changes in the README or relevant guide and `CHANGELOG.md`.
-- Never remove a user's unrelated data or make unrelated edits.
+- Prefer mature libraries; keep Titanspan wrappers thin, typed, and useful.
+- Preserve access to the underlying library APIs and identify delegated
+  behavior transparently in code and documentation.
+- Use composition and protocols where they establish a real contract or test
+  seam. Avoid speculative abstractions, deep inheritance, and metaprogramming.
+- Keep core modules independent of optional AI, database, queue, and
+  infrastructure adapters. Prevent circular dependencies.
+- Keep APIs idiomatic Python while using Laravel as a reference for
+  conventions, lifecycle, and developer experience. Never translate PHP
+  syntax mechanically.
+- Use Titanspan domain-oriented filenames for public modules. For example,
+  use `container/container.py`, not a vendor-named public file such as
+  `container/dishka.py`. Be clear that an implementation delegates to Dishka;
+  do not imply Titanspan reimplemented its internals.
+- Preserve existing public APIs. Record major architectural changes in ADRs.
 
-## Security and operations
+The current technology foundation is recorded in
+[`ARCHITECTURE.md`](ARCHITECTURE.md) and
+[`docs/architecture/decisions/`](docs/architecture/decisions/).
 
+## Async, data, and resource safety
+
+- Do not block the event loop. Offload blocking work appropriately.
+- Prefer structured concurrency; give tasks an owner and propagate
+  cancellation and timeouts.
+- Bound concurrency, buffering, memory, connections, and retries. Use
+  backpressure and incremental processing for large or ongoing workloads.
+- Never use unbounded `asyncio.gather()` or one task per item for unbounded
+  input.
+- Distinguish async I/O from CPU parallelism. Use process-based or suitable
+  native execution for CPU-bound workloads.
+- Do not share mutable SQLAlchemy `AsyncSession` instances across concurrent
+  tasks. Keep transaction boundaries explicit.
+- Finalize resources on success, failure, cancellation, and shutdown. Make
+  retry behavior safe for non-idempotent operations.
+- Never claim scalability or performance from `async` syntax alone. Use
+  reproducible evidence and record workload, platform, versions, concurrency,
+  throughput, latency, and peak memory.
+
+## Python and package standards
+
+- Python 3.12+; four-space indentation; 80-column maximum; PEP 8 names.
+- Use comprehensive annotations, explicit return types, strict Pyright, and
+  meaningful Google-style docstrings for public APIs.
+- Prefer `pathlib`, context managers, protocols, immutable values when
+  appropriate, and explicit side effects.
+- Avoid mutable defaults, wildcard imports, unexplained values, broad
+  exception handling, unnecessary `Any`, blanket type ignores, and global
+  mutable state.
+- Use `uv` exclusively for Python dependencies, environments, locking,
+  building, and publishing. Preserve `uv.lock`; update it through `uv lock`.
+  Do not add Poetry, Pipenv, Conda, global installs, or unjustified packages.
+- Apply TDD to meaningful changes and test success, failures, cleanup,
+  cancellation, isolation, concurrency, and validation as applicable.
+- Keep development tooling and agent assets outside `src/titanspan/`, except
+  scoped Markdown instructions where necessary. Confirm built distributions
+  do not contain development-only instructions or agent configuration.
+
+Use the existing Make targets. In particular, `make check` is read-only and
+must remain consistent with CI; it includes `make agents-check` for repository
+agent configuration. Do not claim an unavailable command exists.
+
+## Protected engineering policies
+
+Agents must not:
+
+- Disable or weaken tests, coverage, strict typing, Ruff, security checks,
+  hooks, CI, or architecture constraints to make a change pass.
+- Lower the coverage threshold, add blanket exclusions or suppressions, or
+  alter benchmarks to hide a regression.
+- Present placeholders, TODOs, mocks, or planned work as complete behavior.
+- Invent APIs, test results, benchmark results, dependency properties, or
+  documentation evidence.
+- Make unrelated refactors or add dependencies without justification.
+- Change these instructions, quality policies, CI, or architectural
+  constraints without a focused justification and independent review through
+  the repository contribution process.
+
+## Security and repository safety
+
+- Validate untrusted input; bind database parameters; authorize tools and
+  tenant boundaries; avoid leaking secrets or private payloads in logs.
 - Never commit credentials, private user data, or real `.env` files.
-- Do not introduce paid services, paid GitHub features, or billable cloud or AI
+- Do not introduce paid services, commercial AI calls, or hosted
   infrastructure without explicit authorization.
-- Do not publish a package or release without explicit authorization.
-- Do not force-push, rewrite shared history, or bypass a repository protection
-  rule.
-- Do not send messages to third parties without explicit authorization.
+- Do not install coding agents or automatically execute downloaded scripts.
+- Preserve sandboxing and approval requirements. Do not add blanket
+  permission bypasses, unrestricted shell/network settings, or executable
+  agent hooks without an independently reviewed, justified need.
+- Do not commit, push, publish, release, deploy, message third parties, or
+  modify organization settings unless the current task explicitly authorizes
+  that action.
+- Never force-push, reset away user work, rewrite shared history, or bypass
+  repository protections.
 
-## Collaboration and commits
+## Git and reporting
 
-- Keep changes small and focused. Use meaningful Conventional Commit messages.
-- Avoid generated placeholders and unrelated files.
-- Before committing, inspect the diff and confirm that tests and documentation
-  match the implemented behavior.
+When commits are authorized, use small Conventional Commit messages and inspect
+the diff first. Update public documentation and `CHANGELOG.md` when behavior or
+public APIs change. Report what changed, why, checks run and results, remaining
+limits, and risks. Never conceal failed or skipped checks.
 
+## Canonical references
+
+- [`ARCHITECTURE.md`](ARCHITECTURE.md): module boundaries and system design.
+- [`ROADMAP.md`](ROADMAP.md): implementation order; planned work only.
+- [`CONTRIBUTING.md`](CONTRIBUTING.md): human contribution process.
+- [`SECURITY.md`](SECURITY.md): vulnerability reporting and security policy.
+- [`docs/development/standards.md`](docs/development/standards.md): detailed
+  engineering requirements.
+- [`docs/development/agent-workflow.md`](docs/development/agent-workflow.md):
+  required agent workflow.
+- [`docs/architecture/decisions/`](docs/architecture/decisions/): accepted
+  and proposed architecture decisions.
+- [`pyproject.toml`](pyproject.toml): executable Python tool configuration.
+- [`Makefile`](Makefile): standard development commands.

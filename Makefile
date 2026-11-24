@@ -2,7 +2,7 @@
 
 .PHONY: help install sync update lint format format-check types test coverage \
 	check fix build clean hooks security serve docs docs-build \
-	integration-test benchmark stress-test docker-up docker-down
+	integration-test benchmark stress-test docker-up docker-down agents-check
 
 help: ## Show available targets
 	@awk 'BEGIN {FS = ":.*## "} /^[a-zA-Z0-9_-]+:.*## / {printf "  %-20s %s\n", $$1, $$2}' $(MAKEFILE_LIST)
@@ -34,7 +34,10 @@ test: ## Run the test suite
 coverage: ## Run tests with the configured coverage threshold
 	uv run --locked pytest --cov=titanspan --cov-report=term-missing --cov-report=xml:coverage.xml
 
-check: lint format-check types coverage ## Run read-only quality checks
+agents-check: ## Validate repository-local AI agent configuration
+	uv run --locked python scripts/check_agent_configs.py
+
+check: lint format-check types coverage agents-check ## Run read-only quality checks
 
 fix: ## Apply Ruff lint fixes and formatting
 	uv run --locked ruff check --fix .
@@ -42,6 +45,7 @@ fix: ## Apply Ruff lint fixes and formatting
 
 build: ## Build wheel and source distributions
 	uv build --no-sources
+	uv run --locked python scripts/check_agent_configs.py --wheel dist/titanspan-*.whl
 
 clean: ## Remove generated build and test artifacts only
 	rm -rf build dist .coverage coverage.xml .pytest_cache .ruff_cache .pyright htmlcov
