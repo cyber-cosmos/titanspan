@@ -1,5 +1,6 @@
 """Tests for the installed Titanspan command line interface."""
 
+import re
 import runpy
 
 from pytest import MonkeyPatch
@@ -12,18 +13,20 @@ from titanspan.console.cli import _show_version, app, root_command
 def test_help_lists_the_version_option() -> None:
     """Show usage and the version option in the top-level help."""
     result = CliRunner().invoke(app, ["--help"], color=False)
+    output = re.sub(r"\x1b\[[0-?]*[ -/]*[@-~]", "", result.stdout)
 
     assert result.exit_code == 0
-    assert "Usage:" in result.stdout
-    assert "--version" in result.stdout
+    assert "Usage:" in output
+    assert "--version" in output
 
 
 def test_version_prints_the_distribution_version() -> None:
     """Print the distribution version and exit successfully."""
     result = CliRunner().invoke(app, ["--version"], color=False)
+    output = re.sub(r"\x1b\[[0-?]*[ -/]*[@-~]", "", result.stdout)
 
     assert result.exit_code == 0
-    assert "Titanspan 0.1.0.dev0" in result.stdout
+    assert "Titanspan 0.1.0.dev0" in output
 
 
 def test_main_runs_the_typer_application(monkeypatch: MonkeyPatch) -> None:
