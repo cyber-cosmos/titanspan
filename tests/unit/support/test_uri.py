@@ -111,7 +111,8 @@ def test_uri_transformations_are_immutable_and_keep_query_components() -> None:
         == _URI_TEST_PORT
     )
     assert (
-        Uri.of("https://[2001:db8::1]:8080").with_port(_URI_UPDATED_PORT).port()
+        Uri.of(
+            "https://[2001:db8::1]:8080").with_port(_URI_UPDATED_PORT).port()
         == _URI_UPDATED_PORT
     )
     assert changed.with_path("/already-rooted").path() == "already-rooted"
@@ -563,7 +564,7 @@ def test_uri_builder_matches_laravel_query_composition_rules() -> None:
     """
     uri = Uri.of("https://example.test").with_query(
         {
-            "name": "Taylor",
+            "name": "James",
             "age": 38,
             "role": {"title": "Developer", "focus": "Python"},
             "tags": ["person", "employee"],
@@ -572,15 +573,15 @@ def test_uri_builder_matches_laravel_query_composition_rules() -> None:
     )
 
     assert uri.query().decode() == (
-        "name=Taylor&age=38&role[title]=Developer&role[focus]=Python"
+        "name=James&age=38&role[title]=Developer&role[focus]=Python"
         "&tags[0]=person&tags[1]=employee&flag="
     )
     assert uri.without_query(["name"]).query().decode() == (
         "age=38&role[title]=Developer&role[focus]=Python"
         "&tags[0]=person&tags[1]=employee&flag="
     )
-    assert uri.replace_query({"name": "Taylor"}).query().decode() == (
-        "name=Taylor"
+    assert uri.replace_query({"name": "James"}).query().decode() == (
+        "name=James"
     )
     assert Uri.of("https://example.test").with_query({}).value() == (
         "https://example.test"
@@ -763,7 +764,8 @@ def test_uri_camel_case_query_aliases_share_python_implementations() -> None:
         == uri.with_query({"added": "2"}).value()
     )
     assert (
-        uri.withQueryIfMissing({"existing": "3"}).query().get("existing") == "1"
+        uri.withQueryIfMissing(
+            {"existing": "3"}).query().get("existing") == "1"
     )
     assert uri.pushOntoQuery("existing", "2").query().get("existing") == [
         "1",
