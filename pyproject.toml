@@ -1,0 +1,126 @@
+[build-system]
+requires = ["uv_build>=0.13.9,<0.14"]
+build-backend = "uv_build"
+
+[project]
+name = "titanspan"
+version = "0.1.0.dev0"
+description = "An expressive, async-first Python framework for intelligent systems."
+readme = "README.md"
+requires-python = ">=3.12"
+license = "MIT"
+authors = [{ name = "Cyber Cosmos" }]
+keywords = [
+    "ai",
+    "async",
+    "framework",
+    "python",
+    "workflow-orchestration",
+]
+classifiers = [
+    "Development Status :: 2 - Pre-Alpha",
+    "Framework :: FastAPI",
+    "Framework :: AsyncIO",
+    "Intended Audience :: Developers",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
+    "Programming Language :: Python :: 3.15",
+    "Typing :: Typed",
+]
+dependencies = [
+    "dishka>=1.6,<2",
+    "fastapi>=0.115,<1",
+    "pydantic-settings>=2.7,<3",
+    "rich>=13.9,<15",
+    "typer>=0.15,<1",
+]
+
+[project.urls]
+Homepage = "https://github.com/Cyber-Cosmos/titanspan"
+Repository = "https://github.com/Cyber-Cosmos/titanspan"
+Documentation = "https://github.com/Cyber-Cosmos/titanspan/tree/main/docs"
+Issues = "https://github.com/Cyber-Cosmos/titanspan/issues"
+Changelog = "https://github.com/Cyber-Cosmos/titanspan/blob/main/CHANGELOG.md"
+
+[project.scripts]
+titanspan = "titanspan.console.cli:main"
+
+[dependency-groups]
+dev = [
+    "httpx2>=2,<3",
+    "hypothesis>=6.130,<7",
+    "pip-audit>=2.9,<3",
+    "pre-commit>=4.2,<5",
+    "pyright>=1.1.400,<2",
+    "pytest>=8.3,<10",
+    "pytest-benchmark>=5,<6",
+    "pytest-cov>=6,<8",
+    "ruff>=0.14,<0.15",
+    "uvicorn[standard]>=0.34,<1",
+]
+
+[tool.uv]
+default-groups = ["dev"]
+
+[tool.pytest.ini_options]
+addopts = "-ra"
+pythonpath = ["src", "examples/hello-world"]
+strict_config = true
+strict_markers = true
+testpaths = ["tests"]
+markers = [
+    "benchmark: performance measurement without a shared-runner threshold",
+    "stress: repeated or high-volume behavior checks",
+]
+
+[tool.coverage.run]
+branch = true
+source = ["titanspan"]
+
+[tool.coverage.report]
+fail_under = 90
+show_missing = true
+skip_covered = true
+
+[tool.ruff]
+line-length = 80
+target-version = "py312"
+src = ["src", "tests", "examples"]
+
+[tool.ruff.lint]
+select = [
+    "ANN",
+    "ASYNC",
+    "B",
+    "D",
+    "E",
+    "F",
+    "I",
+    "PERF",
+    "S",
+    "SIM",
+    "TCH",
+    "UP",
+]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**" = ["D", "S101"]
+"benchmarks/**" = ["D", "S101"]
+
+[tool.ruff.lint.pydocstyle]
+convention = "google"
+
+[tool.ruff.format]
+quote-style = "double"
+
+[tool.pyright]
+pythonVersion = "3.12"
+typeCheckingMode = "strict"
+include = ["src"]
+exclude = ["**/__pycache__", "tests", "benchmarks"]
+venvPath = "."
+venv = ".venv"
+

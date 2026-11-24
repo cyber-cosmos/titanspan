@@ -1,0 +1,67 @@
+services:
+  postgres:
+    image: postgres:17.12-alpine3.24
+    profiles: [database]
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-titanspan}
+      POSTGRES_USER: ${POSTGRES_USER:-titanspan}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-local-only-change-me}
+    ports:
+      - "127.0.0.1:${POSTGRES_HOST_PORT:-5432}:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - pg_isready -U "$${POSTGRES_USER}" -d "$${POSTGRES_DB}"
+      interval: 5s
+      timeout: 3s
+      retries: 10
+      start_period: 5s
+
+  pgvector:
+    image: pgvector/pgvector:0.8.7-pg17-trixie
+    profiles: [vector]
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-titanspan}
+      POSTGRES_USER: ${POSTGRES_USER:-titanspan}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-local-only-change-me}
+    ports:
+      - "127.0.0.1:5433:5432"
+    volumes:
+      - pgvector-data:/var/lib/postgresql/data
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - pg_isready -U "$${POSTGRES_USER}" -d "$${POSTGRES_DB}"
+      interval: 5s
+      timeout: 3s
+      retries: 10
+      start_period: 5s
+
+  redis:
+    image: redis:8.12.0-alpine3.23
+    profiles: [cache]
+    command: [redis-server, --appendonly, "yes"]
+    ports:
+      - "127.0.0.1:${REDIS_HOST_PORT:-6379}:6379"
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: [CMD, redis-cli, ping]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  mailpit:
+    image: axllent/mailpit:v1.34.0
+    profiles: [mail]
+    ports:
+      - "127.0.0.1:${MAILPIT_SMTP_PORT:-1025}:1025"
+      - "127.0.0.1:${MAILPIT_UI_PORT:-8025}:8025"
+
+volumes:
+  postgres-data:
+  pgvector-data:
+  redis-data:
+
