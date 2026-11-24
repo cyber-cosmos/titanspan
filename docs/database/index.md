@@ -6,4 +6,4 @@ migrations, with explicit transactions and native SQLAlchemy interoperability.
 
 No Titanspan ORM, model, query builder, or migration API is available yet.
 See [ADR 0006](../architecture/decisions/0006-sqlalchemy-persistence) and the
-[architecture guide](https://github.com/Cyber-Cosmos/titanspan/blob/main/ARCHITECTURE.md#database-and-transaction-semantics).
+[architecture guide](https://github.com/titanspan/titanspan/blob/main/ARCHITECTURE.md#database-and-transaction-semantics).

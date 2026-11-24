@@ -13,11 +13,11 @@ export default defineConfig({
       { text: "Architecture", link: "/architecture/" },
       {
         text: "Roadmap",
-        link: "https://github.com/Cyber-Cosmos/titanspan/blob/main/ROADMAP.md",
+        link: "https://github.com/titanspan/titanspan/blob/main/ROADMAP.md",
       },
       {
         text: "GitHub",
-        link: "https://github.com/Cyber-Cosmos/titanspan",
+        link: "https://github.com/titanspan/titanspan",
       },
     ],
     sidebar: [
@@ -79,11 +79,11 @@ export default defineConfig({
       },
     ],
     socialLinks: [
-      { icon: "github", link: "https://github.com/Cyber-Cosmos/titanspan" },
+      { icon: "github", link: "https://github.com/titanspan/titanspan" },
     ],
     footer: {
       message: "Licensed under the MIT License.",
-      copyright: "Copyright © 2026 Cyber Cosmos",
+      copyright: "Copyright © 2026 Titanspan",
     },
   },
 });

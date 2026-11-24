@@ -1,8 +1,8 @@
 blank_issues_enabled: false
 contact_links:
   - name: Ask a question or discuss a design
-    url: https://github.com/Cyber-Cosmos/titanspan/discussions
+    url: https://github.com/titanspan/titanspan/discussions
     about: Use Discussions for questions and design conversations.
   - name: Report a security vulnerability
-    url: https://github.com/Cyber-Cosmos/titanspan/security/advisories/new
+    url: https://github.com/titanspan/titanspan/security/advisories/new
     about: Report vulnerabilities privately through GitHub.

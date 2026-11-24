@@ -90,7 +90,7 @@ test-driven development, uv, GNU Make, Ruff, Pyright, and Pytest.
 ## Security
 
 Please report security issues privately using the repository's
-[security advisory page](https://github.com/Cyber-Cosmos/titanspan/security/advisories/new).
+[security advisory page](https://github.com/titanspan/titanspan/security/advisories/new).
 See [SECURITY.md](SECURITY.md) for the supported disclosure process.
 
 ## License

@@ -10,7 +10,7 @@ readme = "README.md"
 requires-python = ">=3.12"
 license = "MIT"
 license-files = ["LICENSE", "THIRD_PARTY_NOTICES.md"]
-authors = [{ name = "Cyber Cosmos" }]
+authors = [{ name = "Jerome Thayananthajothy" }]
 keywords = ["ai", "async", "framework", "python", "workflow-orchestration"]
 classifiers = [
     "Development Status :: 2 - Pre-Alpha",
@@ -34,11 +34,11 @@ dependencies = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/Cyber-Cosmos/titanspan"
-Repository = "https://github.com/Cyber-Cosmos/titanspan"
-Documentation = "https://github.com/Cyber-Cosmos/titanspan/tree/main/docs"
-Issues = "https://github.com/Cyber-Cosmos/titanspan/issues"
-Changelog = "https://github.com/Cyber-Cosmos/titanspan/blob/main/CHANGELOG.md"
+Homepage = "https://github.com/titanspan/titanspan"
+Repository = "https://github.com/titanspan/titanspan"
+Documentation = "https://github.com/titanspan/titanspan/tree/main/docs"
+Issues = "https://github.com/titanspan/titanspan/issues"
+Changelog = "https://github.com/titanspan/titanspan/blob/main/CHANGELOG.md"
 
 [project.scripts]
 titanspan = "titanspan.console.cli:main"

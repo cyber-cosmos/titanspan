@@ -9,5 +9,5 @@ Settings. Other modules in the architecture are documented boundaries, not
 implemented APIs.
 
 Read the complete
-[architecture guide](https://github.com/Cyber-Cosmos/titanspan/blob/main/ARCHITECTURE.md)
+[architecture guide](https://github.com/titanspan/titanspan/blob/main/ARCHITECTURE.md)
 and the [architecture decision records](./decisions/).

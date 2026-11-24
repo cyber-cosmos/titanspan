@@ -7,7 +7,7 @@ Install [uv](https://docs.astral.sh/uv/), then clone and synchronize the
 project:
 
 ```sh
-git clone https://github.com/Cyber-Cosmos/titanspan.git
+git clone https://github.com/titanspan/titanspan.git
 cd titanspan
 uv sync --locked
 uv run titanspan --help
