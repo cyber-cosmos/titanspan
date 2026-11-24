@@ -17,6 +17,8 @@ The current implementation includes:
   Babel and `num2words` are available through the optional `numbers` extra.
 - `BinaryCodec` for UUID and ULID conversion between text and 16-byte
   identifiers, with process-local custom codec registration.
+- `ConfigurationUrlParser` for database connection URLs, nested query
+  options, driver aliases, and SQL Server DSN parsing.
 - `HtmlString` and `EncodedHtmlString` for trusted markup and escaped text.
 - `MessageBag` for keyed messages, wildcard reads, formatting, and JSON output.
 - `Benchmark`, `Lottery`, `Sleep`, and `Timebox` for measured execution,
@@ -76,3 +78,5 @@ guidance, [timing utilities](./timing) for `Benchmark`, `Lottery`, and
 waiting. See [Number utilities](./numbers) for numeric formatting, locale
 scopes, optional dependencies, and Python-specific behavior, and
 [binary codecs](./binary-codecs) for UUID and ULID conversion.
+See [configuration URLs](./configuration-urls) for parsing database URLs and
+SQL Server DSN values.

@@ -18,5 +18,7 @@ public release.
   extra.
 - Added UUID and ULID binary codecs with typed custom codec registration and
   Python byte interoperability.
+- Added configuration URL parsing for common database schemes, nested query
+  options, driver aliases, and SQL Server DSN values.
 - Added initial tests, architecture decisions, contributor documentation, and
   repository automation.

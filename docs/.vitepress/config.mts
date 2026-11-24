@@ -59,6 +59,10 @@ export default defineConfig({
           { text: "Fluent strings", link: "/support/stringable" },
           { text: "Numbers", link: "/support/numbers" },
           { text: "Binary codecs", link: "/support/binary-codecs" },
+          {
+            text: "Configuration URLs",
+            link: "/support/configuration-urls",
+          },
           { text: "URI utilities", link: "/support/uris" },
           { text: "Timing utilities", link: "/support/timing" },
           { text: "Sleep", link: "/support/sleep" },

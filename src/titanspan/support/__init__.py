@@ -8,6 +8,7 @@ from titanspan.support.arr import Arr
 from titanspan.support.benchmark import Benchmark
 from titanspan.support.binary_codec import BinaryCodec
 from titanspan.support.conditionable import Conditionable
+from titanspan.support.configuration_url_parser import ConfigurationUrlParser
 from titanspan.support.encoded_html_string import EncodedHtmlString
 from titanspan.support.env import Env
 from titanspan.support.exceptions import (
@@ -80,6 +81,7 @@ __all__ = [
     "Benchmark",
     "BinaryCodec",
     "Conditionable",
+    "ConfigurationUrlParser",
     "EncodedHtmlString",
     "Env",
     "Fluent",

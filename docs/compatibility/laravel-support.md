@@ -30,12 +30,12 @@ A method is not counted as compatible because it has a similarly named Python me
 ## Measured status
 
 - Exact behavioural parity: 0.
-- Python-adapted parity: 436.
+- Python-adapted parity: 439.
 - Delegated: 0.
 - Blocked: 3141.
 - Not applicable: 32.
-- Pending: 441.
-- Verified compatibility: 436/4050 listed member entries (10.77%).
+- Pending: 438.
+- Verified compatibility: 439/4050 listed member entries (10.84%).
 
 For the timing utilities in this implementation slice, behavior was checked
 against the pinned upstream tests for [Benchmark](https://github.com/laravel/framework/blob/8a8c4a84852869e13190d89f9da873cd9a70f14c/tests/Support/SupportBenchmarkTest.php),
@@ -44,6 +44,11 @@ and [Timebox](https://github.com/laravel/framework/blob/8a8c4a84852869e13190d89f
 Environment parsing and dotenv writes are traced to the pinned
 [Support helper tests](https://github.com/laravel/framework/blob/8a8c4a84852869e13190d89f9da873cd9a70f14c/tests/Support/SupportHelpersTest.php)
 and [environment bootstrap tests](https://github.com/laravel/framework/blob/8a8c4a84852869e13190d89f9da873cd9a70f14c/tests/Foundation/Bootstrap/LoadEnvironmentVariablesTest.php).
+Configuration URL parsing follows the pinned
+[ConfigurationUrlParser tests](https://github.com/laravel/framework/blob/8a8c4a84852869e13190d89f9da873cd9a70f14c/tests/Support/ConfigurationUrlParserTest.php)
+and its SQL Server DSN parser trait. The Python implementation uses the
+standard library and keeps the mutable alias registry behind a thread-safe
+registration method.
 
 ## Method-level inventory
 
@@ -432,9 +437,9 @@ and [environment bootstrap tests](https://github.com/laravel/framework/blob/8a8c
 
 | Upstream class | Upstream API | Titanspan API | Implementation location | Compatibility status | Test evidence | Differences | Upstream reference |
 |---|---|---|---|---|---|---|---|
-| `Illuminate\Support\ConfigurationUrlParser` | `parseConfiguration()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-21] |
-| `Illuminate\Support\ConfigurationUrlParser` | `getDriverAliases()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-21] |
-| `Illuminate\Support\ConfigurationUrlParser` | `addDriverAlias()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-21] |
+| `Illuminate\Support\ConfigurationUrlParser` | `parseConfiguration()` | `ConfigurationUrlParser.parse_configuration()`, `ConfigurationUrlParser.parseConfiguration()` | `src/titanspan/support/configuration_url_parser.py` | **Python-adapted parity** | `tests/unit/support/test_configuration_url_parser.py` | Parses standard database URLs, bracketed query options, aliases, and SQL Server DSNs with the Python standard library. A malformed URL raises `ValueError`; an invalid URL type raises `TypeError`. | [source][source-21] |
+| `Illuminate\Support\ConfigurationUrlParser` | `getDriverAliases()` | `ConfigurationUrlParser.get_driver_aliases()`, `ConfigurationUrlParser.getDriverAliases()` | `src/titanspan/support/configuration_url_parser.py` | **Python-adapted parity** | `tests/unit/support/test_configuration_url_parser.py::test_driver_aliases_are_exposed_and_can_be_extended`; `test_alias_snapshot_cannot_mutate_the_shared_registry` | Returns a defensive copy rather than exposing the mutable process-wide registry. | [source][source-21] |
+| `Illuminate\Support\ConfigurationUrlParser` | `addDriverAlias()` | `ConfigurationUrlParser.add_driver_alias()`, `ConfigurationUrlParser.addDriverAlias()` | `src/titanspan/support/configuration_url_parser.py` | **Python-adapted parity** | `tests/unit/support/test_configuration_url_parser.py::test_driver_aliases_are_exposed_and_can_be_extended` | Registration is protected by a re-entrant thread lock and remains process-wide. | [source][source-21] |
 
 </details>
 
