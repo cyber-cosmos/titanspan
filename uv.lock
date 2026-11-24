@@ -1417,6 +1417,7 @@ name = "titanspan"
 version = "0.1.0.dev0"
 source = { editable = "." }
 dependencies = [
+    { name = "anyio" },
     { name = "dishka" },
     { name = "fastapi" },
     { name = "pydantic-settings" },
@@ -1443,6 +1444,7 @@ dev = [
 
 [package.metadata]
 requires-dist = [
+    { name = "anyio", specifier = ">=4.16,<5" },
     { name = "dishka", specifier = ">=1.6,<2" },
     { name = "fastapi", specifier = ">=0.115,<1" },
     { name = "pydantic-settings", specifier = ">=2.7,<3" },

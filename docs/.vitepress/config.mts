@@ -57,6 +57,7 @@ export default defineConfig({
           { text: "Strings", link: "/support/strings" },
           { text: "Fluent strings", link: "/support/stringable" },
           { text: "URI utilities", link: "/support/uris" },
+          { text: "Timing utilities", link: "/support/timing" },
           { text: "HTML values", link: "/support/html" },
           { text: "Extensions", link: "/support/extensions" },
           {

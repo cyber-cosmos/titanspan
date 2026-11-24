@@ -33,3 +33,12 @@ AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
 LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
+
+## AnyIO
+
+Titanspan uses AnyIO for backend-neutral asynchronous waiting in the Support
+timebox. Titanspan does not adapt or redistribute AnyIO source code.
+
+AnyIO 4.16.0 is distributed under the MIT License. Copyright (c) 2018 Alex
+Grönholm. See the [official AnyIO 4.16.0 license](https://github.com/agronholm/anyio/blob/4.16.0/LICENSE)
+for the complete notice.

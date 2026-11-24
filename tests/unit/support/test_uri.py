@@ -34,7 +34,8 @@ def test_uri_exposes_components_and_preserves_the_original_value() -> None:
         None.
     """
     original = (
-        "https://taylor:secret@EXAMPLE.com:443/docs/installation"
+        "https://taylor:secret@EXAMPLE.com:443/"  # pragma: allowlist secret
+        "docs/installation"
         "?version=1#intro"
     )
     uri = Uri.of(original)
@@ -96,7 +97,8 @@ def test_uri_transformations_are_immutable_and_keep_query_components() -> None:
     )
 
     assert changed.value() == (
-        "http://alice:p%40ss@api.example.test:8080/v2/items?keep=1#new"
+        "http://alice:p%40ss@api.example.test"  # pragma: allowlist secret
+        ":8080/v2/items?keep=1#new"
     )
     assert original.value() == "https://example.test/a?keep=1#old"
     assert changed.with_user(None).user() is None
@@ -222,9 +224,10 @@ def test_uri_decode_and_html_adapters_only_change_query_escaping() -> None:
     assert Uri.of("  ").isEmpty()
     assert Uri.of("  ").is_not_empty() is False
     assert Uri.of("  ").isNotEmpty() is False
-    assert repr(Uri.of("https://alice:secret@example.test")) == (
-        "Uri('https://example.test')"
+    uri_with_credentials = Uri.of(
+        "https://alice:secret@example.test"  # pragma: allowlist secret
     )
+    assert repr(uri_with_credentials) == "Uri('https://example.test')"
 
 
 @pytest.mark.unit

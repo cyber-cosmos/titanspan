@@ -26,6 +26,7 @@ classifiers = [
     "Typing :: Typed",
 ]
 dependencies = [
+    "anyio>=4.16,<5",
     "dishka>=1.6,<2",
     "fastapi>=0.115,<1",
     "pydantic-settings>=2.7,<3",
@@ -198,6 +199,16 @@ ignore = [
 "src/titanspan/support/uri_query_string.py" = [
     "N815",   # Preserve the Laravel-compatible toArray alias.
     "SLF001", # The paired adapter reads its owning URI's private state.
+]
+"src/titanspan/support/benchmark.py" = [
+    "PIE790", # Keep required type-only overload bodies explicit.
+]
+"src/titanspan/support/lottery.py" = [
+    "N815", # Laravel-compatible aliases intentionally retain camelCase.
+]
+"src/titanspan/support/timebox.py" = [
+    "N802", # Preserve the Laravel-compatible earlyReturn property.
+    "N815", # Laravel-compatible aliases intentionally retain camelCase.
 ]
 "src/titanspan/contracts/htmlable.py" = [
     "N802", # Preserve the Laravel-compatible Protocol method spelling.

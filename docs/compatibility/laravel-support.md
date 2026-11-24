@@ -12,7 +12,7 @@ The baseline is pinned to an immutable commit rather than the moving `13.x` bran
 
 ## Inventory scope and measurement
 
-The source scan accounts for **147 declared symbols** and **4047 member entries**: 4025 declared public methods, documented facade `@method` proxies, and namespace-level helper functions; 13 public constants; and 9 public properties. Each member is listed below. The scan covers Support, Collections, Macroable, Conditionable, Reflection, and Contracts/Support source trees so cross-package ownership remains visible.
+The source scan accounts for **147 declared symbols** and **4048 member entries**: 4025 declared public methods, documented facade `@method` proxies, and namespace-level helper functions; 13 public constants; and 10 public properties. Each member is listed below. The scan covers Support, Collections, Macroable, Conditionable, Reflection, and Contracts/Support source trees so cross-package ownership remains visible.
 
 This source scan is not a complete PHP reflection dump. Inherited methods not declared or documented on a symbol are not expanded into a separate row, and PHPDoc parameter and return signatures are not normalized yet. Those inherited surfaces and signatures remain audit work; the compatibility percentage below is a lower bound over listed entries, not a claim that the entire Illuminate ecosystem is covered.
 
@@ -30,12 +30,17 @@ A method is not counted as compatible because it has a similarly named Python me
 ## Measured status
 
 - Exact behavioural parity: 0.
-- Python-adapted parity: 352.
+- Python-adapted parity: 372.
 - Delegated: 0.
 - Blocked: 3140.
 - Not applicable: 31.
-- Pending: 524.
-- Verified compatibility: 352/4047 listed member entries (8.70%).
+- Pending: 505.
+- Verified compatibility: 372/4048 listed member entries (9.19%).
+
+For the timing utilities in this implementation slice, behavior was checked
+against the pinned upstream tests for [Benchmark](https://github.com/laravel/framework/blob/8a8c4a84852869e13190d89f9da873cd9a70f14c/tests/Support/SupportBenchmarkTest.php),
+[Lottery](https://github.com/laravel/framework/blob/8a8c4a84852869e13190d89f9da873cd9a70f14c/tests/Support/LotteryTest.php),
+and [Timebox](https://github.com/laravel/framework/blob/8a8c4a84852869e13190d89f9da873cd9a70f14c/tests/Support/SupportTimeboxTest.php).
 
 ## Method-level inventory
 
@@ -241,9 +246,9 @@ A method is not counted as compatible because it has a similarly named Python me
 
 | Upstream class | Upstream API | Titanspan API | Implementation location | Compatibility status | Test evidence | Differences | Upstream reference |
 |---|---|---|---|---|---|---|---|
-| `Illuminate\Support\Benchmark` | `measure()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-15] |
-| `Illuminate\Support\Benchmark` | `value()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-15] |
-| `Illuminate\Support\Benchmark` | `dd()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-15] |
+| `Illuminate\Support\Benchmark` | `measure()` | `Benchmark.measure`, `Benchmark.measure_async` | `src/titanspan/support/benchmark.py` | **Python-adapted parity** | `tests/unit/support/test_benchmark.py` | Supports Python callables, mappings, and iterables; preserves mapping keys and sequentially awaits async extensions. | [source][source-15] |
+| `Illuminate\Support\Benchmark` | `value()` | `Benchmark.value`, `Benchmark.value_async` | `src/titanspan/support/benchmark.py` | **Python-adapted parity** | `tests/unit/support/test_benchmark.py` | Returns a Python tuple rather than a PHP array; async measurement is a Titanspan extension. | [source][source-15] |
+| `Illuminate\Support\Benchmark` | `dd()` | `Benchmark.dd` | `src/titanspan/support/benchmark.py` | **Python-adapted parity** | `tests/unit/support/test_benchmark.py` | Writes formatted output and raises `SystemExit` instead of calling Laravel's global `dd` helper. | [source][source-15] |
 
 </details>
 
@@ -3885,19 +3890,19 @@ A method is not counted as compatible because it has a similarly named Python me
 
 | Upstream class | Upstream API | Titanspan API | Implementation location | Compatibility status | Test evidence | Differences | Upstream reference |
 |---|---|---|---|---|---|---|---|
-| `Illuminate\Support\Lottery` | `__construct()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-87] |
-| `Illuminate\Support\Lottery` | `odds()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-87] |
-| `Illuminate\Support\Lottery` | `winner()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-87] |
-| `Illuminate\Support\Lottery` | `loser()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-87] |
-| `Illuminate\Support\Lottery` | `__invoke()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-87] |
-| `Illuminate\Support\Lottery` | `choose()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-87] |
-| `Illuminate\Support\Lottery` | `alwaysWin()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-87] |
-| `Illuminate\Support\Lottery` | `alwaysLose()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-87] |
-| `Illuminate\Support\Lottery` | `fix()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-87] |
-| `Illuminate\Support\Lottery` | `forceResultWithSequence()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-87] |
-| `Illuminate\Support\Lottery` | `determineResultsNormally()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-87] |
-| `Illuminate\Support\Lottery` | `determineResultNormally()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-87] |
-| `Illuminate\Support\Lottery` | `setResultFactory()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-87] |
+| `Illuminate\Support\Lottery` | `__construct()` | `Lottery(chances, out_of)` | `src/titanspan/support/lottery.py` | **Python-adapted parity** | `tests/unit/support/test_lottery.py` | Uses `TypeError` and `ValueError` for invalid Python values instead of Laravel's `RuntimeException`. | [source][source-87] |
+| `Illuminate\Support\Lottery` | `odds()` | `Lottery.odds` | `src/titanspan/support/lottery.py` | **Python-adapted parity** | `tests/unit/support/test_lottery.py` | Retains the class factory and validates Python numeric types. | [source][source-87] |
+| `Illuminate\Support\Lottery` | `winner()` | `Lottery.winner` | `src/titanspan/support/lottery.py` | **Python-adapted parity** | `tests/unit/support/test_lottery.py` | Callback arguments are explicitly typed as Python objects. | [source][source-87] |
+| `Illuminate\Support\Lottery` | `loser()` | `Lottery.loser` | `src/titanspan/support/lottery.py` | **Python-adapted parity** | `tests/unit/support/test_lottery.py` | Callback arguments are explicitly typed as Python objects. | [source][source-87] |
+| `Illuminate\Support\Lottery` | `__invoke()` | `Lottery.__call__` | `src/titanspan/support/lottery.py` | **Python-adapted parity** | `tests/unit/support/test_lottery.py::test_lottery_is_callable_and_forwards_callback_arguments` | Python's callable-object protocol replaces PHP's `__invoke`. | [source][source-87] |
+| `Illuminate\Support\Lottery` | `choose()` | `Lottery.choose`, `Lottery.choose_async` | `src/titanspan/support/lottery.py` | **Python-adapted parity** | `tests/unit/support/test_lottery.py` | Repeated draws are sequential; async callbacks require the explicit async extension. | [source][source-87] |
+| `Illuminate\Support\Lottery` | `alwaysWin()` | `Lottery.alwaysWin`, `Lottery.always_win` | `src/titanspan/support/lottery.py` | **Python-adapted parity** | `tests/unit/support/test_lottery.py` | Overrides are context-local and temporary callback overrides restore prior state even on failure. | [source][source-87] |
+| `Illuminate\Support\Lottery` | `alwaysLose()` | `Lottery.alwaysLose`, `Lottery.always_lose` | `src/titanspan/support/lottery.py` | **Python-adapted parity** | `tests/unit/support/test_lottery.py` | Overrides are context-local and temporary callback overrides restore prior state even on failure. | [source][source-87] |
+| `Illuminate\Support\Lottery` | `fix()` | `Lottery.fix` | `src/titanspan/support/lottery.py` | **Python-adapted parity** | `tests/unit/support/test_lottery.py` | Copies the input sequence so caller mutations do not alter active outcomes. | [source][source-87] |
+| `Illuminate\Support\Lottery` | `forceResultWithSequence()` | `Lottery.forceResultWithSequence`, `Lottery.force_result_with_sequence` | `src/titanspan/support/lottery.py` | **Python-adapted parity** | `tests/unit/support/test_lottery.py` | Default fallback advances past missing sparse indexes; a custom fallback controls advancement as in Laravel. | [source][source-87] |
+| `Illuminate\Support\Lottery` | `determineResultsNormally()` | `Lottery.determineResultsNormally`, `Lottery.determine_results_normally` | `src/titanspan/support/lottery.py` | **Python-adapted parity** | `tests/unit/support/test_lottery.py` | Clears only the current execution context's result factory. | [source][source-87] |
+| `Illuminate\Support\Lottery` | `determineResultNormally()` | `Lottery.determineResultNormally`, `Lottery.determine_result_normally` | `src/titanspan/support/lottery.py` | **Python-adapted parity** | `tests/unit/support/test_lottery.py` | Clears only the current execution context's result factory. | [source][source-87] |
+| `Illuminate\Support\Lottery` | `setResultFactory()` | `Lottery.setResultFactory`, `Lottery.set_result_factory` | `src/titanspan/support/lottery.py` | **Python-adapted parity** | `tests/unit/support/test_lottery.py` | Result factory state is isolated with `ContextVar` rather than static mutable process state. | [source][source-87] |
 
 </details>
 
@@ -4866,13 +4871,14 @@ A method is not counted as compatible because it has a similarly named Python me
 </details>
 
 <details>
-<summary>Illuminate\Support\Timebox — 3 listed public members (class)</summary>
+<summary>Illuminate\Support\Timebox — 4 listed public members (class)</summary>
 
 | Upstream class | Upstream API | Titanspan API | Implementation location | Compatibility status | Test evidence | Differences | Upstream reference |
 |---|---|---|---|---|---|---|---|
-| `Illuminate\Support\Timebox` | `call()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-126] |
-| `Illuminate\Support\Timebox` | `returnEarly()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-126] |
-| `Illuminate\Support\Timebox` | `dontReturnEarly()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-126] |
+| `Illuminate\Support\Timebox` | `call()` | `Timebox.call`, `Timebox.call_async` | `src/titanspan/support/timebox.py` | **Python-adapted parity** | `tests/unit/support/test_timebox.py` | Sync callbacks preserve minimum-duration behavior; the async extension never blocks the event loop and lets cancellation propagate immediately. | [source][source-126] |
+| `Illuminate\Support\Timebox` | `returnEarly()` | `Timebox.returnEarly`, `Timebox.return_early` | `src/titanspan/support/timebox.py` | **Python-adapted parity** | `tests/unit/support/test_timebox.py` | Also exposes Laravel's mutable `earlyReturn` property and Python `early_return` spelling. | [source][source-126] |
+| `Illuminate\Support\Timebox` | `dontReturnEarly()` | `Timebox.dontReturnEarly`, `Timebox.dont_return_early` | `src/titanspan/support/timebox.py` | **Python-adapted parity** | `tests/unit/support/test_timebox.py` | Restores the default minimum wait on the active timebox instance. | [source][source-126] |
+| `Illuminate\Support\Timebox` | `earlyReturn` (property) | `Timebox.earlyReturn`, `Timebox.early_return` | `src/titanspan/support/timebox.py` | **Python-adapted parity** | `tests/unit/support/test_timebox.py::test_return_early_and_dont_return_early_control_waiting` | Exposes the mutable flag with both Laravel-compatible and Python spellings. | [source][source-126] |
 
 </details>
 

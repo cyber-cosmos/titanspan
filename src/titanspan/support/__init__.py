@@ -5,6 +5,7 @@ values, macro and conditional mixins, and typed support exceptions.
 """
 
 from titanspan.support.arr import Arr
+from titanspan.support.benchmark import Benchmark
 from titanspan.support.conditionable import Conditionable
 from titanspan.support.encoded_html_string import EncodedHtmlString
 from titanspan.support.exceptions import (
@@ -43,12 +44,14 @@ from titanspan.support.helpers import (
     with_,
 )
 from titanspan.support.html_string import HtmlString
+from titanspan.support.lottery import Lottery
 from titanspan.support.macroable import Macroable
 from titanspan.support.message_bag import MessageBag
 from titanspan.support.optional import Optional, optional, optional_async
 from titanspan.support.str import Str
 from titanspan.support.stringable import Stringable
 from titanspan.support.tappable import Tappable
+from titanspan.support.timebox import Timebox
 from titanspan.support.uri import Uri, UriUrlGenerator
 from titanspan.support.uri_query_string import UriQueryString
 
@@ -58,6 +61,7 @@ __all__ = [
     "ArrayMutationError",
     "ArrayValueError",
     "AsyncCallbackUsageError",
+    "Benchmark",
     "Conditionable",
     "EncodedHtmlString",
     "Fluent",
@@ -66,6 +70,7 @@ __all__ = [
     "InvalidMacroCallbackError",
     "InvalidMacroNameError",
     "InvalidSortCriterionError",
+    "Lottery",
     "MacroNotFoundError",
     "Macroable",
     "MessageBag",
@@ -76,6 +81,7 @@ __all__ = [
     "Str",
     "Stringable",
     "Tappable",
+    "Timebox",
     "Uri",
     "UriQueryString",
     "UriUrlGenerator",
