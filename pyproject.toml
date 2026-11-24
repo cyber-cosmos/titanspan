@@ -9,6 +9,7 @@ description = "An expressive, async-first Python framework for intelligent syste
 readme = "README.md"
 requires-python = ">=3.12"
 license = "MIT"
+license-files = ["LICENSE", "THIRD_PARTY_NOTICES.md"]
 authors = [{ name = "Cyber Cosmos" }]
 keywords = ["ai", "async", "framework", "python", "workflow-orchestration"]
 classifiers = [
@@ -145,6 +146,55 @@ ignore = [
 [tool.ruff.lint.per-file-ignores]
 "tests/**" = ["S101"]
 "benchmarks/**" = ["S101"]
+"src/titanspan/support/arr.py" = [
+    "N815", # Laravel-compatible aliases intentionally retain camelCase.
+]
+"src/titanspan/support/conditionable.py" = [
+    "N815", # Laravel-compatible async aliases retain camelCase.
+]
+"src/titanspan/support/macroable.py" = [
+    "N815", # Laravel-compatible macro aliases retain camelCase.
+]
+"src/titanspan/support/fluent.py" = [
+    "N802", # Laravel-compatible methods intentionally retain camelCase.
+    "N815", # Laravel-compatible aliases retain camelCase.
+]
+"src/titanspan/support/message_bag.py" = [
+    "A002", # Keep Laravel's public format argument name.
+    "N802", # Laravel-compatible aliases retain camelCase.
+]
+"src/titanspan/contracts/message_bag.py" = [
+    "A002", # Keep Laravel's public format argument name.
+    "N802", # Laravel-compatible protocol aliases retain camelCase.
+]
+"src/titanspan/contracts/deferring_displayable_value.py" = [
+    "N802", # Preserve Laravel's public resolveDisplayableValue alias.
+    "N815", # Preserve the Laravel-compatible protocol alias.
+]
+"tests/unit/support/test_html_strings.py" = [
+    "N802", # Exercise the original Illuminate protocol method spelling.
+    "N815", # Exercise the Laravel-compatible deferred-value protocol alias.
+]
+"tests/unit/support/test_helpers.py" = [
+    "N815", # Exercise Laravel-compatible camelCase callback protocols.
+]
+"src/titanspan/support/str.py" = [
+    "N815", # Laravel-compatible aliases intentionally retain camelCase.
+]
+"src/titanspan/support/stringable.py" = [
+    "A002", # Retain selected Illuminate-compatible argument names.
+    "N802", # Laravel-compatible methods intentionally retain camelCase.
+    "N815", # Laravel-compatible aliases intentionally retain camelCase.
+]
+"src/titanspan/support/html_string.py" = [
+    "N815", # Laravel-compatible aliases intentionally retain camelCase.
+]
+"src/titanspan/support/encoded_html_string.py" = [
+    "N815", # Laravel-compatible aliases intentionally retain camelCase.
+]
+"src/titanspan/contracts/htmlable.py" = [
+    "N802", # Preserve the Laravel-compatible Protocol method spelling.
+]
 
 [tool.ruff.lint.mccabe]
 max-complexity = 10

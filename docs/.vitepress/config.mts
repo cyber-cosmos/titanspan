@@ -46,6 +46,25 @@ export default defineConfig({
         ],
       },
       {
+        text: "Support",
+        items: [
+          { text: "Overview", link: "/support/" },
+          { text: "Arrays", link: "/support/arrays" },
+          { text: "Fluent", link: "/support/fluent" },
+          { text: "Helpers", link: "/support/helpers" },
+          { text: "Message bags", link: "/support/message-bag" },
+          { text: "Optional values", link: "/support/optional" },
+          { text: "Strings", link: "/support/strings" },
+          { text: "Fluent strings", link: "/support/stringable" },
+          { text: "HTML values", link: "/support/html" },
+          { text: "Extensions", link: "/support/extensions" },
+          {
+            text: "Laravel compatibility",
+            link: "/compatibility/laravel-support",
+          },
+        ],
+      },
+      {
         text: "Project",
         items: [
           { text: "Testing", link: "/testing/" },

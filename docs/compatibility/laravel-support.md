@@ -1,0 +1,5423 @@
+# Laravel Support compatibility inventory
+
+## Compatibility baseline
+
+- Laravel framework release: `v13.44.1`.
+- Exact upstream commit: `8a8c4a84852869e13190d89f9da873cd9a70f14c`.
+- Verified against the official release listing on 2026-11-25.
+- Source tree: [Laravel framework at `8a8c4a84852869e13190d89f9da873cd9a70f14c`](https://github.com/laravel/framework/tree/8a8c4a84852869e13190d89f9da873cd9a70f14c).
+- API documentation: [Illuminate Support 13.x](https://api.laravel.com/docs/13.x/Illuminate/Support.html).
+
+The baseline is pinned to an immutable commit rather than the moving `13.x` branch.
+
+## Inventory scope and measurement
+
+The source scan accounts for **147 declared symbols** and **4047 member entries**: 4025 declared public methods, documented facade `@method` proxies, and namespace-level helper functions; 13 public constants; and 9 public properties. Each member is listed below. The scan covers Support, Collections, Macroable, Conditionable, Reflection, and Contracts/Support source trees so cross-package ownership remains visible.
+
+This source scan is not a complete PHP reflection dump. Inherited methods not declared or documented on a symbol are not expanded into a separate row, and PHPDoc parameter and return signatures are not normalized yet. Those inherited surfaces and signatures remain audit work; the compatibility percentage below is a lower bound over listed entries, not a claim that the entire Illuminate ecosystem is covered.
+
+A method is not counted as compatible because it has a similarly named Python method. A parity status requires behavioral evidence against the pinned API. “Pending” includes code that exists but does not yet have complete upstream parity evidence.
+
+## Status definitions
+
+- **Exact behavioural parity:** equivalent for representable inputs and verified by tests.
+- **Python-adapted parity:** tested equivalent behavior using a Python language adaptation.
+- **Delegated:** implemented and tested in a canonical Titanspan module.
+- **Blocked:** depends on an unavailable Titanspan subsystem.
+- **Not applicable:** PHP-specific API with no meaningful Python runtime equivalent.
+- **Pending:** not implemented or not yet verified for parity.
+
+## Measured status
+
+- Exact behavioural parity: 0.
+- Python-adapted parity: 301.
+- Delegated: 0.
+- Blocked: 3140.
+- Not applicable: 31.
+- Pending: 575.
+- Verified compatibility: 301/4047 listed member entries (7.44%).
+
+## Method-level inventory
+
+<details>
+<summary>Illuminate\Contracts\Support\Arrayable — 1 listed public members (interface)</summary>
+
+| Upstream class | Upstream API | Titanspan API | Implementation location | Compatibility status | Test evidence | Differences | Upstream reference |
+|---|---|---|---|---|---|---|---|
+| `Illuminate\Contracts\Support\Arrayable` | `toArray()` | — | Canonical owner: `titanspan.contracts` (not implemented). | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-1] |
+
+</details>
+
+<details>
+<summary>Illuminate\Contracts\Support\CanBeEscapedWhenCastToString — 1 listed public members (interface)</summary>
+
+| Upstream class | Upstream API | Titanspan API | Implementation location | Compatibility status | Test evidence | Differences | Upstream reference |
+|---|---|---|---|---|---|---|---|
+| `Illuminate\Contracts\Support\CanBeEscapedWhenCastToString` | `escapeWhenCastingToString()` | — | Canonical owner: `titanspan.contracts` (not implemented). | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-2] |
+
+</details>
+
+<details>
+<summary>Illuminate\Contracts\Support\DeferrableProvider — 1 listed public members (interface)</summary>
+
+| Upstream class | Upstream API | Titanspan API | Implementation location | Compatibility status | Test evidence | Differences | Upstream reference |
+|---|---|---|---|---|---|---|---|
+| `Illuminate\Contracts\Support\DeferrableProvider` | `provides()` | — | Canonical owner: `titanspan.contracts` (not implemented). | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-3] |
+
+</details>
+
+<details>
+<summary>Illuminate\Contracts\Support\DeferringDisplayableValue — 1 listed public members (interface)</summary>
+
+| Upstream class | Upstream API | Titanspan API | Implementation location | Compatibility status | Test evidence | Differences | Upstream reference |
+|---|---|---|---|---|---|---|---|
+| `Illuminate\Contracts\Support\DeferringDisplayableValue` | `resolveDisplayableValue()` | `DeferringDisplayableValue.resolve_displayable_value`; upstream objects accepted through `LaravelDeferringDisplayableValue.resolveDisplayableValue` | `src/titanspan/contracts/deferring_displayable_value.py` | **Python-adapted parity** | `tests/unit/support/test_html_strings.py::test_encoded_html_resolves_deferred_display_values` | Adapters accept either method spelling and escape resolved plain text while preserving resolved Htmlable values. | [source][source-4] |
+
+</details>
+
+<details>
+<summary>Illuminate\Contracts\Support\HasOnceHash — 1 listed public members (interface)</summary>
+
+| Upstream class | Upstream API | Titanspan API | Implementation location | Compatibility status | Test evidence | Differences | Upstream reference |
+|---|---|---|---|---|---|---|---|
+| `Illuminate\Contracts\Support\HasOnceHash` | `onceHash()` | — | Canonical owner: `titanspan.contracts` (not implemented). | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-5] |
+
+</details>
+
+<details>
+<summary>Illuminate\Contracts\Support\Htmlable — 1 listed public members (interface)</summary>
+
+| Upstream class | Upstream API | Titanspan API | Implementation location | Compatibility status | Test evidence | Differences | Upstream reference |
+|---|---|---|---|---|---|---|---|
+| `Illuminate\Contracts\Support\Htmlable` | `toHtml()` | `Htmlable.to_html`; upstream objects accepted through `LaravelHtmlable.toHtml` | `src/titanspan/contracts/htmlable.py` | **Python-adapted parity** | `tests/unit/support/test_html_strings.py` | The framework's HtmlString exposes both spellings; adapters accept either protocol without requiring duplicate methods. | [source][source-6] |
+
+</details>
+
+<details>
+<summary>Illuminate\Contracts\Support\Jsonable — 1 listed public members (interface)</summary>
+
+| Upstream class | Upstream API | Titanspan API | Implementation location | Compatibility status | Test evidence | Differences | Upstream reference |
+|---|---|---|---|---|---|---|---|
+| `Illuminate\Contracts\Support\Jsonable` | `toJson()` | — | Canonical owner: `titanspan.contracts` (not implemented). | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-7] |
+
+</details>
+
+<details>
+<summary>Illuminate\Contracts\Support\MessageBag — 13 listed public members (interface)</summary>
+
+| Upstream class | Upstream API | Titanspan API | Implementation location | Compatibility status | Test evidence | Differences | Upstream reference |
+|---|---|---|---|---|---|---|---|
+| `Illuminate\Contracts\Support\MessageBag` | `keys()` | `MessageBagData.keys` | `src/titanspan/contracts/message_bag.py` | **Python-adapted parity** | `tests/unit/support/test_message_bag.py` | Returns an ordered Python list of string or integer keys. | [source][source-8] |
+| `Illuminate\Contracts\Support\MessageBag` | `add()` | `MessageBagData.add` | `src/titanspan/contracts/message_bag.py` | **Python-adapted parity** | `tests/unit/support/test_message_bag.py` | Uses Python's fluent protocol return type. | [source][source-8] |
+| `Illuminate\Contracts\Support\MessageBag` | `merge()` | `MessageBagData.merge` | `src/titanspan/contracts/message_bag.py` | **Python-adapted parity** | `tests/unit/support/test_message_bag.py` | Accepts Python mappings and message providers. | [source][source-8] |
+| `Illuminate\Contracts\Support\MessageBag` | `has()` | `MessageBagData.has` | `src/titanspan/contracts/message_bag.py` | **Python-adapted parity** | `tests/unit/support/test_message_bag.py` | Supports sequences and variadic keys in idiomatic Python. | [source][source-8] |
+| `Illuminate\Contracts\Support\MessageBag` | `first()` | `MessageBagData.first` | `src/titanspan/contracts/message_bag.py` | **Python-adapted parity** | `tests/unit/support/test_message_bag.py` | Returns an empty string when no message matches. | [source][source-8] |
+| `Illuminate\Contracts\Support\MessageBag` | `get()` | `MessageBagData.get` | `src/titanspan/contracts/message_bag.py` | **Python-adapted parity** | `tests/unit/support/test_message_bag.py` | Wildcard results use ordered Python mappings. | [source][source-8] |
+| `Illuminate\Contracts\Support\MessageBag` | `all()` | `MessageBagData.all` | `src/titanspan/contracts/message_bag.py` | **Python-adapted parity** | `tests/unit/support/test_message_bag.py` | Returns a flat Python list. | [source][source-8] |
+| `Illuminate\Contracts\Support\MessageBag` | `forget()` | `MessageBagData.forget` | `src/titanspan/contracts/message_bag.py` | **Python-adapted parity** | `tests/unit/support/test_message_bag.py` | Mutates the bag and returns it for chaining. | [source][source-8] |
+| `Illuminate\Contracts\Support\MessageBag` | `getMessages()` | `MessageBagData.getMessages` | `src/titanspan/contracts/message_bag.py` | **Python-adapted parity** | `tests/unit/support/test_message_bag.py` | The concrete API also exposes `get_messages`. | [source][source-8] |
+| `Illuminate\Contracts\Support\MessageBag` | `getFormat()` | `MessageBagData.getFormat` | `src/titanspan/contracts/message_bag.py` | **Python-adapted parity** | `tests/unit/support/test_message_bag.py` | The concrete API also exposes `get_format`. | [source][source-8] |
+| `Illuminate\Contracts\Support\MessageBag` | `setFormat()` | `MessageBagData.setFormat` | `src/titanspan/contracts/message_bag.py` | **Python-adapted parity** | `tests/unit/support/test_message_bag.py` | The concrete API also exposes `set_format`. | [source][source-8] |
+| `Illuminate\Contracts\Support\MessageBag` | `isEmpty()` | `MessageBagData.isEmpty` | `src/titanspan/contracts/message_bag.py` | **Python-adapted parity** | `tests/unit/support/test_message_bag.py` | The concrete API also exposes `is_empty`. | [source][source-8] |
+| `Illuminate\Contracts\Support\MessageBag` | `isNotEmpty()` | `MessageBagData.isNotEmpty` | `src/titanspan/contracts/message_bag.py` | **Python-adapted parity** | `tests/unit/support/test_message_bag.py` | The concrete API also exposes `is_not_empty`. | [source][source-8] |
+
+</details>
+
+<details>
+<summary>Illuminate\Contracts\Support\MessageProvider — 1 listed public members (interface)</summary>
+
+| Upstream class | Upstream API | Titanspan API | Implementation location | Compatibility status | Test evidence | Differences | Upstream reference |
+|---|---|---|---|---|---|---|---|
+| `Illuminate\Contracts\Support\MessageProvider` | `getMessageBag()` | `MessageProvider.get_message_bag` | `src/titanspan/contracts/message_bag.py` | **Python-adapted parity** | `tests/unit/support/test_message_bag.py` | The protocol uses snake_case; the concrete bag also exposes `getMessageBag`. | [source][source-9] |
+
+</details>
+
+<details>
+<summary>Illuminate\Contracts\Support\Renderable — 1 listed public members (interface)</summary>
+
+| Upstream class | Upstream API | Titanspan API | Implementation location | Compatibility status | Test evidence | Differences | Upstream reference |
+|---|---|---|---|---|---|---|---|
+| `Illuminate\Contracts\Support\Renderable` | `render()` | — | Canonical owner: `titanspan.contracts` (not implemented). | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-10] |
+
+</details>
+
+<details>
+<summary>Illuminate\Contracts\Support\Responsable — 1 listed public members (interface)</summary>
+
+| Upstream class | Upstream API | Titanspan API | Implementation location | Compatibility status | Test evidence | Differences | Upstream reference |
+|---|---|---|---|---|---|---|---|
+| `Illuminate\Contracts\Support\Responsable` | `toResponse()` | — | Canonical owner: `titanspan.contracts` (not implemented). | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-11] |
+
+</details>
+
+<details>
+<summary>Illuminate\Contracts\Support\ValidatedData — 0 listed public members (interface)</summary>
+
+| Upstream class | Upstream API | Titanspan API | Implementation location | Compatibility status | Test evidence | Differences | Upstream reference |
+|---|---|---|---|---|---|---|---|
+| `Illuminate\Contracts\Support\ValidatedData` | Public type declaration | — | Not implemented | | Pending | — | No public members were found by the source scan. | [source][source-12] |
+
+</details>
+
+<details>
+<summary>Illuminate\Support\AggregateServiceProvider — 2 listed public members (class)</summary>
+
+| Upstream class | Upstream API | Titanspan API | Implementation location | Compatibility status | Test evidence | Differences | Upstream reference |
+|---|---|---|---|---|---|---|---|
+| `Illuminate\Support\AggregateServiceProvider` | `register()` | — | Canonical owner: `titanspan.foundation` (not implemented). | **Blocked** | — | Requires Titanspan service-provider lifecycle integration. | [source][source-13] |
+| `Illuminate\Support\AggregateServiceProvider` | `provides()` | — | Canonical owner: `titanspan.foundation` (not implemented). | **Blocked** | — | Requires Titanspan service-provider lifecycle integration. | [source][source-13] |
+
+</details>
+
+<details>
+<summary>Illuminate\Support\Arr — 59 listed public members (class)</summary>
+
+| Upstream class | Upstream API | Titanspan API | Implementation location | Compatibility status | Test evidence | Differences | Upstream reference |
+|---|---|---|---|---|---|---|---|
+| `Illuminate\Support\Arr` | `accessible()` | `Arr.accessible` | src/titanspan/support/arr.py | **Pending** | `tests/unit/support/test_arr.py` (initial behaviors) | The method is implemented and has initial tests, but full upstream behavioral parity is not established. | [source][source-14] |
+| `Illuminate\Support\Arr` | `arrayable()` | `Arr.arrayable` | src/titanspan/support/arr.py | **Pending** | `tests/unit/support/test_arr.py` (initial behaviors) | The method is implemented and has initial tests, but full upstream behavioral parity is not established. | [source][source-14] |
+| `Illuminate\Support\Arr` | `add()` | `Arr.add` | src/titanspan/support/arr.py | **Pending** | `tests/unit/support/test_arr.py` (initial behaviors) | The method is implemented and has initial tests, but full upstream behavioral parity is not established. | [source][source-14] |
+| `Illuminate\Support\Arr` | `array()` | `Arr.array` | src/titanspan/support/arr.py | **Pending** | `tests/unit/support/test_arr.py` (initial behaviors) | The method is implemented and has initial tests, but full upstream behavioral parity is not established. | [source][source-14] |
+| `Illuminate\Support\Arr` | `boolean()` | `Arr.boolean` | src/titanspan/support/arr.py | **Pending** | `tests/unit/support/test_arr.py` (initial behaviors) | The method is implemented and has initial tests, but full upstream behavioral parity is not established. | [source][source-14] |
+| `Illuminate\Support\Arr` | `collapse()` | `Arr.collapse` | src/titanspan/support/arr.py | **Pending** | `tests/unit/support/test_arr.py` (initial behaviors) | The method is implemented and has initial tests, but full upstream behavioral parity is not established. | [source][source-14] |
+| `Illuminate\Support\Arr` | `crossJoin()` | `Arr.crossJoin` and `Arr.cross_join` | src/titanspan/support/arr.py | **Pending** | `tests/unit/support/test_arr.py` (initial behaviors) | The method is implemented and has initial tests, but full upstream behavioral parity is not established. | [source][source-14] |
+| `Illuminate\Support\Arr` | `divide()` | `Arr.divide` | src/titanspan/support/arr.py | **Pending** | `tests/unit/support/test_arr.py` (initial behaviors) | The method is implemented and has initial tests, but full upstream behavioral parity is not established. | [source][source-14] |
+| `Illuminate\Support\Arr` | `dot()` | `Arr.dot` | src/titanspan/support/arr.py | **Pending** | `tests/unit/support/test_arr.py` (initial behaviors) | The method is implemented and has initial tests, but full upstream behavioral parity is not established. | [source][source-14] |
+| `Illuminate\Support\Arr` | `undot()` | `Arr.undot` | src/titanspan/support/arr.py | **Pending** | `tests/unit/support/test_arr.py` (initial behaviors) | The method is implemented and has initial tests, but full upstream behavioral parity is not established. | [source][source-14] |
+| `Illuminate\Support\Arr` | `except()` | `Arr.except_` | src/titanspan/support/arr.py | **Pending** | `tests/unit/support/test_arr.py` (initial behaviors) | The method is implemented and has initial tests, but full upstream behavioral parity is not established. | [source][source-14] |
+| `Illuminate\Support\Arr` | `exceptValues()` | `Arr.exceptValues` and `Arr.except_values` | src/titanspan/support/arr.py | **Pending** | `tests/unit/support/test_arr.py` (initial behaviors) | The method is implemented and has initial tests, but full upstream behavioral parity is not established. | [source][source-14] |
+| `Illuminate\Support\Arr` | `exists()` | `Arr.exists` | src/titanspan/support/arr.py | **Pending** | `tests/unit/support/test_arr.py` (initial behaviors) | The method is implemented and has initial tests, but full upstream behavioral parity is not established. | [source][source-14] |
+| `Illuminate\Support\Arr` | `first()` | `Arr.first` | src/titanspan/support/arr.py | **Pending** | `tests/unit/support/test_arr.py` (initial behaviors) | The method is implemented and has initial tests, but full upstream behavioral parity is not established. | [source][source-14] |
+| `Illuminate\Support\Arr` | `last()` | `Arr.last` | src/titanspan/support/arr.py | **Pending** | `tests/unit/support/test_arr.py` (initial behaviors) | The method is implemented and has initial tests, but full upstream behavioral parity is not established. | [source][source-14] |
+| `Illuminate\Support\Arr` | `take()` | `Arr.take` | src/titanspan/support/arr.py | **Pending** | `tests/unit/support/test_arr.py` (initial behaviors) | The method is implemented and has initial tests, but full upstream behavioral parity is not established. | [source][source-14] |
+| `Illuminate\Support\Arr` | `flatten()` | `Arr.flatten` | src/titanspan/support/arr.py | **Pending** | `tests/unit/support/test_arr.py` (initial behaviors) | The method is implemented and has initial tests, but full upstream behavioral parity is not established. | [source][source-14] |
+| `Illuminate\Support\Arr` | `float()` | `Arr.float` | src/titanspan/support/arr.py | **Pending** | `tests/unit/support/test_arr.py` (initial behaviors) | The method is implemented and has initial tests, but full upstream behavioral parity is not established. | [source][source-14] |
+| `Illuminate\Support\Arr` | `forget()` | `Arr.forget` | src/titanspan/support/arr.py | **Pending** | `tests/unit/support/test_arr.py` (initial behaviors) | The method is implemented and has initial tests, but full upstream behavioral parity is not established. | [source][source-14] |
+| `Illuminate\Support\Arr` | `from()` | `Arr.from_` | src/titanspan/support/arr.py | **Pending** | `tests/unit/support/test_arr.py` (initial behaviors) | The method is implemented and has initial tests, but full upstream behavioral parity is not established. | [source][source-14] |
+| `Illuminate\Support\Arr` | `get()` | `Arr.get` | src/titanspan/support/arr.py | **Pending** | `tests/unit/support/test_arr.py` (initial behaviors) | The method is implemented and has initial tests, but full upstream behavioral parity is not established. | [source][source-14] |
+| `Illuminate\Support\Arr` | `has()` | `Arr.has` | src/titanspan/support/arr.py | **Pending** | `tests/unit/support/test_arr.py` (initial behaviors) | The method is implemented and has initial tests, but full upstream behavioral parity is not established. | [source][source-14] |
+| `Illuminate\Support\Arr` | `hasAll()` | `Arr.hasAll` and `Arr.has_all` | src/titanspan/support/arr.py | **Pending** | `tests/unit/support/test_arr.py` (initial behaviors) | The method is implemented and has initial tests, but full upstream behavioral parity is not established. | [source][source-14] |
+| `Illuminate\Support\Arr` | `hasAny()` | `Arr.hasAny` and `Arr.has_any` | src/titanspan/support/arr.py | **Pending** | `tests/unit/support/test_arr.py` (initial behaviors) | The method is implemented and has initial tests, but full upstream behavioral parity is not established. | [source][source-14] |
+| `Illuminate\Support\Arr` | `every()` | `Arr.every` | src/titanspan/support/arr.py | **Pending** | `tests/unit/support/test_arr.py` (initial behaviors) | The method is implemented and has initial tests, but full upstream behavioral parity is not established. | [source][source-14] |
+| `Illuminate\Support\Arr` | `some()` | `Arr.some` | src/titanspan/support/arr.py | **Pending** | `tests/unit/support/test_arr.py` (initial behaviors) | The method is implemented and has initial tests, but full upstream behavioral parity is not established. | [source][source-14] |
+| `Illuminate\Support\Arr` | `integer()` | `Arr.integer` | src/titanspan/support/arr.py | **Pending** | `tests/unit/support/test_arr.py` (initial behaviors) | The method is implemented and has initial tests, but full upstream behavioral parity is not established. | [source][source-14] |
+| `Illuminate\Support\Arr` | `isAssoc()` | `Arr.isAssoc` and `Arr.is_assoc` | src/titanspan/support/arr.py | **Pending** | `tests/unit/support/test_arr.py` (initial behaviors) | The method is implemented and has initial tests, but full upstream behavioral parity is not established. | [source][source-14] |
+| `Illuminate\Support\Arr` | `isList()` | `Arr.isList` and `Arr.is_list` | src/titanspan/support/arr.py | **Pending** | `tests/unit/support/test_arr.py` (initial behaviors) | The method is implemented and has initial tests, but full upstream behavioral parity is not established. | [source][source-14] |
+| `Illuminate\Support\Arr` | `join()` | `Arr.join` | src/titanspan/support/arr.py | **Pending** | `tests/unit/support/test_arr.py` (initial behaviors) | The method is implemented and has initial tests, but full upstream behavioral parity is not established. | [source][source-14] |
+| `Illuminate\Support\Arr` | `keyBy()` | `Arr.keyBy` and `Arr.key_by` | src/titanspan/support/arr.py | **Pending** | `tests/unit/support/test_arr.py` (initial behaviors) | The method is implemented and has initial tests, but full upstream behavioral parity is not established. | [source][source-14] |
+| `Illuminate\Support\Arr` | `prependKeysWith()` | `Arr.prependKeysWith` and `Arr.prepend_keys_with` | src/titanspan/support/arr.py | **Pending** | `tests/unit/support/test_arr.py` (initial behaviors) | The method is implemented and has initial tests, but full upstream behavioral parity is not established. | [source][source-14] |
+| `Illuminate\Support\Arr` | `only()` | `Arr.only` | src/titanspan/support/arr.py | **Pending** | `tests/unit/support/test_arr.py` (initial behaviors) | The method is implemented and has initial tests, but full upstream behavioral parity is not established. | [source][source-14] |
+| `Illuminate\Support\Arr` | `onlyValues()` | `Arr.onlyValues` and `Arr.only_values` | src/titanspan/support/arr.py | **Pending** | `tests/unit/support/test_arr.py` (initial behaviors) | The method is implemented and has initial tests, but full upstream behavioral parity is not established. | [source][source-14] |
+| `Illuminate\Support\Arr` | `select()` | `Arr.select` | src/titanspan/support/arr.py | **Pending** | `tests/unit/support/test_arr.py` (initial behaviors) | The method is implemented and has initial tests, but full upstream behavioral parity is not established. | [source][source-14] |
+| `Illuminate\Support\Arr` | `pluck()` | `Arr.pluck` | src/titanspan/support/arr.py | **Pending** | `tests/unit/support/test_arr.py` (initial behaviors) | The method is implemented and has initial tests, but full upstream behavioral parity is not established. | [source][source-14] |
+| `Illuminate\Support\Arr` | `map()` | `Arr.map` | src/titanspan/support/arr.py | **Pending** | `tests/unit/support/test_arr.py` (initial behaviors) | The method is implemented and has initial tests, but full upstream behavioral parity is not established. | [source][source-14] |
+| `Illuminate\Support\Arr` | `mapWithKeys()` | `Arr.mapWithKeys` and `Arr.map_with_keys` | src/titanspan/support/arr.py | **Pending** | `tests/unit/support/test_arr.py` (initial behaviors) | The method is implemented and has initial tests, but full upstream behavioral parity is not established. | [source][source-14] |
+| `Illuminate\Support\Arr` | `mapSpread()` | `Arr.mapSpread` and `Arr.map_spread` | src/titanspan/support/arr.py | **Pending** | `tests/unit/support/test_arr.py` (initial behaviors) | The method is implemented and has initial tests, but full upstream behavioral parity is not established. | [source][source-14] |
+| `Illuminate\Support\Arr` | `prepend()` | `Arr.prepend` | src/titanspan/support/arr.py | **Pending** | `tests/unit/support/test_arr.py` (initial behaviors) | The method is implemented and has initial tests, but full upstream behavioral parity is not established. | [source][source-14] |
+| `Illuminate\Support\Arr` | `pull()` | `Arr.pull` | src/titanspan/support/arr.py | **Pending** | `tests/unit/support/test_arr.py` (initial behaviors) | The method is implemented and has initial tests, but full upstream behavioral parity is not established. | [source][source-14] |
+| `Illuminate\Support\Arr` | `query()` | `Arr.query` | src/titanspan/support/arr.py | **Pending** | `tests/unit/support/test_arr.py` (initial behaviors) | The method is implemented and has initial tests, but full upstream behavioral parity is not established. | [source][source-14] |
+| `Illuminate\Support\Arr` | `random()` | `Arr.random` | src/titanspan/support/arr.py | **Pending** | `tests/unit/support/test_arr.py` (initial behaviors) | The method is implemented and has initial tests, but full upstream behavioral parity is not established. | [source][source-14] |
+| `Illuminate\Support\Arr` | `set()` | `Arr.set` | src/titanspan/support/arr.py | **Pending** | `tests/unit/support/test_arr.py` (initial behaviors) | The method is implemented and has initial tests, but full upstream behavioral parity is not established. | [source][source-14] |
+| `Illuminate\Support\Arr` | `push()` | `Arr.push` | src/titanspan/support/arr.py | **Pending** | `tests/unit/support/test_arr.py` (initial behaviors) | The method is implemented and has initial tests, but full upstream behavioral parity is not established. | [source][source-14] |
+| `Illuminate\Support\Arr` | `shuffle()` | `Arr.shuffle` | src/titanspan/support/arr.py | **Pending** | `tests/unit/support/test_arr.py` (initial behaviors) | The method is implemented and has initial tests, but full upstream behavioral parity is not established. | [source][source-14] |
+| `Illuminate\Support\Arr` | `sole()` | `Arr.sole` | src/titanspan/support/arr.py | **Pending** | `tests/unit/support/test_arr.py` (initial behaviors) | The method is implemented and has initial tests, but full upstream behavioral parity is not established. | [source][source-14] |
+| `Illuminate\Support\Arr` | `sort()` | `Arr.sort` | src/titanspan/support/arr.py | **Pending** | `tests/unit/support/test_arr.py` (initial behaviors) | The method is implemented and has initial tests, but full upstream behavioral parity is not established. | [source][source-14] |
+| `Illuminate\Support\Arr` | `sortDesc()` | `Arr.sortDesc` and `Arr.sort_desc` | src/titanspan/support/arr.py | **Pending** | `tests/unit/support/test_arr.py` (initial behaviors) | The method is implemented and has initial tests, but full upstream behavioral parity is not established. | [source][source-14] |
+| `Illuminate\Support\Arr` | `sortRecursive()` | `Arr.sortRecursive` and `Arr.sort_recursive` | src/titanspan/support/arr.py | **Pending** | `tests/unit/support/test_arr.py` (initial behaviors) | The method is implemented and has initial tests, but full upstream behavioral parity is not established. | [source][source-14] |
+| `Illuminate\Support\Arr` | `sortRecursiveDesc()` | `Arr.sortRecursiveDesc` and `Arr.sort_recursive_desc` | src/titanspan/support/arr.py | **Pending** | `tests/unit/support/test_arr.py` (initial behaviors) | The method is implemented and has initial tests, but full upstream behavioral parity is not established. | [source][source-14] |
+| `Illuminate\Support\Arr` | `string()` | `Arr.string` | src/titanspan/support/arr.py | **Pending** | `tests/unit/support/test_arr.py` (initial behaviors) | The method is implemented and has initial tests, but full upstream behavioral parity is not established. | [source][source-14] |
+| `Illuminate\Support\Arr` | `toCssClasses()` | `Arr.toCssClasses` and `Arr.to_css_classes` | src/titanspan/support/arr.py | **Pending** | `tests/unit/support/test_arr.py` (initial behaviors) | The method is implemented and has initial tests, but full upstream behavioral parity is not established. | [source][source-14] |
+| `Illuminate\Support\Arr` | `toCssStyles()` | `Arr.toCssStyles` and `Arr.to_css_styles` | src/titanspan/support/arr.py | **Pending** | `tests/unit/support/test_arr.py` (initial behaviors) | The method is implemented and has initial tests, but full upstream behavioral parity is not established. | [source][source-14] |
+| `Illuminate\Support\Arr` | `where()` | `Arr.where` | src/titanspan/support/arr.py | **Pending** | `tests/unit/support/test_arr.py` (initial behaviors) | The method is implemented and has initial tests, but full upstream behavioral parity is not established. | [source][source-14] |
+| `Illuminate\Support\Arr` | `reject()` | `Arr.reject` | src/titanspan/support/arr.py | **Pending** | `tests/unit/support/test_arr.py` (initial behaviors) | The method is implemented and has initial tests, but full upstream behavioral parity is not established. | [source][source-14] |
+| `Illuminate\Support\Arr` | `partition()` | `Arr.partition` | src/titanspan/support/arr.py | **Pending** | `tests/unit/support/test_arr.py` (initial behaviors) | The method is implemented and has initial tests, but full upstream behavioral parity is not established. | [source][source-14] |
+| `Illuminate\Support\Arr` | `whereNotNull()` | `Arr.whereNotNull` and `Arr.where_not_null` | src/titanspan/support/arr.py | **Pending** | `tests/unit/support/test_arr.py` (initial behaviors) | The method is implemented and has initial tests, but full upstream behavioral parity is not established. | [source][source-14] |
+| `Illuminate\Support\Arr` | `wrap()` | `Arr.wrap` | src/titanspan/support/arr.py | **Pending** | `tests/unit/support/test_arr.py` (initial behaviors) | The method is implemented and has initial tests, but full upstream behavioral parity is not established. | [source][source-14] |
+
+</details>
+
+<details>
+<summary>Illuminate\Support\Benchmark — 3 listed public members (class)</summary>
+
+| Upstream class | Upstream API | Titanspan API | Implementation location | Compatibility status | Test evidence | Differences | Upstream reference |
+|---|---|---|---|---|---|---|---|
+| `Illuminate\Support\Benchmark` | `measure()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-15] |
+| `Illuminate\Support\Benchmark` | `value()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-15] |
+| `Illuminate\Support\Benchmark` | `dd()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-15] |
+
+</details>
+
+<details>
+<summary>Illuminate\Support\BinaryCodec — 5 listed public members (class)</summary>
+
+| Upstream class | Upstream API | Titanspan API | Implementation location | Compatibility status | Test evidence | Differences | Upstream reference |
+|---|---|---|---|---|---|---|---|
+| `Illuminate\Support\BinaryCodec` | `register()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-16] |
+| `Illuminate\Support\BinaryCodec` | `encode()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-16] |
+| `Illuminate\Support\BinaryCodec` | `decode()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-16] |
+| `Illuminate\Support\BinaryCodec` | `formats()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-16] |
+| `Illuminate\Support\BinaryCodec` | `isBinary()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-16] |
+
+</details>
+
+<details>
+<summary>Illuminate\Support\Carbon — 4 listed public members (class)</summary>
+
+| Upstream class | Upstream API | Titanspan API | Implementation location | Compatibility status | Test evidence | Differences | Upstream reference |
+|---|---|---|---|---|---|---|---|
+| `Illuminate\Support\Carbon` | `setTestNow()` | — | Not implemented. | **Not applicable** | — | PHP-specific package-manager or Carbon class behavior has no equivalent Titanspan runtime API. | [source][source-17] |
+| `Illuminate\Support\Carbon` | `createFromId()` | — | Not implemented. | **Not applicable** | — | PHP-specific package-manager or Carbon class behavior has no equivalent Titanspan runtime API. | [source][source-17] |
+| `Illuminate\Support\Carbon` | `plus()` | — | Not implemented. | **Not applicable** | — | PHP-specific package-manager or Carbon class behavior has no equivalent Titanspan runtime API. | [source][source-17] |
+| `Illuminate\Support\Carbon` | `minus()` | — | Not implemented. | **Not applicable** | — | PHP-specific package-manager or Carbon class behavior has no equivalent Titanspan runtime API. | [source][source-17] |
+
+</details>
+
+<details>
+<summary>Illuminate\Support\Collection — 112 listed public members (class)</summary>
+
+| Upstream class | Upstream API | Titanspan API | Implementation location | Compatibility status | Test evidence | Differences | Upstream reference |
+|---|---|---|---|---|---|---|---|
+| `Illuminate\Support\Collection` | `__construct()` | — | Canonical owner: `titanspan.collections` (not implemented). | **Blocked** | — | Canonical ownership is `titanspan.collections`, which is not implemented yet. | [source][source-18] |
+| `Illuminate\Support\Collection` | `range()` | — | Canonical owner: `titanspan.collections` (not implemented). | **Blocked** | — | Canonical ownership is `titanspan.collections`, which is not implemented yet. | [source][source-18] |
+| `Illuminate\Support\Collection` | `all()` | — | Canonical owner: `titanspan.collections` (not implemented). | **Blocked** | — | Canonical ownership is `titanspan.collections`, which is not implemented yet. | [source][source-18] |
+| `Illuminate\Support\Collection` | `lazy()` | — | Canonical owner: `titanspan.collections` (not implemented). | **Blocked** | — | Canonical ownership is `titanspan.collections`, which is not implemented yet. | [source][source-18] |
+| `Illuminate\Support\Collection` | `median()` | — | Canonical owner: `titanspan.collections` (not implemented). | **Blocked** | — | Canonical ownership is `titanspan.collections`, which is not implemented yet. | [source][source-18] |
+| `Illuminate\Support\Collection` | `mode()` | — | Canonical owner: `titanspan.collections` (not implemented). | **Blocked** | — | Canonical ownership is `titanspan.collections`, which is not implemented yet. | [source][source-18] |
+| `Illuminate\Support\Collection` | `collapse()` | — | Canonical owner: `titanspan.collections` (not implemented). | **Blocked** | — | Canonical ownership is `titanspan.collections`, which is not implemented yet. | [source][source-18] |
+| `Illuminate\Support\Collection` | `collapseWithKeys()` | — | Canonical owner: `titanspan.collections` (not implemented). | **Blocked** | — | Canonical ownership is `titanspan.collections`, which is not implemented yet. | [source][source-18] |
+| `Illuminate\Support\Collection` | `contains()` | — | Canonical owner: `titanspan.collections` (not implemented). | **Blocked** | — | Canonical ownership is `titanspan.collections`, which is not implemented yet. | [source][source-18] |
+| `Illuminate\Support\Collection` | `containsStrict()` | — | Canonical owner: `titanspan.collections` (not implemented). | **Blocked** | — | Canonical ownership is `titanspan.collections`, which is not implemented yet. | [source][source-18] |
+| `Illuminate\Support\Collection` | `doesntContain()` | — | Canonical owner: `titanspan.collections` (not implemented). | **Blocked** | — | Canonical ownership is `titanspan.collections`, which is not implemented yet. | [source][source-18] |
+| `Illuminate\Support\Collection` | `doesntContainStrict()` | — | Canonical owner: `titanspan.collections` (not implemented). | **Blocked** | — | Canonical ownership is `titanspan.collections`, which is not implemented yet. | [source][source-18] |
+| `Illuminate\Support\Collection` | `crossJoin()` | — | Canonical owner: `titanspan.collections` (not implemented). | **Blocked** | — | Canonical ownership is `titanspan.collections`, which is not implemented yet. | [source][source-18] |
+| `Illuminate\Support\Collection` | `diff()` | — | Canonical owner: `titanspan.collections` (not implemented). | **Blocked** | — | Canonical ownership is `titanspan.collections`, which is not implemented yet. | [source][source-18] |
+| `Illuminate\Support\Collection` | `diffUsing()` | — | Canonical owner: `titanspan.collections` (not implemented). | **Blocked** | — | Canonical ownership is `titanspan.collections`, which is not implemented yet. | [source][source-18] |
+| `Illuminate\Support\Collection` | `diffAssoc()` | — | Canonical owner: `titanspan.collections` (not implemented). | **Blocked** | — | Canonical ownership is `titanspan.collections`, which is not implemented yet. | [source][source-18] |
+| `Illuminate\Support\Collection` | `diffAssocUsing()` | — | Canonical owner: `titanspan.collections` (not implemented). | **Blocked** | — | Canonical ownership is `titanspan.collections`, which is not implemented yet. | [source][source-18] |
+| `Illuminate\Support\Collection` | `diffKeys()` | — | Canonical owner: `titanspan.collections` (not implemented). | **Blocked** | — | Canonical ownership is `titanspan.collections`, which is not implemented yet. | [source][source-18] |
+| `Illuminate\Support\Collection` | `diffKeysUsing()` | — | Canonical owner: `titanspan.collections` (not implemented). | **Blocked** | — | Canonical ownership is `titanspan.collections`, which is not implemented yet. | [source][source-18] |
+| `Illuminate\Support\Collection` | `duplicates()` | — | Canonical owner: `titanspan.collections` (not implemented). | **Blocked** | — | Canonical ownership is `titanspan.collections`, which is not implemented yet. | [source][source-18] |
+| `Illuminate\Support\Collection` | `duplicatesStrict()` | — | Canonical owner: `titanspan.collections` (not implemented). | **Blocked** | — | Canonical ownership is `titanspan.collections`, which is not implemented yet. | [source][source-18] |
+| `Illuminate\Support\Collection` | `except()` | — | Canonical owner: `titanspan.collections` (not implemented). | **Blocked** | — | Canonical ownership is `titanspan.collections`, which is not implemented yet. | [source][source-18] |
+| `Illuminate\Support\Collection` | `filter()` | — | Canonical owner: `titanspan.collections` (not implemented). | **Blocked** | — | Canonical ownership is `titanspan.collections`, which is not implemented yet. | [source][source-18] |
+| `Illuminate\Support\Collection` | `first()` | — | Canonical owner: `titanspan.collections` (not implemented). | **Blocked** | — | Canonical ownership is `titanspan.collections`, which is not implemented yet. | [source][source-18] |
+| `Illuminate\Support\Collection` | `flatten()` | — | Canonical owner: `titanspan.collections` (not implemented). | **Blocked** | — | Canonical ownership is `titanspan.collections`, which is not implemented yet. | [source][source-18] |
+| `Illuminate\Support\Collection` | `flip()` | — | Canonical owner: `titanspan.collections` (not implemented). | **Blocked** | — | Canonical ownership is `titanspan.collections`, which is not implemented yet. | [source][source-18] |
+| `Illuminate\Support\Collection` | `forget()` | — | Canonical owner: `titanspan.collections` (not implemented). | **Blocked** | — | Canonical ownership is `titanspan.collections`, which is not implemented yet. | [source][source-18] |
+| `Illuminate\Support\Collection` | `get()` | — | Canonical owner: `titanspan.collections` (not implemented). | **Blocked** | — | Canonical ownership is `titanspan.collections`, which is not implemented yet. | [source][source-18] |
+| `Illuminate\Support\Collection` | `getOrPut()` | — | Canonical owner: `titanspan.collections` (not implemented). | **Blocked** | — | Canonical ownership is `titanspan.collections`, which is not implemented yet. | [source][source-18] |
+| `Illuminate\Support\Collection` | `groupBy()` | — | Canonical owner: `titanspan.collections` (not implemented). | **Blocked** | — | Canonical ownership is `titanspan.collections`, which is not implemented yet. | [source][source-18] |
+| `Illuminate\Support\Collection` | `keyBy()` | — | Canonical owner: `titanspan.collections` (not implemented). | **Blocked** | — | Canonical ownership is `titanspan.collections`, which is not implemented yet. | [source][source-18] |
+| `Illuminate\Support\Collection` | `has()` | — | Canonical owner: `titanspan.collections` (not implemented). | **Blocked** | — | Canonical ownership is `titanspan.collections`, which is not implemented yet. | [source][source-18] |
+| `Illuminate\Support\Collection` | `hasAny()` | — | Canonical owner: `titanspan.collections` (not implemented). | **Blocked** | — | Canonical ownership is `titanspan.collections`, which is not implemented yet. | [source][source-18] |
+| `Illuminate\Support\Collection` | `implode()` | — | Canonical owner: `titanspan.collections` (not implemented). | **Blocked** | — | Canonical ownership is `titanspan.collections`, which is not implemented yet. | [source][source-18] |
+| `Illuminate\Support\Collection` | `intersect()` | — | Canonical owner: `titanspan.collections` (not implemented). | **Blocked** | — | Canonical ownership is `titanspan.collections`, which is not implemented yet. | [source][source-18] |
+| `Illuminate\Support\Collection` | `intersectUsing()` | — | Canonical owner: `titanspan.collections` (not implemented). | **Blocked** | — | Canonical ownership is `titanspan.collections`, which is not implemented yet. | [source][source-18] |
+| `Illuminate\Support\Collection` | `intersectAssoc()` | — | Canonical owner: `titanspan.collections` (not implemented). | **Blocked** | — | Canonical ownership is `titanspan.collections`, which is not implemented yet. | [source][source-18] |
+| `Illuminate\Support\Collection` | `intersectAssocUsing()` | — | Canonical owner: `titanspan.collections` (not implemented). | **Blocked** | — | Canonical ownership is `titanspan.collections`, which is not implemented yet. | [source][source-18] |
+| `Illuminate\Support\Collection` | `intersectByKeys()` | — | Canonical owner: `titanspan.collections` (not implemented). | **Blocked** | — | Canonical ownership is `titanspan.collections`, which is not implemented yet. | [source][source-18] |
+| `Illuminate\Support\Collection` | `isEmpty()` | — | Canonical owner: `titanspan.collections` (not implemented). | **Blocked** | — | Canonical ownership is `titanspan.collections`, which is not implemented yet. | [source][source-18] |
+| `Illuminate\Support\Collection` | `containsOneItem()` | — | Canonical owner: `titanspan.collections` (not implemented). | **Blocked** | — | Canonical ownership is `titanspan.collections`, which is not implemented yet. | [source][source-18] |
+| `Illuminate\Support\Collection` | `containsManyItems()` | — | Canonical owner: `titanspan.collections` (not implemented). | **Blocked** | — | Canonical ownership is `titanspan.collections`, which is not implemented yet. | [source][source-18] |
+| `Illuminate\Support\Collection` | `join()` | — | Canonical owner: `titanspan.collections` (not implemented). | **Blocked** | — | Canonical ownership is `titanspan.collections`, which is not implemented yet. | [source][source-18] |
+| `Illuminate\Support\Collection` | `keys()` | — | Canonical owner: `titanspan.collections` (not implemented). | **Blocked** | — | Canonical ownership is `titanspan.collections`, which is not implemented yet. | [source][source-18] |
+| `Illuminate\Support\Collection` | `last()` | — | Canonical owner: `titanspan.collections` (not implemented). | **Blocked** | — | Canonical ownership is `titanspan.collections`, which is not implemented yet. | [source][source-18] |
+| `Illuminate\Support\Collection` | `pluck()` | — | Canonical owner: `titanspan.collections` (not implemented). | **Blocked** | — | Canonical ownership is `titanspan.collections`, which is not implemented yet. | [source][source-18] |
+| `Illuminate\Support\Collection` | `map()` | — | Canonical owner: `titanspan.collections` (not implemented). | **Blocked** | — | Canonical ownership is `titanspan.collections`, which is not implemented yet. | [source][source-18] |
+| `Illuminate\Support\Collection` | `mapToDictionary()` | — | Canonical owner: `titanspan.collections` (not implemented). | **Blocked** | — | Canonical ownership is `titanspan.collections`, which is not implemented yet. | [source][source-18] |
+| `Illuminate\Support\Collection` | `mapWithKeys()` | — | Canonical owner: `titanspan.collections` (not implemented). | **Blocked** | — | Canonical ownership is `titanspan.collections`, which is not implemented yet. | [source][source-18] |
+| `Illuminate\Support\Collection` | `merge()` | — | Canonical owner: `titanspan.collections` (not implemented). | **Blocked** | — | Canonical ownership is `titanspan.collections`, which is not implemented yet. | [source][source-18] |
+| `Illuminate\Support\Collection` | `mergeRecursive()` | — | Canonical owner: `titanspan.collections` (not implemented). | **Blocked** | — | Canonical ownership is `titanspan.collections`, which is not implemented yet. | [source][source-18] |
+| `Illuminate\Support\Collection` | `multiply()` | — | Canonical owner: `titanspan.collections` (not implemented). | **Blocked** | — | Canonical ownership is `titanspan.collections`, which is not implemented yet. | [source][source-18] |
+| `Illuminate\Support\Collection` | `combine()` | — | Canonical owner: `titanspan.collections` (not implemented). | **Blocked** | — | Canonical ownership is `titanspan.collections`, which is not implemented yet. | [source][source-18] |
+| `Illuminate\Support\Collection` | `union()` | — | Canonical owner: `titanspan.collections` (not implemented). | **Blocked** | — | Canonical ownership is `titanspan.collections`, which is not implemented yet. | [source][source-18] |
+| `Illuminate\Support\Collection` | `nth()` | — | Canonical owner: `titanspan.collections` (not implemented). | **Blocked** | — | Canonical ownership is `titanspan.collections`, which is not implemented yet. | [source][source-18] |
+| `Illuminate\Support\Collection` | `only()` | — | Canonical owner: `titanspan.collections` (not implemented). | **Blocked** | — | Canonical ownership is `titanspan.collections`, which is not implemented yet. | [source][source-18] |
+| `Illuminate\Support\Collection` | `select()` | — | Canonical owner: `titanspan.collections` (not implemented). | **Blocked** | — | Canonical ownership is `titanspan.collections`, which is not implemented yet. | [source][source-18] |
+| `Illuminate\Support\Collection` | `pop()` | — | Canonical owner: `titanspan.collections` (not implemented). | **Blocked** | — | Canonical ownership is `titanspan.collections`, which is not implemented yet. | [source][source-18] |
+| `Illuminate\Support\Collection` | `prepend()` | — | Canonical owner: `titanspan.collections` (not implemented). | **Blocked** | — | Canonical ownership is `titanspan.collections`, which is not implemented yet. | [source][source-18] |
+| `Illuminate\Support\Collection` | `push()` | — | Canonical owner: `titanspan.collections` (not implemented). | **Blocked** | — | Canonical ownership is `titanspan.collections`, which is not implemented yet. | [source][source-18] |
+| `Illuminate\Support\Collection` | `unshift()` | — | Canonical owner: `titanspan.collections` (not implemented). | **Blocked** | — | Canonical ownership is `titanspan.collections`, which is not implemented yet. | [source][source-18] |
+| `Illuminate\Support\Collection` | `concat()` | — | Canonical owner: `titanspan.collections` (not implemented). | **Blocked** | — | Canonical ownership is `titanspan.collections`, which is not implemented yet. | [source][source-18] |
+| `Illuminate\Support\Collection` | `pull()` | — | Canonical owner: `titanspan.collections` (not implemented). | **Blocked** | — | Canonical ownership is `titanspan.collections`, which is not implemented yet. | [source][source-18] |
+| `Illuminate\Support\Collection` | `put()` | — | Canonical owner: `titanspan.collections` (not implemented). | **Blocked** | — | Canonical ownership is `titanspan.collections`, which is not implemented yet. | [source][source-18] |
+| `Illuminate\Support\Collection` | `random()` | — | Canonical owner: `titanspan.collections` (not implemented). | **Blocked** | — | Canonical ownership is `titanspan.collections`, which is not implemented yet. | [source][source-18] |
+| `Illuminate\Support\Collection` | `replace()` | — | Canonical owner: `titanspan.collections` (not implemented). | **Blocked** | — | Canonical ownership is `titanspan.collections`, which is not implemented yet. | [source][source-18] |
+| `Illuminate\Support\Collection` | `replaceRecursive()` | — | Canonical owner: `titanspan.collections` (not implemented). | **Blocked** | — | Canonical ownership is `titanspan.collections`, which is not implemented yet. | [source][source-18] |
+| `Illuminate\Support\Collection` | `reverse()` | — | Canonical owner: `titanspan.collections` (not implemented). | **Blocked** | — | Canonical ownership is `titanspan.collections`, which is not implemented yet. | [source][source-18] |
+| `Illuminate\Support\Collection` | `search()` | — | Canonical owner: `titanspan.collections` (not implemented). | **Blocked** | — | Canonical ownership is `titanspan.collections`, which is not implemented yet. | [source][source-18] |
+| `Illuminate\Support\Collection` | `before()` | — | Canonical owner: `titanspan.collections` (not implemented). | **Blocked** | — | Canonical ownership is `titanspan.collections`, which is not implemented yet. | [source][source-18] |
+| `Illuminate\Support\Collection` | `after()` | — | Canonical owner: `titanspan.collections` (not implemented). | **Blocked** | — | Canonical ownership is `titanspan.collections`, which is not implemented yet. | [source][source-18] |
+| `Illuminate\Support\Collection` | `shift()` | — | Canonical owner: `titanspan.collections` (not implemented). | **Blocked** | — | Canonical ownership is `titanspan.collections`, which is not implemented yet. | [source][source-18] |
+| `Illuminate\Support\Collection` | `shuffle()` | — | Canonical owner: `titanspan.collections` (not implemented). | **Blocked** | — | Canonical ownership is `titanspan.collections`, which is not implemented yet. | [source][source-18] |
+| `Illuminate\Support\Collection` | `sliding()` | — | Canonical owner: `titanspan.collections` (not implemented). | **Blocked** | — | Canonical ownership is `titanspan.collections`, which is not implemented yet. | [source][source-18] |
+| `Illuminate\Support\Collection` | `skip()` | — | Canonical owner: `titanspan.collections` (not implemented). | **Blocked** | — | Canonical ownership is `titanspan.collections`, which is not implemented yet. | [source][source-18] |
+| `Illuminate\Support\Collection` | `skipUntil()` | — | Canonical owner: `titanspan.collections` (not implemented). | **Blocked** | — | Canonical ownership is `titanspan.collections`, which is not implemented yet. | [source][source-18] |
+| `Illuminate\Support\Collection` | `skipWhile()` | — | Canonical owner: `titanspan.collections` (not implemented). | **Blocked** | — | Canonical ownership is `titanspan.collections`, which is not implemented yet. | [source][source-18] |
+| `Illuminate\Support\Collection` | `slice()` | — | Canonical owner: `titanspan.collections` (not implemented). | **Blocked** | — | Canonical ownership is `titanspan.collections`, which is not implemented yet. | [source][source-18] |
+| `Illuminate\Support\Collection` | `split()` | — | Canonical owner: `titanspan.collections` (not implemented). | **Blocked** | — | Canonical ownership is `titanspan.collections`, which is not implemented yet. | [source][source-18] |
+| `Illuminate\Support\Collection` | `splitIn()` | — | Canonical owner: `titanspan.collections` (not implemented). | **Blocked** | — | Canonical ownership is `titanspan.collections`, which is not implemented yet. | [source][source-18] |
+| `Illuminate\Support\Collection` | `sole()` | — | Canonical owner: `titanspan.collections` (not implemented). | **Blocked** | — | Canonical ownership is `titanspan.collections`, which is not implemented yet. | [source][source-18] |
+| `Illuminate\Support\Collection` | `hasSole()` | — | Canonical owner: `titanspan.collections` (not implemented). | **Blocked** | — | Canonical ownership is `titanspan.collections`, which is not implemented yet. | [source][source-18] |
+| `Illuminate\Support\Collection` | `firstOrFail()` | — | Canonical owner: `titanspan.collections` (not implemented). | **Blocked** | — | Canonical ownership is `titanspan.collections`, which is not implemented yet. | [source][source-18] |
+| `Illuminate\Support\Collection` | `chunk()` | — | Canonical owner: `titanspan.collections` (not implemented). | **Blocked** | — | Canonical ownership is `titanspan.collections`, which is not implemented yet. | [source][source-18] |
+| `Illuminate\Support\Collection` | `chunkWhile()` | — | Canonical owner: `titanspan.collections` (not implemented). | **Blocked** | — | Canonical ownership is `titanspan.collections`, which is not implemented yet. | [source][source-18] |
+| `Illuminate\Support\Collection` | `sort()` | — | Canonical owner: `titanspan.collections` (not implemented). | **Blocked** | — | Canonical ownership is `titanspan.collections`, which is not implemented yet. | [source][source-18] |
+| `Illuminate\Support\Collection` | `sortDesc()` | — | Canonical owner: `titanspan.collections` (not implemented). | **Blocked** | — | Canonical ownership is `titanspan.collections`, which is not implemented yet. | [source][source-18] |
+| `Illuminate\Support\Collection` | `sortBy()` | — | Canonical owner: `titanspan.collections` (not implemented). | **Blocked** | — | Canonical ownership is `titanspan.collections`, which is not implemented yet. | [source][source-18] |
+| `Illuminate\Support\Collection` | `sortByDesc()` | — | Canonical owner: `titanspan.collections` (not implemented). | **Blocked** | — | Canonical ownership is `titanspan.collections`, which is not implemented yet. | [source][source-18] |
+| `Illuminate\Support\Collection` | `sortKeys()` | — | Canonical owner: `titanspan.collections` (not implemented). | **Blocked** | — | Canonical ownership is `titanspan.collections`, which is not implemented yet. | [source][source-18] |
+| `Illuminate\Support\Collection` | `sortKeysDesc()` | — | Canonical owner: `titanspan.collections` (not implemented). | **Blocked** | — | Canonical ownership is `titanspan.collections`, which is not implemented yet. | [source][source-18] |
+| `Illuminate\Support\Collection` | `sortKeysUsing()` | — | Canonical owner: `titanspan.collections` (not implemented). | **Blocked** | — | Canonical ownership is `titanspan.collections`, which is not implemented yet. | [source][source-18] |
+| `Illuminate\Support\Collection` | `splice()` | — | Canonical owner: `titanspan.collections` (not implemented). | **Blocked** | — | Canonical ownership is `titanspan.collections`, which is not implemented yet. | [source][source-18] |
+| `Illuminate\Support\Collection` | `take()` | — | Canonical owner: `titanspan.collections` (not implemented). | **Blocked** | — | Canonical ownership is `titanspan.collections`, which is not implemented yet. | [source][source-18] |
+| `Illuminate\Support\Collection` | `takeUntil()` | — | Canonical owner: `titanspan.collections` (not implemented). | **Blocked** | — | Canonical ownership is `titanspan.collections`, which is not implemented yet. | [source][source-18] |
+| `Illuminate\Support\Collection` | `takeWhile()` | — | Canonical owner: `titanspan.collections` (not implemented). | **Blocked** | — | Canonical ownership is `titanspan.collections`, which is not implemented yet. | [source][source-18] |
+| `Illuminate\Support\Collection` | `transform()` | — | Canonical owner: `titanspan.collections` (not implemented). | **Blocked** | — | Canonical ownership is `titanspan.collections`, which is not implemented yet. | [source][source-18] |
+| `Illuminate\Support\Collection` | `dot()` | — | Canonical owner: `titanspan.collections` (not implemented). | **Blocked** | — | Canonical ownership is `titanspan.collections`, which is not implemented yet. | [source][source-18] |
+| `Illuminate\Support\Collection` | `undot()` | — | Canonical owner: `titanspan.collections` (not implemented). | **Blocked** | — | Canonical ownership is `titanspan.collections`, which is not implemented yet. | [source][source-18] |
+| `Illuminate\Support\Collection` | `unique()` | — | Canonical owner: `titanspan.collections` (not implemented). | **Blocked** | — | Canonical ownership is `titanspan.collections`, which is not implemented yet. | [source][source-18] |
+| `Illuminate\Support\Collection` | `values()` | — | Canonical owner: `titanspan.collections` (not implemented). | **Blocked** | — | Canonical ownership is `titanspan.collections`, which is not implemented yet. | [source][source-18] |
+| `Illuminate\Support\Collection` | `zip()` | — | Canonical owner: `titanspan.collections` (not implemented). | **Blocked** | — | Canonical ownership is `titanspan.collections`, which is not implemented yet. | [source][source-18] |
+| `Illuminate\Support\Collection` | `pad()` | — | Canonical owner: `titanspan.collections` (not implemented). | **Blocked** | — | Canonical ownership is `titanspan.collections`, which is not implemented yet. | [source][source-18] |
+| `Illuminate\Support\Collection` | `getIterator()` | — | Canonical owner: `titanspan.collections` (not implemented). | **Blocked** | — | Canonical ownership is `titanspan.collections`, which is not implemented yet. | [source][source-18] |
+| `Illuminate\Support\Collection` | `count()` | — | Canonical owner: `titanspan.collections` (not implemented). | **Blocked** | — | Canonical ownership is `titanspan.collections`, which is not implemented yet. | [source][source-18] |
+| `Illuminate\Support\Collection` | `countBy()` | — | Canonical owner: `titanspan.collections` (not implemented). | **Blocked** | — | Canonical ownership is `titanspan.collections`, which is not implemented yet. | [source][source-18] |
+| `Illuminate\Support\Collection` | `add()` | — | Canonical owner: `titanspan.collections` (not implemented). | **Blocked** | — | Canonical ownership is `titanspan.collections`, which is not implemented yet. | [source][source-18] |
+| `Illuminate\Support\Collection` | `toBase()` | — | Canonical owner: `titanspan.collections` (not implemented). | **Blocked** | — | Canonical ownership is `titanspan.collections`, which is not implemented yet. | [source][source-18] |
+| `Illuminate\Support\Collection` | `offsetExists()` | — | Canonical owner: `titanspan.collections` (not implemented). | **Blocked** | — | Canonical ownership is `titanspan.collections`, which is not implemented yet. | [source][source-18] |
+| `Illuminate\Support\Collection` | `offsetGet()` | — | Canonical owner: `titanspan.collections` (not implemented). | **Blocked** | — | Canonical ownership is `titanspan.collections`, which is not implemented yet. | [source][source-18] |
+| `Illuminate\Support\Collection` | `offsetSet()` | — | Canonical owner: `titanspan.collections` (not implemented). | **Blocked** | — | Canonical ownership is `titanspan.collections`, which is not implemented yet. | [source][source-18] |
+| `Illuminate\Support\Collection` | `offsetUnset()` | — | Canonical owner: `titanspan.collections` (not implemented). | **Blocked** | — | Canonical ownership is `titanspan.collections`, which is not implemented yet. | [source][source-18] |
+
+</details>
+
+<details>
+<summary>Illuminate\Support\Collections.functions.php — 1 listed public members (functions)</summary>
+
+| Upstream class | Upstream API | Titanspan API | Implementation location | Compatibility status | Test evidence | Differences | Upstream reference |
+|---|---|---|---|---|---|---|---|
+| `Illuminate\Support\Collections.functions.php` | `enum_value()` | `enum_value` | `src/titanspan/support/helpers.py` | **Python-adapted parity** | `tests/unit/support/test_helpers.py` | Scalar-valued Python Enum members expose value; non-scalar members expose name. | [source][source-19] |
+
+</details>
+
+<details>
+<summary>Illuminate\Support\Composer — 10 listed public members (class)</summary>
+
+| Upstream class | Upstream API | Titanspan API | Implementation location | Compatibility status | Test evidence | Differences | Upstream reference |
+|---|---|---|---|---|---|---|---|
+| `Illuminate\Support\Composer` | `__construct()` | — | Not implemented. | **Not applicable** | — | PHP-specific package-manager or Carbon class behavior has no equivalent Titanspan runtime API. | [source][source-20] |
+| `Illuminate\Support\Composer` | `hasPackage()` | — | Not implemented. | **Not applicable** | — | PHP-specific package-manager or Carbon class behavior has no equivalent Titanspan runtime API. | [source][source-20] |
+| `Illuminate\Support\Composer` | `requirePackages()` | — | Not implemented. | **Not applicable** | — | PHP-specific package-manager or Carbon class behavior has no equivalent Titanspan runtime API. | [source][source-20] |
+| `Illuminate\Support\Composer` | `removePackages()` | — | Not implemented. | **Not applicable** | — | PHP-specific package-manager or Carbon class behavior has no equivalent Titanspan runtime API. | [source][source-20] |
+| `Illuminate\Support\Composer` | `modify()` | — | Not implemented. | **Not applicable** | — | PHP-specific package-manager or Carbon class behavior has no equivalent Titanspan runtime API. | [source][source-20] |
+| `Illuminate\Support\Composer` | `dumpAutoloads()` | — | Not implemented. | **Not applicable** | — | PHP-specific package-manager or Carbon class behavior has no equivalent Titanspan runtime API. | [source][source-20] |
+| `Illuminate\Support\Composer` | `dumpOptimized()` | — | Not implemented. | **Not applicable** | — | PHP-specific package-manager or Carbon class behavior has no equivalent Titanspan runtime API. | [source][source-20] |
+| `Illuminate\Support\Composer` | `findComposer()` | — | Not implemented. | **Not applicable** | — | PHP-specific package-manager or Carbon class behavior has no equivalent Titanspan runtime API. | [source][source-20] |
+| `Illuminate\Support\Composer` | `setWorkingPath()` | — | Not implemented. | **Not applicable** | — | PHP-specific package-manager or Carbon class behavior has no equivalent Titanspan runtime API. | [source][source-20] |
+| `Illuminate\Support\Composer` | `getVersion()` | — | Not implemented. | **Not applicable** | — | PHP-specific package-manager or Carbon class behavior has no equivalent Titanspan runtime API. | [source][source-20] |
+
+</details>
+
+<details>
+<summary>Illuminate\Support\ConfigurationUrlParser — 3 listed public members (class)</summary>
+
+| Upstream class | Upstream API | Titanspan API | Implementation location | Compatibility status | Test evidence | Differences | Upstream reference |
+|---|---|---|---|---|---|---|---|
+| `Illuminate\Support\ConfigurationUrlParser` | `parseConfiguration()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-21] |
+| `Illuminate\Support\ConfigurationUrlParser` | `getDriverAliases()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-21] |
+| `Illuminate\Support\ConfigurationUrlParser` | `addDriverAlias()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-21] |
+
+</details>
+
+<details>
+<summary>Illuminate\Support\Contracts\NodePackageManager — 3 listed public members (interface)</summary>
+
+| Upstream class | Upstream API | Titanspan API | Implementation location | Compatibility status | Test evidence | Differences | Upstream reference |
+|---|---|---|---|---|---|---|---|
+| `Illuminate\Support\Contracts\NodePackageManager` | `matches()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-22] |
+| `Illuminate\Support\Contracts\NodePackageManager` | `getRunCommand()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-22] |
+| `Illuminate\Support\Contracts\NodePackageManager` | `getExecCommand()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-22] |
+
+</details>
+
+<details>
+<summary>Illuminate\Support\DateFactory — 97 listed public members (class)</summary>
+
+| Upstream class | Upstream API | Titanspan API | Implementation location | Compatibility status | Test evidence | Differences | Upstream reference |
+|---|---|---|---|---|---|---|---|
+| `Illuminate\Support\DateFactory` | `use()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-23] |
+| `Illuminate\Support\DateFactory` | `useDefault()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-23] |
+| `Illuminate\Support\DateFactory` | `useCallable()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-23] |
+| `Illuminate\Support\DateFactory` | `useClass()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-23] |
+| `Illuminate\Support\DateFactory` | `useFactory()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-23] |
+| `Illuminate\Support\DateFactory` | `__call()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-23] |
+| `Illuminate\Support\DateFactory` | `canBeCreatedFromFormat()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-23] |
+| `Illuminate\Support\DateFactory` | `create()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-23] |
+| `Illuminate\Support\DateFactory` | `createFromDate()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-23] |
+| `Illuminate\Support\DateFactory` | `createFromFormat()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-23] |
+| `Illuminate\Support\DateFactory` | `createFromIsoFormat()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-23] |
+| `Illuminate\Support\DateFactory` | `createFromLocaleFormat()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-23] |
+| `Illuminate\Support\DateFactory` | `createFromLocaleIsoFormat()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-23] |
+| `Illuminate\Support\DateFactory` | `createFromTime()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-23] |
+| `Illuminate\Support\DateFactory` | `createFromTimeString()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-23] |
+| `Illuminate\Support\DateFactory` | `createFromTimestamp()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-23] |
+| `Illuminate\Support\DateFactory` | `createFromTimestampMs()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-23] |
+| `Illuminate\Support\DateFactory` | `createFromTimestampMsUTC()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-23] |
+| `Illuminate\Support\DateFactory` | `createFromTimestampUTC()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-23] |
+| `Illuminate\Support\DateFactory` | `createMidnightDate()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-23] |
+| `Illuminate\Support\DateFactory` | `createSafe()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-23] |
+| `Illuminate\Support\DateFactory` | `createStrict()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-23] |
+| `Illuminate\Support\DateFactory` | `disableHumanDiffOption()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-23] |
+| `Illuminate\Support\DateFactory` | `enableHumanDiffOption()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-23] |
+| `Illuminate\Support\DateFactory` | `executeWithLocale()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-23] |
+| `Illuminate\Support\DateFactory` | `fromSerialized()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-23] |
+| `Illuminate\Support\DateFactory` | `getAvailableLocales()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-23] |
+| `Illuminate\Support\DateFactory` | `getAvailableLocalesInfo()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-23] |
+| `Illuminate\Support\DateFactory` | `getDays()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-23] |
+| `Illuminate\Support\DateFactory` | `getFallbackLocale()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-23] |
+| `Illuminate\Support\DateFactory` | `getFormatsToIsoReplacements()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-23] |
+| `Illuminate\Support\DateFactory` | `getHumanDiffOptions()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-23] |
+| `Illuminate\Support\DateFactory` | `getIsoUnits()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-23] |
+| `Illuminate\Support\DateFactory` | `getLastErrors()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-23] |
+| `Illuminate\Support\DateFactory` | `getLocale()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-23] |
+| `Illuminate\Support\DateFactory` | `getMidDayAt()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-23] |
+| `Illuminate\Support\DateFactory` | `getTimeFormatByPrecision()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-23] |
+| `Illuminate\Support\DateFactory` | `getTranslationMessageWith()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-23] |
+| `Illuminate\Support\DateFactory` | `getTestNow()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-23] |
+| `Illuminate\Support\DateFactory` | `getTranslator()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-23] |
+| `Illuminate\Support\DateFactory` | `getWeekEndsAt()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-23] |
+| `Illuminate\Support\DateFactory` | `getWeekStartsAt()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-23] |
+| `Illuminate\Support\DateFactory` | `getWeekendDays()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-23] |
+| `Illuminate\Support\DateFactory` | `hasFormat()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-23] |
+| `Illuminate\Support\DateFactory` | `hasFormatWithModifiers()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-23] |
+| `Illuminate\Support\DateFactory` | `hasMacro()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-23] |
+| `Illuminate\Support\DateFactory` | `hasRelativeKeywords()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-23] |
+| `Illuminate\Support\DateFactory` | `hasTestNow()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-23] |
+| `Illuminate\Support\DateFactory` | `instance()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-23] |
+| `Illuminate\Support\DateFactory` | `isImmutable()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-23] |
+| `Illuminate\Support\DateFactory` | `isModifiableUnit()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-23] |
+| `Illuminate\Support\DateFactory` | `isMutable()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-23] |
+| `Illuminate\Support\DateFactory` | `isStrictModeEnabled()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-23] |
+| `Illuminate\Support\DateFactory` | `localeHasDiffOneDayWords()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-23] |
+| `Illuminate\Support\DateFactory` | `localeHasDiffSyntax()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-23] |
+| `Illuminate\Support\DateFactory` | `localeHasDiffTwoDayWords()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-23] |
+| `Illuminate\Support\DateFactory` | `localeHasPeriodSyntax()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-23] |
+| `Illuminate\Support\DateFactory` | `localeHasShortUnits()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-23] |
+| `Illuminate\Support\DateFactory` | `macro()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-23] |
+| `Illuminate\Support\DateFactory` | `make()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-23] |
+| `Illuminate\Support\DateFactory` | `mixin()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-23] |
+| `Illuminate\Support\DateFactory` | `now()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-23] |
+| `Illuminate\Support\DateFactory` | `parse()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-23] |
+| `Illuminate\Support\DateFactory` | `parseFromLocale()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-23] |
+| `Illuminate\Support\DateFactory` | `pluralUnit()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-23] |
+| `Illuminate\Support\DateFactory` | `rawCreateFromFormat()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-23] |
+| `Illuminate\Support\DateFactory` | `rawParse()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-23] |
+| `Illuminate\Support\DateFactory` | `resetMonthsOverflow()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-23] |
+| `Illuminate\Support\DateFactory` | `resetToStringFormat()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-23] |
+| `Illuminate\Support\DateFactory` | `resetYearsOverflow()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-23] |
+| `Illuminate\Support\DateFactory` | `serializeUsing()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-23] |
+| `Illuminate\Support\DateFactory` | `setFallbackLocale()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-23] |
+| `Illuminate\Support\DateFactory` | `setHumanDiffOptions()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-23] |
+| `Illuminate\Support\DateFactory` | `setLocale()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-23] |
+| `Illuminate\Support\DateFactory` | `setMidDayAt()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-23] |
+| `Illuminate\Support\DateFactory` | `setTestNow()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-23] |
+| `Illuminate\Support\DateFactory` | `setTestNowAndTimezone()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-23] |
+| `Illuminate\Support\DateFactory` | `setToStringFormat()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-23] |
+| `Illuminate\Support\DateFactory` | `setTranslator()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-23] |
+| `Illuminate\Support\DateFactory` | `setWeekEndsAt()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-23] |
+| `Illuminate\Support\DateFactory` | `setWeekStartsAt()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-23] |
+| `Illuminate\Support\DateFactory` | `setWeekendDays()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-23] |
+| `Illuminate\Support\DateFactory` | `shouldOverflowMonths()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-23] |
+| `Illuminate\Support\DateFactory` | `shouldOverflowYears()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-23] |
+| `Illuminate\Support\DateFactory` | `singularUnit()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-23] |
+| `Illuminate\Support\DateFactory` | `sleep()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-23] |
+| `Illuminate\Support\DateFactory` | `today()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-23] |
+| `Illuminate\Support\DateFactory` | `tomorrow()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-23] |
+| `Illuminate\Support\DateFactory` | `translateTimeString()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-23] |
+| `Illuminate\Support\DateFactory` | `translateWith()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-23] |
+| `Illuminate\Support\DateFactory` | `useMonthsOverflow()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-23] |
+| `Illuminate\Support\DateFactory` | `useStrictMode()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-23] |
+| `Illuminate\Support\DateFactory` | `useYearsOverflow()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-23] |
+| `Illuminate\Support\DateFactory` | `withTestNow()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-23] |
+| `Illuminate\Support\DateFactory` | `withTimeZone()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-23] |
+| `Illuminate\Support\DateFactory` | `yesterday()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-23] |
+| `Illuminate\Support\DateFactory` | `DEFAULT_CLASS_NAME` (constant) | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-23] |
+
+</details>
+
+<details>
+<summary>Illuminate\Support\DefaultProviders — 5 listed public members (class)</summary>
+
+| Upstream class | Upstream API | Titanspan API | Implementation location | Compatibility status | Test evidence | Differences | Upstream reference |
+|---|---|---|---|---|---|---|---|
+| `Illuminate\Support\DefaultProviders` | `__construct()` | — | Canonical owner: `titanspan.foundation` (not implemented). | **Blocked** | — | Requires Titanspan service-provider lifecycle integration. | [source][source-24] |
+| `Illuminate\Support\DefaultProviders` | `merge()` | — | Canonical owner: `titanspan.foundation` (not implemented). | **Blocked** | — | Requires Titanspan service-provider lifecycle integration. | [source][source-24] |
+| `Illuminate\Support\DefaultProviders` | `replace()` | — | Canonical owner: `titanspan.foundation` (not implemented). | **Blocked** | — | Requires Titanspan service-provider lifecycle integration. | [source][source-24] |
+| `Illuminate\Support\DefaultProviders` | `except()` | — | Canonical owner: `titanspan.foundation` (not implemented). | **Blocked** | — | Requires Titanspan service-provider lifecycle integration. | [source][source-24] |
+| `Illuminate\Support\DefaultProviders` | `toArray()` | — | Canonical owner: `titanspan.foundation` (not implemented). | **Blocked** | — | Requires Titanspan service-provider lifecycle integration. | [source][source-24] |
+
+</details>
+
+<details>
+<summary>Illuminate\Support\Defer\DeferredCallback — 4 listed public members (class)</summary>
+
+| Upstream class | Upstream API | Titanspan API | Implementation location | Compatibility status | Test evidence | Differences | Upstream reference |
+|---|---|---|---|---|---|---|---|
+| `Illuminate\Support\Defer\DeferredCallback` | `__construct()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-25] |
+| `Illuminate\Support\Defer\DeferredCallback` | `name()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-25] |
+| `Illuminate\Support\Defer\DeferredCallback` | `always()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-25] |
+| `Illuminate\Support\Defer\DeferredCallback` | `__invoke()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-25] |
+
+</details>
+
+<details>
+<summary>Illuminate\Support\Defer\DeferredCallbackCollection — 9 listed public members (class)</summary>
+
+| Upstream class | Upstream API | Titanspan API | Implementation location | Compatibility status | Test evidence | Differences | Upstream reference |
+|---|---|---|---|---|---|---|---|
+| `Illuminate\Support\Defer\DeferredCallbackCollection` | `first()` | — | Not implemented. | **Blocked** | — | Canonical ownership is `titanspan.collections`, which is not implemented yet. | [source][source-26] |
+| `Illuminate\Support\Defer\DeferredCallbackCollection` | `invoke()` | — | Not implemented. | **Blocked** | — | Canonical ownership is `titanspan.collections`, which is not implemented yet. | [source][source-26] |
+| `Illuminate\Support\Defer\DeferredCallbackCollection` | `invokeWhen()` | — | Not implemented. | **Blocked** | — | Canonical ownership is `titanspan.collections`, which is not implemented yet. | [source][source-26] |
+| `Illuminate\Support\Defer\DeferredCallbackCollection` | `forget()` | — | Not implemented. | **Blocked** | — | Canonical ownership is `titanspan.collections`, which is not implemented yet. | [source][source-26] |
+| `Illuminate\Support\Defer\DeferredCallbackCollection` | `offsetExists()` | — | Not implemented. | **Blocked** | — | Canonical ownership is `titanspan.collections`, which is not implemented yet. | [source][source-26] |
+| `Illuminate\Support\Defer\DeferredCallbackCollection` | `offsetGet()` | — | Not implemented. | **Blocked** | — | Canonical ownership is `titanspan.collections`, which is not implemented yet. | [source][source-26] |
+| `Illuminate\Support\Defer\DeferredCallbackCollection` | `offsetSet()` | — | Not implemented. | **Blocked** | — | Canonical ownership is `titanspan.collections`, which is not implemented yet. | [source][source-26] |
+| `Illuminate\Support\Defer\DeferredCallbackCollection` | `offsetUnset()` | — | Not implemented. | **Blocked** | — | Canonical ownership is `titanspan.collections`, which is not implemented yet. | [source][source-26] |
+| `Illuminate\Support\Defer\DeferredCallbackCollection` | `count()` | — | Not implemented. | **Blocked** | — | Canonical ownership is `titanspan.collections`, which is not implemented yet. | [source][source-26] |
+
+</details>
+
+<details>
+<summary>Illuminate\Support\EncodedHtmlString — 5 listed public members (class)</summary>
+
+| Upstream class | Upstream API | Titanspan API | Implementation location | Compatibility status | Test evidence | Differences | Upstream reference |
+|---|---|---|---|---|---|---|---|
+| `Illuminate\Support\EncodedHtmlString` | `__construct()` | `EncodedHtmlString(html, double_encode=True)` | `src/titanspan/support/encoded_html_string.py` | **Python-adapted parity** | `tests/unit/support/test_html_strings.py` | Accepts Python scalar values, enums, Htmlable values, and deferred display values. | [source][source-27] |
+| `Illuminate\Support\EncodedHtmlString` | `convert()` | `EncodedHtmlString.convert` | `src/titanspan/support/encoded_html_string.py` | **Python-adapted parity** | `tests/unit/support/test_html_strings.py` | Uses html.escape with Laravel-compatible apostrophe spelling and Python Unicode behavior. | [source][source-27] |
+| `Illuminate\Support\EncodedHtmlString` | `toHtml()` | `EncodedHtmlString.to_html / EncodedHtmlString.toHtml` | `src/titanspan/support/encoded_html_string.py` | **Python-adapted parity** | `tests/unit/support/test_html_strings.py` | Deferred values resolve first; Htmlable results are trusted; scalar values use standard-library escaping. | [source][source-27] |
+| `Illuminate\Support\EncodedHtmlString` | `encodeUsing()` | `EncodedHtmlString.encode_using / encodeUsing` | `src/titanspan/support/encoded_html_string.py` | **Python-adapted parity** | `tests/unit/support/test_html_strings.py` | The encoder override is context-local rather than process-global. | [source][source-27] |
+| `Illuminate\Support\EncodedHtmlString` | `flushState()` | `EncodedHtmlString.flush_state / flushState` | `src/titanspan/support/encoded_html_string.py` | **Python-adapted parity** | `tests/unit/support/test_html_strings.py` | Clears the override in the active execution context. | [source][source-27] |
+
+</details>
+
+<details>
+<summary>Illuminate\Support\Enumerable — 150 listed public members (interface)</summary>
+
+| Upstream class | Upstream API | Titanspan API | Implementation location | Compatibility status | Test evidence | Differences | Upstream reference |
+|---|---|---|---|---|---|---|---|
+| `Illuminate\Support\Enumerable` | `make()` | — | Canonical owner: `titanspan.collections` (not implemented). | **Blocked** | — | Canonical ownership is `titanspan.collections`, which is not implemented yet. | [source][source-28] |
+| `Illuminate\Support\Enumerable` | `times()` | — | Canonical owner: `titanspan.collections` (not implemented). | **Blocked** | — | Canonical ownership is `titanspan.collections`, which is not implemented yet. | [source][source-28] |
+| `Illuminate\Support\Enumerable` | `range()` | — | Canonical owner: `titanspan.collections` (not implemented). | **Blocked** | — | Canonical ownership is `titanspan.collections`, which is not implemented yet. | [source][source-28] |
+| `Illuminate\Support\Enumerable` | `wrap()` | — | Canonical owner: `titanspan.collections` (not implemented). | **Blocked** | — | Canonical ownership is `titanspan.collections`, which is not implemented yet. | [source][source-28] |
+| `Illuminate\Support\Enumerable` | `unwrap()` | — | Canonical owner: `titanspan.collections` (not implemented). | **Blocked** | — | Canonical ownership is `titanspan.collections`, which is not implemented yet. | [source][source-28] |
+| `Illuminate\Support\Enumerable` | `empty()` | — | Canonical owner: `titanspan.collections` (not implemented). | **Blocked** | — | Canonical ownership is `titanspan.collections`, which is not implemented yet. | [source][source-28] |
+| `Illuminate\Support\Enumerable` | `all()` | — | Canonical owner: `titanspan.collections` (not implemented). | **Blocked** | — | Canonical ownership is `titanspan.collections`, which is not implemented yet. | [source][source-28] |
+| `Illuminate\Support\Enumerable` | `average()` | — | Canonical owner: `titanspan.collections` (not implemented). | **Blocked** | — | Canonical ownership is `titanspan.collections`, which is not implemented yet. | [source][source-28] |
+| `Illuminate\Support\Enumerable` | `median()` | — | Canonical owner: `titanspan.collections` (not implemented). | **Blocked** | — | Canonical ownership is `titanspan.collections`, which is not implemented yet. | [source][source-28] |
+| `Illuminate\Support\Enumerable` | `mode()` | — | Canonical owner: `titanspan.collections` (not implemented). | **Blocked** | — | Canonical ownership is `titanspan.collections`, which is not implemented yet. | [source][source-28] |
+| `Illuminate\Support\Enumerable` | `collapse()` | — | Canonical owner: `titanspan.collections` (not implemented). | **Blocked** | — | Canonical ownership is `titanspan.collections`, which is not implemented yet. | [source][source-28] |
+| `Illuminate\Support\Enumerable` | `some()` | — | Canonical owner: `titanspan.collections` (not implemented). | **Blocked** | — | Canonical ownership is `titanspan.collections`, which is not implemented yet. | [source][source-28] |
+| `Illuminate\Support\Enumerable` | `containsStrict()` | — | Canonical owner: `titanspan.collections` (not implemented). | **Blocked** | — | Canonical ownership is `titanspan.collections`, which is not implemented yet. | [source][source-28] |
+| `Illuminate\Support\Enumerable` | `avg()` | — | Canonical owner: `titanspan.collections` (not implemented). | **Blocked** | — | Canonical ownership is `titanspan.collections`, which is not implemented yet. | [source][source-28] |
+| `Illuminate\Support\Enumerable` | `contains()` | — | Canonical owner: `titanspan.collections` (not implemented). | **Blocked** | — | Canonical ownership is `titanspan.collections`, which is not implemented yet. | [source][source-28] |
+| `Illuminate\Support\Enumerable` | `doesntContain()` | — | Canonical owner: `titanspan.collections` (not implemented). | **Blocked** | — | Canonical ownership is `titanspan.collections`, which is not implemented yet. | [source][source-28] |
+| `Illuminate\Support\Enumerable` | `crossJoin()` | — | Canonical owner: `titanspan.collections` (not implemented). | **Blocked** | — | Canonical ownership is `titanspan.collections`, which is not implemented yet. | [source][source-28] |
+| `Illuminate\Support\Enumerable` | `dd()` | — | Canonical owner: `titanspan.collections` (not implemented). | **Blocked** | — | Canonical ownership is `titanspan.collections`, which is not implemented yet. | [source][source-28] |
+| `Illuminate\Support\Enumerable` | `dump()` | — | Canonical owner: `titanspan.collections` (not implemented). | **Blocked** | — | Canonical ownership is `titanspan.collections`, which is not implemented yet. | [source][source-28] |
+| `Illuminate\Support\Enumerable` | `diff()` | — | Canonical owner: `titanspan.collections` (not implemented). | **Blocked** | — | Canonical ownership is `titanspan.collections`, which is not implemented yet. | [source][source-28] |
+| `Illuminate\Support\Enumerable` | `diffUsing()` | — | Canonical owner: `titanspan.collections` (not implemented). | **Blocked** | — | Canonical ownership is `titanspan.collections`, which is not implemented yet. | [source][source-28] |
+| `Illuminate\Support\Enumerable` | `diffAssoc()` | — | Canonical owner: `titanspan.collections` (not implemented). | **Blocked** | — | Canonical ownership is `titanspan.collections`, which is not implemented yet. | [source][source-28] |
+| `Illuminate\Support\Enumerable` | `diffAssocUsing()` | — | Canonical owner: `titanspan.collections` (not implemented). | **Blocked** | — | Canonical ownership is `titanspan.collections`, which is not implemented yet. | [source][source-28] |
+| `Illuminate\Support\Enumerable` | `diffKeys()` | — | Canonical owner: `titanspan.collections` (not implemented). | **Blocked** | — | Canonical ownership is `titanspan.collections`, which is not implemented yet. | [source][source-28] |
+| `Illuminate\Support\Enumerable` | `diffKeysUsing()` | — | Canonical owner: `titanspan.collections` (not implemented). | **Blocked** | — | Canonical ownership is `titanspan.collections`, which is not implemented yet. | [source][source-28] |
+| `Illuminate\Support\Enumerable` | `duplicates()` | — | Canonical owner: `titanspan.collections` (not implemented). | **Blocked** | — | Canonical ownership is `titanspan.collections`, which is not implemented yet. | [source][source-28] |
+| `Illuminate\Support\Enumerable` | `duplicatesStrict()` | — | Canonical owner: `titanspan.collections` (not implemented). | **Blocked** | — | Canonical ownership is `titanspan.collections`, which is not implemented yet. | [source][source-28] |
+| `Illuminate\Support\Enumerable` | `each()` | — | Canonical owner: `titanspan.collections` (not implemented). | **Blocked** | — | Canonical ownership is `titanspan.collections`, which is not implemented yet. | [source][source-28] |
+| `Illuminate\Support\Enumerable` | `eachSpread()` | — | Canonical owner: `titanspan.collections` (not implemented). | **Blocked** | — | Canonical ownership is `titanspan.collections`, which is not implemented yet. | [source][source-28] |
+| `Illuminate\Support\Enumerable` | `every()` | — | Canonical owner: `titanspan.collections` (not implemented). | **Blocked** | — | Canonical ownership is `titanspan.collections`, which is not implemented yet. | [source][source-28] |
+| `Illuminate\Support\Enumerable` | `except()` | — | Canonical owner: `titanspan.collections` (not implemented). | **Blocked** | — | Canonical ownership is `titanspan.collections`, which is not implemented yet. | [source][source-28] |
+| `Illuminate\Support\Enumerable` | `filter()` | — | Canonical owner: `titanspan.collections` (not implemented). | **Blocked** | — | Canonical ownership is `titanspan.collections`, which is not implemented yet. | [source][source-28] |
+| `Illuminate\Support\Enumerable` | `when()` | — | Canonical owner: `titanspan.collections` (not implemented). | **Blocked** | — | Canonical ownership is `titanspan.collections`, which is not implemented yet. | [source][source-28] |
+| `Illuminate\Support\Enumerable` | `whenEmpty()` | — | Canonical owner: `titanspan.collections` (not implemented). | **Blocked** | — | Canonical ownership is `titanspan.collections`, which is not implemented yet. | [source][source-28] |
+| `Illuminate\Support\Enumerable` | `whenNotEmpty()` | — | Canonical owner: `titanspan.collections` (not implemented). | **Blocked** | — | Canonical ownership is `titanspan.collections`, which is not implemented yet. | [source][source-28] |
+| `Illuminate\Support\Enumerable` | `unless()` | — | Canonical owner: `titanspan.collections` (not implemented). | **Blocked** | — | Canonical ownership is `titanspan.collections`, which is not implemented yet. | [source][source-28] |
+| `Illuminate\Support\Enumerable` | `unlessEmpty()` | — | Canonical owner: `titanspan.collections` (not implemented). | **Blocked** | — | Canonical ownership is `titanspan.collections`, which is not implemented yet. | [source][source-28] |
+| `Illuminate\Support\Enumerable` | `unlessNotEmpty()` | — | Canonical owner: `titanspan.collections` (not implemented). | **Blocked** | — | Canonical ownership is `titanspan.collections`, which is not implemented yet. | [source][source-28] |
+| `Illuminate\Support\Enumerable` | `where()` | — | Canonical owner: `titanspan.collections` (not implemented). | **Blocked** | — | Canonical ownership is `titanspan.collections`, which is not implemented yet. | [source][source-28] |
+| `Illuminate\Support\Enumerable` | `whereNull()` | — | Canonical owner: `titanspan.collections` (not implemented). | **Blocked** | — | Canonical ownership is `titanspan.collections`, which is not implemented yet. | [source][source-28] |
+| `Illuminate\Support\Enumerable` | `whereNotNull()` | — | Canonical owner: `titanspan.collections` (not implemented). | **Blocked** | — | Canonical ownership is `titanspan.collections`, which is not implemented yet. | [source][source-28] |
+| `Illuminate\Support\Enumerable` | `whereStrict()` | — | Canonical owner: `titanspan.collections` (not implemented). | **Blocked** | — | Canonical ownership is `titanspan.collections`, which is not implemented yet. | [source][source-28] |
+| `Illuminate\Support\Enumerable` | `whereIn()` | — | Canonical owner: `titanspan.collections` (not implemented). | **Blocked** | — | Canonical ownership is `titanspan.collections`, which is not implemented yet. | [source][source-28] |
+| `Illuminate\Support\Enumerable` | `whereInStrict()` | — | Canonical owner: `titanspan.collections` (not implemented). | **Blocked** | — | Canonical ownership is `titanspan.collections`, which is not implemented yet. | [source][source-28] |
+| `Illuminate\Support\Enumerable` | `whereBetween()` | — | Canonical owner: `titanspan.collections` (not implemented). | **Blocked** | — | Canonical ownership is `titanspan.collections`, which is not implemented yet. | [source][source-28] |
+| `Illuminate\Support\Enumerable` | `whereNotBetween()` | — | Canonical owner: `titanspan.collections` (not implemented). | **Blocked** | — | Canonical ownership is `titanspan.collections`, which is not implemented yet. | [source][source-28] |
+| `Illuminate\Support\Enumerable` | `whereNotIn()` | — | Canonical owner: `titanspan.collections` (not implemented). | **Blocked** | — | Canonical ownership is `titanspan.collections`, which is not implemented yet. | [source][source-28] |
+| `Illuminate\Support\Enumerable` | `whereNotInStrict()` | — | Canonical owner: `titanspan.collections` (not implemented). | **Blocked** | — | Canonical ownership is `titanspan.collections`, which is not implemented yet. | [source][source-28] |
+| `Illuminate\Support\Enumerable` | `whereInstanceOf()` | — | Canonical owner: `titanspan.collections` (not implemented). | **Blocked** | — | Canonical ownership is `titanspan.collections`, which is not implemented yet. | [source][source-28] |
+| `Illuminate\Support\Enumerable` | `first()` | — | Canonical owner: `titanspan.collections` (not implemented). | **Blocked** | — | Canonical ownership is `titanspan.collections`, which is not implemented yet. | [source][source-28] |
+| `Illuminate\Support\Enumerable` | `firstWhere()` | — | Canonical owner: `titanspan.collections` (not implemented). | **Blocked** | — | Canonical ownership is `titanspan.collections`, which is not implemented yet. | [source][source-28] |
+| `Illuminate\Support\Enumerable` | `flatten()` | — | Canonical owner: `titanspan.collections` (not implemented). | **Blocked** | — | Canonical ownership is `titanspan.collections`, which is not implemented yet. | [source][source-28] |
+| `Illuminate\Support\Enumerable` | `flip()` | — | Canonical owner: `titanspan.collections` (not implemented). | **Blocked** | — | Canonical ownership is `titanspan.collections`, which is not implemented yet. | [source][source-28] |
+| `Illuminate\Support\Enumerable` | `get()` | — | Canonical owner: `titanspan.collections` (not implemented). | **Blocked** | — | Canonical ownership is `titanspan.collections`, which is not implemented yet. | [source][source-28] |
+| `Illuminate\Support\Enumerable` | `groupBy()` | — | Canonical owner: `titanspan.collections` (not implemented). | **Blocked** | — | Canonical ownership is `titanspan.collections`, which is not implemented yet. | [source][source-28] |
+| `Illuminate\Support\Enumerable` | `keyBy()` | — | Canonical owner: `titanspan.collections` (not implemented). | **Blocked** | — | Canonical ownership is `titanspan.collections`, which is not implemented yet. | [source][source-28] |
+| `Illuminate\Support\Enumerable` | `has()` | — | Canonical owner: `titanspan.collections` (not implemented). | **Blocked** | — | Canonical ownership is `titanspan.collections`, which is not implemented yet. | [source][source-28] |
+| `Illuminate\Support\Enumerable` | `hasAny()` | — | Canonical owner: `titanspan.collections` (not implemented). | **Blocked** | — | Canonical ownership is `titanspan.collections`, which is not implemented yet. | [source][source-28] |
+| `Illuminate\Support\Enumerable` | `implode()` | — | Canonical owner: `titanspan.collections` (not implemented). | **Blocked** | — | Canonical ownership is `titanspan.collections`, which is not implemented yet. | [source][source-28] |
+| `Illuminate\Support\Enumerable` | `intersect()` | — | Canonical owner: `titanspan.collections` (not implemented). | **Blocked** | — | Canonical ownership is `titanspan.collections`, which is not implemented yet. | [source][source-28] |
+| `Illuminate\Support\Enumerable` | `intersectUsing()` | — | Canonical owner: `titanspan.collections` (not implemented). | **Blocked** | — | Canonical ownership is `titanspan.collections`, which is not implemented yet. | [source][source-28] |
+| `Illuminate\Support\Enumerable` | `intersectAssoc()` | — | Canonical owner: `titanspan.collections` (not implemented). | **Blocked** | — | Canonical ownership is `titanspan.collections`, which is not implemented yet. | [source][source-28] |
+| `Illuminate\Support\Enumerable` | `intersectAssocUsing()` | — | Canonical owner: `titanspan.collections` (not implemented). | **Blocked** | — | Canonical ownership is `titanspan.collections`, which is not implemented yet. | [source][source-28] |
+| `Illuminate\Support\Enumerable` | `intersectByKeys()` | — | Canonical owner: `titanspan.collections` (not implemented). | **Blocked** | — | Canonical ownership is `titanspan.collections`, which is not implemented yet. | [source][source-28] |
+| `Illuminate\Support\Enumerable` | `isEmpty()` | — | Canonical owner: `titanspan.collections` (not implemented). | **Blocked** | — | Canonical ownership is `titanspan.collections`, which is not implemented yet. | [source][source-28] |
+| `Illuminate\Support\Enumerable` | `isNotEmpty()` | — | Canonical owner: `titanspan.collections` (not implemented). | **Blocked** | — | Canonical ownership is `titanspan.collections`, which is not implemented yet. | [source][source-28] |
+| `Illuminate\Support\Enumerable` | `containsOneItem()` | — | Canonical owner: `titanspan.collections` (not implemented). | **Blocked** | — | Canonical ownership is `titanspan.collections`, which is not implemented yet. | [source][source-28] |
+| `Illuminate\Support\Enumerable` | `containsManyItems()` | — | Canonical owner: `titanspan.collections` (not implemented). | **Blocked** | — | Canonical ownership is `titanspan.collections`, which is not implemented yet. | [source][source-28] |
+| `Illuminate\Support\Enumerable` | `hasSole()` | — | Canonical owner: `titanspan.collections` (not implemented). | **Blocked** | — | Canonical ownership is `titanspan.collections`, which is not implemented yet. | [source][source-28] |
+| `Illuminate\Support\Enumerable` | `hasMany()` | — | Canonical owner: `titanspan.collections` (not implemented). | **Blocked** | — | Canonical ownership is `titanspan.collections`, which is not implemented yet. | [source][source-28] |
+| `Illuminate\Support\Enumerable` | `join()` | — | Canonical owner: `titanspan.collections` (not implemented). | **Blocked** | — | Canonical ownership is `titanspan.collections`, which is not implemented yet. | [source][source-28] |
+| `Illuminate\Support\Enumerable` | `keys()` | — | Canonical owner: `titanspan.collections` (not implemented). | **Blocked** | — | Canonical ownership is `titanspan.collections`, which is not implemented yet. | [source][source-28] |
+| `Illuminate\Support\Enumerable` | `last()` | — | Canonical owner: `titanspan.collections` (not implemented). | **Blocked** | — | Canonical ownership is `titanspan.collections`, which is not implemented yet. | [source][source-28] |
+| `Illuminate\Support\Enumerable` | `map()` | — | Canonical owner: `titanspan.collections` (not implemented). | **Blocked** | — | Canonical ownership is `titanspan.collections`, which is not implemented yet. | [source][source-28] |
+| `Illuminate\Support\Enumerable` | `mapSpread()` | — | Canonical owner: `titanspan.collections` (not implemented). | **Blocked** | — | Canonical ownership is `titanspan.collections`, which is not implemented yet. | [source][source-28] |
+| `Illuminate\Support\Enumerable` | `mapToDictionary()` | — | Canonical owner: `titanspan.collections` (not implemented). | **Blocked** | — | Canonical ownership is `titanspan.collections`, which is not implemented yet. | [source][source-28] |
+| `Illuminate\Support\Enumerable` | `mapToGroups()` | — | Canonical owner: `titanspan.collections` (not implemented). | **Blocked** | — | Canonical ownership is `titanspan.collections`, which is not implemented yet. | [source][source-28] |
+| `Illuminate\Support\Enumerable` | `mapWithKeys()` | — | Canonical owner: `titanspan.collections` (not implemented). | **Blocked** | — | Canonical ownership is `titanspan.collections`, which is not implemented yet. | [source][source-28] |
+| `Illuminate\Support\Enumerable` | `flatMap()` | — | Canonical owner: `titanspan.collections` (not implemented). | **Blocked** | — | Canonical ownership is `titanspan.collections`, which is not implemented yet. | [source][source-28] |
+| `Illuminate\Support\Enumerable` | `mapInto()` | — | Canonical owner: `titanspan.collections` (not implemented). | **Blocked** | — | Canonical ownership is `titanspan.collections`, which is not implemented yet. | [source][source-28] |
+| `Illuminate\Support\Enumerable` | `merge()` | — | Canonical owner: `titanspan.collections` (not implemented). | **Blocked** | — | Canonical ownership is `titanspan.collections`, which is not implemented yet. | [source][source-28] |
+| `Illuminate\Support\Enumerable` | `mergeRecursive()` | — | Canonical owner: `titanspan.collections` (not implemented). | **Blocked** | — | Canonical ownership is `titanspan.collections`, which is not implemented yet. | [source][source-28] |
+| `Illuminate\Support\Enumerable` | `combine()` | — | Canonical owner: `titanspan.collections` (not implemented). | **Blocked** | — | Canonical ownership is `titanspan.collections`, which is not implemented yet. | [source][source-28] |
+| `Illuminate\Support\Enumerable` | `union()` | — | Canonical owner: `titanspan.collections` (not implemented). | **Blocked** | — | Canonical ownership is `titanspan.collections`, which is not implemented yet. | [source][source-28] |
+| `Illuminate\Support\Enumerable` | `min()` | — | Canonical owner: `titanspan.collections` (not implemented). | **Blocked** | — | Canonical ownership is `titanspan.collections`, which is not implemented yet. | [source][source-28] |
+| `Illuminate\Support\Enumerable` | `max()` | — | Canonical owner: `titanspan.collections` (not implemented). | **Blocked** | — | Canonical ownership is `titanspan.collections`, which is not implemented yet. | [source][source-28] |
+| `Illuminate\Support\Enumerable` | `nth()` | — | Canonical owner: `titanspan.collections` (not implemented). | **Blocked** | — | Canonical ownership is `titanspan.collections`, which is not implemented yet. | [source][source-28] |
+| `Illuminate\Support\Enumerable` | `only()` | — | Canonical owner: `titanspan.collections` (not implemented). | **Blocked** | — | Canonical ownership is `titanspan.collections`, which is not implemented yet. | [source][source-28] |
+| `Illuminate\Support\Enumerable` | `forPage()` | — | Canonical owner: `titanspan.collections` (not implemented). | **Blocked** | — | Canonical ownership is `titanspan.collections`, which is not implemented yet. | [source][source-28] |
+| `Illuminate\Support\Enumerable` | `partition()` | — | Canonical owner: `titanspan.collections` (not implemented). | **Blocked** | — | Canonical ownership is `titanspan.collections`, which is not implemented yet. | [source][source-28] |
+| `Illuminate\Support\Enumerable` | `concat()` | — | Canonical owner: `titanspan.collections` (not implemented). | **Blocked** | — | Canonical ownership is `titanspan.collections`, which is not implemented yet. | [source][source-28] |
+| `Illuminate\Support\Enumerable` | `random()` | — | Canonical owner: `titanspan.collections` (not implemented). | **Blocked** | — | Canonical ownership is `titanspan.collections`, which is not implemented yet. | [source][source-28] |
+| `Illuminate\Support\Enumerable` | `reduce()` | — | Canonical owner: `titanspan.collections` (not implemented). | **Blocked** | — | Canonical ownership is `titanspan.collections`, which is not implemented yet. | [source][source-28] |
+| `Illuminate\Support\Enumerable` | `reduceInto()` | — | Canonical owner: `titanspan.collections` (not implemented). | **Blocked** | — | Canonical ownership is `titanspan.collections`, which is not implemented yet. | [source][source-28] |
+| `Illuminate\Support\Enumerable` | `reduceSpread()` | — | Canonical owner: `titanspan.collections` (not implemented). | **Blocked** | — | Canonical ownership is `titanspan.collections`, which is not implemented yet. | [source][source-28] |
+| `Illuminate\Support\Enumerable` | `replace()` | — | Canonical owner: `titanspan.collections` (not implemented). | **Blocked** | — | Canonical ownership is `titanspan.collections`, which is not implemented yet. | [source][source-28] |
+| `Illuminate\Support\Enumerable` | `replaceRecursive()` | — | Canonical owner: `titanspan.collections` (not implemented). | **Blocked** | — | Canonical ownership is `titanspan.collections`, which is not implemented yet. | [source][source-28] |
+| `Illuminate\Support\Enumerable` | `reverse()` | — | Canonical owner: `titanspan.collections` (not implemented). | **Blocked** | — | Canonical ownership is `titanspan.collections`, which is not implemented yet. | [source][source-28] |
+| `Illuminate\Support\Enumerable` | `search()` | — | Canonical owner: `titanspan.collections` (not implemented). | **Blocked** | — | Canonical ownership is `titanspan.collections`, which is not implemented yet. | [source][source-28] |
+| `Illuminate\Support\Enumerable` | `before()` | — | Canonical owner: `titanspan.collections` (not implemented). | **Blocked** | — | Canonical ownership is `titanspan.collections`, which is not implemented yet. | [source][source-28] |
+| `Illuminate\Support\Enumerable` | `after()` | — | Canonical owner: `titanspan.collections` (not implemented). | **Blocked** | — | Canonical ownership is `titanspan.collections`, which is not implemented yet. | [source][source-28] |
+| `Illuminate\Support\Enumerable` | `shuffle()` | — | Canonical owner: `titanspan.collections` (not implemented). | **Blocked** | — | Canonical ownership is `titanspan.collections`, which is not implemented yet. | [source][source-28] |
+| `Illuminate\Support\Enumerable` | `sliding()` | — | Canonical owner: `titanspan.collections` (not implemented). | **Blocked** | — | Canonical ownership is `titanspan.collections`, which is not implemented yet. | [source][source-28] |
+| `Illuminate\Support\Enumerable` | `skip()` | — | Canonical owner: `titanspan.collections` (not implemented). | **Blocked** | — | Canonical ownership is `titanspan.collections`, which is not implemented yet. | [source][source-28] |
+| `Illuminate\Support\Enumerable` | `skipUntil()` | — | Canonical owner: `titanspan.collections` (not implemented). | **Blocked** | — | Canonical ownership is `titanspan.collections`, which is not implemented yet. | [source][source-28] |
+| `Illuminate\Support\Enumerable` | `skipWhile()` | — | Canonical owner: `titanspan.collections` (not implemented). | **Blocked** | — | Canonical ownership is `titanspan.collections`, which is not implemented yet. | [source][source-28] |
+| `Illuminate\Support\Enumerable` | `slice()` | — | Canonical owner: `titanspan.collections` (not implemented). | **Blocked** | — | Canonical ownership is `titanspan.collections`, which is not implemented yet. | [source][source-28] |
+| `Illuminate\Support\Enumerable` | `split()` | — | Canonical owner: `titanspan.collections` (not implemented). | **Blocked** | — | Canonical ownership is `titanspan.collections`, which is not implemented yet. | [source][source-28] |
+| `Illuminate\Support\Enumerable` | `sole()` | — | Canonical owner: `titanspan.collections` (not implemented). | **Blocked** | — | Canonical ownership is `titanspan.collections`, which is not implemented yet. | [source][source-28] |
+| `Illuminate\Support\Enumerable` | `firstOrFail()` | — | Canonical owner: `titanspan.collections` (not implemented). | **Blocked** | — | Canonical ownership is `titanspan.collections`, which is not implemented yet. | [source][source-28] |
+| `Illuminate\Support\Enumerable` | `chunk()` | — | Canonical owner: `titanspan.collections` (not implemented). | **Blocked** | — | Canonical ownership is `titanspan.collections`, which is not implemented yet. | [source][source-28] |
+| `Illuminate\Support\Enumerable` | `chunkWhile()` | — | Canonical owner: `titanspan.collections` (not implemented). | **Blocked** | — | Canonical ownership is `titanspan.collections`, which is not implemented yet. | [source][source-28] |
+| `Illuminate\Support\Enumerable` | `chunkBy()` | — | Canonical owner: `titanspan.collections` (not implemented). | **Blocked** | — | Canonical ownership is `titanspan.collections`, which is not implemented yet. | [source][source-28] |
+| `Illuminate\Support\Enumerable` | `splitIn()` | — | Canonical owner: `titanspan.collections` (not implemented). | **Blocked** | — | Canonical ownership is `titanspan.collections`, which is not implemented yet. | [source][source-28] |
+| `Illuminate\Support\Enumerable` | `sort()` | — | Canonical owner: `titanspan.collections` (not implemented). | **Blocked** | — | Canonical ownership is `titanspan.collections`, which is not implemented yet. | [source][source-28] |
+| `Illuminate\Support\Enumerable` | `sortDesc()` | — | Canonical owner: `titanspan.collections` (not implemented). | **Blocked** | — | Canonical ownership is `titanspan.collections`, which is not implemented yet. | [source][source-28] |
+| `Illuminate\Support\Enumerable` | `sortBy()` | — | Canonical owner: `titanspan.collections` (not implemented). | **Blocked** | — | Canonical ownership is `titanspan.collections`, which is not implemented yet. | [source][source-28] |
+| `Illuminate\Support\Enumerable` | `sortByDesc()` | — | Canonical owner: `titanspan.collections` (not implemented). | **Blocked** | — | Canonical ownership is `titanspan.collections`, which is not implemented yet. | [source][source-28] |
+| `Illuminate\Support\Enumerable` | `sortKeys()` | — | Canonical owner: `titanspan.collections` (not implemented). | **Blocked** | — | Canonical ownership is `titanspan.collections`, which is not implemented yet. | [source][source-28] |
+| `Illuminate\Support\Enumerable` | `sortKeysDesc()` | — | Canonical owner: `titanspan.collections` (not implemented). | **Blocked** | — | Canonical ownership is `titanspan.collections`, which is not implemented yet. | [source][source-28] |
+| `Illuminate\Support\Enumerable` | `sortKeysUsing()` | — | Canonical owner: `titanspan.collections` (not implemented). | **Blocked** | — | Canonical ownership is `titanspan.collections`, which is not implemented yet. | [source][source-28] |
+| `Illuminate\Support\Enumerable` | `sum()` | — | Canonical owner: `titanspan.collections` (not implemented). | **Blocked** | — | Canonical ownership is `titanspan.collections`, which is not implemented yet. | [source][source-28] |
+| `Illuminate\Support\Enumerable` | `take()` | — | Canonical owner: `titanspan.collections` (not implemented). | **Blocked** | — | Canonical ownership is `titanspan.collections`, which is not implemented yet. | [source][source-28] |
+| `Illuminate\Support\Enumerable` | `takeUntil()` | — | Canonical owner: `titanspan.collections` (not implemented). | **Blocked** | — | Canonical ownership is `titanspan.collections`, which is not implemented yet. | [source][source-28] |
+| `Illuminate\Support\Enumerable` | `takeWhile()` | — | Canonical owner: `titanspan.collections` (not implemented). | **Blocked** | — | Canonical ownership is `titanspan.collections`, which is not implemented yet. | [source][source-28] |
+| `Illuminate\Support\Enumerable` | `tap()` | — | Canonical owner: `titanspan.collections` (not implemented). | **Blocked** | — | Canonical ownership is `titanspan.collections`, which is not implemented yet. | [source][source-28] |
+| `Illuminate\Support\Enumerable` | `pipe()` | — | Canonical owner: `titanspan.collections` (not implemented). | **Blocked** | — | Canonical ownership is `titanspan.collections`, which is not implemented yet. | [source][source-28] |
+| `Illuminate\Support\Enumerable` | `pipeInto()` | — | Canonical owner: `titanspan.collections` (not implemented). | **Blocked** | — | Canonical ownership is `titanspan.collections`, which is not implemented yet. | [source][source-28] |
+| `Illuminate\Support\Enumerable` | `pipeThrough()` | — | Canonical owner: `titanspan.collections` (not implemented). | **Blocked** | — | Canonical ownership is `titanspan.collections`, which is not implemented yet. | [source][source-28] |
+| `Illuminate\Support\Enumerable` | `pluck()` | — | Canonical owner: `titanspan.collections` (not implemented). | **Blocked** | — | Canonical ownership is `titanspan.collections`, which is not implemented yet. | [source][source-28] |
+| `Illuminate\Support\Enumerable` | `reject()` | — | Canonical owner: `titanspan.collections` (not implemented). | **Blocked** | — | Canonical ownership is `titanspan.collections`, which is not implemented yet. | [source][source-28] |
+| `Illuminate\Support\Enumerable` | `undot()` | — | Canonical owner: `titanspan.collections` (not implemented). | **Blocked** | — | Canonical ownership is `titanspan.collections`, which is not implemented yet. | [source][source-28] |
+| `Illuminate\Support\Enumerable` | `unique()` | — | Canonical owner: `titanspan.collections` (not implemented). | **Blocked** | — | Canonical ownership is `titanspan.collections`, which is not implemented yet. | [source][source-28] |
+| `Illuminate\Support\Enumerable` | `uniqueStrict()` | — | Canonical owner: `titanspan.collections` (not implemented). | **Blocked** | — | Canonical ownership is `titanspan.collections`, which is not implemented yet. | [source][source-28] |
+| `Illuminate\Support\Enumerable` | `values()` | — | Canonical owner: `titanspan.collections` (not implemented). | **Blocked** | — | Canonical ownership is `titanspan.collections`, which is not implemented yet. | [source][source-28] |
+| `Illuminate\Support\Enumerable` | `pad()` | — | Canonical owner: `titanspan.collections` (not implemented). | **Blocked** | — | Canonical ownership is `titanspan.collections`, which is not implemented yet. | [source][source-28] |
+| `Illuminate\Support\Enumerable` | `getIterator()` | — | Canonical owner: `titanspan.collections` (not implemented). | **Blocked** | — | Canonical ownership is `titanspan.collections`, which is not implemented yet. | [source][source-28] |
+| `Illuminate\Support\Enumerable` | `count()` | — | Canonical owner: `titanspan.collections` (not implemented). | **Blocked** | — | Canonical ownership is `titanspan.collections`, which is not implemented yet. | [source][source-28] |
+| `Illuminate\Support\Enumerable` | `countBy()` | — | Canonical owner: `titanspan.collections` (not implemented). | **Blocked** | — | Canonical ownership is `titanspan.collections`, which is not implemented yet. | [source][source-28] |
+| `Illuminate\Support\Enumerable` | `zip()` | — | Canonical owner: `titanspan.collections` (not implemented). | **Blocked** | — | Canonical ownership is `titanspan.collections`, which is not implemented yet. | [source][source-28] |
+| `Illuminate\Support\Enumerable` | `collect()` | — | Canonical owner: `titanspan.collections` (not implemented). | **Blocked** | — | Canonical ownership is `titanspan.collections`, which is not implemented yet. | [source][source-28] |
+| `Illuminate\Support\Enumerable` | `toArray()` | — | Canonical owner: `titanspan.collections` (not implemented). | **Blocked** | — | Canonical ownership is `titanspan.collections`, which is not implemented yet. | [source][source-28] |
+| `Illuminate\Support\Enumerable` | `jsonSerialize()` | — | Canonical owner: `titanspan.collections` (not implemented). | **Blocked** | — | Canonical ownership is `titanspan.collections`, which is not implemented yet. | [source][source-28] |
+| `Illuminate\Support\Enumerable` | `toJson()` | — | Canonical owner: `titanspan.collections` (not implemented). | **Blocked** | — | Canonical ownership is `titanspan.collections`, which is not implemented yet. | [source][source-28] |
+| `Illuminate\Support\Enumerable` | `toPrettyJson()` | — | Canonical owner: `titanspan.collections` (not implemented). | **Blocked** | — | Canonical ownership is `titanspan.collections`, which is not implemented yet. | [source][source-28] |
+| `Illuminate\Support\Enumerable` | `getCachingIterator()` | — | Canonical owner: `titanspan.collections` (not implemented). | **Blocked** | — | Canonical ownership is `titanspan.collections`, which is not implemented yet. | [source][source-28] |
+| `Illuminate\Support\Enumerable` | `__toString()` | — | Canonical owner: `titanspan.collections` (not implemented). | **Blocked** | — | Canonical ownership is `titanspan.collections`, which is not implemented yet. | [source][source-28] |
+| `Illuminate\Support\Enumerable` | `escapeWhenCastingToString()` | — | Canonical owner: `titanspan.collections` (not implemented). | **Blocked** | — | Canonical ownership is `titanspan.collections`, which is not implemented yet. | [source][source-28] |
+| `Illuminate\Support\Enumerable` | `proxy()` | — | Canonical owner: `titanspan.collections` (not implemented). | **Blocked** | — | Canonical ownership is `titanspan.collections`, which is not implemented yet. | [source][source-28] |
+| `Illuminate\Support\Enumerable` | `__get()` | — | Canonical owner: `titanspan.collections` (not implemented). | **Blocked** | — | Canonical ownership is `titanspan.collections`, which is not implemented yet. | [source][source-28] |
+
+</details>
+
+<details>
+<summary>Illuminate\Support\Env — 8 listed public members (class)</summary>
+
+| Upstream class | Upstream API | Titanspan API | Implementation location | Compatibility status | Test evidence | Differences | Upstream reference |
+|---|---|---|---|---|---|---|---|
+| `Illuminate\Support\Env` | `enablePutenv()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-29] |
+| `Illuminate\Support\Env` | `disablePutenv()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-29] |
+| `Illuminate\Support\Env` | `extend()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-29] |
+| `Illuminate\Support\Env` | `getRepository()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-29] |
+| `Illuminate\Support\Env` | `get()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-29] |
+| `Illuminate\Support\Env` | `getOrFail()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-29] |
+| `Illuminate\Support\Env` | `writeVariables()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-29] |
+| `Illuminate\Support\Env` | `writeVariable()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-29] |
+
+</details>
+
+<details>
+<summary>Illuminate\Support\Exceptions\MathException — 0 listed public members (class)</summary>
+
+| Upstream class | Upstream API | Titanspan API | Implementation location | Compatibility status | Test evidence | Differences | Upstream reference |
+|---|---|---|---|---|---|---|---|
+| `Illuminate\Support\Exceptions\MathException` | Public type declaration | — | Not implemented | | Pending | — | No public members were found by the source scan. | [source][source-30] |
+
+</details>
+
+<details>
+<summary>Illuminate\Support\Facades\App — 142 listed public members (class)</summary>
+
+| Upstream class | Upstream API | Titanspan API | Implementation location | Compatibility status | Test evidence | Differences | Upstream reference |
+|---|---|---|---|---|---|---|---|
+| `Illuminate\Support\Facades\App` | `configure()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-31] |
+| `Illuminate\Support\Facades\App` | `inferBasePath()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-31] |
+| `Illuminate\Support\Facades\App` | `version()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-31] |
+| `Illuminate\Support\Facades\App` | `bootstrapWith()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-31] |
+| `Illuminate\Support\Facades\App` | `afterLoadingEnvironment()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-31] |
+| `Illuminate\Support\Facades\App` | `beforeBootstrapping()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-31] |
+| `Illuminate\Support\Facades\App` | `afterBootstrapping()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-31] |
+| `Illuminate\Support\Facades\App` | `hasBeenBootstrapped()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-31] |
+| `Illuminate\Support\Facades\App` | `setBasePath()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-31] |
+| `Illuminate\Support\Facades\App` | `path()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-31] |
+| `Illuminate\Support\Facades\App` | `useAppPath()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-31] |
+| `Illuminate\Support\Facades\App` | `basePath()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-31] |
+| `Illuminate\Support\Facades\App` | `bootstrapPath()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-31] |
+| `Illuminate\Support\Facades\App` | `getBootstrapProvidersPath()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-31] |
+| `Illuminate\Support\Facades\App` | `useBootstrapPath()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-31] |
+| `Illuminate\Support\Facades\App` | `configPath()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-31] |
+| `Illuminate\Support\Facades\App` | `useConfigPath()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-31] |
+| `Illuminate\Support\Facades\App` | `databasePath()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-31] |
+| `Illuminate\Support\Facades\App` | `useDatabasePath()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-31] |
+| `Illuminate\Support\Facades\App` | `langPath()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-31] |
+| `Illuminate\Support\Facades\App` | `useLangPath()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-31] |
+| `Illuminate\Support\Facades\App` | `publicPath()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-31] |
+| `Illuminate\Support\Facades\App` | `usePublicPath()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-31] |
+| `Illuminate\Support\Facades\App` | `storagePath()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-31] |
+| `Illuminate\Support\Facades\App` | `useStoragePath()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-31] |
+| `Illuminate\Support\Facades\App` | `resourcePath()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-31] |
+| `Illuminate\Support\Facades\App` | `viewPath()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-31] |
+| `Illuminate\Support\Facades\App` | `joinPaths()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-31] |
+| `Illuminate\Support\Facades\App` | `environmentPath()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-31] |
+| `Illuminate\Support\Facades\App` | `useEnvironmentPath()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-31] |
+| `Illuminate\Support\Facades\App` | `loadEnvironmentFrom()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-31] |
+| `Illuminate\Support\Facades\App` | `environmentFile()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-31] |
+| `Illuminate\Support\Facades\App` | `environmentFilePath()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-31] |
+| `Illuminate\Support\Facades\App` | `environment()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-31] |
+| `Illuminate\Support\Facades\App` | `isLocal()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-31] |
+| `Illuminate\Support\Facades\App` | `isProduction()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-31] |
+| `Illuminate\Support\Facades\App` | `detectEnvironment()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-31] |
+| `Illuminate\Support\Facades\App` | `runningInConsole()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-31] |
+| `Illuminate\Support\Facades\App` | `runningConsoleCommand()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-31] |
+| `Illuminate\Support\Facades\App` | `runningUnitTests()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-31] |
+| `Illuminate\Support\Facades\App` | `hasDebugModeEnabled()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-31] |
+| `Illuminate\Support\Facades\App` | `registered()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-31] |
+| `Illuminate\Support\Facades\App` | `registerConfiguredProviders()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-31] |
+| `Illuminate\Support\Facades\App` | `register()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-31] |
+| `Illuminate\Support\Facades\App` | `getProvider()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-31] |
+| `Illuminate\Support\Facades\App` | `getProviders()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-31] |
+| `Illuminate\Support\Facades\App` | `resolveProvider()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-31] |
+| `Illuminate\Support\Facades\App` | `loadDeferredProviders()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-31] |
+| `Illuminate\Support\Facades\App` | `loadDeferredProvider()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-31] |
+| `Illuminate\Support\Facades\App` | `registerDeferredProvider()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-31] |
+| `Illuminate\Support\Facades\App` | `make()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-31] |
+| `Illuminate\Support\Facades\App` | `bound()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-31] |
+| `Illuminate\Support\Facades\App` | `isBooted()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-31] |
+| `Illuminate\Support\Facades\App` | `boot()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-31] |
+| `Illuminate\Support\Facades\App` | `booting()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-31] |
+| `Illuminate\Support\Facades\App` | `booted()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-31] |
+| `Illuminate\Support\Facades\App` | `handle()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-31] |
+| `Illuminate\Support\Facades\App` | `handleRequest()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-31] |
+| `Illuminate\Support\Facades\App` | `handleCommand()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-31] |
+| `Illuminate\Support\Facades\App` | `shouldMergeFrameworkConfiguration()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-31] |
+| `Illuminate\Support\Facades\App` | `dontMergeFrameworkConfiguration()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-31] |
+| `Illuminate\Support\Facades\App` | `shouldSkipMiddleware()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-31] |
+| `Illuminate\Support\Facades\App` | `getCachedServicesPath()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-31] |
+| `Illuminate\Support\Facades\App` | `getCachedPackagesPath()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-31] |
+| `Illuminate\Support\Facades\App` | `configurationIsCached()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-31] |
+| `Illuminate\Support\Facades\App` | `getCachedConfigPath()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-31] |
+| `Illuminate\Support\Facades\App` | `routesAreCached()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-31] |
+| `Illuminate\Support\Facades\App` | `getCachedRoutesPath()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-31] |
+| `Illuminate\Support\Facades\App` | `eventsAreCached()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-31] |
+| `Illuminate\Support\Facades\App` | `getCachedEventsPath()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-31] |
+| `Illuminate\Support\Facades\App` | `addAbsoluteCachePathPrefix()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-31] |
+| `Illuminate\Support\Facades\App` | `maintenanceMode()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-31] |
+| `Illuminate\Support\Facades\App` | `isDownForMaintenance()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-31] |
+| `Illuminate\Support\Facades\App` | `abort()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-31] |
+| `Illuminate\Support\Facades\App` | `terminating()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-31] |
+| `Illuminate\Support\Facades\App` | `terminate()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-31] |
+| `Illuminate\Support\Facades\App` | `getLoadedProviders()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-31] |
+| `Illuminate\Support\Facades\App` | `providerIsLoaded()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-31] |
+| `Illuminate\Support\Facades\App` | `getDeferredServices()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-31] |
+| `Illuminate\Support\Facades\App` | `setDeferredServices()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-31] |
+| `Illuminate\Support\Facades\App` | `isDeferredService()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-31] |
+| `Illuminate\Support\Facades\App` | `addDeferredServices()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-31] |
+| `Illuminate\Support\Facades\App` | `removeDeferredServices()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-31] |
+| `Illuminate\Support\Facades\App` | `provideFacades()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-31] |
+| `Illuminate\Support\Facades\App` | `getLocale()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-31] |
+| `Illuminate\Support\Facades\App` | `currentLocale()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-31] |
+| `Illuminate\Support\Facades\App` | `getFallbackLocale()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-31] |
+| `Illuminate\Support\Facades\App` | `setLocale()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-31] |
+| `Illuminate\Support\Facades\App` | `setFallbackLocale()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-31] |
+| `Illuminate\Support\Facades\App` | `isLocale()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-31] |
+| `Illuminate\Support\Facades\App` | `registerCoreContainerAliases()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-31] |
+| `Illuminate\Support\Facades\App` | `flush()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-31] |
+| `Illuminate\Support\Facades\App` | `getNamespace()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-31] |
+| `Illuminate\Support\Facades\App` | `when()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-31] |
+| `Illuminate\Support\Facades\App` | `whenHasAttribute()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-31] |
+| `Illuminate\Support\Facades\App` | `has()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-31] |
+| `Illuminate\Support\Facades\App` | `isShared()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-31] |
+| `Illuminate\Support\Facades\App` | `isAlias()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-31] |
+| `Illuminate\Support\Facades\App` | `bind()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-31] |
+| `Illuminate\Support\Facades\App` | `hasMethodBinding()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-31] |
+| `Illuminate\Support\Facades\App` | `bindMethod()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-31] |
+| `Illuminate\Support\Facades\App` | `callMethodBinding()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-31] |
+| `Illuminate\Support\Facades\App` | `addContextualBinding()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-31] |
+| `Illuminate\Support\Facades\App` | `bindIf()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-31] |
+| `Illuminate\Support\Facades\App` | `singleton()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-31] |
+| `Illuminate\Support\Facades\App` | `singletonIf()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-31] |
+| `Illuminate\Support\Facades\App` | `scoped()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-31] |
+| `Illuminate\Support\Facades\App` | `scopedIf()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-31] |
+| `Illuminate\Support\Facades\App` | `extend()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-31] |
+| `Illuminate\Support\Facades\App` | `instance()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-31] |
+| `Illuminate\Support\Facades\App` | `tag()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-31] |
+| `Illuminate\Support\Facades\App` | `tagged()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-31] |
+| `Illuminate\Support\Facades\App` | `alias()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-31] |
+| `Illuminate\Support\Facades\App` | `rebinding()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-31] |
+| `Illuminate\Support\Facades\App` | `refresh()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-31] |
+| `Illuminate\Support\Facades\App` | `wrap()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-31] |
+| `Illuminate\Support\Facades\App` | `call()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-31] |
+| `Illuminate\Support\Facades\App` | `factory()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-31] |
+| `Illuminate\Support\Facades\App` | `makeWith()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-31] |
+| `Illuminate\Support\Facades\App` | `get()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-31] |
+| `Illuminate\Support\Facades\App` | `build()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-31] |
+| `Illuminate\Support\Facades\App` | `resolveFromAttribute()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-31] |
+| `Illuminate\Support\Facades\App` | `beforeResolving()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-31] |
+| `Illuminate\Support\Facades\App` | `resolving()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-31] |
+| `Illuminate\Support\Facades\App` | `afterResolving()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-31] |
+| `Illuminate\Support\Facades\App` | `afterResolvingAttribute()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-31] |
+| `Illuminate\Support\Facades\App` | `fireAfterResolvingAttributeCallbacks()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-31] |
+| `Illuminate\Support\Facades\App` | `currentlyResolving()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-31] |
+| `Illuminate\Support\Facades\App` | `getBindings()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-31] |
+| `Illuminate\Support\Facades\App` | `getAlias()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-31] |
+| `Illuminate\Support\Facades\App` | `forgetExtenders()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-31] |
+| `Illuminate\Support\Facades\App` | `forgetInstance()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-31] |
+| `Illuminate\Support\Facades\App` | `forgetInstances()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-31] |
+| `Illuminate\Support\Facades\App` | `forgetScopedInstances()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-31] |
+| `Illuminate\Support\Facades\App` | `resolveEnvironmentUsing()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-31] |
+| `Illuminate\Support\Facades\App` | `currentEnvironmentIs()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-31] |
+| `Illuminate\Support\Facades\App` | `getInstance()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-31] |
+| `Illuminate\Support\Facades\App` | `setInstance()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-31] |
+| `Illuminate\Support\Facades\App` | `macro()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-31] |
+| `Illuminate\Support\Facades\App` | `mixin()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-31] |
+| `Illuminate\Support\Facades\App` | `hasMacro()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-31] |
+| `Illuminate\Support\Facades\App` | `flushMacros()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-31] |
+
+</details>
+
+<details>
+<summary>Illuminate\Support\Facades\Artisan — 18 listed public members (class)</summary>
+
+| Upstream class | Upstream API | Titanspan API | Implementation location | Compatibility status | Test evidence | Differences | Upstream reference |
+|---|---|---|---|---|---|---|---|
+| `Illuminate\Support\Facades\Artisan` | `handle()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-32] |
+| `Illuminate\Support\Facades\Artisan` | `terminate()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-32] |
+| `Illuminate\Support\Facades\Artisan` | `whenCommandLifecycleIsLongerThan()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-32] |
+| `Illuminate\Support\Facades\Artisan` | `commandStartedAt()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-32] |
+| `Illuminate\Support\Facades\Artisan` | `resolveConsoleSchedule()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-32] |
+| `Illuminate\Support\Facades\Artisan` | `command()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-32] |
+| `Illuminate\Support\Facades\Artisan` | `registerCommand()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-32] |
+| `Illuminate\Support\Facades\Artisan` | `call()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-32] |
+| `Illuminate\Support\Facades\Artisan` | `queue()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-32] |
+| `Illuminate\Support\Facades\Artisan` | `findCommand()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-32] |
+| `Illuminate\Support\Facades\Artisan` | `all()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-32] |
+| `Illuminate\Support\Facades\Artisan` | `output()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-32] |
+| `Illuminate\Support\Facades\Artisan` | `bootstrap()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-32] |
+| `Illuminate\Support\Facades\Artisan` | `bootstrapWithoutBootingProviders()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-32] |
+| `Illuminate\Support\Facades\Artisan` | `setArtisan()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-32] |
+| `Illuminate\Support\Facades\Artisan` | `addCommands()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-32] |
+| `Illuminate\Support\Facades\Artisan` | `addCommandPaths()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-32] |
+| `Illuminate\Support\Facades\Artisan` | `addCommandRoutePaths()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-32] |
+
+</details>
+
+<details>
+<summary>Illuminate\Support\Facades\Auth — 59 listed public members (class)</summary>
+
+| Upstream class | Upstream API | Titanspan API | Implementation location | Compatibility status | Test evidence | Differences | Upstream reference |
+|---|---|---|---|---|---|---|---|
+| `Illuminate\Support\Facades\Auth` | `routes()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-33] |
+| `Illuminate\Support\Facades\Auth` | `guard()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-33] |
+| `Illuminate\Support\Facades\Auth` | `createSessionDriver()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-33] |
+| `Illuminate\Support\Facades\Auth` | `createTokenDriver()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-33] |
+| `Illuminate\Support\Facades\Auth` | `getDefaultDriver()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-33] |
+| `Illuminate\Support\Facades\Auth` | `shouldUse()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-33] |
+| `Illuminate\Support\Facades\Auth` | `setDefaultDriver()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-33] |
+| `Illuminate\Support\Facades\Auth` | `viaRequest()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-33] |
+| `Illuminate\Support\Facades\Auth` | `userResolver()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-33] |
+| `Illuminate\Support\Facades\Auth` | `resolveUsersUsing()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-33] |
+| `Illuminate\Support\Facades\Auth` | `extend()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-33] |
+| `Illuminate\Support\Facades\Auth` | `provider()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-33] |
+| `Illuminate\Support\Facades\Auth` | `hasResolvedGuards()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-33] |
+| `Illuminate\Support\Facades\Auth` | `forgetGuards()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-33] |
+| `Illuminate\Support\Facades\Auth` | `setApplication()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-33] |
+| `Illuminate\Support\Facades\Auth` | `createUserProvider()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-33] |
+| `Illuminate\Support\Facades\Auth` | `getDefaultUserProvider()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-33] |
+| `Illuminate\Support\Facades\Auth` | `check()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-33] |
+| `Illuminate\Support\Facades\Auth` | `guest()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-33] |
+| `Illuminate\Support\Facades\Auth` | `user()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-33] |
+| `Illuminate\Support\Facades\Auth` | `id()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-33] |
+| `Illuminate\Support\Facades\Auth` | `validate()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-33] |
+| `Illuminate\Support\Facades\Auth` | `hasUser()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-33] |
+| `Illuminate\Support\Facades\Auth` | `setUser()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-33] |
+| `Illuminate\Support\Facades\Auth` | `attempt()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-33] |
+| `Illuminate\Support\Facades\Auth` | `once()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-33] |
+| `Illuminate\Support\Facades\Auth` | `login()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-33] |
+| `Illuminate\Support\Facades\Auth` | `loginUsingId()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-33] |
+| `Illuminate\Support\Facades\Auth` | `onceUsingId()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-33] |
+| `Illuminate\Support\Facades\Auth` | `viaRemember()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-33] |
+| `Illuminate\Support\Facades\Auth` | `logout()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-33] |
+| `Illuminate\Support\Facades\Auth` | `basic()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-33] |
+| `Illuminate\Support\Facades\Auth` | `onceBasic()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-33] |
+| `Illuminate\Support\Facades\Auth` | `attemptWhen()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-33] |
+| `Illuminate\Support\Facades\Auth` | `hashPasswordForCookie()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-33] |
+| `Illuminate\Support\Facades\Auth` | `logoutCurrentDevice()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-33] |
+| `Illuminate\Support\Facades\Auth` | `logoutOtherDevices()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-33] |
+| `Illuminate\Support\Facades\Auth` | `attempting()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-33] |
+| `Illuminate\Support\Facades\Auth` | `getLastAttempted()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-33] |
+| `Illuminate\Support\Facades\Auth` | `getName()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-33] |
+| `Illuminate\Support\Facades\Auth` | `getRecallerName()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-33] |
+| `Illuminate\Support\Facades\Auth` | `setRememberDuration()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-33] |
+| `Illuminate\Support\Facades\Auth` | `getCookieJar()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-33] |
+| `Illuminate\Support\Facades\Auth` | `setCookieJar()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-33] |
+| `Illuminate\Support\Facades\Auth` | `getDispatcher()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-33] |
+| `Illuminate\Support\Facades\Auth` | `setDispatcher()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-33] |
+| `Illuminate\Support\Facades\Auth` | `getSession()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-33] |
+| `Illuminate\Support\Facades\Auth` | `getUser()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-33] |
+| `Illuminate\Support\Facades\Auth` | `getRequest()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-33] |
+| `Illuminate\Support\Facades\Auth` | `setRequest()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-33] |
+| `Illuminate\Support\Facades\Auth` | `getTimebox()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-33] |
+| `Illuminate\Support\Facades\Auth` | `authenticate()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-33] |
+| `Illuminate\Support\Facades\Auth` | `forgetUser()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-33] |
+| `Illuminate\Support\Facades\Auth` | `getProvider()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-33] |
+| `Illuminate\Support\Facades\Auth` | `setProvider()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-33] |
+| `Illuminate\Support\Facades\Auth` | `macro()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-33] |
+| `Illuminate\Support\Facades\Auth` | `mixin()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-33] |
+| `Illuminate\Support\Facades\Auth` | `hasMacro()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-33] |
+| `Illuminate\Support\Facades\Auth` | `flushMacros()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-33] |
+
+</details>
+
+<details>
+<summary>Illuminate\Support\Facades\Blade — 43 listed public members (class)</summary>
+
+| Upstream class | Upstream API | Titanspan API | Implementation location | Compatibility status | Test evidence | Differences | Upstream reference |
+|---|---|---|---|---|---|---|---|
+| `Illuminate\Support\Facades\Blade` | `compile()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-34] |
+| `Illuminate\Support\Facades\Blade` | `getPath()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-34] |
+| `Illuminate\Support\Facades\Blade` | `setPath()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-34] |
+| `Illuminate\Support\Facades\Blade` | `compileString()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-34] |
+| `Illuminate\Support\Facades\Blade` | `render()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-34] |
+| `Illuminate\Support\Facades\Blade` | `renderComponent()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-34] |
+| `Illuminate\Support\Facades\Blade` | `stripParentheses()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-34] |
+| `Illuminate\Support\Facades\Blade` | `extend()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-34] |
+| `Illuminate\Support\Facades\Blade` | `getExtensions()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-34] |
+| `Illuminate\Support\Facades\Blade` | `if()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-34] |
+| `Illuminate\Support\Facades\Blade` | `check()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-34] |
+| `Illuminate\Support\Facades\Blade` | `component()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-34] |
+| `Illuminate\Support\Facades\Blade` | `components()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-34] |
+| `Illuminate\Support\Facades\Blade` | `getClassComponentAliases()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-34] |
+| `Illuminate\Support\Facades\Blade` | `anonymousComponentPath()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-34] |
+| `Illuminate\Support\Facades\Blade` | `anonymousComponentNamespace()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-34] |
+| `Illuminate\Support\Facades\Blade` | `componentNamespace()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-34] |
+| `Illuminate\Support\Facades\Blade` | `getAnonymousComponentPaths()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-34] |
+| `Illuminate\Support\Facades\Blade` | `getAnonymousComponentNamespaces()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-34] |
+| `Illuminate\Support\Facades\Blade` | `getClassComponentNamespaces()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-34] |
+| `Illuminate\Support\Facades\Blade` | `aliasComponent()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-34] |
+| `Illuminate\Support\Facades\Blade` | `include()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-34] |
+| `Illuminate\Support\Facades\Blade` | `aliasInclude()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-34] |
+| `Illuminate\Support\Facades\Blade` | `bindDirective()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-34] |
+| `Illuminate\Support\Facades\Blade` | `directive()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-34] |
+| `Illuminate\Support\Facades\Blade` | `getCustomDirectives()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-34] |
+| `Illuminate\Support\Facades\Blade` | `prepareStringsForCompilationUsing()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-34] |
+| `Illuminate\Support\Facades\Blade` | `precompiler()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-34] |
+| `Illuminate\Support\Facades\Blade` | `getCompiledPath()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-34] |
+| `Illuminate\Support\Facades\Blade` | `usingEchoFormat()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-34] |
+| `Illuminate\Support\Facades\Blade` | `setEchoFormat()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-34] |
+| `Illuminate\Support\Facades\Blade` | `withDoubleEncoding()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-34] |
+| `Illuminate\Support\Facades\Blade` | `withoutDoubleEncoding()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-34] |
+| `Illuminate\Support\Facades\Blade` | `withoutComponentTags()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-34] |
+| `Illuminate\Support\Facades\Blade` | `isExpired()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-34] |
+| `Illuminate\Support\Facades\Blade` | `newComponentHash()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-34] |
+| `Illuminate\Support\Facades\Blade` | `compileClassComponentOpening()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-34] |
+| `Illuminate\Support\Facades\Blade` | `compileEndComponentClass()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-34] |
+| `Illuminate\Support\Facades\Blade` | `sanitizeComponentAttribute()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-34] |
+| `Illuminate\Support\Facades\Blade` | `compileEndOnce()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-34] |
+| `Illuminate\Support\Facades\Blade` | `stringable()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-34] |
+| `Illuminate\Support\Facades\Blade` | `compileEchos()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-34] |
+| `Illuminate\Support\Facades\Blade` | `applyEchoHandler()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-34] |
+
+</details>
+
+<details>
+<summary>Illuminate\Support\Facades\Broadcast — 30 listed public members (class)</summary>
+
+| Upstream class | Upstream API | Titanspan API | Implementation location | Compatibility status | Test evidence | Differences | Upstream reference |
+|---|---|---|---|---|---|---|---|
+| `Illuminate\Support\Facades\Broadcast` | `routes()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-35] |
+| `Illuminate\Support\Facades\Broadcast` | `userRoutes()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-35] |
+| `Illuminate\Support\Facades\Broadcast` | `channelRoutes()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-35] |
+| `Illuminate\Support\Facades\Broadcast` | `socket()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-35] |
+| `Illuminate\Support\Facades\Broadcast` | `on()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-35] |
+| `Illuminate\Support\Facades\Broadcast` | `private()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-35] |
+| `Illuminate\Support\Facades\Broadcast` | `presence()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-35] |
+| `Illuminate\Support\Facades\Broadcast` | `event()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-35] |
+| `Illuminate\Support\Facades\Broadcast` | `queue()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-35] |
+| `Illuminate\Support\Facades\Broadcast` | `connection()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-35] |
+| `Illuminate\Support\Facades\Broadcast` | `driver()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-35] |
+| `Illuminate\Support\Facades\Broadcast` | `pusher()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-35] |
+| `Illuminate\Support\Facades\Broadcast` | `ably()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-35] |
+| `Illuminate\Support\Facades\Broadcast` | `getDefaultDriver()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-35] |
+| `Illuminate\Support\Facades\Broadcast` | `setDefaultDriver()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-35] |
+| `Illuminate\Support\Facades\Broadcast` | `purge()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-35] |
+| `Illuminate\Support\Facades\Broadcast` | `extend()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-35] |
+| `Illuminate\Support\Facades\Broadcast` | `getApplication()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-35] |
+| `Illuminate\Support\Facades\Broadcast` | `setApplication()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-35] |
+| `Illuminate\Support\Facades\Broadcast` | `forgetDrivers()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-35] |
+| `Illuminate\Support\Facades\Broadcast` | `mercure()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-35] |
+| `Illuminate\Support\Facades\Broadcast` | `resolveConnectionFromQueueRoute()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-35] |
+| `Illuminate\Support\Facades\Broadcast` | `resolveQueueFromQueueRoute()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-35] |
+| `Illuminate\Support\Facades\Broadcast` | `auth()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-35] |
+| `Illuminate\Support\Facades\Broadcast` | `validAuthenticationResponse()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-35] |
+| `Illuminate\Support\Facades\Broadcast` | `broadcast()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-35] |
+| `Illuminate\Support\Facades\Broadcast` | `resolveAuthenticatedUser()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-35] |
+| `Illuminate\Support\Facades\Broadcast` | `resolveAuthenticatedUserUsing()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-35] |
+| `Illuminate\Support\Facades\Broadcast` | `channel()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-35] |
+| `Illuminate\Support\Facades\Broadcast` | `getChannels()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-35] |
+
+</details>
+
+<details>
+<summary>Illuminate\Support\Facades\Bus — 50 listed public members (class)</summary>
+
+| Upstream class | Upstream API | Titanspan API | Implementation location | Compatibility status | Test evidence | Differences | Upstream reference |
+|---|---|---|---|---|---|---|---|
+| `Illuminate\Support\Facades\Bus` | `fake()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-36] |
+| `Illuminate\Support\Facades\Bus` | `dispatchChain()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-36] |
+| `Illuminate\Support\Facades\Bus` | `dispatch()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-36] |
+| `Illuminate\Support\Facades\Bus` | `dispatchSync()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-36] |
+| `Illuminate\Support\Facades\Bus` | `dispatchNow()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-36] |
+| `Illuminate\Support\Facades\Bus` | `bulk()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-36] |
+| `Illuminate\Support\Facades\Bus` | `findBatch()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-36] |
+| `Illuminate\Support\Facades\Bus` | `batch()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-36] |
+| `Illuminate\Support\Facades\Bus` | `chain()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-36] |
+| `Illuminate\Support\Facades\Bus` | `hasCommandHandler()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-36] |
+| `Illuminate\Support\Facades\Bus` | `getCommandHandler()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-36] |
+| `Illuminate\Support\Facades\Bus` | `dispatchToQueue()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-36] |
+| `Illuminate\Support\Facades\Bus` | `dispatchAfterResponse()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-36] |
+| `Illuminate\Support\Facades\Bus` | `pipeThrough()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-36] |
+| `Illuminate\Support\Facades\Bus` | `map()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-36] |
+| `Illuminate\Support\Facades\Bus` | `withDispatchingAfterResponses()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-36] |
+| `Illuminate\Support\Facades\Bus` | `withoutDispatchingAfterResponses()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-36] |
+| `Illuminate\Support\Facades\Bus` | `resolveConnectionFromQueueRoute()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-36] |
+| `Illuminate\Support\Facades\Bus` | `resolveQueueFromQueueRoute()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-36] |
+| `Illuminate\Support\Facades\Bus` | `except()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-36] |
+| `Illuminate\Support\Facades\Bus` | `assertDispatched()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-36] |
+| `Illuminate\Support\Facades\Bus` | `assertDispatchedOnce()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-36] |
+| `Illuminate\Support\Facades\Bus` | `assertDispatchedTimes()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-36] |
+| `Illuminate\Support\Facades\Bus` | `assertNotDispatched()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-36] |
+| `Illuminate\Support\Facades\Bus` | `assertNothingDispatched()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-36] |
+| `Illuminate\Support\Facades\Bus` | `assertDispatchedSync()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-36] |
+| `Illuminate\Support\Facades\Bus` | `assertDispatchedSyncTimes()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-36] |
+| `Illuminate\Support\Facades\Bus` | `assertNotDispatchedSync()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-36] |
+| `Illuminate\Support\Facades\Bus` | `assertDispatchedAfterResponse()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-36] |
+| `Illuminate\Support\Facades\Bus` | `assertDispatchedAfterResponseTimes()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-36] |
+| `Illuminate\Support\Facades\Bus` | `assertNotDispatchedAfterResponse()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-36] |
+| `Illuminate\Support\Facades\Bus` | `assertChained()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-36] |
+| `Illuminate\Support\Facades\Bus` | `assertNothingChained()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-36] |
+| `Illuminate\Support\Facades\Bus` | `assertDispatchedWithoutChain()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-36] |
+| `Illuminate\Support\Facades\Bus` | `chainedBatch()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-36] |
+| `Illuminate\Support\Facades\Bus` | `assertBatched()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-36] |
+| `Illuminate\Support\Facades\Bus` | `assertBatchCount()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-36] |
+| `Illuminate\Support\Facades\Bus` | `assertNothingBatched()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-36] |
+| `Illuminate\Support\Facades\Bus` | `assertNothingPlaced()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-36] |
+| `Illuminate\Support\Facades\Bus` | `dispatched()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-36] |
+| `Illuminate\Support\Facades\Bus` | `dispatchedSync()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-36] |
+| `Illuminate\Support\Facades\Bus` | `dispatchedAfterResponse()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-36] |
+| `Illuminate\Support\Facades\Bus` | `batched()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-36] |
+| `Illuminate\Support\Facades\Bus` | `hasDispatched()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-36] |
+| `Illuminate\Support\Facades\Bus` | `hasDispatchedSync()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-36] |
+| `Illuminate\Support\Facades\Bus` | `hasDispatchedAfterResponse()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-36] |
+| `Illuminate\Support\Facades\Bus` | `dispatchFakeBatch()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-36] |
+| `Illuminate\Support\Facades\Bus` | `recordPendingBatch()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-36] |
+| `Illuminate\Support\Facades\Bus` | `serializeAndRestore()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-36] |
+| `Illuminate\Support\Facades\Bus` | `dispatchedBatches()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-36] |
+
+</details>
+
+<details>
+<summary>Illuminate\Support\Facades\Cache — 66 listed public members (class)</summary>
+
+| Upstream class | Upstream API | Titanspan API | Implementation location | Compatibility status | Test evidence | Differences | Upstream reference |
+|---|---|---|---|---|---|---|---|
+| `Illuminate\Support\Facades\Cache` | `spy()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-37] |
+| `Illuminate\Support\Facades\Cache` | `store()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-37] |
+| `Illuminate\Support\Facades\Cache` | `driver()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-37] |
+| `Illuminate\Support\Facades\Cache` | `memo()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-37] |
+| `Illuminate\Support\Facades\Cache` | `resolve()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-37] |
+| `Illuminate\Support\Facades\Cache` | `build()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-37] |
+| `Illuminate\Support\Facades\Cache` | `repository()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-37] |
+| `Illuminate\Support\Facades\Cache` | `refreshEventDispatcher()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-37] |
+| `Illuminate\Support\Facades\Cache` | `getDefaultDriver()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-37] |
+| `Illuminate\Support\Facades\Cache` | `setDefaultDriver()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-37] |
+| `Illuminate\Support\Facades\Cache` | `forgetDriver()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-37] |
+| `Illuminate\Support\Facades\Cache` | `purge()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-37] |
+| `Illuminate\Support\Facades\Cache` | `extend()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-37] |
+| `Illuminate\Support\Facades\Cache` | `setApplication()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-37] |
+| `Illuminate\Support\Facades\Cache` | `handleUnserializableClassUsing()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-37] |
+| `Illuminate\Support\Facades\Cache` | `has()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-37] |
+| `Illuminate\Support\Facades\Cache` | `missing()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-37] |
+| `Illuminate\Support\Facades\Cache` | `get()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-37] |
+| `Illuminate\Support\Facades\Cache` | `many()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-37] |
+| `Illuminate\Support\Facades\Cache` | `getMultiple()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-37] |
+| `Illuminate\Support\Facades\Cache` | `pull()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-37] |
+| `Illuminate\Support\Facades\Cache` | `string()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-37] |
+| `Illuminate\Support\Facades\Cache` | `integer()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-37] |
+| `Illuminate\Support\Facades\Cache` | `float()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-37] |
+| `Illuminate\Support\Facades\Cache` | `boolean()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-37] |
+| `Illuminate\Support\Facades\Cache` | `array()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-37] |
+| `Illuminate\Support\Facades\Cache` | `put()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-37] |
+| `Illuminate\Support\Facades\Cache` | `set()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-37] |
+| `Illuminate\Support\Facades\Cache` | `putMany()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-37] |
+| `Illuminate\Support\Facades\Cache` | `setMultiple()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-37] |
+| `Illuminate\Support\Facades\Cache` | `add()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-37] |
+| `Illuminate\Support\Facades\Cache` | `increment()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-37] |
+| `Illuminate\Support\Facades\Cache` | `decrement()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-37] |
+| `Illuminate\Support\Facades\Cache` | `forever()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-37] |
+| `Illuminate\Support\Facades\Cache` | `remember()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-37] |
+| `Illuminate\Support\Facades\Cache` | `rememberWithWarmth()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-37] |
+| `Illuminate\Support\Facades\Cache` | `sear()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-37] |
+| `Illuminate\Support\Facades\Cache` | `rememberForever()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-37] |
+| `Illuminate\Support\Facades\Cache` | `flexible()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-37] |
+| `Illuminate\Support\Facades\Cache` | `touch()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-37] |
+| `Illuminate\Support\Facades\Cache` | `withoutOverlapping()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-37] |
+| `Illuminate\Support\Facades\Cache` | `funnel()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-37] |
+| `Illuminate\Support\Facades\Cache` | `forget()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-37] |
+| `Illuminate\Support\Facades\Cache` | `delete()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-37] |
+| `Illuminate\Support\Facades\Cache` | `deleteMultiple()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-37] |
+| `Illuminate\Support\Facades\Cache` | `clear()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-37] |
+| `Illuminate\Support\Facades\Cache` | `flushLocks()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-37] |
+| `Illuminate\Support\Facades\Cache` | `tags()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-37] |
+| `Illuminate\Support\Facades\Cache` | `getName()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-37] |
+| `Illuminate\Support\Facades\Cache` | `supportsTags()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-37] |
+| `Illuminate\Support\Facades\Cache` | `supportsFlushingLocks()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-37] |
+| `Illuminate\Support\Facades\Cache` | `getDefaultCacheTime()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-37] |
+| `Illuminate\Support\Facades\Cache` | `setDefaultCacheTime()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-37] |
+| `Illuminate\Support\Facades\Cache` | `getStore()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-37] |
+| `Illuminate\Support\Facades\Cache` | `setStore()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-37] |
+| `Illuminate\Support\Facades\Cache` | `getEventDispatcher()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-37] |
+| `Illuminate\Support\Facades\Cache` | `setEventDispatcher()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-37] |
+| `Illuminate\Support\Facades\Cache` | `macro()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-37] |
+| `Illuminate\Support\Facades\Cache` | `mixin()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-37] |
+| `Illuminate\Support\Facades\Cache` | `hasMacro()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-37] |
+| `Illuminate\Support\Facades\Cache` | `flushMacros()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-37] |
+| `Illuminate\Support\Facades\Cache` | `macroCall()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-37] |
+| `Illuminate\Support\Facades\Cache` | `flush()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-37] |
+| `Illuminate\Support\Facades\Cache` | `getPrefix()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-37] |
+| `Illuminate\Support\Facades\Cache` | `lock()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-37] |
+| `Illuminate\Support\Facades\Cache` | `restoreLock()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-37] |
+
+</details>
+
+<details>
+<summary>Illuminate\Support\Facades\Cloud — 8 listed public members (class)</summary>
+
+| Upstream class | Upstream API | Titanspan API | Implementation location | Compatibility status | Test evidence | Differences | Upstream reference |
+|---|---|---|---|---|---|---|---|
+| `Illuminate\Support\Facades\Cloud` | `hosted()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-38] |
+| `Illuminate\Support\Facades\Cloud` | `usesManagedQueues()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-38] |
+| `Illuminate\Support\Facades\Cloud` | `queue()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-38] |
+| `Illuminate\Support\Facades\Cloud` | `isManagedQueue()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-38] |
+| `Illuminate\Support\Facades\Cloud` | `macro()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-38] |
+| `Illuminate\Support\Facades\Cloud` | `mixin()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-38] |
+| `Illuminate\Support\Facades\Cloud` | `hasMacro()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-38] |
+| `Illuminate\Support\Facades\Cloud` | `flushMacros()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-38] |
+
+</details>
+
+<details>
+<summary>Illuminate\Support\Facades\Concurrency — 14 listed public members (class)</summary>
+
+| Upstream class | Upstream API | Titanspan API | Implementation location | Compatibility status | Test evidence | Differences | Upstream reference |
+|---|---|---|---|---|---|---|---|
+| `Illuminate\Support\Facades\Concurrency` | `driver()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-39] |
+| `Illuminate\Support\Facades\Concurrency` | `createProcessDriver()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-39] |
+| `Illuminate\Support\Facades\Concurrency` | `createForkDriver()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-39] |
+| `Illuminate\Support\Facades\Concurrency` | `createSyncDriver()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-39] |
+| `Illuminate\Support\Facades\Concurrency` | `getDefaultInstance()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-39] |
+| `Illuminate\Support\Facades\Concurrency` | `setDefaultInstance()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-39] |
+| `Illuminate\Support\Facades\Concurrency` | `getInstanceConfig()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-39] |
+| `Illuminate\Support\Facades\Concurrency` | `instance()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-39] |
+| `Illuminate\Support\Facades\Concurrency` | `forgetInstance()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-39] |
+| `Illuminate\Support\Facades\Concurrency` | `purge()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-39] |
+| `Illuminate\Support\Facades\Concurrency` | `extend()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-39] |
+| `Illuminate\Support\Facades\Concurrency` | `setApplication()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-39] |
+| `Illuminate\Support\Facades\Concurrency` | `run()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-39] |
+| `Illuminate\Support\Facades\Concurrency` | `defer()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-39] |
+
+</details>
+
+<details>
+<summary>Illuminate\Support\Facades\Config — 17 listed public members (class)</summary>
+
+| Upstream class | Upstream API | Titanspan API | Implementation location | Compatibility status | Test evidence | Differences | Upstream reference |
+|---|---|---|---|---|---|---|---|
+| `Illuminate\Support\Facades\Config` | `has()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-40] |
+| `Illuminate\Support\Facades\Config` | `get()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-40] |
+| `Illuminate\Support\Facades\Config` | `getMany()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-40] |
+| `Illuminate\Support\Facades\Config` | `string()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-40] |
+| `Illuminate\Support\Facades\Config` | `integer()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-40] |
+| `Illuminate\Support\Facades\Config` | `float()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-40] |
+| `Illuminate\Support\Facades\Config` | `boolean()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-40] |
+| `Illuminate\Support\Facades\Config` | `array()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-40] |
+| `Illuminate\Support\Facades\Config` | `collection()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-40] |
+| `Illuminate\Support\Facades\Config` | `set()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-40] |
+| `Illuminate\Support\Facades\Config` | `prepend()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-40] |
+| `Illuminate\Support\Facades\Config` | `push()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-40] |
+| `Illuminate\Support\Facades\Config` | `all()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-40] |
+| `Illuminate\Support\Facades\Config` | `macro()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-40] |
+| `Illuminate\Support\Facades\Config` | `mixin()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-40] |
+| `Illuminate\Support\Facades\Config` | `hasMacro()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-40] |
+| `Illuminate\Support\Facades\Config` | `flushMacros()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-40] |
+
+</details>
+
+<details>
+<summary>Illuminate\Support\Facades\Context — 43 listed public members (class)</summary>
+
+| Upstream class | Upstream API | Titanspan API | Implementation location | Compatibility status | Test evidence | Differences | Upstream reference |
+|---|---|---|---|---|---|---|---|
+| `Illuminate\Support\Facades\Context` | `has()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-41] |
+| `Illuminate\Support\Facades\Context` | `missing()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-41] |
+| `Illuminate\Support\Facades\Context` | `hasHidden()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-41] |
+| `Illuminate\Support\Facades\Context` | `missingHidden()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-41] |
+| `Illuminate\Support\Facades\Context` | `all()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-41] |
+| `Illuminate\Support\Facades\Context` | `allHidden()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-41] |
+| `Illuminate\Support\Facades\Context` | `get()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-41] |
+| `Illuminate\Support\Facades\Context` | `getHidden()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-41] |
+| `Illuminate\Support\Facades\Context` | `pull()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-41] |
+| `Illuminate\Support\Facades\Context` | `pullHidden()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-41] |
+| `Illuminate\Support\Facades\Context` | `only()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-41] |
+| `Illuminate\Support\Facades\Context` | `onlyHidden()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-41] |
+| `Illuminate\Support\Facades\Context` | `except()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-41] |
+| `Illuminate\Support\Facades\Context` | `exceptHidden()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-41] |
+| `Illuminate\Support\Facades\Context` | `add()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-41] |
+| `Illuminate\Support\Facades\Context` | `addHidden()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-41] |
+| `Illuminate\Support\Facades\Context` | `remember()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-41] |
+| `Illuminate\Support\Facades\Context` | `rememberHidden()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-41] |
+| `Illuminate\Support\Facades\Context` | `forget()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-41] |
+| `Illuminate\Support\Facades\Context` | `forgetHidden()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-41] |
+| `Illuminate\Support\Facades\Context` | `addIf()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-41] |
+| `Illuminate\Support\Facades\Context` | `addHiddenIf()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-41] |
+| `Illuminate\Support\Facades\Context` | `push()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-41] |
+| `Illuminate\Support\Facades\Context` | `pop()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-41] |
+| `Illuminate\Support\Facades\Context` | `pushHidden()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-41] |
+| `Illuminate\Support\Facades\Context` | `popHidden()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-41] |
+| `Illuminate\Support\Facades\Context` | `increment()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-41] |
+| `Illuminate\Support\Facades\Context` | `decrement()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-41] |
+| `Illuminate\Support\Facades\Context` | `stackContains()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-41] |
+| `Illuminate\Support\Facades\Context` | `hiddenStackContains()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-41] |
+| `Illuminate\Support\Facades\Context` | `scope()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-41] |
+| `Illuminate\Support\Facades\Context` | `isEmpty()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-41] |
+| `Illuminate\Support\Facades\Context` | `dehydrating()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-41] |
+| `Illuminate\Support\Facades\Context` | `hydrated()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-41] |
+| `Illuminate\Support\Facades\Context` | `handleUnserializeExceptionsUsing()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-41] |
+| `Illuminate\Support\Facades\Context` | `flush()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-41] |
+| `Illuminate\Support\Facades\Context` | `when()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-41] |
+| `Illuminate\Support\Facades\Context` | `unless()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-41] |
+| `Illuminate\Support\Facades\Context` | `macro()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-41] |
+| `Illuminate\Support\Facades\Context` | `mixin()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-41] |
+| `Illuminate\Support\Facades\Context` | `hasMacro()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-41] |
+| `Illuminate\Support\Facades\Context` | `flushMacros()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-41] |
+| `Illuminate\Support\Facades\Context` | `restoreModel()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-41] |
+
+</details>
+
+<details>
+<summary>Illuminate\Support\Facades\Cookie — 17 listed public members (class)</summary>
+
+| Upstream class | Upstream API | Titanspan API | Implementation location | Compatibility status | Test evidence | Differences | Upstream reference |
+|---|---|---|---|---|---|---|---|
+| `Illuminate\Support\Facades\Cookie` | `has()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-42] |
+| `Illuminate\Support\Facades\Cookie` | `get()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-42] |
+| `Illuminate\Support\Facades\Cookie` | `make()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-42] |
+| `Illuminate\Support\Facades\Cookie` | `forever()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-42] |
+| `Illuminate\Support\Facades\Cookie` | `forget()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-42] |
+| `Illuminate\Support\Facades\Cookie` | `hasQueued()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-42] |
+| `Illuminate\Support\Facades\Cookie` | `queued()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-42] |
+| `Illuminate\Support\Facades\Cookie` | `queue()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-42] |
+| `Illuminate\Support\Facades\Cookie` | `expire()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-42] |
+| `Illuminate\Support\Facades\Cookie` | `unqueue()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-42] |
+| `Illuminate\Support\Facades\Cookie` | `setDefaultPathAndDomain()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-42] |
+| `Illuminate\Support\Facades\Cookie` | `getQueuedCookies()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-42] |
+| `Illuminate\Support\Facades\Cookie` | `flushQueuedCookies()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-42] |
+| `Illuminate\Support\Facades\Cookie` | `macro()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-42] |
+| `Illuminate\Support\Facades\Cookie` | `mixin()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-42] |
+| `Illuminate\Support\Facades\Cookie` | `hasMacro()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-42] |
+| `Illuminate\Support\Facades\Cookie` | `flushMacros()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-42] |
+
+</details>
+
+<details>
+<summary>Illuminate\Support\Facades\Crypt — 11 listed public members (class)</summary>
+
+| Upstream class | Upstream API | Titanspan API | Implementation location | Compatibility status | Test evidence | Differences | Upstream reference |
+|---|---|---|---|---|---|---|---|
+| `Illuminate\Support\Facades\Crypt` | `supported()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-43] |
+| `Illuminate\Support\Facades\Crypt` | `generateKey()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-43] |
+| `Illuminate\Support\Facades\Crypt` | `encrypt()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-43] |
+| `Illuminate\Support\Facades\Crypt` | `encryptString()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-43] |
+| `Illuminate\Support\Facades\Crypt` | `decrypt()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-43] |
+| `Illuminate\Support\Facades\Crypt` | `decryptString()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-43] |
+| `Illuminate\Support\Facades\Crypt` | `appearsEncrypted()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-43] |
+| `Illuminate\Support\Facades\Crypt` | `getKey()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-43] |
+| `Illuminate\Support\Facades\Crypt` | `getAllKeys()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-43] |
+| `Illuminate\Support\Facades\Crypt` | `getPreviousKeys()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-43] |
+| `Illuminate\Support\Facades\Crypt` | `previousKeys()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-43] |
+
+</details>
+
+<details>
+<summary>Illuminate\Support\Facades\DB — 120 listed public members (class)</summary>
+
+| Upstream class | Upstream API | Titanspan API | Implementation location | Compatibility status | Test evidence | Differences | Upstream reference |
+|---|---|---|---|---|---|---|---|
+| `Illuminate\Support\Facades\DB` | `prohibitDestructiveCommands()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-44] |
+| `Illuminate\Support\Facades\DB` | `connection()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-44] |
+| `Illuminate\Support\Facades\DB` | `build()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-44] |
+| `Illuminate\Support\Facades\DB` | `calculateDynamicConnectionName()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-44] |
+| `Illuminate\Support\Facades\DB` | `connectUsing()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-44] |
+| `Illuminate\Support\Facades\DB` | `purge()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-44] |
+| `Illuminate\Support\Facades\DB` | `disconnect()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-44] |
+| `Illuminate\Support\Facades\DB` | `reconnect()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-44] |
+| `Illuminate\Support\Facades\DB` | `usingConnection()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-44] |
+| `Illuminate\Support\Facades\DB` | `getDefaultConnection()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-44] |
+| `Illuminate\Support\Facades\DB` | `setDefaultConnection()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-44] |
+| `Illuminate\Support\Facades\DB` | `supportedDrivers()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-44] |
+| `Illuminate\Support\Facades\DB` | `availableDrivers()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-44] |
+| `Illuminate\Support\Facades\DB` | `extend()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-44] |
+| `Illuminate\Support\Facades\DB` | `forgetExtension()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-44] |
+| `Illuminate\Support\Facades\DB` | `getConnections()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-44] |
+| `Illuminate\Support\Facades\DB` | `setReconnector()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-44] |
+| `Illuminate\Support\Facades\DB` | `setApplication()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-44] |
+| `Illuminate\Support\Facades\DB` | `macro()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-44] |
+| `Illuminate\Support\Facades\DB` | `mixin()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-44] |
+| `Illuminate\Support\Facades\DB` | `hasMacro()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-44] |
+| `Illuminate\Support\Facades\DB` | `flushMacros()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-44] |
+| `Illuminate\Support\Facades\DB` | `macroCall()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-44] |
+| `Illuminate\Support\Facades\DB` | `useDefaultQueryGrammar()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-44] |
+| `Illuminate\Support\Facades\DB` | `useDefaultSchemaGrammar()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-44] |
+| `Illuminate\Support\Facades\DB` | `useDefaultPostProcessor()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-44] |
+| `Illuminate\Support\Facades\DB` | `getSchemaBuilder()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-44] |
+| `Illuminate\Support\Facades\DB` | `table()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-44] |
+| `Illuminate\Support\Facades\DB` | `query()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-44] |
+| `Illuminate\Support\Facades\DB` | `selectOne()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-44] |
+| `Illuminate\Support\Facades\DB` | `scalar()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-44] |
+| `Illuminate\Support\Facades\DB` | `selectFromWriteConnection()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-44] |
+| `Illuminate\Support\Facades\DB` | `select()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-44] |
+| `Illuminate\Support\Facades\DB` | `selectResultSets()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-44] |
+| `Illuminate\Support\Facades\DB` | `cursor()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-44] |
+| `Illuminate\Support\Facades\DB` | `insert()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-44] |
+| `Illuminate\Support\Facades\DB` | `update()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-44] |
+| `Illuminate\Support\Facades\DB` | `delete()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-44] |
+| `Illuminate\Support\Facades\DB` | `statement()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-44] |
+| `Illuminate\Support\Facades\DB` | `affectingStatement()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-44] |
+| `Illuminate\Support\Facades\DB` | `unprepared()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-44] |
+| `Illuminate\Support\Facades\DB` | `threadCount()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-44] |
+| `Illuminate\Support\Facades\DB` | `pretend()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-44] |
+| `Illuminate\Support\Facades\DB` | `withoutPretending()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-44] |
+| `Illuminate\Support\Facades\DB` | `bindValues()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-44] |
+| `Illuminate\Support\Facades\DB` | `prepareBindings()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-44] |
+| `Illuminate\Support\Facades\DB` | `logQuery()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-44] |
+| `Illuminate\Support\Facades\DB` | `whenQueryingForLongerThan()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-44] |
+| `Illuminate\Support\Facades\DB` | `allowQueryDurationHandlersToRunAgain()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-44] |
+| `Illuminate\Support\Facades\DB` | `totalQueryDuration()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-44] |
+| `Illuminate\Support\Facades\DB` | `resetTotalQueryDuration()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-44] |
+| `Illuminate\Support\Facades\DB` | `whenTransactionRunsLongerThan()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning database service module, which is not implemented. | [source][source-44] |
+| `Illuminate\Support\Facades\DB` | `reconnectIfMissingConnection()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-44] |
+| `Illuminate\Support\Facades\DB` | `beforeStartingTransaction()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-44] |
+| `Illuminate\Support\Facades\DB` | `beforeExecuting()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-44] |
+| `Illuminate\Support\Facades\DB` | `listen()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-44] |
+| `Illuminate\Support\Facades\DB` | `raw()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-44] |
+| `Illuminate\Support\Facades\DB` | `escape()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-44] |
+| `Illuminate\Support\Facades\DB` | `hasModifiedRecords()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-44] |
+| `Illuminate\Support\Facades\DB` | `recordsHaveBeenModified()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-44] |
+| `Illuminate\Support\Facades\DB` | `setRecordModificationState()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-44] |
+| `Illuminate\Support\Facades\DB` | `forgetRecordModificationState()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-44] |
+| `Illuminate\Support\Facades\DB` | `withoutAffectingStickiness()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-44] |
+| `Illuminate\Support\Facades\DB` | `useWriteConnectionWhenReading()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-44] |
+| `Illuminate\Support\Facades\DB` | `usingWritePdo()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-44] |
+| `Illuminate\Support\Facades\DB` | `getPdo()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-44] |
+| `Illuminate\Support\Facades\DB` | `getRawPdo()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-44] |
+| `Illuminate\Support\Facades\DB` | `getReadPdo()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-44] |
+| `Illuminate\Support\Facades\DB` | `getRawReadPdo()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-44] |
+| `Illuminate\Support\Facades\DB` | `getDirectPdo()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-44] |
+| `Illuminate\Support\Facades\DB` | `getRawDirectPdo()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-44] |
+| `Illuminate\Support\Facades\DB` | `setPdo()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-44] |
+| `Illuminate\Support\Facades\DB` | `setReadPdo()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-44] |
+| `Illuminate\Support\Facades\DB` | `setReadPdoConfig()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-44] |
+| `Illuminate\Support\Facades\DB` | `setDirectPdo()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-44] |
+| `Illuminate\Support\Facades\DB` | `setDirectPdoConfig()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-44] |
+| `Illuminate\Support\Facades\DB` | `getDirectPdoConfig()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-44] |
+| `Illuminate\Support\Facades\DB` | `hasDirectConnection()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-44] |
+| `Illuminate\Support\Facades\DB` | `getName()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-44] |
+| `Illuminate\Support\Facades\DB` | `getNameWithReadWriteType()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-44] |
+| `Illuminate\Support\Facades\DB` | `getConfig()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-44] |
+| `Illuminate\Support\Facades\DB` | `getDriverName()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-44] |
+| `Illuminate\Support\Facades\DB` | `getDriverTitle()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-44] |
+| `Illuminate\Support\Facades\DB` | `getQueryGrammar()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-44] |
+| `Illuminate\Support\Facades\DB` | `setQueryGrammar()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-44] |
+| `Illuminate\Support\Facades\DB` | `getSchemaGrammar()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-44] |
+| `Illuminate\Support\Facades\DB` | `setSchemaGrammar()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-44] |
+| `Illuminate\Support\Facades\DB` | `getPostProcessor()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-44] |
+| `Illuminate\Support\Facades\DB` | `setPostProcessor()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-44] |
+| `Illuminate\Support\Facades\DB` | `getEventDispatcher()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-44] |
+| `Illuminate\Support\Facades\DB` | `setEventDispatcher()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-44] |
+| `Illuminate\Support\Facades\DB` | `unsetEventDispatcher()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-44] |
+| `Illuminate\Support\Facades\DB` | `setTransactionManager()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-44] |
+| `Illuminate\Support\Facades\DB` | `unsetTransactionManager()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-44] |
+| `Illuminate\Support\Facades\DB` | `pretending()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-44] |
+| `Illuminate\Support\Facades\DB` | `getQueryLog()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-44] |
+| `Illuminate\Support\Facades\DB` | `getRawQueryLog()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-44] |
+| `Illuminate\Support\Facades\DB` | `flushQueryLog()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-44] |
+| `Illuminate\Support\Facades\DB` | `enableQueryLog()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-44] |
+| `Illuminate\Support\Facades\DB` | `disableQueryLog()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-44] |
+| `Illuminate\Support\Facades\DB` | `logging()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-44] |
+| `Illuminate\Support\Facades\DB` | `getDatabaseName()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-44] |
+| `Illuminate\Support\Facades\DB` | `setDatabaseName()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-44] |
+| `Illuminate\Support\Facades\DB` | `setReadWriteType()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-44] |
+| `Illuminate\Support\Facades\DB` | `getTablePrefix()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-44] |
+| `Illuminate\Support\Facades\DB` | `setTablePrefix()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-44] |
+| `Illuminate\Support\Facades\DB` | `withoutTablePrefix()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-44] |
+| `Illuminate\Support\Facades\DB` | `getServerVersion()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-44] |
+| `Illuminate\Support\Facades\DB` | `getLastCommitId()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-44] |
+| `Illuminate\Support\Facades\DB` | `mergeCommitIds()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-44] |
+| `Illuminate\Support\Facades\DB` | `hasCommitId()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-44] |
+| `Illuminate\Support\Facades\DB` | `resolverFor()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-44] |
+| `Illuminate\Support\Facades\DB` | `getResolver()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-44] |
+| `Illuminate\Support\Facades\DB` | `transaction()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-44] |
+| `Illuminate\Support\Facades\DB` | `beginTransaction()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-44] |
+| `Illuminate\Support\Facades\DB` | `commit()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-44] |
+| `Illuminate\Support\Facades\DB` | `rollBack()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-44] |
+| `Illuminate\Support\Facades\DB` | `transactionLevel()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-44] |
+| `Illuminate\Support\Facades\DB` | `afterCommit()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-44] |
+| `Illuminate\Support\Facades\DB` | `afterRollBack()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-44] |
+
+</details>
+
+<details>
+<summary>Illuminate\Support\Facades\Date — 96 listed public members (class)</summary>
+
+| Upstream class | Upstream API | Titanspan API | Implementation location | Compatibility status | Test evidence | Differences | Upstream reference |
+|---|---|---|---|---|---|---|---|
+| `Illuminate\Support\Facades\Date` | `use()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-45] |
+| `Illuminate\Support\Facades\Date` | `useDefault()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-45] |
+| `Illuminate\Support\Facades\Date` | `useCallable()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-45] |
+| `Illuminate\Support\Facades\Date` | `useClass()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-45] |
+| `Illuminate\Support\Facades\Date` | `useFactory()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-45] |
+| `Illuminate\Support\Facades\Date` | `canBeCreatedFromFormat()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-45] |
+| `Illuminate\Support\Facades\Date` | `create()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-45] |
+| `Illuminate\Support\Facades\Date` | `createFromDate()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-45] |
+| `Illuminate\Support\Facades\Date` | `createFromFormat()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-45] |
+| `Illuminate\Support\Facades\Date` | `createFromIsoFormat()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-45] |
+| `Illuminate\Support\Facades\Date` | `createFromLocaleFormat()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-45] |
+| `Illuminate\Support\Facades\Date` | `createFromLocaleIsoFormat()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-45] |
+| `Illuminate\Support\Facades\Date` | `createFromTime()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-45] |
+| `Illuminate\Support\Facades\Date` | `createFromTimeString()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-45] |
+| `Illuminate\Support\Facades\Date` | `createFromTimestamp()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-45] |
+| `Illuminate\Support\Facades\Date` | `createFromTimestampMs()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-45] |
+| `Illuminate\Support\Facades\Date` | `createFromTimestampMsUTC()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-45] |
+| `Illuminate\Support\Facades\Date` | `createFromTimestampUTC()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-45] |
+| `Illuminate\Support\Facades\Date` | `createMidnightDate()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-45] |
+| `Illuminate\Support\Facades\Date` | `createSafe()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-45] |
+| `Illuminate\Support\Facades\Date` | `createStrict()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-45] |
+| `Illuminate\Support\Facades\Date` | `disableHumanDiffOption()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-45] |
+| `Illuminate\Support\Facades\Date` | `enableHumanDiffOption()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-45] |
+| `Illuminate\Support\Facades\Date` | `executeWithLocale()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-45] |
+| `Illuminate\Support\Facades\Date` | `fromSerialized()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-45] |
+| `Illuminate\Support\Facades\Date` | `getAvailableLocales()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-45] |
+| `Illuminate\Support\Facades\Date` | `getAvailableLocalesInfo()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-45] |
+| `Illuminate\Support\Facades\Date` | `getDays()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-45] |
+| `Illuminate\Support\Facades\Date` | `getFallbackLocale()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-45] |
+| `Illuminate\Support\Facades\Date` | `getFormatsToIsoReplacements()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-45] |
+| `Illuminate\Support\Facades\Date` | `getHumanDiffOptions()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-45] |
+| `Illuminate\Support\Facades\Date` | `getIsoUnits()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-45] |
+| `Illuminate\Support\Facades\Date` | `getLastErrors()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-45] |
+| `Illuminate\Support\Facades\Date` | `getLocale()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-45] |
+| `Illuminate\Support\Facades\Date` | `getMidDayAt()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-45] |
+| `Illuminate\Support\Facades\Date` | `getTimeFormatByPrecision()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-45] |
+| `Illuminate\Support\Facades\Date` | `getTranslationMessageWith()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-45] |
+| `Illuminate\Support\Facades\Date` | `getTestNow()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-45] |
+| `Illuminate\Support\Facades\Date` | `getTranslator()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-45] |
+| `Illuminate\Support\Facades\Date` | `getWeekEndsAt()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-45] |
+| `Illuminate\Support\Facades\Date` | `getWeekStartsAt()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-45] |
+| `Illuminate\Support\Facades\Date` | `getWeekendDays()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-45] |
+| `Illuminate\Support\Facades\Date` | `hasFormat()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-45] |
+| `Illuminate\Support\Facades\Date` | `hasFormatWithModifiers()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-45] |
+| `Illuminate\Support\Facades\Date` | `hasMacro()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-45] |
+| `Illuminate\Support\Facades\Date` | `hasRelativeKeywords()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-45] |
+| `Illuminate\Support\Facades\Date` | `hasTestNow()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-45] |
+| `Illuminate\Support\Facades\Date` | `instance()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-45] |
+| `Illuminate\Support\Facades\Date` | `isImmutable()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-45] |
+| `Illuminate\Support\Facades\Date` | `isModifiableUnit()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-45] |
+| `Illuminate\Support\Facades\Date` | `isMutable()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-45] |
+| `Illuminate\Support\Facades\Date` | `isStrictModeEnabled()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-45] |
+| `Illuminate\Support\Facades\Date` | `localeHasDiffOneDayWords()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-45] |
+| `Illuminate\Support\Facades\Date` | `localeHasDiffSyntax()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-45] |
+| `Illuminate\Support\Facades\Date` | `localeHasDiffTwoDayWords()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-45] |
+| `Illuminate\Support\Facades\Date` | `localeHasPeriodSyntax()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-45] |
+| `Illuminate\Support\Facades\Date` | `localeHasShortUnits()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-45] |
+| `Illuminate\Support\Facades\Date` | `macro()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-45] |
+| `Illuminate\Support\Facades\Date` | `make()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-45] |
+| `Illuminate\Support\Facades\Date` | `mixin()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-45] |
+| `Illuminate\Support\Facades\Date` | `now()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-45] |
+| `Illuminate\Support\Facades\Date` | `parse()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-45] |
+| `Illuminate\Support\Facades\Date` | `parseFromLocale()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-45] |
+| `Illuminate\Support\Facades\Date` | `pluralUnit()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-45] |
+| `Illuminate\Support\Facades\Date` | `rawCreateFromFormat()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-45] |
+| `Illuminate\Support\Facades\Date` | `rawParse()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-45] |
+| `Illuminate\Support\Facades\Date` | `resetMonthsOverflow()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-45] |
+| `Illuminate\Support\Facades\Date` | `resetToStringFormat()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-45] |
+| `Illuminate\Support\Facades\Date` | `resetYearsOverflow()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-45] |
+| `Illuminate\Support\Facades\Date` | `serializeUsing()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-45] |
+| `Illuminate\Support\Facades\Date` | `setFallbackLocale()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-45] |
+| `Illuminate\Support\Facades\Date` | `setHumanDiffOptions()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-45] |
+| `Illuminate\Support\Facades\Date` | `setLocale()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-45] |
+| `Illuminate\Support\Facades\Date` | `setMidDayAt()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-45] |
+| `Illuminate\Support\Facades\Date` | `setTestNow()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-45] |
+| `Illuminate\Support\Facades\Date` | `setTestNowAndTimezone()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-45] |
+| `Illuminate\Support\Facades\Date` | `setToStringFormat()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-45] |
+| `Illuminate\Support\Facades\Date` | `setTranslator()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-45] |
+| `Illuminate\Support\Facades\Date` | `setWeekEndsAt()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-45] |
+| `Illuminate\Support\Facades\Date` | `setWeekStartsAt()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-45] |
+| `Illuminate\Support\Facades\Date` | `setWeekendDays()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-45] |
+| `Illuminate\Support\Facades\Date` | `shouldOverflowMonths()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-45] |
+| `Illuminate\Support\Facades\Date` | `shouldOverflowYears()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-45] |
+| `Illuminate\Support\Facades\Date` | `singularUnit()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-45] |
+| `Illuminate\Support\Facades\Date` | `sleep()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-45] |
+| `Illuminate\Support\Facades\Date` | `today()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-45] |
+| `Illuminate\Support\Facades\Date` | `tomorrow()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-45] |
+| `Illuminate\Support\Facades\Date` | `translateTimeString()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-45] |
+| `Illuminate\Support\Facades\Date` | `translateWith()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-45] |
+| `Illuminate\Support\Facades\Date` | `useMonthsOverflow()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-45] |
+| `Illuminate\Support\Facades\Date` | `useStrictMode()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-45] |
+| `Illuminate\Support\Facades\Date` | `useYearsOverflow()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-45] |
+| `Illuminate\Support\Facades\Date` | `withTestNow()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-45] |
+| `Illuminate\Support\Facades\Date` | `withTimeZone()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-45] |
+| `Illuminate\Support\Facades\Date` | `yesterday()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-45] |
+| `Illuminate\Support\Facades\Date` | `DEFAULT_FACADE` (constant) | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-45] |
+
+</details>
+
+<details>
+<summary>Illuminate\Support\Facades\Event — 37 listed public members (class)</summary>
+
+| Upstream class | Upstream API | Titanspan API | Implementation location | Compatibility status | Test evidence | Differences | Upstream reference |
+|---|---|---|---|---|---|---|---|
+| `Illuminate\Support\Facades\Event` | `fake()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-46] |
+| `Illuminate\Support\Facades\Event` | `fakeExcept()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-46] |
+| `Illuminate\Support\Facades\Event` | `fakeFor()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-46] |
+| `Illuminate\Support\Facades\Event` | `fakeExceptFor()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-46] |
+| `Illuminate\Support\Facades\Event` | `listen()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-46] |
+| `Illuminate\Support\Facades\Event` | `hasListeners()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-46] |
+| `Illuminate\Support\Facades\Event` | `hasWildcardListeners()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-46] |
+| `Illuminate\Support\Facades\Event` | `push()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-46] |
+| `Illuminate\Support\Facades\Event` | `flush()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-46] |
+| `Illuminate\Support\Facades\Event` | `subscribe()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-46] |
+| `Illuminate\Support\Facades\Event` | `until()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-46] |
+| `Illuminate\Support\Facades\Event` | `dispatch()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-46] |
+| `Illuminate\Support\Facades\Event` | `getListeners()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-46] |
+| `Illuminate\Support\Facades\Event` | `makeListener()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-46] |
+| `Illuminate\Support\Facades\Event` | `createClassListener()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-46] |
+| `Illuminate\Support\Facades\Event` | `forget()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-46] |
+| `Illuminate\Support\Facades\Event` | `forgetPushed()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-46] |
+| `Illuminate\Support\Facades\Event` | `setQueueResolver()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-46] |
+| `Illuminate\Support\Facades\Event` | `setTransactionManagerResolver()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-46] |
+| `Illuminate\Support\Facades\Event` | `defer()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-46] |
+| `Illuminate\Support\Facades\Event` | `getRawListeners()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-46] |
+| `Illuminate\Support\Facades\Event` | `macro()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-46] |
+| `Illuminate\Support\Facades\Event` | `mixin()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-46] |
+| `Illuminate\Support\Facades\Event` | `hasMacro()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-46] |
+| `Illuminate\Support\Facades\Event` | `flushMacros()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-46] |
+| `Illuminate\Support\Facades\Event` | `resolveConnectionFromQueueRoute()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-46] |
+| `Illuminate\Support\Facades\Event` | `resolveQueueFromQueueRoute()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-46] |
+| `Illuminate\Support\Facades\Event` | `except()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-46] |
+| `Illuminate\Support\Facades\Event` | `assertListening()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-46] |
+| `Illuminate\Support\Facades\Event` | `assertDispatched()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-46] |
+| `Illuminate\Support\Facades\Event` | `assertDispatchedOnce()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-46] |
+| `Illuminate\Support\Facades\Event` | `assertDispatchedTimes()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-46] |
+| `Illuminate\Support\Facades\Event` | `assertNotDispatched()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-46] |
+| `Illuminate\Support\Facades\Event` | `assertNothingDispatched()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-46] |
+| `Illuminate\Support\Facades\Event` | `dispatched()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-46] |
+| `Illuminate\Support\Facades\Event` | `hasDispatched()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-46] |
+| `Illuminate\Support\Facades\Event` | `dispatchedEvents()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-46] |
+
+</details>
+
+<details>
+<summary>Illuminate\Support\Facades\Exceptions — 35 listed public members (class)</summary>
+
+| Upstream class | Upstream API | Titanspan API | Implementation location | Compatibility status | Test evidence | Differences | Upstream reference |
+|---|---|---|---|---|---|---|---|
+| `Illuminate\Support\Facades\Exceptions` | `fake()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-47] |
+| `Illuminate\Support\Facades\Exceptions` | `register()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-47] |
+| `Illuminate\Support\Facades\Exceptions` | `reportable()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-47] |
+| `Illuminate\Support\Facades\Exceptions` | `renderable()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-47] |
+| `Illuminate\Support\Facades\Exceptions` | `map()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-47] |
+| `Illuminate\Support\Facades\Exceptions` | `dontReport()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-47] |
+| `Illuminate\Support\Facades\Exceptions` | `dontReportWhen()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-47] |
+| `Illuminate\Support\Facades\Exceptions` | `ignore()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-47] |
+| `Illuminate\Support\Facades\Exceptions` | `dontRetry()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-47] |
+| `Illuminate\Support\Facades\Exceptions` | `dontRetryWhen()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-47] |
+| `Illuminate\Support\Facades\Exceptions` | `shouldStopRetries()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-47] |
+| `Illuminate\Support\Facades\Exceptions` | `dontFlash()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-47] |
+| `Illuminate\Support\Facades\Exceptions` | `level()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-47] |
+| `Illuminate\Support\Facades\Exceptions` | `report()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-47] |
+| `Illuminate\Support\Facades\Exceptions` | `isReporting()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-47] |
+| `Illuminate\Support\Facades\Exceptions` | `shouldReport()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-47] |
+| `Illuminate\Support\Facades\Exceptions` | `throttleUsing()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-47] |
+| `Illuminate\Support\Facades\Exceptions` | `stopIgnoring()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-47] |
+| `Illuminate\Support\Facades\Exceptions` | `contextForException()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-47] |
+| `Illuminate\Support\Facades\Exceptions` | `buildContextForException()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-47] |
+| `Illuminate\Support\Facades\Exceptions` | `buildContextUsing()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-47] |
+| `Illuminate\Support\Facades\Exceptions` | `render()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-47] |
+| `Illuminate\Support\Facades\Exceptions` | `respondUsing()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-47] |
+| `Illuminate\Support\Facades\Exceptions` | `shouldRenderJsonWhen()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-47] |
+| `Illuminate\Support\Facades\Exceptions` | `dontReportDuplicates()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-47] |
+| `Illuminate\Support\Facades\Exceptions` | `handler()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-47] |
+| `Illuminate\Support\Facades\Exceptions` | `assertReported()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-47] |
+| `Illuminate\Support\Facades\Exceptions` | `assertReportedCount()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-47] |
+| `Illuminate\Support\Facades\Exceptions` | `assertNotReported()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-47] |
+| `Illuminate\Support\Facades\Exceptions` | `assertNothingReported()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-47] |
+| `Illuminate\Support\Facades\Exceptions` | `renderForConsole()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-47] |
+| `Illuminate\Support\Facades\Exceptions` | `throwOnReport()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-47] |
+| `Illuminate\Support\Facades\Exceptions` | `throwFirstReported()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-47] |
+| `Illuminate\Support\Facades\Exceptions` | `reported()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-47] |
+| `Illuminate\Support\Facades\Exceptions` | `setHandler()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-47] |
+
+</details>
+
+<details>
+<summary>Illuminate\Support\Facades\Facade — 14 listed public members (class)</summary>
+
+| Upstream class | Upstream API | Titanspan API | Implementation location | Compatibility status | Test evidence | Differences | Upstream reference |
+|---|---|---|---|---|---|---|---|
+| `Illuminate\Support\Facades\Facade` | `resolved()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-48] |
+| `Illuminate\Support\Facades\Facade` | `spy()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-48] |
+| `Illuminate\Support\Facades\Facade` | `partialMock()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-48] |
+| `Illuminate\Support\Facades\Facade` | `shouldReceive()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-48] |
+| `Illuminate\Support\Facades\Facade` | `expects()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-48] |
+| `Illuminate\Support\Facades\Facade` | `swap()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-48] |
+| `Illuminate\Support\Facades\Facade` | `isFake()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-48] |
+| `Illuminate\Support\Facades\Facade` | `getFacadeRoot()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-48] |
+| `Illuminate\Support\Facades\Facade` | `clearResolvedInstance()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-48] |
+| `Illuminate\Support\Facades\Facade` | `clearResolvedInstances()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-48] |
+| `Illuminate\Support\Facades\Facade` | `defaultAliases()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-48] |
+| `Illuminate\Support\Facades\Facade` | `getFacadeApplication()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-48] |
+| `Illuminate\Support\Facades\Facade` | `setFacadeApplication()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-48] |
+| `Illuminate\Support\Facades\Facade` | `__callStatic()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-48] |
+
+</details>
+
+<details>
+<summary>Illuminate\Support\Facades\File — 53 listed public members (class)</summary>
+
+| Upstream class | Upstream API | Titanspan API | Implementation location | Compatibility status | Test evidence | Differences | Upstream reference |
+|---|---|---|---|---|---|---|---|
+| `Illuminate\Support\Facades\File` | `exists()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-49] |
+| `Illuminate\Support\Facades\File` | `missing()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-49] |
+| `Illuminate\Support\Facades\File` | `get()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-49] |
+| `Illuminate\Support\Facades\File` | `json()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-49] |
+| `Illuminate\Support\Facades\File` | `sharedGet()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-49] |
+| `Illuminate\Support\Facades\File` | `getRequire()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-49] |
+| `Illuminate\Support\Facades\File` | `requireOnce()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-49] |
+| `Illuminate\Support\Facades\File` | `lines()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-49] |
+| `Illuminate\Support\Facades\File` | `hash()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-49] |
+| `Illuminate\Support\Facades\File` | `put()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-49] |
+| `Illuminate\Support\Facades\File` | `replace()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-49] |
+| `Illuminate\Support\Facades\File` | `replaceInFile()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-49] |
+| `Illuminate\Support\Facades\File` | `prepend()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-49] |
+| `Illuminate\Support\Facades\File` | `append()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-49] |
+| `Illuminate\Support\Facades\File` | `chmod()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-49] |
+| `Illuminate\Support\Facades\File` | `delete()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-49] |
+| `Illuminate\Support\Facades\File` | `move()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-49] |
+| `Illuminate\Support\Facades\File` | `copy()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-49] |
+| `Illuminate\Support\Facades\File` | `link()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-49] |
+| `Illuminate\Support\Facades\File` | `relativeLink()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-49] |
+| `Illuminate\Support\Facades\File` | `name()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-49] |
+| `Illuminate\Support\Facades\File` | `basename()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-49] |
+| `Illuminate\Support\Facades\File` | `dirname()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-49] |
+| `Illuminate\Support\Facades\File` | `extension()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-49] |
+| `Illuminate\Support\Facades\File` | `guessExtension()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-49] |
+| `Illuminate\Support\Facades\File` | `type()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-49] |
+| `Illuminate\Support\Facades\File` | `mimeType()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-49] |
+| `Illuminate\Support\Facades\File` | `size()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-49] |
+| `Illuminate\Support\Facades\File` | `lastModified()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-49] |
+| `Illuminate\Support\Facades\File` | `isDirectory()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-49] |
+| `Illuminate\Support\Facades\File` | `isEmptyDirectory()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-49] |
+| `Illuminate\Support\Facades\File` | `isReadable()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-49] |
+| `Illuminate\Support\Facades\File` | `isWritable()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-49] |
+| `Illuminate\Support\Facades\File` | `hasSameHash()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-49] |
+| `Illuminate\Support\Facades\File` | `isFile()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-49] |
+| `Illuminate\Support\Facades\File` | `glob()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-49] |
+| `Illuminate\Support\Facades\File` | `files()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-49] |
+| `Illuminate\Support\Facades\File` | `allFiles()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-49] |
+| `Illuminate\Support\Facades\File` | `directories()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-49] |
+| `Illuminate\Support\Facades\File` | `allDirectories()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-49] |
+| `Illuminate\Support\Facades\File` | `ensureDirectoryExists()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-49] |
+| `Illuminate\Support\Facades\File` | `makeDirectory()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-49] |
+| `Illuminate\Support\Facades\File` | `moveDirectory()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-49] |
+| `Illuminate\Support\Facades\File` | `copyDirectory()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-49] |
+| `Illuminate\Support\Facades\File` | `deleteDirectory()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-49] |
+| `Illuminate\Support\Facades\File` | `deleteDirectories()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-49] |
+| `Illuminate\Support\Facades\File` | `cleanDirectory()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-49] |
+| `Illuminate\Support\Facades\File` | `when()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-49] |
+| `Illuminate\Support\Facades\File` | `unless()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-49] |
+| `Illuminate\Support\Facades\File` | `macro()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-49] |
+| `Illuminate\Support\Facades\File` | `mixin()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-49] |
+| `Illuminate\Support\Facades\File` | `hasMacro()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-49] |
+| `Illuminate\Support\Facades\File` | `flushMacros()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-49] |
+
+</details>
+
+<details>
+<summary>Illuminate\Support\Facades\Gate — 26 listed public members (class)</summary>
+
+| Upstream class | Upstream API | Titanspan API | Implementation location | Compatibility status | Test evidence | Differences | Upstream reference |
+|---|---|---|---|---|---|---|---|
+| `Illuminate\Support\Facades\Gate` | `has()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-50] |
+| `Illuminate\Support\Facades\Gate` | `allowIf()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-50] |
+| `Illuminate\Support\Facades\Gate` | `denyIf()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-50] |
+| `Illuminate\Support\Facades\Gate` | `define()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-50] |
+| `Illuminate\Support\Facades\Gate` | `resource()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-50] |
+| `Illuminate\Support\Facades\Gate` | `policy()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-50] |
+| `Illuminate\Support\Facades\Gate` | `before()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-50] |
+| `Illuminate\Support\Facades\Gate` | `after()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-50] |
+| `Illuminate\Support\Facades\Gate` | `allows()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-50] |
+| `Illuminate\Support\Facades\Gate` | `denies()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-50] |
+| `Illuminate\Support\Facades\Gate` | `check()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-50] |
+| `Illuminate\Support\Facades\Gate` | `any()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-50] |
+| `Illuminate\Support\Facades\Gate` | `none()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-50] |
+| `Illuminate\Support\Facades\Gate` | `authorize()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-50] |
+| `Illuminate\Support\Facades\Gate` | `inspect()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-50] |
+| `Illuminate\Support\Facades\Gate` | `raw()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-50] |
+| `Illuminate\Support\Facades\Gate` | `getPolicyFor()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-50] |
+| `Illuminate\Support\Facades\Gate` | `guessPolicyNamesUsing()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-50] |
+| `Illuminate\Support\Facades\Gate` | `resolvePolicy()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-50] |
+| `Illuminate\Support\Facades\Gate` | `forUser()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-50] |
+| `Illuminate\Support\Facades\Gate` | `abilities()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-50] |
+| `Illuminate\Support\Facades\Gate` | `policies()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-50] |
+| `Illuminate\Support\Facades\Gate` | `defaultDenialResponse()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-50] |
+| `Illuminate\Support\Facades\Gate` | `setContainer()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-50] |
+| `Illuminate\Support\Facades\Gate` | `denyWithStatus()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-50] |
+| `Illuminate\Support\Facades\Gate` | `denyAsNotFound()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-50] |
+
+</details>
+
+<details>
+<summary>Illuminate\Support\Facades\Hash — 15 listed public members (class)</summary>
+
+| Upstream class | Upstream API | Titanspan API | Implementation location | Compatibility status | Test evidence | Differences | Upstream reference |
+|---|---|---|---|---|---|---|---|
+| `Illuminate\Support\Facades\Hash` | `createBcryptDriver()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-51] |
+| `Illuminate\Support\Facades\Hash` | `createArgonDriver()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-51] |
+| `Illuminate\Support\Facades\Hash` | `createArgon2idDriver()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-51] |
+| `Illuminate\Support\Facades\Hash` | `info()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-51] |
+| `Illuminate\Support\Facades\Hash` | `make()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-51] |
+| `Illuminate\Support\Facades\Hash` | `check()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-51] |
+| `Illuminate\Support\Facades\Hash` | `needsRehash()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-51] |
+| `Illuminate\Support\Facades\Hash` | `isHashed()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-51] |
+| `Illuminate\Support\Facades\Hash` | `getDefaultDriver()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-51] |
+| `Illuminate\Support\Facades\Hash` | `driver()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-51] |
+| `Illuminate\Support\Facades\Hash` | `extend()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-51] |
+| `Illuminate\Support\Facades\Hash` | `getDrivers()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-51] |
+| `Illuminate\Support\Facades\Hash` | `getContainer()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-51] |
+| `Illuminate\Support\Facades\Hash` | `setContainer()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-51] |
+| `Illuminate\Support\Facades\Hash` | `forgetDrivers()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-51] |
+
+</details>
+
+<details>
+<summary>Illuminate\Support\Facades\Http — 103 listed public members (class)</summary>
+
+| Upstream class | Upstream API | Titanspan API | Implementation location | Compatibility status | Test evidence | Differences | Upstream reference |
+|---|---|---|---|---|---|---|---|
+| `Illuminate\Support\Facades\Http` | `fake()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-52] |
+| `Illuminate\Support\Facades\Http` | `fakeSequence()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-52] |
+| `Illuminate\Support\Facades\Http` | `preventStrayRequests()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-52] |
+| `Illuminate\Support\Facades\Http` | `stubUrl()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-52] |
+| `Illuminate\Support\Facades\Http` | `globalMiddleware()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-52] |
+| `Illuminate\Support\Facades\Http` | `globalRequestMiddleware()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-52] |
+| `Illuminate\Support\Facades\Http` | `globalResponseMiddleware()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-52] |
+| `Illuminate\Support\Facades\Http` | `globalOptions()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-52] |
+| `Illuminate\Support\Facades\Http` | `withoutGlobalConfiguration()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-52] |
+| `Illuminate\Support\Facades\Http` | `response()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-52] |
+| `Illuminate\Support\Facades\Http` | `psr7Response()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-52] |
+| `Illuminate\Support\Facades\Http` | `failedRequest()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-52] |
+| `Illuminate\Support\Facades\Http` | `failedConnection()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-52] |
+| `Illuminate\Support\Facades\Http` | `sequence()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-52] |
+| `Illuminate\Support\Facades\Http` | `preventingStrayRequests()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-52] |
+| `Illuminate\Support\Facades\Http` | `allowStrayRequests()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-52] |
+| `Illuminate\Support\Facades\Http` | `record()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-52] |
+| `Illuminate\Support\Facades\Http` | `recordRequestResponsePair()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-52] |
+| `Illuminate\Support\Facades\Http` | `assertSent()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-52] |
+| `Illuminate\Support\Facades\Http` | `assertSentInOrder()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-52] |
+| `Illuminate\Support\Facades\Http` | `assertNotSent()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-52] |
+| `Illuminate\Support\Facades\Http` | `assertNothingSent()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-52] |
+| `Illuminate\Support\Facades\Http` | `assertSentCount()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-52] |
+| `Illuminate\Support\Facades\Http` | `assertSequencesAreEmpty()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-52] |
+| `Illuminate\Support\Facades\Http` | `recorded()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-52] |
+| `Illuminate\Support\Facades\Http` | `createPendingRequest()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-52] |
+| `Illuminate\Support\Facades\Http` | `getDispatcher()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-52] |
+| `Illuminate\Support\Facades\Http` | `getGlobalMiddleware()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-52] |
+| `Illuminate\Support\Facades\Http` | `macro()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-52] |
+| `Illuminate\Support\Facades\Http` | `mixin()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-52] |
+| `Illuminate\Support\Facades\Http` | `hasMacro()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-52] |
+| `Illuminate\Support\Facades\Http` | `flushMacros()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-52] |
+| `Illuminate\Support\Facades\Http` | `macroCall()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-52] |
+| `Illuminate\Support\Facades\Http` | `baseUrl()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-52] |
+| `Illuminate\Support\Facades\Http` | `withBody()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-52] |
+| `Illuminate\Support\Facades\Http` | `asJson()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-52] |
+| `Illuminate\Support\Facades\Http` | `asForm()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-52] |
+| `Illuminate\Support\Facades\Http` | `attach()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-52] |
+| `Illuminate\Support\Facades\Http` | `asMultipart()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-52] |
+| `Illuminate\Support\Facades\Http` | `bodyFormat()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-52] |
+| `Illuminate\Support\Facades\Http` | `withQueryParameters()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-52] |
+| `Illuminate\Support\Facades\Http` | `contentType()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-52] |
+| `Illuminate\Support\Facades\Http` | `acceptJson()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-52] |
+| `Illuminate\Support\Facades\Http` | `accept()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-52] |
+| `Illuminate\Support\Facades\Http` | `withHeaders()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-52] |
+| `Illuminate\Support\Facades\Http` | `withHeader()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-52] |
+| `Illuminate\Support\Facades\Http` | `replaceHeaders()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-52] |
+| `Illuminate\Support\Facades\Http` | `withBasicAuth()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-52] |
+| `Illuminate\Support\Facades\Http` | `withDigestAuth()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-52] |
+| `Illuminate\Support\Facades\Http` | `withNtlmAuth()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-52] |
+| `Illuminate\Support\Facades\Http` | `withToken()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-52] |
+| `Illuminate\Support\Facades\Http` | `withUserAgent()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-52] |
+| `Illuminate\Support\Facades\Http` | `withUrlParameters()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-52] |
+| `Illuminate\Support\Facades\Http` | `withCookies()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-52] |
+| `Illuminate\Support\Facades\Http` | `maxRedirects()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-52] |
+| `Illuminate\Support\Facades\Http` | `withoutRedirecting()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-52] |
+| `Illuminate\Support\Facades\Http` | `withoutVerifying()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-52] |
+| `Illuminate\Support\Facades\Http` | `sink()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-52] |
+| `Illuminate\Support\Facades\Http` | `timeout()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-52] |
+| `Illuminate\Support\Facades\Http` | `connectTimeout()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-52] |
+| `Illuminate\Support\Facades\Http` | `retry()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-52] |
+| `Illuminate\Support\Facades\Http` | `withOptions()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-52] |
+| `Illuminate\Support\Facades\Http` | `withMiddleware()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-52] |
+| `Illuminate\Support\Facades\Http` | `withRequestMiddleware()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-52] |
+| `Illuminate\Support\Facades\Http` | `withResponseMiddleware()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-52] |
+| `Illuminate\Support\Facades\Http` | `withAttributes()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-52] |
+| `Illuminate\Support\Facades\Http` | `beforeSending()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-52] |
+| `Illuminate\Support\Facades\Http` | `afterResponse()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-52] |
+| `Illuminate\Support\Facades\Http` | `throw()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-52] |
+| `Illuminate\Support\Facades\Http` | `throwIf()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-52] |
+| `Illuminate\Support\Facades\Http` | `throwUnless()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-52] |
+| `Illuminate\Support\Facades\Http` | `dump()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-52] |
+| `Illuminate\Support\Facades\Http` | `dd()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-52] |
+| `Illuminate\Support\Facades\Http` | `get()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-52] |
+| `Illuminate\Support\Facades\Http` | `head()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-52] |
+| `Illuminate\Support\Facades\Http` | `query()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-52] |
+| `Illuminate\Support\Facades\Http` | `post()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-52] |
+| `Illuminate\Support\Facades\Http` | `patch()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-52] |
+| `Illuminate\Support\Facades\Http` | `put()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-52] |
+| `Illuminate\Support\Facades\Http` | `delete()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-52] |
+| `Illuminate\Support\Facades\Http` | `pool()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-52] |
+| `Illuminate\Support\Facades\Http` | `batch()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-52] |
+| `Illuminate\Support\Facades\Http` | `send()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-52] |
+| `Illuminate\Support\Facades\Http` | `buildClient()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-52] |
+| `Illuminate\Support\Facades\Http` | `createClient()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-52] |
+| `Illuminate\Support\Facades\Http` | `buildHandlerStack()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-52] |
+| `Illuminate\Support\Facades\Http` | `pushHandlers()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-52] |
+| `Illuminate\Support\Facades\Http` | `buildBeforeSendingHandler()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-52] |
+| `Illuminate\Support\Facades\Http` | `buildRecorderHandler()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-52] |
+| `Illuminate\Support\Facades\Http` | `buildStubHandler()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-52] |
+| `Illuminate\Support\Facades\Http` | `runBeforeSendingCallbacks()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-52] |
+| `Illuminate\Support\Facades\Http` | `mergeOptions()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-52] |
+| `Illuminate\Support\Facades\Http` | `stub()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-52] |
+| `Illuminate\Support\Facades\Http` | `isAllowedRequestUrl()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-52] |
+| `Illuminate\Support\Facades\Http` | `async()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-52] |
+| `Illuminate\Support\Facades\Http` | `getPromise()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-52] |
+| `Illuminate\Support\Facades\Http` | `truncateExceptionsAt()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-52] |
+| `Illuminate\Support\Facades\Http` | `dontTruncateExceptions()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-52] |
+| `Illuminate\Support\Facades\Http` | `setClient()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-52] |
+| `Illuminate\Support\Facades\Http` | `setHandler()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-52] |
+| `Illuminate\Support\Facades\Http` | `getOptions()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-52] |
+| `Illuminate\Support\Facades\Http` | `when()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-52] |
+| `Illuminate\Support\Facades\Http` | `unless()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-52] |
+
+</details>
+
+<details>
+<summary>Illuminate\Support\Facades\Image — 15 listed public members (class)</summary>
+
+| Upstream class | Upstream API | Titanspan API | Implementation location | Compatibility status | Test evidence | Differences | Upstream reference |
+|---|---|---|---|---|---|---|---|
+| `Illuminate\Support\Facades\Image` | `fromBytes()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-53] |
+| `Illuminate\Support\Facades\Image` | `fromStream()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-53] |
+| `Illuminate\Support\Facades\Image` | `fromBase64()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-53] |
+| `Illuminate\Support\Facades\Image` | `fromPath()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-53] |
+| `Illuminate\Support\Facades\Image` | `fromStorage()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-53] |
+| `Illuminate\Support\Facades\Image` | `fromUpload()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-53] |
+| `Illuminate\Support\Facades\Image` | `fromUrl()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-53] |
+| `Illuminate\Support\Facades\Image` | `transformUsing()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-53] |
+| `Illuminate\Support\Facades\Image` | `getDefaultDriver()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-53] |
+| `Illuminate\Support\Facades\Image` | `driver()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-53] |
+| `Illuminate\Support\Facades\Image` | `extend()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-53] |
+| `Illuminate\Support\Facades\Image` | `getDrivers()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-53] |
+| `Illuminate\Support\Facades\Image` | `getContainer()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-53] |
+| `Illuminate\Support\Facades\Image` | `setContainer()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-53] |
+| `Illuminate\Support\Facades\Image` | `forgetDrivers()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-53] |
+
+</details>
+
+<details>
+<summary>Illuminate\Support\Facades\Lang — 30 listed public members (class)</summary>
+
+| Upstream class | Upstream API | Titanspan API | Implementation location | Compatibility status | Test evidence | Differences | Upstream reference |
+|---|---|---|---|---|---|---|---|
+| `Illuminate\Support\Facades\Lang` | `hasForLocale()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-54] |
+| `Illuminate\Support\Facades\Lang` | `has()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-54] |
+| `Illuminate\Support\Facades\Lang` | `get()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-54] |
+| `Illuminate\Support\Facades\Lang` | `string()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-54] |
+| `Illuminate\Support\Facades\Lang` | `array()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-54] |
+| `Illuminate\Support\Facades\Lang` | `choice()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-54] |
+| `Illuminate\Support\Facades\Lang` | `addLines()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-54] |
+| `Illuminate\Support\Facades\Lang` | `load()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-54] |
+| `Illuminate\Support\Facades\Lang` | `handleMissingKeysUsing()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-54] |
+| `Illuminate\Support\Facades\Lang` | `addNamespace()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-54] |
+| `Illuminate\Support\Facades\Lang` | `addPath()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-54] |
+| `Illuminate\Support\Facades\Lang` | `addJsonPath()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-54] |
+| `Illuminate\Support\Facades\Lang` | `parseKey()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-54] |
+| `Illuminate\Support\Facades\Lang` | `determineLocalesUsing()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-54] |
+| `Illuminate\Support\Facades\Lang` | `getSelector()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-54] |
+| `Illuminate\Support\Facades\Lang` | `setSelector()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-54] |
+| `Illuminate\Support\Facades\Lang` | `getLoader()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-54] |
+| `Illuminate\Support\Facades\Lang` | `locale()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-54] |
+| `Illuminate\Support\Facades\Lang` | `getLocale()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-54] |
+| `Illuminate\Support\Facades\Lang` | `setLocale()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-54] |
+| `Illuminate\Support\Facades\Lang` | `getFallback()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-54] |
+| `Illuminate\Support\Facades\Lang` | `setFallback()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-54] |
+| `Illuminate\Support\Facades\Lang` | `setLoaded()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-54] |
+| `Illuminate\Support\Facades\Lang` | `stringable()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-54] |
+| `Illuminate\Support\Facades\Lang` | `setParsedKey()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-54] |
+| `Illuminate\Support\Facades\Lang` | `flushParsedKeys()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-54] |
+| `Illuminate\Support\Facades\Lang` | `macro()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-54] |
+| `Illuminate\Support\Facades\Lang` | `mixin()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-54] |
+| `Illuminate\Support\Facades\Lang` | `hasMacro()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-54] |
+| `Illuminate\Support\Facades\Lang` | `flushMacros()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-54] |
+
+</details>
+
+<details>
+<summary>Illuminate\Support\Facades\Log — 31 listed public members (class)</summary>
+
+| Upstream class | Upstream API | Titanspan API | Implementation location | Compatibility status | Test evidence | Differences | Upstream reference |
+|---|---|---|---|---|---|---|---|
+| `Illuminate\Support\Facades\Log` | `build()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-55] |
+| `Illuminate\Support\Facades\Log` | `stack()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-55] |
+| `Illuminate\Support\Facades\Log` | `channel()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-55] |
+| `Illuminate\Support\Facades\Log` | `driver()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-55] |
+| `Illuminate\Support\Facades\Log` | `shareContext()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-55] |
+| `Illuminate\Support\Facades\Log` | `sharedContext()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-55] |
+| `Illuminate\Support\Facades\Log` | `withoutContext()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-55] |
+| `Illuminate\Support\Facades\Log` | `flushSharedContext()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-55] |
+| `Illuminate\Support\Facades\Log` | `getDefaultDriver()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-55] |
+| `Illuminate\Support\Facades\Log` | `setDefaultDriver()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-55] |
+| `Illuminate\Support\Facades\Log` | `extend()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-55] |
+| `Illuminate\Support\Facades\Log` | `forgetChannel()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-55] |
+| `Illuminate\Support\Facades\Log` | `getChannels()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-55] |
+| `Illuminate\Support\Facades\Log` | `emergency()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-55] |
+| `Illuminate\Support\Facades\Log` | `alert()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-55] |
+| `Illuminate\Support\Facades\Log` | `critical()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-55] |
+| `Illuminate\Support\Facades\Log` | `error()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-55] |
+| `Illuminate\Support\Facades\Log` | `warning()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-55] |
+| `Illuminate\Support\Facades\Log` | `notice()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-55] |
+| `Illuminate\Support\Facades\Log` | `info()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-55] |
+| `Illuminate\Support\Facades\Log` | `debug()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-55] |
+| `Illuminate\Support\Facades\Log` | `log()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-55] |
+| `Illuminate\Support\Facades\Log` | `setApplication()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-55] |
+| `Illuminate\Support\Facades\Log` | `write()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-55] |
+| `Illuminate\Support\Facades\Log` | `withContext()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-55] |
+| `Illuminate\Support\Facades\Log` | `listen()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-55] |
+| `Illuminate\Support\Facades\Log` | `getLogger()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-55] |
+| `Illuminate\Support\Facades\Log` | `getEventDispatcher()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-55] |
+| `Illuminate\Support\Facades\Log` | `setEventDispatcher()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-55] |
+| `Illuminate\Support\Facades\Log` | `when()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-55] |
+| `Illuminate\Support\Facades\Log` | `unless()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-55] |
+
+</details>
+
+<details>
+<summary>Illuminate\Support\Facades\Mail — 57 listed public members (class)</summary>
+
+| Upstream class | Upstream API | Titanspan API | Implementation location | Compatibility status | Test evidence | Differences | Upstream reference |
+|---|---|---|---|---|---|---|---|
+| `Illuminate\Support\Facades\Mail` | `fake()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-56] |
+| `Illuminate\Support\Facades\Mail` | `mailer()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-56] |
+| `Illuminate\Support\Facades\Mail` | `driver()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-56] |
+| `Illuminate\Support\Facades\Mail` | `build()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-56] |
+| `Illuminate\Support\Facades\Mail` | `createSymfonyTransport()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-56] |
+| `Illuminate\Support\Facades\Mail` | `getDefaultDriver()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-56] |
+| `Illuminate\Support\Facades\Mail` | `setDefaultDriver()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-56] |
+| `Illuminate\Support\Facades\Mail` | `purge()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-56] |
+| `Illuminate\Support\Facades\Mail` | `extend()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-56] |
+| `Illuminate\Support\Facades\Mail` | `getApplication()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-56] |
+| `Illuminate\Support\Facades\Mail` | `setApplication()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-56] |
+| `Illuminate\Support\Facades\Mail` | `forgetMailers()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-56] |
+| `Illuminate\Support\Facades\Mail` | `alwaysFrom()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-56] |
+| `Illuminate\Support\Facades\Mail` | `alwaysReplyTo()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-56] |
+| `Illuminate\Support\Facades\Mail` | `alwaysReturnPath()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-56] |
+| `Illuminate\Support\Facades\Mail` | `alwaysTo()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-56] |
+| `Illuminate\Support\Facades\Mail` | `to()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-56] |
+| `Illuminate\Support\Facades\Mail` | `cc()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-56] |
+| `Illuminate\Support\Facades\Mail` | `bcc()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-56] |
+| `Illuminate\Support\Facades\Mail` | `html()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-56] |
+| `Illuminate\Support\Facades\Mail` | `raw()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-56] |
+| `Illuminate\Support\Facades\Mail` | `plain()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-56] |
+| `Illuminate\Support\Facades\Mail` | `render()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-56] |
+| `Illuminate\Support\Facades\Mail` | `send()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-56] |
+| `Illuminate\Support\Facades\Mail` | `sendNow()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-56] |
+| `Illuminate\Support\Facades\Mail` | `queue()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-56] |
+| `Illuminate\Support\Facades\Mail` | `onQueue()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-56] |
+| `Illuminate\Support\Facades\Mail` | `queueOn()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-56] |
+| `Illuminate\Support\Facades\Mail` | `later()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-56] |
+| `Illuminate\Support\Facades\Mail` | `laterOn()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-56] |
+| `Illuminate\Support\Facades\Mail` | `getSymfonyTransport()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-56] |
+| `Illuminate\Support\Facades\Mail` | `getViewFactory()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-56] |
+| `Illuminate\Support\Facades\Mail` | `setSymfonyTransport()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-56] |
+| `Illuminate\Support\Facades\Mail` | `setQueue()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-56] |
+| `Illuminate\Support\Facades\Mail` | `macro()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-56] |
+| `Illuminate\Support\Facades\Mail` | `mixin()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-56] |
+| `Illuminate\Support\Facades\Mail` | `hasMacro()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-56] |
+| `Illuminate\Support\Facades\Mail` | `flushMacros()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-56] |
+| `Illuminate\Support\Facades\Mail` | `assertSent()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-56] |
+| `Illuminate\Support\Facades\Mail` | `assertSentTimes()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-56] |
+| `Illuminate\Support\Facades\Mail` | `assertSentOnce()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-56] |
+| `Illuminate\Support\Facades\Mail` | `assertNotOutgoing()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-56] |
+| `Illuminate\Support\Facades\Mail` | `assertNotSent()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-56] |
+| `Illuminate\Support\Facades\Mail` | `assertNothingOutgoing()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-56] |
+| `Illuminate\Support\Facades\Mail` | `assertNothingSent()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-56] |
+| `Illuminate\Support\Facades\Mail` | `assertQueued()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-56] |
+| `Illuminate\Support\Facades\Mail` | `assertQueuedTimes()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-56] |
+| `Illuminate\Support\Facades\Mail` | `assertQueuedOnce()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-56] |
+| `Illuminate\Support\Facades\Mail` | `assertNotQueued()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-56] |
+| `Illuminate\Support\Facades\Mail` | `assertNothingQueued()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-56] |
+| `Illuminate\Support\Facades\Mail` | `assertSentCount()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-56] |
+| `Illuminate\Support\Facades\Mail` | `assertQueuedCount()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-56] |
+| `Illuminate\Support\Facades\Mail` | `assertOutgoingCount()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-56] |
+| `Illuminate\Support\Facades\Mail` | `sent()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-56] |
+| `Illuminate\Support\Facades\Mail` | `hasSent()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-56] |
+| `Illuminate\Support\Facades\Mail` | `queued()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-56] |
+| `Illuminate\Support\Facades\Mail` | `hasQueued()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-56] |
+
+</details>
+
+<details>
+<summary>Illuminate\Support\Facades\MaintenanceMode — 7 listed public members (class)</summary>
+
+| Upstream class | Upstream API | Titanspan API | Implementation location | Compatibility status | Test evidence | Differences | Upstream reference |
+|---|---|---|---|---|---|---|---|
+| `Illuminate\Support\Facades\MaintenanceMode` | `getDefaultDriver()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-57] |
+| `Illuminate\Support\Facades\MaintenanceMode` | `driver()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-57] |
+| `Illuminate\Support\Facades\MaintenanceMode` | `extend()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-57] |
+| `Illuminate\Support\Facades\MaintenanceMode` | `getDrivers()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-57] |
+| `Illuminate\Support\Facades\MaintenanceMode` | `getContainer()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-57] |
+| `Illuminate\Support\Facades\MaintenanceMode` | `setContainer()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-57] |
+| `Illuminate\Support\Facades\MaintenanceMode` | `forgetDrivers()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-57] |
+
+</details>
+
+<details>
+<summary>Illuminate\Support\Facades\Notification — 39 listed public members (class)</summary>
+
+| Upstream class | Upstream API | Titanspan API | Implementation location | Compatibility status | Test evidence | Differences | Upstream reference |
+|---|---|---|---|---|---|---|---|
+| `Illuminate\Support\Facades\Notification` | `fake()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-58] |
+| `Illuminate\Support\Facades\Notification` | `routes()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-58] |
+| `Illuminate\Support\Facades\Notification` | `route()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-58] |
+| `Illuminate\Support\Facades\Notification` | `send()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-58] |
+| `Illuminate\Support\Facades\Notification` | `sendNow()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-58] |
+| `Illuminate\Support\Facades\Notification` | `channel()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-58] |
+| `Illuminate\Support\Facades\Notification` | `driver()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-58] |
+| `Illuminate\Support\Facades\Notification` | `getDefaultDriver()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-58] |
+| `Illuminate\Support\Facades\Notification` | `deliversVia()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-58] |
+| `Illuminate\Support\Facades\Notification` | `deliverVia()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-58] |
+| `Illuminate\Support\Facades\Notification` | `locale()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-58] |
+| `Illuminate\Support\Facades\Notification` | `extend()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-58] |
+| `Illuminate\Support\Facades\Notification` | `getDrivers()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-58] |
+| `Illuminate\Support\Facades\Notification` | `getContainer()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-58] |
+| `Illuminate\Support\Facades\Notification` | `setContainer()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-58] |
+| `Illuminate\Support\Facades\Notification` | `forgetDrivers()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-58] |
+| `Illuminate\Support\Facades\Notification` | `when()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on the notification channel manager, which is not implemented. | [source][source-58] |
+| `Illuminate\Support\Facades\Notification` | `unless()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on the notification channel manager, which is not implemented. | [source][source-58] |
+| `Illuminate\Support\Facades\Notification` | `macro()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-58] |
+| `Illuminate\Support\Facades\Notification` | `mixin()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-58] |
+| `Illuminate\Support\Facades\Notification` | `hasMacro()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-58] |
+| `Illuminate\Support\Facades\Notification` | `flushMacros()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-58] |
+| `Illuminate\Support\Facades\Notification` | `resolveConnectionFromQueueRoute()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-58] |
+| `Illuminate\Support\Facades\Notification` | `resolveQueueFromQueueRoute()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-58] |
+| `Illuminate\Support\Facades\Notification` | `assertSentOnDemand()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-58] |
+| `Illuminate\Support\Facades\Notification` | `assertSentTo()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-58] |
+| `Illuminate\Support\Facades\Notification` | `assertSentOnDemandTimes()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-58] |
+| `Illuminate\Support\Facades\Notification` | `assertSentOnDemandOnce()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-58] |
+| `Illuminate\Support\Facades\Notification` | `assertSentToTimes()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-58] |
+| `Illuminate\Support\Facades\Notification` | `assertSentToOnce()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-58] |
+| `Illuminate\Support\Facades\Notification` | `assertNotSentTo()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-58] |
+| `Illuminate\Support\Facades\Notification` | `assertNothingSent()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-58] |
+| `Illuminate\Support\Facades\Notification` | `assertNothingSentTo()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-58] |
+| `Illuminate\Support\Facades\Notification` | `assertSentTimes()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-58] |
+| `Illuminate\Support\Facades\Notification` | `assertCount()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-58] |
+| `Illuminate\Support\Facades\Notification` | `sent()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-58] |
+| `Illuminate\Support\Facades\Notification` | `hasSent()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-58] |
+| `Illuminate\Support\Facades\Notification` | `serializeAndRestore()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-58] |
+| `Illuminate\Support\Facades\Notification` | `sentNotifications()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-58] |
+
+</details>
+
+<details>
+<summary>Illuminate\Support\Facades\ParallelTesting — 16 listed public members (class)</summary>
+
+| Upstream class | Upstream API | Titanspan API | Implementation location | Compatibility status | Test evidence | Differences | Upstream reference |
+|---|---|---|---|---|---|---|---|
+| `Illuminate\Support\Facades\ParallelTesting` | `resolveOptionsUsing()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-59] |
+| `Illuminate\Support\Facades\ParallelTesting` | `resolveTokenUsing()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-59] |
+| `Illuminate\Support\Facades\ParallelTesting` | `setUpProcess()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-59] |
+| `Illuminate\Support\Facades\ParallelTesting` | `setUpTestCase()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-59] |
+| `Illuminate\Support\Facades\ParallelTesting` | `setUpTestDatabaseBeforeMigrating()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-59] |
+| `Illuminate\Support\Facades\ParallelTesting` | `setUpTestDatabase()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-59] |
+| `Illuminate\Support\Facades\ParallelTesting` | `tearDownProcess()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-59] |
+| `Illuminate\Support\Facades\ParallelTesting` | `tearDownTestCase()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-59] |
+| `Illuminate\Support\Facades\ParallelTesting` | `callSetUpProcessCallbacks()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-59] |
+| `Illuminate\Support\Facades\ParallelTesting` | `callSetUpTestCaseCallbacks()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-59] |
+| `Illuminate\Support\Facades\ParallelTesting` | `callSetUpTestDatabaseBeforeMigratingCallbacks()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-59] |
+| `Illuminate\Support\Facades\ParallelTesting` | `callSetUpTestDatabaseCallbacks()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-59] |
+| `Illuminate\Support\Facades\ParallelTesting` | `callTearDownProcessCallbacks()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-59] |
+| `Illuminate\Support\Facades\ParallelTesting` | `callTearDownTestCaseCallbacks()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-59] |
+| `Illuminate\Support\Facades\ParallelTesting` | `option()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-59] |
+| `Illuminate\Support\Facades\ParallelTesting` | `token()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-59] |
+
+</details>
+
+<details>
+<summary>Illuminate\Support\Facades\Password — 21 listed public members (class)</summary>
+
+| Upstream class | Upstream API | Titanspan API | Implementation location | Compatibility status | Test evidence | Differences | Upstream reference |
+|---|---|---|---|---|---|---|---|
+| `Illuminate\Support\Facades\Password` | `broker()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-60] |
+| `Illuminate\Support\Facades\Password` | `getDefaultDriver()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-60] |
+| `Illuminate\Support\Facades\Password` | `setDefaultDriver()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-60] |
+| `Illuminate\Support\Facades\Password` | `sendResetLink()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-60] |
+| `Illuminate\Support\Facades\Password` | `reset()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-60] |
+| `Illuminate\Support\Facades\Password` | `getUser()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-60] |
+| `Illuminate\Support\Facades\Password` | `createToken()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-60] |
+| `Illuminate\Support\Facades\Password` | `deleteToken()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-60] |
+| `Illuminate\Support\Facades\Password` | `tokenExists()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-60] |
+| `Illuminate\Support\Facades\Password` | `getRepository()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-60] |
+| `Illuminate\Support\Facades\Password` | `getTimebox()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-60] |
+| `Illuminate\Support\Facades\Password` | `ResetLinkSent` (constant) | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-60] |
+| `Illuminate\Support\Facades\Password` | `PasswordReset` (constant) | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-60] |
+| `Illuminate\Support\Facades\Password` | `InvalidUser` (constant) | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-60] |
+| `Illuminate\Support\Facades\Password` | `InvalidToken` (constant) | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-60] |
+| `Illuminate\Support\Facades\Password` | `ResetThrottled` (constant) | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-60] |
+| `Illuminate\Support\Facades\Password` | `RESET_LINK_SENT` (constant) | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-60] |
+| `Illuminate\Support\Facades\Password` | `PASSWORD_RESET` (constant) | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-60] |
+| `Illuminate\Support\Facades\Password` | `INVALID_USER` (constant) | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-60] |
+| `Illuminate\Support\Facades\Password` | `INVALID_TOKEN` (constant) | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-60] |
+| `Illuminate\Support\Facades\Password` | `RESET_THROTTLED` (constant) | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-60] |
+
+</details>
+
+<details>
+<summary>Illuminate\Support\Facades\Pipeline — 15 listed public members (class)</summary>
+
+| Upstream class | Upstream API | Titanspan API | Implementation location | Compatibility status | Test evidence | Differences | Upstream reference |
+|---|---|---|---|---|---|---|---|
+| `Illuminate\Support\Facades\Pipeline` | `send()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-61] |
+| `Illuminate\Support\Facades\Pipeline` | `through()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-61] |
+| `Illuminate\Support\Facades\Pipeline` | `pipe()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-61] |
+| `Illuminate\Support\Facades\Pipeline` | `via()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-61] |
+| `Illuminate\Support\Facades\Pipeline` | `then()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-61] |
+| `Illuminate\Support\Facades\Pipeline` | `thenReturn()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-61] |
+| `Illuminate\Support\Facades\Pipeline` | `finally()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-61] |
+| `Illuminate\Support\Facades\Pipeline` | `withinTransaction()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-61] |
+| `Illuminate\Support\Facades\Pipeline` | `setContainer()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-61] |
+| `Illuminate\Support\Facades\Pipeline` | `when()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-61] |
+| `Illuminate\Support\Facades\Pipeline` | `unless()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-61] |
+| `Illuminate\Support\Facades\Pipeline` | `macro()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-61] |
+| `Illuminate\Support\Facades\Pipeline` | `mixin()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-61] |
+| `Illuminate\Support\Facades\Pipeline` | `hasMacro()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-61] |
+| `Illuminate\Support\Facades\Pipeline` | `flushMacros()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-61] |
+
+</details>
+
+<details>
+<summary>Illuminate\Support\Facades\Process — 40 listed public members (class)</summary>
+
+| Upstream class | Upstream API | Titanspan API | Implementation location | Compatibility status | Test evidence | Differences | Upstream reference |
+|---|---|---|---|---|---|---|---|
+| `Illuminate\Support\Facades\Process` | `fake()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-62] |
+| `Illuminate\Support\Facades\Process` | `command()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-62] |
+| `Illuminate\Support\Facades\Process` | `path()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-62] |
+| `Illuminate\Support\Facades\Process` | `timeout()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-62] |
+| `Illuminate\Support\Facades\Process` | `idleTimeout()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-62] |
+| `Illuminate\Support\Facades\Process` | `forever()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-62] |
+| `Illuminate\Support\Facades\Process` | `env()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-62] |
+| `Illuminate\Support\Facades\Process` | `input()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-62] |
+| `Illuminate\Support\Facades\Process` | `quietly()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-62] |
+| `Illuminate\Support\Facades\Process` | `tty()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-62] |
+| `Illuminate\Support\Facades\Process` | `options()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-62] |
+| `Illuminate\Support\Facades\Process` | `run()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-62] |
+| `Illuminate\Support\Facades\Process` | `start()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-62] |
+| `Illuminate\Support\Facades\Process` | `supportsTty()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-62] |
+| `Illuminate\Support\Facades\Process` | `withFakeHandlers()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-62] |
+| `Illuminate\Support\Facades\Process` | `when()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-62] |
+| `Illuminate\Support\Facades\Process` | `unless()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-62] |
+| `Illuminate\Support\Facades\Process` | `macro()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-62] |
+| `Illuminate\Support\Facades\Process` | `mixin()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-62] |
+| `Illuminate\Support\Facades\Process` | `hasMacro()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-62] |
+| `Illuminate\Support\Facades\Process` | `flushMacros()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-62] |
+| `Illuminate\Support\Facades\Process` | `result()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-62] |
+| `Illuminate\Support\Facades\Process` | `describe()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-62] |
+| `Illuminate\Support\Facades\Process` | `sequence()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-62] |
+| `Illuminate\Support\Facades\Process` | `isRecording()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-62] |
+| `Illuminate\Support\Facades\Process` | `recordIfRecording()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-62] |
+| `Illuminate\Support\Facades\Process` | `record()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-62] |
+| `Illuminate\Support\Facades\Process` | `preventStrayProcesses()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-62] |
+| `Illuminate\Support\Facades\Process` | `preventingStrayProcesses()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-62] |
+| `Illuminate\Support\Facades\Process` | `assertRan()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-62] |
+| `Illuminate\Support\Facades\Process` | `assertRanTimes()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-62] |
+| `Illuminate\Support\Facades\Process` | `assertRanInOrder()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-62] |
+| `Illuminate\Support\Facades\Process` | `assertNotRan()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-62] |
+| `Illuminate\Support\Facades\Process` | `assertDidntRun()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-62] |
+| `Illuminate\Support\Facades\Process` | `assertNothingRan()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-62] |
+| `Illuminate\Support\Facades\Process` | `pool()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-62] |
+| `Illuminate\Support\Facades\Process` | `pipe()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-62] |
+| `Illuminate\Support\Facades\Process` | `concurrently()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-62] |
+| `Illuminate\Support\Facades\Process` | `newPendingProcess()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-62] |
+| `Illuminate\Support\Facades\Process` | `macroCall()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-62] |
+
+</details>
+
+<details>
+<summary>Illuminate\Support\Facades\Queue — 91 listed public members (class)</summary>
+
+| Upstream class | Upstream API | Titanspan API | Implementation location | Compatibility status | Test evidence | Differences | Upstream reference |
+|---|---|---|---|---|---|---|---|
+| `Illuminate\Support\Facades\Queue` | `popUsing()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-63] |
+| `Illuminate\Support\Facades\Queue` | `fake()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-63] |
+| `Illuminate\Support\Facades\Queue` | `fakeExcept()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-63] |
+| `Illuminate\Support\Facades\Queue` | `fakeFor()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-63] |
+| `Illuminate\Support\Facades\Queue` | `fakeExceptFor()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-63] |
+| `Illuminate\Support\Facades\Queue` | `before()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-63] |
+| `Illuminate\Support\Facades\Queue` | `after()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-63] |
+| `Illuminate\Support\Facades\Queue` | `exceptionOccurred()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-63] |
+| `Illuminate\Support\Facades\Queue` | `looping()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-63] |
+| `Illuminate\Support\Facades\Queue` | `failing()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-63] |
+| `Illuminate\Support\Facades\Queue` | `starting()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-63] |
+| `Illuminate\Support\Facades\Queue` | `stopping()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-63] |
+| `Illuminate\Support\Facades\Queue` | `whenJobRunsLongerThan()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-63] |
+| `Illuminate\Support\Facades\Queue` | `route()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-63] |
+| `Illuminate\Support\Facades\Queue` | `forward()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-63] |
+| `Illuminate\Support\Facades\Queue` | `connected()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-63] |
+| `Illuminate\Support\Facades\Queue` | `connection()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-63] |
+| `Illuminate\Support\Facades\Queue` | `pause()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-63] |
+| `Illuminate\Support\Facades\Queue` | `pauseFor()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-63] |
+| `Illuminate\Support\Facades\Queue` | `pauseAll()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-63] |
+| `Illuminate\Support\Facades\Queue` | `resume()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-63] |
+| `Illuminate\Support\Facades\Queue` | `resumeAll()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-63] |
+| `Illuminate\Support\Facades\Queue` | `isPaused()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-63] |
+| `Illuminate\Support\Facades\Queue` | `getPausedQueues()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-63] |
+| `Illuminate\Support\Facades\Queue` | `withoutInterruptionPolling()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-63] |
+| `Illuminate\Support\Facades\Queue` | `extend()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-63] |
+| `Illuminate\Support\Facades\Queue` | `addConnector()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-63] |
+| `Illuminate\Support\Facades\Queue` | `getDefaultDriver()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-63] |
+| `Illuminate\Support\Facades\Queue` | `setDefaultDriver()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-63] |
+| `Illuminate\Support\Facades\Queue` | `getName()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-63] |
+| `Illuminate\Support\Facades\Queue` | `getApplication()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-63] |
+| `Illuminate\Support\Facades\Queue` | `setApplication()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-63] |
+| `Illuminate\Support\Facades\Queue` | `createPayloadUsing()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-63] |
+| `Illuminate\Support\Facades\Queue` | `resolveConnectionFromQueueRoute()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-63] |
+| `Illuminate\Support\Facades\Queue` | `resolveQueueFromQueueRoute()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-63] |
+| `Illuminate\Support\Facades\Queue` | `size()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-63] |
+| `Illuminate\Support\Facades\Queue` | `pendingSize()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-63] |
+| `Illuminate\Support\Facades\Queue` | `delayedSize()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-63] |
+| `Illuminate\Support\Facades\Queue` | `reservedSize()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-63] |
+| `Illuminate\Support\Facades\Queue` | `creationTimeOfOldestPendingJob()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-63] |
+| `Illuminate\Support\Facades\Queue` | `push()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-63] |
+| `Illuminate\Support\Facades\Queue` | `pushOn()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-63] |
+| `Illuminate\Support\Facades\Queue` | `pushRaw()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-63] |
+| `Illuminate\Support\Facades\Queue` | `later()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-63] |
+| `Illuminate\Support\Facades\Queue` | `laterOn()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-63] |
+| `Illuminate\Support\Facades\Queue` | `bulk()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-63] |
+| `Illuminate\Support\Facades\Queue` | `pop()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-63] |
+| `Illuminate\Support\Facades\Queue` | `getConnectionName()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-63] |
+| `Illuminate\Support\Facades\Queue` | `setConnectionName()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-63] |
+| `Illuminate\Support\Facades\Queue` | `getJobTries()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-63] |
+| `Illuminate\Support\Facades\Queue` | `getJobBackoff()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-63] |
+| `Illuminate\Support\Facades\Queue` | `getJobExpiration()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-63] |
+| `Illuminate\Support\Facades\Queue` | `getConfig()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-63] |
+| `Illuminate\Support\Facades\Queue` | `setConfig()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-63] |
+| `Illuminate\Support\Facades\Queue` | `getContainer()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-63] |
+| `Illuminate\Support\Facades\Queue` | `setContainer()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-63] |
+| `Illuminate\Support\Facades\Queue` | `except()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-63] |
+| `Illuminate\Support\Facades\Queue` | `assertPushed()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-63] |
+| `Illuminate\Support\Facades\Queue` | `assertPushedTimes()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-63] |
+| `Illuminate\Support\Facades\Queue` | `assertPushedOnce()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-63] |
+| `Illuminate\Support\Facades\Queue` | `assertPushedOn()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-63] |
+| `Illuminate\Support\Facades\Queue` | `assertPushedWithChain()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-63] |
+| `Illuminate\Support\Facades\Queue` | `assertPushedWithoutChain()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-63] |
+| `Illuminate\Support\Facades\Queue` | `assertClosurePushed()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-63] |
+| `Illuminate\Support\Facades\Queue` | `assertClosureNotPushed()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-63] |
+| `Illuminate\Support\Facades\Queue` | `assertNotPushed()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-63] |
+| `Illuminate\Support\Facades\Queue` | `assertCount()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-63] |
+| `Illuminate\Support\Facades\Queue` | `assertNothingPushed()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-63] |
+| `Illuminate\Support\Facades\Queue` | `pushed()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-63] |
+| `Illuminate\Support\Facades\Queue` | `pushedRaw()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-63] |
+| `Illuminate\Support\Facades\Queue` | `listenersPushed()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-63] |
+| `Illuminate\Support\Facades\Queue` | `hasPushed()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-63] |
+| `Illuminate\Support\Facades\Queue` | `totalSize()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-63] |
+| `Illuminate\Support\Facades\Queue` | `totalPendingSize()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-63] |
+| `Illuminate\Support\Facades\Queue` | `totalDelayedSize()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-63] |
+| `Illuminate\Support\Facades\Queue` | `totalReservedSize()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-63] |
+| `Illuminate\Support\Facades\Queue` | `pendingJobs()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-63] |
+| `Illuminate\Support\Facades\Queue` | `delayedJobs()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-63] |
+| `Illuminate\Support\Facades\Queue` | `reservedJobs()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-63] |
+| `Illuminate\Support\Facades\Queue` | `allPendingJobs()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-63] |
+| `Illuminate\Support\Facades\Queue` | `allDelayedJobs()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-63] |
+| `Illuminate\Support\Facades\Queue` | `allReservedJobs()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-63] |
+| `Illuminate\Support\Facades\Queue` | `shouldFakeJob()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-63] |
+| `Illuminate\Support\Facades\Queue` | `reserve()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-63] |
+| `Illuminate\Support\Facades\Queue` | `pushedJobs()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-63] |
+| `Illuminate\Support\Facades\Queue` | `rawPushes()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-63] |
+| `Illuminate\Support\Facades\Queue` | `serializeAndRestore()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-63] |
+| `Illuminate\Support\Facades\Queue` | `releaseUniqueJobLocks()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-63] |
+| `Illuminate\Support\Facades\Queue` | `clearReserved()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-63] |
+| `Illuminate\Support\Facades\Queue` | `beforePushing()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-63] |
+| `Illuminate\Support\Facades\Queue` | `afterPushing()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-63] |
+
+</details>
+
+<details>
+<summary>Illuminate\Support\Facades\RateLimiter — 18 listed public members (class)</summary>
+
+| Upstream class | Upstream API | Titanspan API | Implementation location | Compatibility status | Test evidence | Differences | Upstream reference |
+|---|---|---|---|---|---|---|---|
+| `Illuminate\Support\Facades\RateLimiter` | `for()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-64] |
+| `Illuminate\Support\Facades\RateLimiter` | `limiter()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-64] |
+| `Illuminate\Support\Facades\RateLimiter` | `attempt()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-64] |
+| `Illuminate\Support\Facades\RateLimiter` | `tooManyAttempts()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-64] |
+| `Illuminate\Support\Facades\RateLimiter` | `hit()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-64] |
+| `Illuminate\Support\Facades\RateLimiter` | `increment()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-64] |
+| `Illuminate\Support\Facades\RateLimiter` | `decrement()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-64] |
+| `Illuminate\Support\Facades\RateLimiter` | `attempts()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-64] |
+| `Illuminate\Support\Facades\RateLimiter` | `resetAttempts()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-64] |
+| `Illuminate\Support\Facades\RateLimiter` | `remaining()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-64] |
+| `Illuminate\Support\Facades\RateLimiter` | `retriesLeft()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-64] |
+| `Illuminate\Support\Facades\RateLimiter` | `clear()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-64] |
+| `Illuminate\Support\Facades\RateLimiter` | `availableIn()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-64] |
+| `Illuminate\Support\Facades\RateLimiter` | `cleanRateLimiterKey()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-64] |
+| `Illuminate\Support\Facades\RateLimiter` | `macro()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-64] |
+| `Illuminate\Support\Facades\RateLimiter` | `mixin()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-64] |
+| `Illuminate\Support\Facades\RateLimiter` | `hasMacro()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-64] |
+| `Illuminate\Support\Facades\RateLimiter` | `flushMacros()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-64] |
+
+</details>
+
+<details>
+<summary>Illuminate\Support\Facades\Redirect — 19 listed public members (class)</summary>
+
+| Upstream class | Upstream API | Titanspan API | Implementation location | Compatibility status | Test evidence | Differences | Upstream reference |
+|---|---|---|---|---|---|---|---|
+| `Illuminate\Support\Facades\Redirect` | `back()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-65] |
+| `Illuminate\Support\Facades\Redirect` | `refresh()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-65] |
+| `Illuminate\Support\Facades\Redirect` | `guest()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-65] |
+| `Illuminate\Support\Facades\Redirect` | `intended()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-65] |
+| `Illuminate\Support\Facades\Redirect` | `to()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-65] |
+| `Illuminate\Support\Facades\Redirect` | `away()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-65] |
+| `Illuminate\Support\Facades\Redirect` | `secure()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-65] |
+| `Illuminate\Support\Facades\Redirect` | `route()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-65] |
+| `Illuminate\Support\Facades\Redirect` | `signedRoute()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-65] |
+| `Illuminate\Support\Facades\Redirect` | `temporarySignedRoute()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-65] |
+| `Illuminate\Support\Facades\Redirect` | `action()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-65] |
+| `Illuminate\Support\Facades\Redirect` | `getUrlGenerator()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-65] |
+| `Illuminate\Support\Facades\Redirect` | `setSession()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-65] |
+| `Illuminate\Support\Facades\Redirect` | `getIntendedUrl()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-65] |
+| `Illuminate\Support\Facades\Redirect` | `setIntendedUrl()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-65] |
+| `Illuminate\Support\Facades\Redirect` | `macro()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-65] |
+| `Illuminate\Support\Facades\Redirect` | `mixin()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-65] |
+| `Illuminate\Support\Facades\Redirect` | `hasMacro()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-65] |
+| `Illuminate\Support\Facades\Redirect` | `flushMacros()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-65] |
+
+</details>
+
+<details>
+<summary>Illuminate\Support\Facades\Redis — 302 listed public members (class)</summary>
+
+| Upstream class | Upstream API | Titanspan API | Implementation location | Compatibility status | Test evidence | Differences | Upstream reference |
+|---|---|---|---|---|---|---|---|
+| `Illuminate\Support\Facades\Redis` | `connection()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-66] |
+| `Illuminate\Support\Facades\Redis` | `resolve()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-66] |
+| `Illuminate\Support\Facades\Redis` | `connections()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-66] |
+| `Illuminate\Support\Facades\Redis` | `enableEvents()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-66] |
+| `Illuminate\Support\Facades\Redis` | `disableEvents()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-66] |
+| `Illuminate\Support\Facades\Redis` | `setDriver()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-66] |
+| `Illuminate\Support\Facades\Redis` | `purge()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-66] |
+| `Illuminate\Support\Facades\Redis` | `extend()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-66] |
+| `Illuminate\Support\Facades\Redis` | `createSubscription()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-66] |
+| `Illuminate\Support\Facades\Redis` | `funnel()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-66] |
+| `Illuminate\Support\Facades\Redis` | `throttle()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-66] |
+| `Illuminate\Support\Facades\Redis` | `client()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-66] |
+| `Illuminate\Support\Facades\Redis` | `subscribe()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-66] |
+| `Illuminate\Support\Facades\Redis` | `psubscribe()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-66] |
+| `Illuminate\Support\Facades\Redis` | `command()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-66] |
+| `Illuminate\Support\Facades\Redis` | `listen()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-66] |
+| `Illuminate\Support\Facades\Redis` | `listenForFailures()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-66] |
+| `Illuminate\Support\Facades\Redis` | `isCluster()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-66] |
+| `Illuminate\Support\Facades\Redis` | `getName()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-66] |
+| `Illuminate\Support\Facades\Redis` | `setName()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-66] |
+| `Illuminate\Support\Facades\Redis` | `getEventDispatcher()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-66] |
+| `Illuminate\Support\Facades\Redis` | `setEventDispatcher()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-66] |
+| `Illuminate\Support\Facades\Redis` | `unsetEventDispatcher()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-66] |
+| `Illuminate\Support\Facades\Redis` | `hasHashTag()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-66] |
+| `Illuminate\Support\Facades\Redis` | `macro()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-66] |
+| `Illuminate\Support\Facades\Redis` | `mixin()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-66] |
+| `Illuminate\Support\Facades\Redis` | `hasMacro()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-66] |
+| `Illuminate\Support\Facades\Redis` | `flushMacros()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-66] |
+| `Illuminate\Support\Facades\Redis` | `macroCall()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-66] |
+| `Illuminate\Support\Facades\Redis` | `_compress()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-66] |
+| `Illuminate\Support\Facades\Redis` | `_uncompress()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-66] |
+| `Illuminate\Support\Facades\Redis` | `_prefix()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-66] |
+| `Illuminate\Support\Facades\Redis` | `_serialize()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-66] |
+| `Illuminate\Support\Facades\Redis` | `_unserialize()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-66] |
+| `Illuminate\Support\Facades\Redis` | `_pack()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-66] |
+| `Illuminate\Support\Facades\Redis` | `_unpack()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-66] |
+| `Illuminate\Support\Facades\Redis` | `acl()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-66] |
+| `Illuminate\Support\Facades\Redis` | `append()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-66] |
+| `Illuminate\Support\Facades\Redis` | `auth()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-66] |
+| `Illuminate\Support\Facades\Redis` | `bgSave()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-66] |
+| `Illuminate\Support\Facades\Redis` | `bgrewriteaof()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-66] |
+| `Illuminate\Support\Facades\Redis` | `waitaof()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-66] |
+| `Illuminate\Support\Facades\Redis` | `bitcount()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-66] |
+| `Illuminate\Support\Facades\Redis` | `bitop()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-66] |
+| `Illuminate\Support\Facades\Redis` | `bitpos()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-66] |
+| `Illuminate\Support\Facades\Redis` | `blPop()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-66] |
+| `Illuminate\Support\Facades\Redis` | `brPop()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-66] |
+| `Illuminate\Support\Facades\Redis` | `brpoplpush()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-66] |
+| `Illuminate\Support\Facades\Redis` | `bzPopMax()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-66] |
+| `Illuminate\Support\Facades\Redis` | `bzPopMin()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-66] |
+| `Illuminate\Support\Facades\Redis` | `bzmpop()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-66] |
+| `Illuminate\Support\Facades\Redis` | `zmpop()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-66] |
+| `Illuminate\Support\Facades\Redis` | `blmpop()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-66] |
+| `Illuminate\Support\Facades\Redis` | `lmpop()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-66] |
+| `Illuminate\Support\Facades\Redis` | `clearLastError()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-66] |
+| `Illuminate\Support\Facades\Redis` | `close()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-66] |
+| `Illuminate\Support\Facades\Redis` | `config()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-66] |
+| `Illuminate\Support\Facades\Redis` | `connect()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-66] |
+| `Illuminate\Support\Facades\Redis` | `copy()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-66] |
+| `Illuminate\Support\Facades\Redis` | `dbSize()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-66] |
+| `Illuminate\Support\Facades\Redis` | `debug()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-66] |
+| `Illuminate\Support\Facades\Redis` | `decr()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-66] |
+| `Illuminate\Support\Facades\Redis` | `decrBy()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-66] |
+| `Illuminate\Support\Facades\Redis` | `del()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-66] |
+| `Illuminate\Support\Facades\Redis` | `delifeq()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-66] |
+| `Illuminate\Support\Facades\Redis` | `discard()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-66] |
+| `Illuminate\Support\Facades\Redis` | `dump()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-66] |
+| `Illuminate\Support\Facades\Redis` | `echo()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-66] |
+| `Illuminate\Support\Facades\Redis` | `eval()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-66] |
+| `Illuminate\Support\Facades\Redis` | `eval_ro()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-66] |
+| `Illuminate\Support\Facades\Redis` | `evalsha()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-66] |
+| `Illuminate\Support\Facades\Redis` | `evalsha_ro()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-66] |
+| `Illuminate\Support\Facades\Redis` | `exec()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-66] |
+| `Illuminate\Support\Facades\Redis` | `exists()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-66] |
+| `Illuminate\Support\Facades\Redis` | `expire()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-66] |
+| `Illuminate\Support\Facades\Redis` | `expireAt()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-66] |
+| `Illuminate\Support\Facades\Redis` | `failover()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-66] |
+| `Illuminate\Support\Facades\Redis` | `expiretime()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-66] |
+| `Illuminate\Support\Facades\Redis` | `pexpiretime()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-66] |
+| `Illuminate\Support\Facades\Redis` | `fcall()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-66] |
+| `Illuminate\Support\Facades\Redis` | `fcall_ro()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-66] |
+| `Illuminate\Support\Facades\Redis` | `flushAll()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-66] |
+| `Illuminate\Support\Facades\Redis` | `flushDB()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-66] |
+| `Illuminate\Support\Facades\Redis` | `function()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-66] |
+| `Illuminate\Support\Facades\Redis` | `geoadd()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-66] |
+| `Illuminate\Support\Facades\Redis` | `geodist()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-66] |
+| `Illuminate\Support\Facades\Redis` | `geohash()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-66] |
+| `Illuminate\Support\Facades\Redis` | `geopos()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-66] |
+| `Illuminate\Support\Facades\Redis` | `georadius()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-66] |
+| `Illuminate\Support\Facades\Redis` | `georadius_ro()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-66] |
+| `Illuminate\Support\Facades\Redis` | `georadiusbymember()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-66] |
+| `Illuminate\Support\Facades\Redis` | `georadiusbymember_ro()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-66] |
+| `Illuminate\Support\Facades\Redis` | `geosearch()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-66] |
+| `Illuminate\Support\Facades\Redis` | `geosearchstore()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-66] |
+| `Illuminate\Support\Facades\Redis` | `get()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-66] |
+| `Illuminate\Support\Facades\Redis` | `getWithMeta()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-66] |
+| `Illuminate\Support\Facades\Redis` | `getAuth()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-66] |
+| `Illuminate\Support\Facades\Redis` | `getBit()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-66] |
+| `Illuminate\Support\Facades\Redis` | `getEx()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-66] |
+| `Illuminate\Support\Facades\Redis` | `getDBNum()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-66] |
+| `Illuminate\Support\Facades\Redis` | `getDel()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-66] |
+| `Illuminate\Support\Facades\Redis` | `getHost()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-66] |
+| `Illuminate\Support\Facades\Redis` | `getLastError()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-66] |
+| `Illuminate\Support\Facades\Redis` | `getMode()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-66] |
+| `Illuminate\Support\Facades\Redis` | `getOption()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-66] |
+| `Illuminate\Support\Facades\Redis` | `getPersistentID()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-66] |
+| `Illuminate\Support\Facades\Redis` | `getPort()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-66] |
+| `Illuminate\Support\Facades\Redis` | `serverName()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-66] |
+| `Illuminate\Support\Facades\Redis` | `serverVersion()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-66] |
+| `Illuminate\Support\Facades\Redis` | `getRange()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-66] |
+| `Illuminate\Support\Facades\Redis` | `lcs()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-66] |
+| `Illuminate\Support\Facades\Redis` | `getReadTimeout()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-66] |
+| `Illuminate\Support\Facades\Redis` | `getset()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-66] |
+| `Illuminate\Support\Facades\Redis` | `getTimeout()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-66] |
+| `Illuminate\Support\Facades\Redis` | `getTransferredBytes()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-66] |
+| `Illuminate\Support\Facades\Redis` | `clearTransferredBytes()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-66] |
+| `Illuminate\Support\Facades\Redis` | `hDel()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-66] |
+| `Illuminate\Support\Facades\Redis` | `hExists()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-66] |
+| `Illuminate\Support\Facades\Redis` | `hGet()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-66] |
+| `Illuminate\Support\Facades\Redis` | `hGetAll()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-66] |
+| `Illuminate\Support\Facades\Redis` | `hGetWithMeta()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-66] |
+| `Illuminate\Support\Facades\Redis` | `hIncrBy()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-66] |
+| `Illuminate\Support\Facades\Redis` | `hIncrByFloat()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-66] |
+| `Illuminate\Support\Facades\Redis` | `hKeys()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-66] |
+| `Illuminate\Support\Facades\Redis` | `hLen()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-66] |
+| `Illuminate\Support\Facades\Redis` | `hMget()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-66] |
+| `Illuminate\Support\Facades\Redis` | `hgetex()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-66] |
+| `Illuminate\Support\Facades\Redis` | `hsetex()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-66] |
+| `Illuminate\Support\Facades\Redis` | `hgetdel()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-66] |
+| `Illuminate\Support\Facades\Redis` | `hMset()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-66] |
+| `Illuminate\Support\Facades\Redis` | `hRandField()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-66] |
+| `Illuminate\Support\Facades\Redis` | `hSet()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-66] |
+| `Illuminate\Support\Facades\Redis` | `hSetNx()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-66] |
+| `Illuminate\Support\Facades\Redis` | `hStrLen()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-66] |
+| `Illuminate\Support\Facades\Redis` | `hVals()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-66] |
+| `Illuminate\Support\Facades\Redis` | `hexpire()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-66] |
+| `Illuminate\Support\Facades\Redis` | `hpexpire()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-66] |
+| `Illuminate\Support\Facades\Redis` | `hexpireat()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-66] |
+| `Illuminate\Support\Facades\Redis` | `hpexpireat()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-66] |
+| `Illuminate\Support\Facades\Redis` | `httl()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-66] |
+| `Illuminate\Support\Facades\Redis` | `hpttl()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-66] |
+| `Illuminate\Support\Facades\Redis` | `hexpiretime()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-66] |
+| `Illuminate\Support\Facades\Redis` | `hpexpiretime()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-66] |
+| `Illuminate\Support\Facades\Redis` | `hpersist()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-66] |
+| `Illuminate\Support\Facades\Redis` | `hscan()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-66] |
+| `Illuminate\Support\Facades\Redis` | `expiremember()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-66] |
+| `Illuminate\Support\Facades\Redis` | `expirememberat()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-66] |
+| `Illuminate\Support\Facades\Redis` | `incr()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-66] |
+| `Illuminate\Support\Facades\Redis` | `incrBy()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-66] |
+| `Illuminate\Support\Facades\Redis` | `incrByFloat()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-66] |
+| `Illuminate\Support\Facades\Redis` | `info()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-66] |
+| `Illuminate\Support\Facades\Redis` | `isConnected()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-66] |
+| `Illuminate\Support\Facades\Redis` | `keys()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-66] |
+| `Illuminate\Support\Facades\Redis` | `lInsert()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-66] |
+| `Illuminate\Support\Facades\Redis` | `lLen()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-66] |
+| `Illuminate\Support\Facades\Redis` | `lMove()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-66] |
+| `Illuminate\Support\Facades\Redis` | `blmove()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-66] |
+| `Illuminate\Support\Facades\Redis` | `lPop()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-66] |
+| `Illuminate\Support\Facades\Redis` | `lPos()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-66] |
+| `Illuminate\Support\Facades\Redis` | `lPush()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-66] |
+| `Illuminate\Support\Facades\Redis` | `rPush()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-66] |
+| `Illuminate\Support\Facades\Redis` | `lPushx()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-66] |
+| `Illuminate\Support\Facades\Redis` | `rPushx()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-66] |
+| `Illuminate\Support\Facades\Redis` | `lSet()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-66] |
+| `Illuminate\Support\Facades\Redis` | `lastSave()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-66] |
+| `Illuminate\Support\Facades\Redis` | `lindex()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-66] |
+| `Illuminate\Support\Facades\Redis` | `lrange()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-66] |
+| `Illuminate\Support\Facades\Redis` | `lrem()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-66] |
+| `Illuminate\Support\Facades\Redis` | `ltrim()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-66] |
+| `Illuminate\Support\Facades\Redis` | `mget()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-66] |
+| `Illuminate\Support\Facades\Redis` | `migrate()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-66] |
+| `Illuminate\Support\Facades\Redis` | `move()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-66] |
+| `Illuminate\Support\Facades\Redis` | `mset()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-66] |
+| `Illuminate\Support\Facades\Redis` | `msetnx()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-66] |
+| `Illuminate\Support\Facades\Redis` | `multi()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-66] |
+| `Illuminate\Support\Facades\Redis` | `object()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-66] |
+| `Illuminate\Support\Facades\Redis` | `pconnect()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-66] |
+| `Illuminate\Support\Facades\Redis` | `persist()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-66] |
+| `Illuminate\Support\Facades\Redis` | `pexpire()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-66] |
+| `Illuminate\Support\Facades\Redis` | `pexpireAt()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-66] |
+| `Illuminate\Support\Facades\Redis` | `pfadd()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-66] |
+| `Illuminate\Support\Facades\Redis` | `pfcount()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-66] |
+| `Illuminate\Support\Facades\Redis` | `pfmerge()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-66] |
+| `Illuminate\Support\Facades\Redis` | `ping()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-66] |
+| `Illuminate\Support\Facades\Redis` | `pipeline()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-66] |
+| `Illuminate\Support\Facades\Redis` | `psetex()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-66] |
+| `Illuminate\Support\Facades\Redis` | `pttl()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-66] |
+| `Illuminate\Support\Facades\Redis` | `publish()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-66] |
+| `Illuminate\Support\Facades\Redis` | `pubsub()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-66] |
+| `Illuminate\Support\Facades\Redis` | `punsubscribe()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-66] |
+| `Illuminate\Support\Facades\Redis` | `rPop()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-66] |
+| `Illuminate\Support\Facades\Redis` | `randomKey()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-66] |
+| `Illuminate\Support\Facades\Redis` | `rawcommand()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-66] |
+| `Illuminate\Support\Facades\Redis` | `rename()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-66] |
+| `Illuminate\Support\Facades\Redis` | `renameNx()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-66] |
+| `Illuminate\Support\Facades\Redis` | `reset()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-66] |
+| `Illuminate\Support\Facades\Redis` | `restore()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-66] |
+| `Illuminate\Support\Facades\Redis` | `role()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-66] |
+| `Illuminate\Support\Facades\Redis` | `rpoplpush()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-66] |
+| `Illuminate\Support\Facades\Redis` | `sAdd()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-66] |
+| `Illuminate\Support\Facades\Redis` | `sAddArray()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-66] |
+| `Illuminate\Support\Facades\Redis` | `sDiff()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-66] |
+| `Illuminate\Support\Facades\Redis` | `sDiffStore()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-66] |
+| `Illuminate\Support\Facades\Redis` | `sInter()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-66] |
+| `Illuminate\Support\Facades\Redis` | `sintercard()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-66] |
+| `Illuminate\Support\Facades\Redis` | `sInterStore()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-66] |
+| `Illuminate\Support\Facades\Redis` | `sMembers()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-66] |
+| `Illuminate\Support\Facades\Redis` | `sMisMember()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-66] |
+| `Illuminate\Support\Facades\Redis` | `sMove()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-66] |
+| `Illuminate\Support\Facades\Redis` | `sPop()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-66] |
+| `Illuminate\Support\Facades\Redis` | `sRandMember()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-66] |
+| `Illuminate\Support\Facades\Redis` | `sUnion()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-66] |
+| `Illuminate\Support\Facades\Redis` | `sUnionStore()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-66] |
+| `Illuminate\Support\Facades\Redis` | `save()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-66] |
+| `Illuminate\Support\Facades\Redis` | `scan()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-66] |
+| `Illuminate\Support\Facades\Redis` | `scard()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-66] |
+| `Illuminate\Support\Facades\Redis` | `script()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-66] |
+| `Illuminate\Support\Facades\Redis` | `select()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-66] |
+| `Illuminate\Support\Facades\Redis` | `set()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-66] |
+| `Illuminate\Support\Facades\Redis` | `setBit()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-66] |
+| `Illuminate\Support\Facades\Redis` | `setRange()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-66] |
+| `Illuminate\Support\Facades\Redis` | `setOption()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-66] |
+| `Illuminate\Support\Facades\Redis` | `setex()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-66] |
+| `Illuminate\Support\Facades\Redis` | `setnx()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-66] |
+| `Illuminate\Support\Facades\Redis` | `sismember()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-66] |
+| `Illuminate\Support\Facades\Redis` | `replicaof()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-66] |
+| `Illuminate\Support\Facades\Redis` | `touch()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-66] |
+| `Illuminate\Support\Facades\Redis` | `slowlog()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-66] |
+| `Illuminate\Support\Facades\Redis` | `sort()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-66] |
+| `Illuminate\Support\Facades\Redis` | `sort_ro()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-66] |
+| `Illuminate\Support\Facades\Redis` | `srem()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-66] |
+| `Illuminate\Support\Facades\Redis` | `sscan()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-66] |
+| `Illuminate\Support\Facades\Redis` | `ssubscribe()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-66] |
+| `Illuminate\Support\Facades\Redis` | `strlen()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-66] |
+| `Illuminate\Support\Facades\Redis` | `sunsubscribe()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-66] |
+| `Illuminate\Support\Facades\Redis` | `swapdb()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-66] |
+| `Illuminate\Support\Facades\Redis` | `time()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-66] |
+| `Illuminate\Support\Facades\Redis` | `ttl()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-66] |
+| `Illuminate\Support\Facades\Redis` | `type()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-66] |
+| `Illuminate\Support\Facades\Redis` | `unlink()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-66] |
+| `Illuminate\Support\Facades\Redis` | `unsubscribe()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-66] |
+| `Illuminate\Support\Facades\Redis` | `unwatch()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-66] |
+| `Illuminate\Support\Facades\Redis` | `watch()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-66] |
+| `Illuminate\Support\Facades\Redis` | `wait()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-66] |
+| `Illuminate\Support\Facades\Redis` | `xack()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-66] |
+| `Illuminate\Support\Facades\Redis` | `xadd()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-66] |
+| `Illuminate\Support\Facades\Redis` | `xautoclaim()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-66] |
+| `Illuminate\Support\Facades\Redis` | `xclaim()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-66] |
+| `Illuminate\Support\Facades\Redis` | `xdel()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-66] |
+| `Illuminate\Support\Facades\Redis` | `xgroup()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-66] |
+| `Illuminate\Support\Facades\Redis` | `xinfo()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-66] |
+| `Illuminate\Support\Facades\Redis` | `xlen()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-66] |
+| `Illuminate\Support\Facades\Redis` | `xpending()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-66] |
+| `Illuminate\Support\Facades\Redis` | `xrange()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-66] |
+| `Illuminate\Support\Facades\Redis` | `xread()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-66] |
+| `Illuminate\Support\Facades\Redis` | `xreadgroup()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-66] |
+| `Illuminate\Support\Facades\Redis` | `xrevrange()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-66] |
+| `Illuminate\Support\Facades\Redis` | `vadd()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-66] |
+| `Illuminate\Support\Facades\Redis` | `vsim()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-66] |
+| `Illuminate\Support\Facades\Redis` | `vcard()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-66] |
+| `Illuminate\Support\Facades\Redis` | `vdim()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-66] |
+| `Illuminate\Support\Facades\Redis` | `vinfo()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-66] |
+| `Illuminate\Support\Facades\Redis` | `vismember()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-66] |
+| `Illuminate\Support\Facades\Redis` | `vemb()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-66] |
+| `Illuminate\Support\Facades\Redis` | `vrandmember()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-66] |
+| `Illuminate\Support\Facades\Redis` | `vrange()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-66] |
+| `Illuminate\Support\Facades\Redis` | `vrem()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-66] |
+| `Illuminate\Support\Facades\Redis` | `vsetattr()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-66] |
+| `Illuminate\Support\Facades\Redis` | `vgetattr()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-66] |
+| `Illuminate\Support\Facades\Redis` | `vlinks()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-66] |
+| `Illuminate\Support\Facades\Redis` | `xtrim()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-66] |
+| `Illuminate\Support\Facades\Redis` | `zAdd()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-66] |
+| `Illuminate\Support\Facades\Redis` | `zCard()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-66] |
+| `Illuminate\Support\Facades\Redis` | `zCount()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-66] |
+| `Illuminate\Support\Facades\Redis` | `zIncrBy()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-66] |
+| `Illuminate\Support\Facades\Redis` | `zLexCount()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-66] |
+| `Illuminate\Support\Facades\Redis` | `zMscore()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-66] |
+| `Illuminate\Support\Facades\Redis` | `zPopMax()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-66] |
+| `Illuminate\Support\Facades\Redis` | `zPopMin()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-66] |
+| `Illuminate\Support\Facades\Redis` | `zRange()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-66] |
+| `Illuminate\Support\Facades\Redis` | `zRangeByLex()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-66] |
+| `Illuminate\Support\Facades\Redis` | `zRangeByScore()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-66] |
+| `Illuminate\Support\Facades\Redis` | `zrangestore()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-66] |
+| `Illuminate\Support\Facades\Redis` | `zRandMember()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-66] |
+| `Illuminate\Support\Facades\Redis` | `zRank()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-66] |
+| `Illuminate\Support\Facades\Redis` | `zRem()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-66] |
+| `Illuminate\Support\Facades\Redis` | `zRemRangeByLex()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-66] |
+| `Illuminate\Support\Facades\Redis` | `zRemRangeByRank()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-66] |
+| `Illuminate\Support\Facades\Redis` | `zRemRangeByScore()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-66] |
+| `Illuminate\Support\Facades\Redis` | `zRevRange()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-66] |
+| `Illuminate\Support\Facades\Redis` | `zRevRangeByLex()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-66] |
+| `Illuminate\Support\Facades\Redis` | `zRevRangeByScore()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-66] |
+| `Illuminate\Support\Facades\Redis` | `zRevRank()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-66] |
+| `Illuminate\Support\Facades\Redis` | `zScore()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-66] |
+| `Illuminate\Support\Facades\Redis` | `zdiff()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-66] |
+| `Illuminate\Support\Facades\Redis` | `zdiffstore()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-66] |
+| `Illuminate\Support\Facades\Redis` | `zinter()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-66] |
+| `Illuminate\Support\Facades\Redis` | `zintercard()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-66] |
+| `Illuminate\Support\Facades\Redis` | `zinterstore()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-66] |
+| `Illuminate\Support\Facades\Redis` | `zscan()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-66] |
+| `Illuminate\Support\Facades\Redis` | `zunion()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-66] |
+| `Illuminate\Support\Facades\Redis` | `zunionstore()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-66] |
+
+</details>
+
+<details>
+<summary>Illuminate\Support\Facades\Request — 194 listed public members (class)</summary>
+
+| Upstream class | Upstream API | Titanspan API | Implementation location | Compatibility status | Test evidence | Differences | Upstream reference |
+|---|---|---|---|---|---|---|---|
+| `Illuminate\Support\Facades\Request` | `capture()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-67] |
+| `Illuminate\Support\Facades\Request` | `instance()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-67] |
+| `Illuminate\Support\Facades\Request` | `method()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-67] |
+| `Illuminate\Support\Facades\Request` | `uri()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-67] |
+| `Illuminate\Support\Facades\Request` | `root()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-67] |
+| `Illuminate\Support\Facades\Request` | `url()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-67] |
+| `Illuminate\Support\Facades\Request` | `fullUrl()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-67] |
+| `Illuminate\Support\Facades\Request` | `fullUrlWithQuery()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-67] |
+| `Illuminate\Support\Facades\Request` | `fullUrlWithoutQuery()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-67] |
+| `Illuminate\Support\Facades\Request` | `path()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-67] |
+| `Illuminate\Support\Facades\Request` | `decodedPath()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-67] |
+| `Illuminate\Support\Facades\Request` | `segment()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-67] |
+| `Illuminate\Support\Facades\Request` | `segments()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-67] |
+| `Illuminate\Support\Facades\Request` | `is()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-67] |
+| `Illuminate\Support\Facades\Request` | `routeIs()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-67] |
+| `Illuminate\Support\Facades\Request` | `fullUrlIs()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-67] |
+| `Illuminate\Support\Facades\Request` | `host()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-67] |
+| `Illuminate\Support\Facades\Request` | `httpHost()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-67] |
+| `Illuminate\Support\Facades\Request` | `schemeAndHttpHost()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-67] |
+| `Illuminate\Support\Facades\Request` | `ajax()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-67] |
+| `Illuminate\Support\Facades\Request` | `pjax()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-67] |
+| `Illuminate\Support\Facades\Request` | `prefetch()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-67] |
+| `Illuminate\Support\Facades\Request` | `secure()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-67] |
+| `Illuminate\Support\Facades\Request` | `ip()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-67] |
+| `Illuminate\Support\Facades\Request` | `ips()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-67] |
+| `Illuminate\Support\Facades\Request` | `userAgent()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-67] |
+| `Illuminate\Support\Facades\Request` | `getAcceptableContentTypes()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-67] |
+| `Illuminate\Support\Facades\Request` | `merge()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-67] |
+| `Illuminate\Support\Facades\Request` | `mergeIfMissing()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-67] |
+| `Illuminate\Support\Facades\Request` | `replace()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-67] |
+| `Illuminate\Support\Facades\Request` | `json()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-67] |
+| `Illuminate\Support\Facades\Request` | `createFrom()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-67] |
+| `Illuminate\Support\Facades\Request` | `createFromBase()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-67] |
+| `Illuminate\Support\Facades\Request` | `duplicate()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-67] |
+| `Illuminate\Support\Facades\Request` | `hasSession()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-67] |
+| `Illuminate\Support\Facades\Request` | `getSession()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-67] |
+| `Illuminate\Support\Facades\Request` | `session()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-67] |
+| `Illuminate\Support\Facades\Request` | `setLaravelSession()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-67] |
+| `Illuminate\Support\Facades\Request` | `setRequestLocale()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-67] |
+| `Illuminate\Support\Facades\Request` | `setDefaultRequestLocale()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-67] |
+| `Illuminate\Support\Facades\Request` | `user()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-67] |
+| `Illuminate\Support\Facades\Request` | `route()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-67] |
+| `Illuminate\Support\Facades\Request` | `fingerprint()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-67] |
+| `Illuminate\Support\Facades\Request` | `setJson()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-67] |
+| `Illuminate\Support\Facades\Request` | `getUserResolver()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-67] |
+| `Illuminate\Support\Facades\Request` | `setUserResolver()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-67] |
+| `Illuminate\Support\Facades\Request` | `getRouteResolver()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-67] |
+| `Illuminate\Support\Facades\Request` | `setRouteResolver()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-67] |
+| `Illuminate\Support\Facades\Request` | `toArray()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-67] |
+| `Illuminate\Support\Facades\Request` | `initialize()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-67] |
+| `Illuminate\Support\Facades\Request` | `createFromGlobals()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-67] |
+| `Illuminate\Support\Facades\Request` | `create()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-67] |
+| `Illuminate\Support\Facades\Request` | `setFactory()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-67] |
+| `Illuminate\Support\Facades\Request` | `overrideGlobals()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-67] |
+| `Illuminate\Support\Facades\Request` | `setTrustedProxies()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-67] |
+| `Illuminate\Support\Facades\Request` | `getTrustedProxies()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-67] |
+| `Illuminate\Support\Facades\Request` | `getTrustedHeaderSet()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-67] |
+| `Illuminate\Support\Facades\Request` | `setTrustedHosts()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-67] |
+| `Illuminate\Support\Facades\Request` | `getTrustedHosts()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-67] |
+| `Illuminate\Support\Facades\Request` | `normalizeQueryString()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-67] |
+| `Illuminate\Support\Facades\Request` | `enableHttpMethodParameterOverride()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-67] |
+| `Illuminate\Support\Facades\Request` | `getHttpMethodParameterOverride()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-67] |
+| `Illuminate\Support\Facades\Request` | `setAllowedHttpMethodOverride()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-67] |
+| `Illuminate\Support\Facades\Request` | `getAllowedHttpMethodOverride()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-67] |
+| `Illuminate\Support\Facades\Request` | `hasPreviousSession()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-67] |
+| `Illuminate\Support\Facades\Request` | `setSession()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-67] |
+| `Illuminate\Support\Facades\Request` | `getClientIps()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-67] |
+| `Illuminate\Support\Facades\Request` | `getClientIp()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-67] |
+| `Illuminate\Support\Facades\Request` | `getScriptName()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-67] |
+| `Illuminate\Support\Facades\Request` | `getPathInfo()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-67] |
+| `Illuminate\Support\Facades\Request` | `getBasePath()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-67] |
+| `Illuminate\Support\Facades\Request` | `getBaseUrl()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-67] |
+| `Illuminate\Support\Facades\Request` | `getScheme()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-67] |
+| `Illuminate\Support\Facades\Request` | `getPort()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-67] |
+| `Illuminate\Support\Facades\Request` | `getUser()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-67] |
+| `Illuminate\Support\Facades\Request` | `getPassword()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-67] |
+| `Illuminate\Support\Facades\Request` | `getUserInfo()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-67] |
+| `Illuminate\Support\Facades\Request` | `getHttpHost()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-67] |
+| `Illuminate\Support\Facades\Request` | `getRequestUri()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-67] |
+| `Illuminate\Support\Facades\Request` | `getSchemeAndHttpHost()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-67] |
+| `Illuminate\Support\Facades\Request` | `getUri()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-67] |
+| `Illuminate\Support\Facades\Request` | `getUriForPath()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-67] |
+| `Illuminate\Support\Facades\Request` | `getRelativeUriForPath()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-67] |
+| `Illuminate\Support\Facades\Request` | `getQueryString()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-67] |
+| `Illuminate\Support\Facades\Request` | `isSecure()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-67] |
+| `Illuminate\Support\Facades\Request` | `getHost()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-67] |
+| `Illuminate\Support\Facades\Request` | `setMethod()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-67] |
+| `Illuminate\Support\Facades\Request` | `getMethod()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-67] |
+| `Illuminate\Support\Facades\Request` | `getRealMethod()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-67] |
+| `Illuminate\Support\Facades\Request` | `getMimeType()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-67] |
+| `Illuminate\Support\Facades\Request` | `getMimeTypes()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-67] |
+| `Illuminate\Support\Facades\Request` | `getFormat()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-67] |
+| `Illuminate\Support\Facades\Request` | `setFormat()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-67] |
+| `Illuminate\Support\Facades\Request` | `getRequestFormat()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-67] |
+| `Illuminate\Support\Facades\Request` | `setRequestFormat()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-67] |
+| `Illuminate\Support\Facades\Request` | `getContentTypeFormat()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-67] |
+| `Illuminate\Support\Facades\Request` | `setDefaultLocale()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-67] |
+| `Illuminate\Support\Facades\Request` | `getDefaultLocale()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-67] |
+| `Illuminate\Support\Facades\Request` | `setLocale()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-67] |
+| `Illuminate\Support\Facades\Request` | `getLocale()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-67] |
+| `Illuminate\Support\Facades\Request` | `isMethod()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-67] |
+| `Illuminate\Support\Facades\Request` | `isMethodSafe()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-67] |
+| `Illuminate\Support\Facades\Request` | `isMethodIdempotent()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-67] |
+| `Illuminate\Support\Facades\Request` | `isMethodCacheable()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-67] |
+| `Illuminate\Support\Facades\Request` | `getProtocolVersion()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-67] |
+| `Illuminate\Support\Facades\Request` | `getContent()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-67] |
+| `Illuminate\Support\Facades\Request` | `getPayload()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-67] |
+| `Illuminate\Support\Facades\Request` | `getETags()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-67] |
+| `Illuminate\Support\Facades\Request` | `isNoCache()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-67] |
+| `Illuminate\Support\Facades\Request` | `getPreferredFormat()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-67] |
+| `Illuminate\Support\Facades\Request` | `getPreferredLanguage()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-67] |
+| `Illuminate\Support\Facades\Request` | `getLanguages()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-67] |
+| `Illuminate\Support\Facades\Request` | `getCharsets()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-67] |
+| `Illuminate\Support\Facades\Request` | `getEncodings()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-67] |
+| `Illuminate\Support\Facades\Request` | `isXmlHttpRequest()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-67] |
+| `Illuminate\Support\Facades\Request` | `preferSafeContent()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-67] |
+| `Illuminate\Support\Facades\Request` | `isFromTrustedProxy()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-67] |
+| `Illuminate\Support\Facades\Request` | `filterPrecognitiveRules()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-67] |
+| `Illuminate\Support\Facades\Request` | `isAttemptingPrecognition()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-67] |
+| `Illuminate\Support\Facades\Request` | `isPrecognitive()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-67] |
+| `Illuminate\Support\Facades\Request` | `isJson()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-67] |
+| `Illuminate\Support\Facades\Request` | `expectsJson()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-67] |
+| `Illuminate\Support\Facades\Request` | `wantsJson()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-67] |
+| `Illuminate\Support\Facades\Request` | `wantsMarkdown()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-67] |
+| `Illuminate\Support\Facades\Request` | `accepts()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-67] |
+| `Illuminate\Support\Facades\Request` | `prefers()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-67] |
+| `Illuminate\Support\Facades\Request` | `acceptsAnyContentType()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-67] |
+| `Illuminate\Support\Facades\Request` | `acceptsJson()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-67] |
+| `Illuminate\Support\Facades\Request` | `acceptsMarkdown()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-67] |
+| `Illuminate\Support\Facades\Request` | `acceptsHtml()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-67] |
+| `Illuminate\Support\Facades\Request` | `matchesType()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-67] |
+| `Illuminate\Support\Facades\Request` | `format()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-67] |
+| `Illuminate\Support\Facades\Request` | `old()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-67] |
+| `Illuminate\Support\Facades\Request` | `flash()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-67] |
+| `Illuminate\Support\Facades\Request` | `flashOnly()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-67] |
+| `Illuminate\Support\Facades\Request` | `flashExcept()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-67] |
+| `Illuminate\Support\Facades\Request` | `flush()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-67] |
+| `Illuminate\Support\Facades\Request` | `server()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-67] |
+| `Illuminate\Support\Facades\Request` | `hasHeader()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-67] |
+| `Illuminate\Support\Facades\Request` | `header()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-67] |
+| `Illuminate\Support\Facades\Request` | `bearerToken()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-67] |
+| `Illuminate\Support\Facades\Request` | `keys()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-67] |
+| `Illuminate\Support\Facades\Request` | `all()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-67] |
+| `Illuminate\Support\Facades\Request` | `input()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-67] |
+| `Illuminate\Support\Facades\Request` | `fluent()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-67] |
+| `Illuminate\Support\Facades\Request` | `query()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-67] |
+| `Illuminate\Support\Facades\Request` | `post()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-67] |
+| `Illuminate\Support\Facades\Request` | `hasCookie()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-67] |
+| `Illuminate\Support\Facades\Request` | `cookie()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-67] |
+| `Illuminate\Support\Facades\Request` | `allFiles()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-67] |
+| `Illuminate\Support\Facades\Request` | `hasFile()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-67] |
+| `Illuminate\Support\Facades\Request` | `file()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-67] |
+| `Illuminate\Support\Facades\Request` | `image()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-67] |
+| `Illuminate\Support\Facades\Request` | `dump()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-67] |
+| `Illuminate\Support\Facades\Request` | `dd()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-67] |
+| `Illuminate\Support\Facades\Request` | `exists()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-67] |
+| `Illuminate\Support\Facades\Request` | `has()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-67] |
+| `Illuminate\Support\Facades\Request` | `hasAny()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-67] |
+| `Illuminate\Support\Facades\Request` | `whenHas()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-67] |
+| `Illuminate\Support\Facades\Request` | `filled()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-67] |
+| `Illuminate\Support\Facades\Request` | `isNotFilled()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-67] |
+| `Illuminate\Support\Facades\Request` | `anyFilled()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-67] |
+| `Illuminate\Support\Facades\Request` | `whenFilled()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-67] |
+| `Illuminate\Support\Facades\Request` | `whenEnum()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-67] |
+| `Illuminate\Support\Facades\Request` | `missing()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-67] |
+| `Illuminate\Support\Facades\Request` | `whenMissing()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-67] |
+| `Illuminate\Support\Facades\Request` | `str()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-67] |
+| `Illuminate\Support\Facades\Request` | `string()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-67] |
+| `Illuminate\Support\Facades\Request` | `boolean()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-67] |
+| `Illuminate\Support\Facades\Request` | `integer()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-67] |
+| `Illuminate\Support\Facades\Request` | `float()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-67] |
+| `Illuminate\Support\Facades\Request` | `clamp()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-67] |
+| `Illuminate\Support\Facades\Request` | `date()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-67] |
+| `Illuminate\Support\Facades\Request` | `interval()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-67] |
+| `Illuminate\Support\Facades\Request` | `uuid()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-67] |
+| `Illuminate\Support\Facades\Request` | `ulid()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-67] |
+| `Illuminate\Support\Facades\Request` | `enum()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-67] |
+| `Illuminate\Support\Facades\Request` | `enums()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-67] |
+| `Illuminate\Support\Facades\Request` | `array()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-67] |
+| `Illuminate\Support\Facades\Request` | `collect()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-67] |
+| `Illuminate\Support\Facades\Request` | `only()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-67] |
+| `Illuminate\Support\Facades\Request` | `except()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-67] |
+| `Illuminate\Support\Facades\Request` | `when()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-67] |
+| `Illuminate\Support\Facades\Request` | `unless()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-67] |
+| `Illuminate\Support\Facades\Request` | `macro()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-67] |
+| `Illuminate\Support\Facades\Request` | `mixin()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-67] |
+| `Illuminate\Support\Facades\Request` | `hasMacro()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-67] |
+| `Illuminate\Support\Facades\Request` | `flushMacros()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-67] |
+| `Illuminate\Support\Facades\Request` | `validate()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-67] |
+| `Illuminate\Support\Facades\Request` | `validateWithBag()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-67] |
+| `Illuminate\Support\Facades\Request` | `hasValidSignature()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-67] |
+| `Illuminate\Support\Facades\Request` | `hasValidRelativeSignature()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-67] |
+| `Illuminate\Support\Facades\Request` | `hasValidSignatureWhileIgnoring()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-67] |
+| `Illuminate\Support\Facades\Request` | `hasValidRelativeSignatureWhileIgnoring()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-67] |
+
+</details>
+
+<details>
+<summary>Illuminate\Support\Facades\Response — 21 listed public members (class)</summary>
+
+| Upstream class | Upstream API | Titanspan API | Implementation location | Compatibility status | Test evidence | Differences | Upstream reference |
+|---|---|---|---|---|---|---|---|
+| `Illuminate\Support\Facades\Response` | `make()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-68] |
+| `Illuminate\Support\Facades\Response` | `noContent()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-68] |
+| `Illuminate\Support\Facades\Response` | `view()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-68] |
+| `Illuminate\Support\Facades\Response` | `json()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-68] |
+| `Illuminate\Support\Facades\Response` | `jsonp()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-68] |
+| `Illuminate\Support\Facades\Response` | `markdown()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-68] |
+| `Illuminate\Support\Facades\Response` | `eventStream()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-68] |
+| `Illuminate\Support\Facades\Response` | `stream()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-68] |
+| `Illuminate\Support\Facades\Response` | `streamJson()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-68] |
+| `Illuminate\Support\Facades\Response` | `streamDownload()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-68] |
+| `Illuminate\Support\Facades\Response` | `download()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-68] |
+| `Illuminate\Support\Facades\Response` | `file()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-68] |
+| `Illuminate\Support\Facades\Response` | `redirectTo()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-68] |
+| `Illuminate\Support\Facades\Response` | `redirectToRoute()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-68] |
+| `Illuminate\Support\Facades\Response` | `redirectToAction()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-68] |
+| `Illuminate\Support\Facades\Response` | `redirectGuest()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-68] |
+| `Illuminate\Support\Facades\Response` | `redirectToIntended()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-68] |
+| `Illuminate\Support\Facades\Response` | `macro()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-68] |
+| `Illuminate\Support\Facades\Response` | `mixin()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-68] |
+| `Illuminate\Support\Facades\Response` | `hasMacro()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-68] |
+| `Illuminate\Support\Facades\Response` | `flushMacros()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-68] |
+
+</details>
+
+<details>
+<summary>Illuminate\Support\Facades\Route — 101 listed public members (class)</summary>
+
+| Upstream class | Upstream API | Titanspan API | Implementation location | Compatibility status | Test evidence | Differences | Upstream reference |
+|---|---|---|---|---|---|---|---|
+| `Illuminate\Support\Facades\Route` | `get()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-69] |
+| `Illuminate\Support\Facades\Route` | `post()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-69] |
+| `Illuminate\Support\Facades\Route` | `put()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-69] |
+| `Illuminate\Support\Facades\Route` | `patch()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-69] |
+| `Illuminate\Support\Facades\Route` | `delete()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-69] |
+| `Illuminate\Support\Facades\Route` | `options()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-69] |
+| `Illuminate\Support\Facades\Route` | `query()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-69] |
+| `Illuminate\Support\Facades\Route` | `any()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-69] |
+| `Illuminate\Support\Facades\Route` | `fallback()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-69] |
+| `Illuminate\Support\Facades\Route` | `redirect()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-69] |
+| `Illuminate\Support\Facades\Route` | `permanentRedirect()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-69] |
+| `Illuminate\Support\Facades\Route` | `view()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-69] |
+| `Illuminate\Support\Facades\Route` | `match()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-69] |
+| `Illuminate\Support\Facades\Route` | `resources()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-69] |
+| `Illuminate\Support\Facades\Route` | `softDeletableResources()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-69] |
+| `Illuminate\Support\Facades\Route` | `resource()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-69] |
+| `Illuminate\Support\Facades\Route` | `apiResources()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-69] |
+| `Illuminate\Support\Facades\Route` | `apiResource()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-69] |
+| `Illuminate\Support\Facades\Route` | `singletons()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-69] |
+| `Illuminate\Support\Facades\Route` | `singleton()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-69] |
+| `Illuminate\Support\Facades\Route` | `apiSingletons()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-69] |
+| `Illuminate\Support\Facades\Route` | `apiSingleton()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-69] |
+| `Illuminate\Support\Facades\Route` | `group()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-69] |
+| `Illuminate\Support\Facades\Route` | `mergeWithLastGroup()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-69] |
+| `Illuminate\Support\Facades\Route` | `getLastGroupPrefix()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-69] |
+| `Illuminate\Support\Facades\Route` | `addRoute()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-69] |
+| `Illuminate\Support\Facades\Route` | `newRoute()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-69] |
+| `Illuminate\Support\Facades\Route` | `respondWithRoute()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-69] |
+| `Illuminate\Support\Facades\Route` | `dispatch()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-69] |
+| `Illuminate\Support\Facades\Route` | `dispatchToRoute()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-69] |
+| `Illuminate\Support\Facades\Route` | `gatherRouteMiddleware()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-69] |
+| `Illuminate\Support\Facades\Route` | `resolveMiddleware()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-69] |
+| `Illuminate\Support\Facades\Route` | `prepareResponse()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-69] |
+| `Illuminate\Support\Facades\Route` | `toResponse()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-69] |
+| `Illuminate\Support\Facades\Route` | `substituteBindings()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-69] |
+| `Illuminate\Support\Facades\Route` | `substituteImplicitBindings()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-69] |
+| `Illuminate\Support\Facades\Route` | `substituteImplicitBindingsUsing()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-69] |
+| `Illuminate\Support\Facades\Route` | `matched()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-69] |
+| `Illuminate\Support\Facades\Route` | `getMiddleware()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-69] |
+| `Illuminate\Support\Facades\Route` | `aliasMiddleware()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-69] |
+| `Illuminate\Support\Facades\Route` | `hasMiddlewareGroup()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-69] |
+| `Illuminate\Support\Facades\Route` | `getMiddlewareGroups()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-69] |
+| `Illuminate\Support\Facades\Route` | `middlewareGroup()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-69] |
+| `Illuminate\Support\Facades\Route` | `prependMiddlewareToGroup()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-69] |
+| `Illuminate\Support\Facades\Route` | `pushMiddlewareToGroup()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-69] |
+| `Illuminate\Support\Facades\Route` | `removeMiddlewareFromGroup()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-69] |
+| `Illuminate\Support\Facades\Route` | `flushMiddlewareGroups()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-69] |
+| `Illuminate\Support\Facades\Route` | `bind()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-69] |
+| `Illuminate\Support\Facades\Route` | `model()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-69] |
+| `Illuminate\Support\Facades\Route` | `getBindingCallback()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-69] |
+| `Illuminate\Support\Facades\Route` | `getPatterns()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-69] |
+| `Illuminate\Support\Facades\Route` | `pattern()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-69] |
+| `Illuminate\Support\Facades\Route` | `patterns()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-69] |
+| `Illuminate\Support\Facades\Route` | `hasGroupStack()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-69] |
+| `Illuminate\Support\Facades\Route` | `getGroupStack()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-69] |
+| `Illuminate\Support\Facades\Route` | `input()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-69] |
+| `Illuminate\Support\Facades\Route` | `getCurrentRequest()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-69] |
+| `Illuminate\Support\Facades\Route` | `getCurrentRoute()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-69] |
+| `Illuminate\Support\Facades\Route` | `current()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-69] |
+| `Illuminate\Support\Facades\Route` | `has()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-69] |
+| `Illuminate\Support\Facades\Route` | `currentRouteName()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-69] |
+| `Illuminate\Support\Facades\Route` | `is()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-69] |
+| `Illuminate\Support\Facades\Route` | `currentRouteNamed()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-69] |
+| `Illuminate\Support\Facades\Route` | `currentRouteAction()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-69] |
+| `Illuminate\Support\Facades\Route` | `uses()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-69] |
+| `Illuminate\Support\Facades\Route` | `currentRouteUses()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-69] |
+| `Illuminate\Support\Facades\Route` | `singularResourceParameters()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-69] |
+| `Illuminate\Support\Facades\Route` | `resourceParameters()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-69] |
+| `Illuminate\Support\Facades\Route` | `resourceVerbs()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-69] |
+| `Illuminate\Support\Facades\Route` | `getRoutes()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-69] |
+| `Illuminate\Support\Facades\Route` | `setRoutes()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-69] |
+| `Illuminate\Support\Facades\Route` | `setCompiledRoutes()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-69] |
+| `Illuminate\Support\Facades\Route` | `uniqueMiddleware()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-69] |
+| `Illuminate\Support\Facades\Route` | `setContainer()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-69] |
+| `Illuminate\Support\Facades\Route` | `macro()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-69] |
+| `Illuminate\Support\Facades\Route` | `mixin()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-69] |
+| `Illuminate\Support\Facades\Route` | `hasMacro()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-69] |
+| `Illuminate\Support\Facades\Route` | `flushMacros()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-69] |
+| `Illuminate\Support\Facades\Route` | `macroCall()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-69] |
+| `Illuminate\Support\Facades\Route` | `tap()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-69] |
+| `Illuminate\Support\Facades\Route` | `attribute()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-69] |
+| `Illuminate\Support\Facades\Route` | `metadata()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-69] |
+| `Illuminate\Support\Facades\Route` | `whereAlpha()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-69] |
+| `Illuminate\Support\Facades\Route` | `whereAlphaNumeric()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-69] |
+| `Illuminate\Support\Facades\Route` | `whereNumber()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-69] |
+| `Illuminate\Support\Facades\Route` | `whereUlid()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-69] |
+| `Illuminate\Support\Facades\Route` | `whereUuid()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-69] |
+| `Illuminate\Support\Facades\Route` | `whereIn()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-69] |
+| `Illuminate\Support\Facades\Route` | `as()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-69] |
+| `Illuminate\Support\Facades\Route` | `can()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-69] |
+| `Illuminate\Support\Facades\Route` | `controller()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-69] |
+| `Illuminate\Support\Facades\Route` | `domain()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-69] |
+| `Illuminate\Support\Facades\Route` | `middleware()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-69] |
+| `Illuminate\Support\Facades\Route` | `missing()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-69] |
+| `Illuminate\Support\Facades\Route` | `name()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-69] |
+| `Illuminate\Support\Facades\Route` | `namespace()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-69] |
+| `Illuminate\Support\Facades\Route` | `prefix()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-69] |
+| `Illuminate\Support\Facades\Route` | `scopeBindings()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-69] |
+| `Illuminate\Support\Facades\Route` | `where()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-69] |
+| `Illuminate\Support\Facades\Route` | `withoutMiddleware()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-69] |
+| `Illuminate\Support\Facades\Route` | `withoutScopedBindings()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-69] |
+
+</details>
+
+<details>
+<summary>Illuminate\Support\Facades\Schedule — 85 listed public members (class)</summary>
+
+| Upstream class | Upstream API | Titanspan API | Implementation location | Compatibility status | Test evidence | Differences | Upstream reference |
+|---|---|---|---|---|---|---|---|
+| `Illuminate\Support\Facades\Schedule` | `call()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-70] |
+| `Illuminate\Support\Facades\Schedule` | `command()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-70] |
+| `Illuminate\Support\Facades\Schedule` | `job()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-70] |
+| `Illuminate\Support\Facades\Schedule` | `exec()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-70] |
+| `Illuminate\Support\Facades\Schedule` | `group()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-70] |
+| `Illuminate\Support\Facades\Schedule` | `compileArrayInput()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-70] |
+| `Illuminate\Support\Facades\Schedule` | `serverShouldRun()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-70] |
+| `Illuminate\Support\Facades\Schedule` | `dueEvents()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-70] |
+| `Illuminate\Support\Facades\Schedule` | `events()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-70] |
+| `Illuminate\Support\Facades\Schedule` | `eventsForEnvironments()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-70] |
+| `Illuminate\Support\Facades\Schedule` | `useCache()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-70] |
+| `Illuminate\Support\Facades\Schedule` | `withoutInterruptionPolling()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-70] |
+| `Illuminate\Support\Facades\Schedule` | `hasBeenInterruptedSince()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-70] |
+| `Illuminate\Support\Facades\Schedule` | `alwaysOnOneServer()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-70] |
+| `Illuminate\Support\Facades\Schedule` | `whenTaskRunsLongerThan()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-70] |
+| `Illuminate\Support\Facades\Schedule` | `macro()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-70] |
+| `Illuminate\Support\Facades\Schedule` | `mixin()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-70] |
+| `Illuminate\Support\Facades\Schedule` | `hasMacro()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-70] |
+| `Illuminate\Support\Facades\Schedule` | `flushMacros()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-70] |
+| `Illuminate\Support\Facades\Schedule` | `macroCall()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-70] |
+| `Illuminate\Support\Facades\Schedule` | `withoutOverlapping()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-70] |
+| `Illuminate\Support\Facades\Schedule` | `mergeAttributes()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-70] |
+| `Illuminate\Support\Facades\Schedule` | `user()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-70] |
+| `Illuminate\Support\Facades\Schedule` | `environments()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-70] |
+| `Illuminate\Support\Facades\Schedule` | `evenInMaintenanceMode()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-70] |
+| `Illuminate\Support\Facades\Schedule` | `evenWhenPaused()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-70] |
+| `Illuminate\Support\Facades\Schedule` | `onOneServer()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-70] |
+| `Illuminate\Support\Facades\Schedule` | `runInBackground()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-70] |
+| `Illuminate\Support\Facades\Schedule` | `when()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-70] |
+| `Illuminate\Support\Facades\Schedule` | `skip()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-70] |
+| `Illuminate\Support\Facades\Schedule` | `name()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-70] |
+| `Illuminate\Support\Facades\Schedule` | `description()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-70] |
+| `Illuminate\Support\Facades\Schedule` | `withAttributes()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-70] |
+| `Illuminate\Support\Facades\Schedule` | `cron()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-70] |
+| `Illuminate\Support\Facades\Schedule` | `between()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-70] |
+| `Illuminate\Support\Facades\Schedule` | `unlessBetween()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-70] |
+| `Illuminate\Support\Facades\Schedule` | `everySecond()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-70] |
+| `Illuminate\Support\Facades\Schedule` | `everyTwoSeconds()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-70] |
+| `Illuminate\Support\Facades\Schedule` | `everyFiveSeconds()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-70] |
+| `Illuminate\Support\Facades\Schedule` | `everyTenSeconds()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-70] |
+| `Illuminate\Support\Facades\Schedule` | `everyFifteenSeconds()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-70] |
+| `Illuminate\Support\Facades\Schedule` | `everyTwentySeconds()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-70] |
+| `Illuminate\Support\Facades\Schedule` | `everyThirtySeconds()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-70] |
+| `Illuminate\Support\Facades\Schedule` | `everyMinute()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-70] |
+| `Illuminate\Support\Facades\Schedule` | `everyTwoMinutes()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-70] |
+| `Illuminate\Support\Facades\Schedule` | `everyThreeMinutes()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-70] |
+| `Illuminate\Support\Facades\Schedule` | `everyFourMinutes()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-70] |
+| `Illuminate\Support\Facades\Schedule` | `everyFiveMinutes()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-70] |
+| `Illuminate\Support\Facades\Schedule` | `everyTenMinutes()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-70] |
+| `Illuminate\Support\Facades\Schedule` | `everyFifteenMinutes()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-70] |
+| `Illuminate\Support\Facades\Schedule` | `everyThirtyMinutes()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-70] |
+| `Illuminate\Support\Facades\Schedule` | `hourly()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-70] |
+| `Illuminate\Support\Facades\Schedule` | `hourlyAt()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-70] |
+| `Illuminate\Support\Facades\Schedule` | `everyOddHour()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-70] |
+| `Illuminate\Support\Facades\Schedule` | `everyTwoHours()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-70] |
+| `Illuminate\Support\Facades\Schedule` | `everyThreeHours()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-70] |
+| `Illuminate\Support\Facades\Schedule` | `everyFourHours()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-70] |
+| `Illuminate\Support\Facades\Schedule` | `everySixHours()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-70] |
+| `Illuminate\Support\Facades\Schedule` | `daily()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-70] |
+| `Illuminate\Support\Facades\Schedule` | `at()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-70] |
+| `Illuminate\Support\Facades\Schedule` | `dailyAt()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-70] |
+| `Illuminate\Support\Facades\Schedule` | `twiceDaily()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-70] |
+| `Illuminate\Support\Facades\Schedule` | `twiceDailyAt()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-70] |
+| `Illuminate\Support\Facades\Schedule` | `weekdays()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-70] |
+| `Illuminate\Support\Facades\Schedule` | `weekends()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-70] |
+| `Illuminate\Support\Facades\Schedule` | `mondays()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-70] |
+| `Illuminate\Support\Facades\Schedule` | `tuesdays()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-70] |
+| `Illuminate\Support\Facades\Schedule` | `wednesdays()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-70] |
+| `Illuminate\Support\Facades\Schedule` | `thursdays()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-70] |
+| `Illuminate\Support\Facades\Schedule` | `fridays()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-70] |
+| `Illuminate\Support\Facades\Schedule` | `saturdays()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-70] |
+| `Illuminate\Support\Facades\Schedule` | `sundays()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-70] |
+| `Illuminate\Support\Facades\Schedule` | `weekly()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-70] |
+| `Illuminate\Support\Facades\Schedule` | `weeklyOn()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-70] |
+| `Illuminate\Support\Facades\Schedule` | `monthly()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-70] |
+| `Illuminate\Support\Facades\Schedule` | `monthlyOn()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-70] |
+| `Illuminate\Support\Facades\Schedule` | `twiceMonthly()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-70] |
+| `Illuminate\Support\Facades\Schedule` | `lastDayOfMonth()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-70] |
+| `Illuminate\Support\Facades\Schedule` | `daysOfMonth()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-70] |
+| `Illuminate\Support\Facades\Schedule` | `quarterly()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-70] |
+| `Illuminate\Support\Facades\Schedule` | `quarterlyOn()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-70] |
+| `Illuminate\Support\Facades\Schedule` | `yearly()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-70] |
+| `Illuminate\Support\Facades\Schedule` | `yearlyOn()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-70] |
+| `Illuminate\Support\Facades\Schedule` | `days()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-70] |
+| `Illuminate\Support\Facades\Schedule` | `timezone()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-70] |
+
+</details>
+
+<details>
+<summary>Illuminate\Support\Facades\Schema — 53 listed public members (class)</summary>
+
+| Upstream class | Upstream API | Titanspan API | Implementation location | Compatibility status | Test evidence | Differences | Upstream reference |
+|---|---|---|---|---|---|---|---|
+| `Illuminate\Support\Facades\Schema` | `connection()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-71] |
+| `Illuminate\Support\Facades\Schema` | `defaultStringLength()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-71] |
+| `Illuminate\Support\Facades\Schema` | `defaultTimePrecision()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-71] |
+| `Illuminate\Support\Facades\Schema` | `defaultMorphKeyType()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-71] |
+| `Illuminate\Support\Facades\Schema` | `morphUsingUuids()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-71] |
+| `Illuminate\Support\Facades\Schema` | `morphUsingUlids()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-71] |
+| `Illuminate\Support\Facades\Schema` | `createDatabase()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-71] |
+| `Illuminate\Support\Facades\Schema` | `dropDatabaseIfExists()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-71] |
+| `Illuminate\Support\Facades\Schema` | `getSchemas()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-71] |
+| `Illuminate\Support\Facades\Schema` | `hasTable()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-71] |
+| `Illuminate\Support\Facades\Schema` | `hasView()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-71] |
+| `Illuminate\Support\Facades\Schema` | `getTables()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-71] |
+| `Illuminate\Support\Facades\Schema` | `getTableListing()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-71] |
+| `Illuminate\Support\Facades\Schema` | `getViews()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-71] |
+| `Illuminate\Support\Facades\Schema` | `getTypes()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-71] |
+| `Illuminate\Support\Facades\Schema` | `hasColumn()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-71] |
+| `Illuminate\Support\Facades\Schema` | `hasColumns()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-71] |
+| `Illuminate\Support\Facades\Schema` | `whenTableHasColumn()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-71] |
+| `Illuminate\Support\Facades\Schema` | `whenTableDoesntHaveColumn()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-71] |
+| `Illuminate\Support\Facades\Schema` | `whenTableHasIndex()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-71] |
+| `Illuminate\Support\Facades\Schema` | `whenTableDoesntHaveIndex()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-71] |
+| `Illuminate\Support\Facades\Schema` | `getColumnType()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-71] |
+| `Illuminate\Support\Facades\Schema` | `getColumnListing()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-71] |
+| `Illuminate\Support\Facades\Schema` | `getColumn()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-71] |
+| `Illuminate\Support\Facades\Schema` | `getColumns()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-71] |
+| `Illuminate\Support\Facades\Schema` | `getIndexes()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-71] |
+| `Illuminate\Support\Facades\Schema` | `getIndexListing()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-71] |
+| `Illuminate\Support\Facades\Schema` | `hasIndex()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-71] |
+| `Illuminate\Support\Facades\Schema` | `hasForeignKey()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-71] |
+| `Illuminate\Support\Facades\Schema` | `getForeignKeys()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-71] |
+| `Illuminate\Support\Facades\Schema` | `table()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-71] |
+| `Illuminate\Support\Facades\Schema` | `create()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-71] |
+| `Illuminate\Support\Facades\Schema` | `drop()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-71] |
+| `Illuminate\Support\Facades\Schema` | `dropIfExists()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-71] |
+| `Illuminate\Support\Facades\Schema` | `dropColumns()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-71] |
+| `Illuminate\Support\Facades\Schema` | `dropAllTables()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-71] |
+| `Illuminate\Support\Facades\Schema` | `dropAllViews()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-71] |
+| `Illuminate\Support\Facades\Schema` | `dropAllTypes()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-71] |
+| `Illuminate\Support\Facades\Schema` | `rename()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-71] |
+| `Illuminate\Support\Facades\Schema` | `enableForeignKeyConstraints()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-71] |
+| `Illuminate\Support\Facades\Schema` | `disableForeignKeyConstraints()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-71] |
+| `Illuminate\Support\Facades\Schema` | `withoutForeignKeyConstraints()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-71] |
+| `Illuminate\Support\Facades\Schema` | `ensureVectorExtensionExists()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-71] |
+| `Illuminate\Support\Facades\Schema` | `ensureExtensionExists()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-71] |
+| `Illuminate\Support\Facades\Schema` | `getCurrentSchemaListing()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-71] |
+| `Illuminate\Support\Facades\Schema` | `getCurrentSchemaName()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-71] |
+| `Illuminate\Support\Facades\Schema` | `parseSchemaAndTable()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-71] |
+| `Illuminate\Support\Facades\Schema` | `getConnection()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-71] |
+| `Illuminate\Support\Facades\Schema` | `blueprintResolver()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-71] |
+| `Illuminate\Support\Facades\Schema` | `macro()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-71] |
+| `Illuminate\Support\Facades\Schema` | `mixin()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-71] |
+| `Illuminate\Support\Facades\Schema` | `hasMacro()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-71] |
+| `Illuminate\Support\Facades\Schema` | `flushMacros()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-71] |
+
+</details>
+
+<details>
+<summary>Illuminate\Support\Facades\Session — 70 listed public members (class)</summary>
+
+| Upstream class | Upstream API | Titanspan API | Implementation location | Compatibility status | Test evidence | Differences | Upstream reference |
+|---|---|---|---|---|---|---|---|
+| `Illuminate\Support\Facades\Session` | `shouldBlock()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-72] |
+| `Illuminate\Support\Facades\Session` | `blockDriver()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-72] |
+| `Illuminate\Support\Facades\Session` | `defaultRouteBlockLockSeconds()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-72] |
+| `Illuminate\Support\Facades\Session` | `defaultRouteBlockWaitSeconds()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-72] |
+| `Illuminate\Support\Facades\Session` | `getSessionConfig()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-72] |
+| `Illuminate\Support\Facades\Session` | `getDefaultDriver()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-72] |
+| `Illuminate\Support\Facades\Session` | `setDefaultDriver()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-72] |
+| `Illuminate\Support\Facades\Session` | `driver()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-72] |
+| `Illuminate\Support\Facades\Session` | `extend()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-72] |
+| `Illuminate\Support\Facades\Session` | `getDrivers()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-72] |
+| `Illuminate\Support\Facades\Session` | `getContainer()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-72] |
+| `Illuminate\Support\Facades\Session` | `setContainer()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-72] |
+| `Illuminate\Support\Facades\Session` | `forgetDrivers()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-72] |
+| `Illuminate\Support\Facades\Session` | `start()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-72] |
+| `Illuminate\Support\Facades\Session` | `save()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-72] |
+| `Illuminate\Support\Facades\Session` | `ageFlashData()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-72] |
+| `Illuminate\Support\Facades\Session` | `all()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-72] |
+| `Illuminate\Support\Facades\Session` | `only()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-72] |
+| `Illuminate\Support\Facades\Session` | `except()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-72] |
+| `Illuminate\Support\Facades\Session` | `exists()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-72] |
+| `Illuminate\Support\Facades\Session` | `missing()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-72] |
+| `Illuminate\Support\Facades\Session` | `has()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-72] |
+| `Illuminate\Support\Facades\Session` | `hasAny()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-72] |
+| `Illuminate\Support\Facades\Session` | `get()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-72] |
+| `Illuminate\Support\Facades\Session` | `pull()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-72] |
+| `Illuminate\Support\Facades\Session` | `hasOldInput()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-72] |
+| `Illuminate\Support\Facades\Session` | `getOldInput()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-72] |
+| `Illuminate\Support\Facades\Session` | `replace()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-72] |
+| `Illuminate\Support\Facades\Session` | `put()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-72] |
+| `Illuminate\Support\Facades\Session` | `remember()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-72] |
+| `Illuminate\Support\Facades\Session` | `push()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-72] |
+| `Illuminate\Support\Facades\Session` | `increment()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-72] |
+| `Illuminate\Support\Facades\Session` | `decrement()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-72] |
+| `Illuminate\Support\Facades\Session` | `flash()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-72] |
+| `Illuminate\Support\Facades\Session` | `now()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-72] |
+| `Illuminate\Support\Facades\Session` | `reflash()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-72] |
+| `Illuminate\Support\Facades\Session` | `keep()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-72] |
+| `Illuminate\Support\Facades\Session` | `flashInput()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-72] |
+| `Illuminate\Support\Facades\Session` | `cache()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-72] |
+| `Illuminate\Support\Facades\Session` | `remove()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-72] |
+| `Illuminate\Support\Facades\Session` | `forget()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-72] |
+| `Illuminate\Support\Facades\Session` | `flush()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-72] |
+| `Illuminate\Support\Facades\Session` | `invalidate()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-72] |
+| `Illuminate\Support\Facades\Session` | `regenerate()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-72] |
+| `Illuminate\Support\Facades\Session` | `migrate()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-72] |
+| `Illuminate\Support\Facades\Session` | `isStarted()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-72] |
+| `Illuminate\Support\Facades\Session` | `getName()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-72] |
+| `Illuminate\Support\Facades\Session` | `setName()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-72] |
+| `Illuminate\Support\Facades\Session` | `id()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-72] |
+| `Illuminate\Support\Facades\Session` | `getId()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-72] |
+| `Illuminate\Support\Facades\Session` | `setId()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-72] |
+| `Illuminate\Support\Facades\Session` | `isValidId()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-72] |
+| `Illuminate\Support\Facades\Session` | `setExists()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-72] |
+| `Illuminate\Support\Facades\Session` | `token()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-72] |
+| `Illuminate\Support\Facades\Session` | `regenerateToken()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-72] |
+| `Illuminate\Support\Facades\Session` | `hasPreviousUri()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-72] |
+| `Illuminate\Support\Facades\Session` | `previousUri()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-72] |
+| `Illuminate\Support\Facades\Session` | `previousUrl()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-72] |
+| `Illuminate\Support\Facades\Session` | `setPreviousUrl()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-72] |
+| `Illuminate\Support\Facades\Session` | `previousRoute()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-72] |
+| `Illuminate\Support\Facades\Session` | `setPreviousRoute()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-72] |
+| `Illuminate\Support\Facades\Session` | `passwordConfirmed()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-72] |
+| `Illuminate\Support\Facades\Session` | `getHandler()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-72] |
+| `Illuminate\Support\Facades\Session` | `setHandler()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-72] |
+| `Illuminate\Support\Facades\Session` | `handlerNeedsRequest()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-72] |
+| `Illuminate\Support\Facades\Session` | `setRequestOnHandler()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-72] |
+| `Illuminate\Support\Facades\Session` | `macro()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-72] |
+| `Illuminate\Support\Facades\Session` | `mixin()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-72] |
+| `Illuminate\Support\Facades\Session` | `hasMacro()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-72] |
+| `Illuminate\Support\Facades\Session` | `flushMacros()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-72] |
+
+</details>
+
+<details>
+<summary>Illuminate\Support\Facades\Storage — 86 listed public members (class)</summary>
+
+| Upstream class | Upstream API | Titanspan API | Implementation location | Compatibility status | Test evidence | Differences | Upstream reference |
+|---|---|---|---|---|---|---|---|
+| `Illuminate\Support\Facades\Storage` | `fake()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-73] |
+| `Illuminate\Support\Facades\Storage` | `persistentFake()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-73] |
+| `Illuminate\Support\Facades\Storage` | `drive()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-73] |
+| `Illuminate\Support\Facades\Storage` | `disk()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-73] |
+| `Illuminate\Support\Facades\Storage` | `cloud()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-73] |
+| `Illuminate\Support\Facades\Storage` | `build()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-73] |
+| `Illuminate\Support\Facades\Storage` | `createLocalDriver()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-73] |
+| `Illuminate\Support\Facades\Storage` | `createFtpDriver()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-73] |
+| `Illuminate\Support\Facades\Storage` | `createSftpDriver()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-73] |
+| `Illuminate\Support\Facades\Storage` | `createS3Driver()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-73] |
+| `Illuminate\Support\Facades\Storage` | `createReadThroughDriver()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-73] |
+| `Illuminate\Support\Facades\Storage` | `createScopedDriver()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-73] |
+| `Illuminate\Support\Facades\Storage` | `set()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-73] |
+| `Illuminate\Support\Facades\Storage` | `getDefaultDriver()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-73] |
+| `Illuminate\Support\Facades\Storage` | `getDefaultCloudDriver()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-73] |
+| `Illuminate\Support\Facades\Storage` | `forgetDisk()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-73] |
+| `Illuminate\Support\Facades\Storage` | `purge()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-73] |
+| `Illuminate\Support\Facades\Storage` | `extend()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-73] |
+| `Illuminate\Support\Facades\Storage` | `setApplication()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-73] |
+| `Illuminate\Support\Facades\Storage` | `path()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-73] |
+| `Illuminate\Support\Facades\Storage` | `exists()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-73] |
+| `Illuminate\Support\Facades\Storage` | `get()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-73] |
+| `Illuminate\Support\Facades\Storage` | `readStream()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-73] |
+| `Illuminate\Support\Facades\Storage` | `put()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-73] |
+| `Illuminate\Support\Facades\Storage` | `putFile()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-73] |
+| `Illuminate\Support\Facades\Storage` | `putFileAs()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-73] |
+| `Illuminate\Support\Facades\Storage` | `writeStream()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-73] |
+| `Illuminate\Support\Facades\Storage` | `getVisibility()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-73] |
+| `Illuminate\Support\Facades\Storage` | `setVisibility()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-73] |
+| `Illuminate\Support\Facades\Storage` | `prepend()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-73] |
+| `Illuminate\Support\Facades\Storage` | `append()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-73] |
+| `Illuminate\Support\Facades\Storage` | `delete()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-73] |
+| `Illuminate\Support\Facades\Storage` | `copy()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-73] |
+| `Illuminate\Support\Facades\Storage` | `move()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-73] |
+| `Illuminate\Support\Facades\Storage` | `size()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-73] |
+| `Illuminate\Support\Facades\Storage` | `lastModified()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-73] |
+| `Illuminate\Support\Facades\Storage` | `files()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-73] |
+| `Illuminate\Support\Facades\Storage` | `allFiles()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-73] |
+| `Illuminate\Support\Facades\Storage` | `directories()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-73] |
+| `Illuminate\Support\Facades\Storage` | `allDirectories()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-73] |
+| `Illuminate\Support\Facades\Storage` | `makeDirectory()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-73] |
+| `Illuminate\Support\Facades\Storage` | `deleteDirectory()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-73] |
+| `Illuminate\Support\Facades\Storage` | `assertExists()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-73] |
+| `Illuminate\Support\Facades\Storage` | `assertCount()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-73] |
+| `Illuminate\Support\Facades\Storage` | `assertMissing()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-73] |
+| `Illuminate\Support\Facades\Storage` | `assertDirectoryEmpty()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-73] |
+| `Illuminate\Support\Facades\Storage` | `assertEmpty()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-73] |
+| `Illuminate\Support\Facades\Storage` | `missing()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-73] |
+| `Illuminate\Support\Facades\Storage` | `fileExists()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-73] |
+| `Illuminate\Support\Facades\Storage` | `fileMissing()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-73] |
+| `Illuminate\Support\Facades\Storage` | `directoryExists()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-73] |
+| `Illuminate\Support\Facades\Storage` | `directoryMissing()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-73] |
+| `Illuminate\Support\Facades\Storage` | `json()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-73] |
+| `Illuminate\Support\Facades\Storage` | `response()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-73] |
+| `Illuminate\Support\Facades\Storage` | `serve()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-73] |
+| `Illuminate\Support\Facades\Storage` | `download()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-73] |
+| `Illuminate\Support\Facades\Storage` | `image()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-73] |
+| `Illuminate\Support\Facades\Storage` | `copyToDisk()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-73] |
+| `Illuminate\Support\Facades\Storage` | `moveToDisk()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-73] |
+| `Illuminate\Support\Facades\Storage` | `checksum()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-73] |
+| `Illuminate\Support\Facades\Storage` | `mimeType()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-73] |
+| `Illuminate\Support\Facades\Storage` | `url()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-73] |
+| `Illuminate\Support\Facades\Storage` | `providesTemporaryUrls()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-73] |
+| `Illuminate\Support\Facades\Storage` | `providesTemporaryUploadUrls()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-73] |
+| `Illuminate\Support\Facades\Storage` | `temporaryUrl()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-73] |
+| `Illuminate\Support\Facades\Storage` | `temporaryUploadUrl()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-73] |
+| `Illuminate\Support\Facades\Storage` | `getDriver()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-73] |
+| `Illuminate\Support\Facades\Storage` | `getAdapter()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-73] |
+| `Illuminate\Support\Facades\Storage` | `getConfig()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-73] |
+| `Illuminate\Support\Facades\Storage` | `serveUsing()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-73] |
+| `Illuminate\Support\Facades\Storage` | `buildTemporaryUrlsUsing()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-73] |
+| `Illuminate\Support\Facades\Storage` | `buildTemporaryUploadUrlsUsing()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-73] |
+| `Illuminate\Support\Facades\Storage` | `when()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-73] |
+| `Illuminate\Support\Facades\Storage` | `unless()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-73] |
+| `Illuminate\Support\Facades\Storage` | `macro()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-73] |
+| `Illuminate\Support\Facades\Storage` | `mixin()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-73] |
+| `Illuminate\Support\Facades\Storage` | `hasMacro()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-73] |
+| `Illuminate\Support\Facades\Storage` | `flushMacros()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-73] |
+| `Illuminate\Support\Facades\Storage` | `macroCall()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-73] |
+| `Illuminate\Support\Facades\Storage` | `has()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-73] |
+| `Illuminate\Support\Facades\Storage` | `read()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-73] |
+| `Illuminate\Support\Facades\Storage` | `listContents()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-73] |
+| `Illuminate\Support\Facades\Storage` | `fileSize()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-73] |
+| `Illuminate\Support\Facades\Storage` | `visibility()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-73] |
+| `Illuminate\Support\Facades\Storage` | `write()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-73] |
+| `Illuminate\Support\Facades\Storage` | `createDirectory()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-73] |
+
+</details>
+
+<details>
+<summary>Illuminate\Support\Facades\URL — 46 listed public members (class)</summary>
+
+| Upstream class | Upstream API | Titanspan API | Implementation location | Compatibility status | Test evidence | Differences | Upstream reference |
+|---|---|---|---|---|---|---|---|
+| `Illuminate\Support\Facades\URL` | `full()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-74] |
+| `Illuminate\Support\Facades\URL` | `current()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-74] |
+| `Illuminate\Support\Facades\URL` | `previous()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-74] |
+| `Illuminate\Support\Facades\URL` | `previousPath()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-74] |
+| `Illuminate\Support\Facades\URL` | `to()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-74] |
+| `Illuminate\Support\Facades\URL` | `query()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-74] |
+| `Illuminate\Support\Facades\URL` | `secure()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-74] |
+| `Illuminate\Support\Facades\URL` | `asset()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-74] |
+| `Illuminate\Support\Facades\URL` | `secureAsset()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-74] |
+| `Illuminate\Support\Facades\URL` | `assetFrom()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-74] |
+| `Illuminate\Support\Facades\URL` | `formatScheme()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-74] |
+| `Illuminate\Support\Facades\URL` | `signedRoute()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-74] |
+| `Illuminate\Support\Facades\URL` | `temporarySignedRoute()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-74] |
+| `Illuminate\Support\Facades\URL` | `hasValidSignature()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-74] |
+| `Illuminate\Support\Facades\URL` | `hasValidRelativeSignature()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-74] |
+| `Illuminate\Support\Facades\URL` | `hasCorrectSignature()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-74] |
+| `Illuminate\Support\Facades\URL` | `signatureHasNotExpired()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-74] |
+| `Illuminate\Support\Facades\URL` | `route()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-74] |
+| `Illuminate\Support\Facades\URL` | `toRoute()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-74] |
+| `Illuminate\Support\Facades\URL` | `action()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-74] |
+| `Illuminate\Support\Facades\URL` | `formatParameters()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-74] |
+| `Illuminate\Support\Facades\URL` | `formatRoot()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-74] |
+| `Illuminate\Support\Facades\URL` | `format()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-74] |
+| `Illuminate\Support\Facades\URL` | `isValidUrl()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-74] |
+| `Illuminate\Support\Facades\URL` | `defaults()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-74] |
+| `Illuminate\Support\Facades\URL` | `getDefaultParameters()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-74] |
+| `Illuminate\Support\Facades\URL` | `forceScheme()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-74] |
+| `Illuminate\Support\Facades\URL` | `forceHttps()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-74] |
+| `Illuminate\Support\Facades\URL` | `useOrigin()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-74] |
+| `Illuminate\Support\Facades\URL` | `useAssetOrigin()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-74] |
+| `Illuminate\Support\Facades\URL` | `formatHostUsing()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-74] |
+| `Illuminate\Support\Facades\URL` | `formatPathUsing()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-74] |
+| `Illuminate\Support\Facades\URL` | `pathFormatter()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-74] |
+| `Illuminate\Support\Facades\URL` | `getRequest()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-74] |
+| `Illuminate\Support\Facades\URL` | `setRequest()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-74] |
+| `Illuminate\Support\Facades\URL` | `setRoutes()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-74] |
+| `Illuminate\Support\Facades\URL` | `setSessionResolver()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-74] |
+| `Illuminate\Support\Facades\URL` | `setKeyResolver()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-74] |
+| `Illuminate\Support\Facades\URL` | `withKeyResolver()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-74] |
+| `Illuminate\Support\Facades\URL` | `resolveMissingNamedRoutesUsing()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-74] |
+| `Illuminate\Support\Facades\URL` | `getRootControllerNamespace()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-74] |
+| `Illuminate\Support\Facades\URL` | `setRootControllerNamespace()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-74] |
+| `Illuminate\Support\Facades\URL` | `macro()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-74] |
+| `Illuminate\Support\Facades\URL` | `mixin()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-74] |
+| `Illuminate\Support\Facades\URL` | `hasMacro()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-74] |
+| `Illuminate\Support\Facades\URL` | `flushMacros()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-74] |
+
+</details>
+
+<details>
+<summary>Illuminate\Support\Facades\Validator — 15 listed public members (class)</summary>
+
+| Upstream class | Upstream API | Titanspan API | Implementation location | Compatibility status | Test evidence | Differences | Upstream reference |
+|---|---|---|---|---|---|---|---|
+| `Illuminate\Support\Facades\Validator` | `make()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-75] |
+| `Illuminate\Support\Facades\Validator` | `validate()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-75] |
+| `Illuminate\Support\Facades\Validator` | `extend()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-75] |
+| `Illuminate\Support\Facades\Validator` | `extendImplicit()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-75] |
+| `Illuminate\Support\Facades\Validator` | `extendDependent()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-75] |
+| `Illuminate\Support\Facades\Validator` | `replacer()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-75] |
+| `Illuminate\Support\Facades\Validator` | `includeUnvalidatedArrayKeys()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-75] |
+| `Illuminate\Support\Facades\Validator` | `excludeUnvalidatedArrayKeys()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-75] |
+| `Illuminate\Support\Facades\Validator` | `fakeDnsLookups()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-75] |
+| `Illuminate\Support\Facades\Validator` | `resolver()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-75] |
+| `Illuminate\Support\Facades\Validator` | `getTranslator()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-75] |
+| `Illuminate\Support\Facades\Validator` | `getPresenceVerifier()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-75] |
+| `Illuminate\Support\Facades\Validator` | `setPresenceVerifier()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-75] |
+| `Illuminate\Support\Facades\Validator` | `getContainer()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-75] |
+| `Illuminate\Support\Facades\Validator` | `setContainer()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-75] |
+
+</details>
+
+<details>
+<summary>Illuminate\Support\Facades\View — 79 listed public members (class)</summary>
+
+| Upstream class | Upstream API | Titanspan API | Implementation location | Compatibility status | Test evidence | Differences | Upstream reference |
+|---|---|---|---|---|---|---|---|
+| `Illuminate\Support\Facades\View` | `file()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-76] |
+| `Illuminate\Support\Facades\View` | `make()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-76] |
+| `Illuminate\Support\Facades\View` | `first()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-76] |
+| `Illuminate\Support\Facades\View` | `renderWhen()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-76] |
+| `Illuminate\Support\Facades\View` | `renderUnless()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-76] |
+| `Illuminate\Support\Facades\View` | `renderEach()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-76] |
+| `Illuminate\Support\Facades\View` | `exists()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-76] |
+| `Illuminate\Support\Facades\View` | `getEngineFromPath()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-76] |
+| `Illuminate\Support\Facades\View` | `share()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-76] |
+| `Illuminate\Support\Facades\View` | `incrementRender()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-76] |
+| `Illuminate\Support\Facades\View` | `decrementRender()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-76] |
+| `Illuminate\Support\Facades\View` | `doneRendering()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-76] |
+| `Illuminate\Support\Facades\View` | `hasRenderedOnce()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-76] |
+| `Illuminate\Support\Facades\View` | `markAsRenderedOnce()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-76] |
+| `Illuminate\Support\Facades\View` | `addLocation()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-76] |
+| `Illuminate\Support\Facades\View` | `prependLocation()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-76] |
+| `Illuminate\Support\Facades\View` | `addNamespace()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-76] |
+| `Illuminate\Support\Facades\View` | `prependNamespace()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-76] |
+| `Illuminate\Support\Facades\View` | `replaceNamespace()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-76] |
+| `Illuminate\Support\Facades\View` | `addExtension()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-76] |
+| `Illuminate\Support\Facades\View` | `flushState()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-76] |
+| `Illuminate\Support\Facades\View` | `flushStateIfDoneRendering()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-76] |
+| `Illuminate\Support\Facades\View` | `getExtensions()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-76] |
+| `Illuminate\Support\Facades\View` | `getEngineResolver()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-76] |
+| `Illuminate\Support\Facades\View` | `getFinder()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-76] |
+| `Illuminate\Support\Facades\View` | `setFinder()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-76] |
+| `Illuminate\Support\Facades\View` | `flushFinderCache()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-76] |
+| `Illuminate\Support\Facades\View` | `getDispatcher()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-76] |
+| `Illuminate\Support\Facades\View` | `setDispatcher()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-76] |
+| `Illuminate\Support\Facades\View` | `getContainer()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-76] |
+| `Illuminate\Support\Facades\View` | `setContainer()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-76] |
+| `Illuminate\Support\Facades\View` | `shared()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-76] |
+| `Illuminate\Support\Facades\View` | `getShared()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-76] |
+| `Illuminate\Support\Facades\View` | `macro()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-76] |
+| `Illuminate\Support\Facades\View` | `mixin()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-76] |
+| `Illuminate\Support\Facades\View` | `hasMacro()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-76] |
+| `Illuminate\Support\Facades\View` | `flushMacros()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-76] |
+| `Illuminate\Support\Facades\View` | `startComponent()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-76] |
+| `Illuminate\Support\Facades\View` | `startComponentFirst()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-76] |
+| `Illuminate\Support\Facades\View` | `renderComponent()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-76] |
+| `Illuminate\Support\Facades\View` | `getConsumableComponentData()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-76] |
+| `Illuminate\Support\Facades\View` | `slot()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-76] |
+| `Illuminate\Support\Facades\View` | `endSlot()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-76] |
+| `Illuminate\Support\Facades\View` | `creator()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-76] |
+| `Illuminate\Support\Facades\View` | `composers()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-76] |
+| `Illuminate\Support\Facades\View` | `composer()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-76] |
+| `Illuminate\Support\Facades\View` | `callComposer()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-76] |
+| `Illuminate\Support\Facades\View` | `callCreator()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-76] |
+| `Illuminate\Support\Facades\View` | `startFragment()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-76] |
+| `Illuminate\Support\Facades\View` | `stopFragment()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-76] |
+| `Illuminate\Support\Facades\View` | `getFragment()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-76] |
+| `Illuminate\Support\Facades\View` | `getFragments()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-76] |
+| `Illuminate\Support\Facades\View` | `flushFragments()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-76] |
+| `Illuminate\Support\Facades\View` | `startSection()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-76] |
+| `Illuminate\Support\Facades\View` | `inject()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-76] |
+| `Illuminate\Support\Facades\View` | `yieldSection()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-76] |
+| `Illuminate\Support\Facades\View` | `stopSection()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-76] |
+| `Illuminate\Support\Facades\View` | `appendSection()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-76] |
+| `Illuminate\Support\Facades\View` | `yieldContent()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-76] |
+| `Illuminate\Support\Facades\View` | `parentPlaceholder()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-76] |
+| `Illuminate\Support\Facades\View` | `hasSection()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-76] |
+| `Illuminate\Support\Facades\View` | `sectionMissing()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-76] |
+| `Illuminate\Support\Facades\View` | `getSection()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-76] |
+| `Illuminate\Support\Facades\View` | `getSections()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-76] |
+| `Illuminate\Support\Facades\View` | `flushSections()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-76] |
+| `Illuminate\Support\Facades\View` | `addLoop()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-76] |
+| `Illuminate\Support\Facades\View` | `incrementLoopIndices()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-76] |
+| `Illuminate\Support\Facades\View` | `popLoop()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-76] |
+| `Illuminate\Support\Facades\View` | `getLastLoop()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-76] |
+| `Illuminate\Support\Facades\View` | `getLoopStack()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-76] |
+| `Illuminate\Support\Facades\View` | `startPush()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-76] |
+| `Illuminate\Support\Facades\View` | `stopPush()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-76] |
+| `Illuminate\Support\Facades\View` | `startPrepend()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-76] |
+| `Illuminate\Support\Facades\View` | `stopPrepend()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-76] |
+| `Illuminate\Support\Facades\View` | `yieldPushContent()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-76] |
+| `Illuminate\Support\Facades\View` | `isStackEmpty()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-76] |
+| `Illuminate\Support\Facades\View` | `flushStacks()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-76] |
+| `Illuminate\Support\Facades\View` | `startTranslation()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-76] |
+| `Illuminate\Support\Facades\View` | `renderTranslation()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-76] |
+
+</details>
+
+<details>
+<summary>Illuminate\Support\Facades\Vite — 32 listed public members (class)</summary>
+
+| Upstream class | Upstream API | Titanspan API | Implementation location | Compatibility status | Test evidence | Differences | Upstream reference |
+|---|---|---|---|---|---|---|---|
+| `Illuminate\Support\Facades\Vite` | `preloadedAssets()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-77] |
+| `Illuminate\Support\Facades\Vite` | `cspNonce()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-77] |
+| `Illuminate\Support\Facades\Vite` | `useCspNonce()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-77] |
+| `Illuminate\Support\Facades\Vite` | `useIntegrityKey()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-77] |
+| `Illuminate\Support\Facades\Vite` | `withEntryPoints()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-77] |
+| `Illuminate\Support\Facades\Vite` | `mergeEntryPoints()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-77] |
+| `Illuminate\Support\Facades\Vite` | `useManifestFilename()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-77] |
+| `Illuminate\Support\Facades\Vite` | `createAssetPathsUsing()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-77] |
+| `Illuminate\Support\Facades\Vite` | `hotFile()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-77] |
+| `Illuminate\Support\Facades\Vite` | `useHotFile()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-77] |
+| `Illuminate\Support\Facades\Vite` | `useBuildDirectory()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-77] |
+| `Illuminate\Support\Facades\Vite` | `useScriptTagAttributes()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-77] |
+| `Illuminate\Support\Facades\Vite` | `useStyleTagAttributes()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-77] |
+| `Illuminate\Support\Facades\Vite` | `usePreloadTagAttributes()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-77] |
+| `Illuminate\Support\Facades\Vite` | `prefetch()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-77] |
+| `Illuminate\Support\Facades\Vite` | `useWaterfallPrefetching()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-77] |
+| `Illuminate\Support\Facades\Vite` | `useAggressivePrefetching()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-77] |
+| `Illuminate\Support\Facades\Vite` | `usePrefetchStrategy()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-77] |
+| `Illuminate\Support\Facades\Vite` | `reactRefresh()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-77] |
+| `Illuminate\Support\Facades\Vite` | `devServerUrl()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-77] |
+| `Illuminate\Support\Facades\Vite` | `asset()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-77] |
+| `Illuminate\Support\Facades\Vite` | `content()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-77] |
+| `Illuminate\Support\Facades\Vite` | `manifestHash()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-77] |
+| `Illuminate\Support\Facades\Vite` | `fonts()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-77] |
+| `Illuminate\Support\Facades\Vite` | `useFontsManifestFilename()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-77] |
+| `Illuminate\Support\Facades\Vite` | `isRunningHot()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-77] |
+| `Illuminate\Support\Facades\Vite` | `toHtml()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-77] |
+| `Illuminate\Support\Facades\Vite` | `flush()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-77] |
+| `Illuminate\Support\Facades\Vite` | `macro()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-77] |
+| `Illuminate\Support\Facades\Vite` | `mixin()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-77] |
+| `Illuminate\Support\Facades\Vite` | `hasMacro()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-77] |
+| `Illuminate\Support\Facades\Vite` | `flushMacros()` | — | Canonical owner: `titanspan.facades` (not implemented). | **Blocked** | — | Depends on its owning service module, which is not implemented. | [source][source-77] |
+
+</details>
+
+<details>
+<summary>Illuminate\Support\Fluent — 25 listed public members (class)</summary>
+
+| Upstream class | Upstream API | Titanspan API | Implementation location | Compatibility status | Test evidence | Differences | Upstream reference |
+|---|---|---|---|---|---|---|---|
+| `Illuminate\Support\Fluent` | `__construct()` | `Fluent(attributes)` | `src/titanspan/support/fluent.py` | **Python-adapted parity** | `tests/unit/support/test_fluent.py` | Constructs from mappings, pair iterables, value iterables, model converters, and scalar values. | [source][source-78] |
+| `Illuminate\Support\Fluent` | `make()` | `Fluent.make` | `src/titanspan/support/fluent.py` | **Python-adapted parity** | `tests/unit/support/test_fluent.py` | Returns an instance of the receiving Python subclass. | [source][source-78] |
+| `Illuminate\Support\Fluent` | `get()` | `Fluent.get` | `src/titanspan/support/fluent.py` | **Python-adapted parity** | `tests/unit/support/test_fluent.py` | Supports dot paths and Python object/mapping semantics. | [source][source-78] |
+| `Illuminate\Support\Fluent` | `set()` | `Fluent.set` | `src/titanspan/support/fluent.py` | **Python-adapted parity** | `tests/unit/support/test_fluent.py` | Mutates nested Python mappings and returns the same instance. | [source][source-78] |
+| `Illuminate\Support\Fluent` | `fill()` | `Fluent.fill` | `src/titanspan/support/fluent.py` | **Python-adapted parity** | `tests/unit/support/test_fluent.py` | Python mappings retain keys; value iterables receive integer keys. | [source][source-78] |
+| `Illuminate\Support\Fluent` | `value()` | `Fluent.value` | `src/titanspan/support/fluent.py` | **Python-adapted parity** | `tests/unit/support/test_fluent.py` | Reads direct keys and resolves Python callable defaults. | [source][source-78] |
+| `Illuminate\Support\Fluent` | `scope()` | `Fluent.scope` | `src/titanspan/support/fluent.py` | **Python-adapted parity** | `tests/unit/support/test_fluent.py` | Returns an instance of the same Python Fluent subclass. | [source][source-78] |
+| `Illuminate\Support\Fluent` | `all()` | `Fluent.all` | `src/titanspan/support/fluent.py` | **Python-adapted parity** | `tests/unit/support/test_fluent.py` | Returns a shallow dictionary copy and supports Python iterable key lists. | [source][source-78] |
+| `Illuminate\Support\Fluent` | `getAttributes()` | `Fluent.get_attributes / Fluent.getAttributes` | `src/titanspan/support/fluent.py` | **Python-adapted parity** | `tests/unit/support/test_fluent.py` | Returns a shallow copy rather than the PHP array value. | [source][source-78] |
+| `Illuminate\Support\Fluent` | `toArray()` | `Fluent.to_array / Fluent.toArray` | `src/titanspan/support/fluent.py` | **Python-adapted parity** | `tests/unit/support/test_fluent.py` | Returns a shallow dictionary copy. | [source][source-78] |
+| `Illuminate\Support\Fluent` | `jsonSerialize()` | `Fluent.json_serialize / Fluent.jsonSerialize` | `src/titanspan/support/fluent.py` | **Python-adapted parity** | `tests/unit/support/test_fluent.py` | Returns a shallow dictionary copy for Python JSON serialization. | [source][source-78] |
+| `Illuminate\Support\Fluent` | `toJson()` | `Fluent.to_json / Fluent.toJson` | `src/titanspan/support/fluent.py` | **Python-adapted parity** | `tests/unit/support/test_fluent.py` | Maps pretty-print and unescaped-Unicode bits; other PHP JSON flags are not interpreted. | [source][source-78] |
+| `Illuminate\Support\Fluent` | `toPrettyJson()` | `Fluent.to_pretty_json / Fluent.toPrettyJson` | `src/titanspan/support/fluent.py` | **Python-adapted parity** | `tests/unit/support/test_fluent.py` | Uses Python's JSON encoder and four-space indentation. | [source][source-78] |
+| `Illuminate\Support\Fluent` | `isEmpty()` | `Fluent.is_empty / Fluent.isEmpty` | `src/titanspan/support/fluent.py` | **Python-adapted parity** | `tests/unit/support/test_fluent.py` | Checks whether the Python attribute dictionary has no keys. | [source][source-78] |
+| `Illuminate\Support\Fluent` | `isNotEmpty()` | `Fluent.is_not_empty / Fluent.isNotEmpty` | `src/titanspan/support/fluent.py` | **Python-adapted parity** | `tests/unit/support/test_fluent.py` | Checks whether the Python attribute dictionary has keys. | [source][source-78] |
+| `Illuminate\Support\Fluent` | `offsetExists()` | `Fluent.__contains__ / Fluent.is_set` | `src/titanspan/support/fluent.py` | **Python-adapted parity** | `tests/unit/support/test_fluent.py` | Follows Laravel isset semantics: an existing None value is false. | [source][source-78] |
+| `Illuminate\Support\Fluent` | `offsetGet()` | `Fluent.__getitem__` | `src/titanspan/support/fluent.py` | **Python-adapted parity** | `tests/unit/support/test_fluent.py` | Returns None for missing keys rather than raising KeyError. | [source][source-78] |
+| `Illuminate\Support\Fluent` | `offsetSet()` | `Fluent.__setitem__` | `src/titanspan/support/fluent.py` | **Python-adapted parity** | `tests/unit/support/test_fluent.py` | Assigns a direct key using Python mapping syntax. | [source][source-78] |
+| `Illuminate\Support\Fluent` | `offsetUnset()` | `Fluent.__delitem__` | `src/titanspan/support/fluent.py` | **Python-adapted parity** | `tests/unit/support/test_fluent.py` | Deleting a missing key is a no-op. | [source][source-78] |
+| `Illuminate\Support\Fluent` | `getIterator()` | `Fluent.get_iterator / Fluent.getIterator` | `src/titanspan/support/fluent.py` | **Python-adapted parity** | `tests/unit/support/test_fluent.py` | Yields key/value pairs; Python iteration itself yields keys. | [source][source-78] |
+| `Illuminate\Support\Fluent` | `__call()` | `Fluent.dynamic_call` | `src/titanspan/support/fluent.py` | **Python-adapted parity** | `tests/unit/support/test_fluent.py` | Uses an explicit typed API instead of PHP magic calls. | [source][source-78] |
+| `Illuminate\Support\Fluent` | `__get()` | `Fluent.__getattr__` | `src/titanspan/support/fluent.py` | **Python-adapted parity** | `tests/unit/support/test_fluent.py` | Missing dynamic attributes resolve to None; type checkers cannot infer stored fields. | [source][source-78] |
+| `Illuminate\Support\Fluent` | `__set()` | `Fluent.__setattr__` | `src/titanspan/support/fluent.py` | **Python-adapted parity** | `tests/unit/support/test_fluent.py` | Method-name collisions require explicit mapping access. | [source][source-78] |
+| `Illuminate\Support\Fluent` | `__isset()` | `Fluent.is_set` | `src/titanspan/support/fluent.py` | **Python-adapted parity** | `tests/unit/support/test_fluent.py` | Returns false for missing keys and keys containing None. | [source][source-78] |
+| `Illuminate\Support\Fluent` | `__unset()` | `Fluent.__delattr__` | `src/titanspan/support/fluent.py` | **Python-adapted parity** | `tests/unit/support/test_fluent.py` | Removes dynamic attribute values from the owned dictionary. | [source][source-78] |
+
+</details>
+
+<details>
+<summary>Illuminate\Support\HigherOrderCollectionProxy — 3 listed public members (class)</summary>
+
+| Upstream class | Upstream API | Titanspan API | Implementation location | Compatibility status | Test evidence | Differences | Upstream reference |
+|---|---|---|---|---|---|---|---|
+| `Illuminate\Support\HigherOrderCollectionProxy` | `__construct()` | — | Canonical owner: `titanspan.collections` (not implemented). | **Blocked** | — | Canonical ownership is `titanspan.collections`, which is not implemented yet. | [source][source-79] |
+| `Illuminate\Support\HigherOrderCollectionProxy` | `__get()` | — | Canonical owner: `titanspan.collections` (not implemented). | **Blocked** | — | Canonical ownership is `titanspan.collections`, which is not implemented yet. | [source][source-79] |
+| `Illuminate\Support\HigherOrderCollectionProxy` | `__call()` | — | Canonical owner: `titanspan.collections` (not implemented). | **Blocked** | — | Canonical ownership is `titanspan.collections`, which is not implemented yet. | [source][source-79] |
+
+</details>
+
+<details>
+<summary>Illuminate\Support\HigherOrderTapProxy — 2 listed public members (class)</summary>
+
+| Upstream class | Upstream API | Titanspan API | Implementation location | Compatibility status | Test evidence | Differences | Upstream reference |
+|---|---|---|---|---|---|---|---|
+| `Illuminate\Support\HigherOrderTapProxy` | `__construct()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-80] |
+| `Illuminate\Support\HigherOrderTapProxy` | `__call()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-80] |
+
+</details>
+
+<details>
+<summary>Illuminate\Support\HigherOrderWhenProxy — 5 listed public members (class)</summary>
+
+| Upstream class | Upstream API | Titanspan API | Implementation location | Compatibility status | Test evidence | Differences | Upstream reference |
+|---|---|---|---|---|---|---|---|
+| `Illuminate\Support\HigherOrderWhenProxy` | `__construct()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-81] |
+| `Illuminate\Support\HigherOrderWhenProxy` | `condition()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-81] |
+| `Illuminate\Support\HigherOrderWhenProxy` | `negateConditionOnCapture()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-81] |
+| `Illuminate\Support\HigherOrderWhenProxy` | `__get()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-81] |
+| `Illuminate\Support\HigherOrderWhenProxy` | `__call()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-81] |
+
+</details>
+
+<details>
+<summary>Illuminate\Support\HtmlString — 5 listed public members (class)</summary>
+
+| Upstream class | Upstream API | Titanspan API | Implementation location | Compatibility status | Test evidence | Differences | Upstream reference |
+|---|---|---|---|---|---|---|---|
+| `Illuminate\Support\HtmlString` | `__construct()` | `HtmlString(html)` | `src/titanspan/support/html_string.py` | **Python-adapted parity** | `tests/unit/support/test_html_strings.py` | Accepts str or None; None renders as an empty string. | [source][source-82] |
+| `Illuminate\Support\HtmlString` | `toHtml()` | `HtmlString.to_html / HtmlString.toHtml` | `src/titanspan/support/html_string.py` | **Python-adapted parity** | `tests/unit/support/test_html_strings.py` | Returns trusted markup without escaping. | [source][source-82] |
+| `Illuminate\Support\HtmlString` | `isEmpty()` | `HtmlString.is_empty / HtmlString.isEmpty` | `src/titanspan/support/html_string.py` | **Python-adapted parity** | `tests/unit/support/test_html_strings.py` | Whitespace-only markup is considered non-empty. | [source][source-82] |
+| `Illuminate\Support\HtmlString` | `isNotEmpty()` | `HtmlString.is_not_empty / HtmlString.isNotEmpty` | `src/titanspan/support/html_string.py` | **Python-adapted parity** | `tests/unit/support/test_html_strings.py` | Whitespace-only markup is considered non-empty. | [source][source-82] |
+| `Illuminate\Support\HtmlString` | `__toString()` | `HtmlString.__str__` | `src/titanspan/support/html_string.py` | **Python-adapted parity** | `tests/unit/support/test_html_strings.py` | Uses Python's string conversion protocol. | [source][source-82] |
+
+</details>
+
+<details>
+<summary>Illuminate\Support\InteractsWithTime — 0 listed public members (trait)</summary>
+
+| Upstream class | Upstream API | Titanspan API | Implementation location | Compatibility status | Test evidence | Differences | Upstream reference |
+|---|---|---|---|---|---|---|---|
+| `Illuminate\Support\InteractsWithTime` | Public type declaration | — | Not implemented | | Pending | — | No public members were found by the source scan. | [source][source-83] |
+
+</details>
+
+<details>
+<summary>Illuminate\Support\ItemNotFoundException — 0 listed public members (class)</summary>
+
+| Upstream class | Upstream API | Titanspan API | Implementation location | Compatibility status | Test evidence | Differences | Upstream reference |
+|---|---|---|---|---|---|---|---|
+| `Illuminate\Support\ItemNotFoundException` | Public type declaration | — | Not implemented | | Pending | — | No public members were found by the source scan. | [source][source-84] |
+
+</details>
+
+<details>
+<summary>Illuminate\Support\Js — 5 listed public members (class)</summary>
+
+| Upstream class | Upstream API | Titanspan API | Implementation location | Compatibility status | Test evidence | Differences | Upstream reference |
+|---|---|---|---|---|---|---|---|
+| `Illuminate\Support\Js` | `__construct()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-85] |
+| `Illuminate\Support\Js` | `from()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-85] |
+| `Illuminate\Support\Js` | `encode()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-85] |
+| `Illuminate\Support\Js` | `toHtml()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-85] |
+| `Illuminate\Support\Js` | `__toString()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-85] |
+
+</details>
+
+<details>
+<summary>Illuminate\Support\LazyCollection — 101 listed public members (class)</summary>
+
+| Upstream class | Upstream API | Titanspan API | Implementation location | Compatibility status | Test evidence | Differences | Upstream reference |
+|---|---|---|---|---|---|---|---|
+| `Illuminate\Support\LazyCollection` | `__construct()` | — | Canonical owner: `titanspan.collections` (not implemented). | **Blocked** | — | Canonical ownership is `titanspan.collections`, which is not implemented yet. | [source][source-86] |
+| `Illuminate\Support\LazyCollection` | `make()` | — | Canonical owner: `titanspan.collections` (not implemented). | **Blocked** | — | Canonical ownership is `titanspan.collections`, which is not implemented yet. | [source][source-86] |
+| `Illuminate\Support\LazyCollection` | `range()` | — | Canonical owner: `titanspan.collections` (not implemented). | **Blocked** | — | Canonical ownership is `titanspan.collections`, which is not implemented yet. | [source][source-86] |
+| `Illuminate\Support\LazyCollection` | `all()` | — | Canonical owner: `titanspan.collections` (not implemented). | **Blocked** | — | Canonical ownership is `titanspan.collections`, which is not implemented yet. | [source][source-86] |
+| `Illuminate\Support\LazyCollection` | `eager()` | — | Canonical owner: `titanspan.collections` (not implemented). | **Blocked** | — | Canonical ownership is `titanspan.collections`, which is not implemented yet. | [source][source-86] |
+| `Illuminate\Support\LazyCollection` | `remember()` | — | Canonical owner: `titanspan.collections` (not implemented). | **Blocked** | — | Canonical ownership is `titanspan.collections`, which is not implemented yet. | [source][source-86] |
+| `Illuminate\Support\LazyCollection` | `median()` | — | Canonical owner: `titanspan.collections` (not implemented). | **Blocked** | — | Canonical ownership is `titanspan.collections`, which is not implemented yet. | [source][source-86] |
+| `Illuminate\Support\LazyCollection` | `mode()` | — | Canonical owner: `titanspan.collections` (not implemented). | **Blocked** | — | Canonical ownership is `titanspan.collections`, which is not implemented yet. | [source][source-86] |
+| `Illuminate\Support\LazyCollection` | `collapse()` | — | Canonical owner: `titanspan.collections` (not implemented). | **Blocked** | — | Canonical ownership is `titanspan.collections`, which is not implemented yet. | [source][source-86] |
+| `Illuminate\Support\LazyCollection` | `collapseWithKeys()` | — | Canonical owner: `titanspan.collections` (not implemented). | **Blocked** | — | Canonical ownership is `titanspan.collections`, which is not implemented yet. | [source][source-86] |
+| `Illuminate\Support\LazyCollection` | `contains()` | — | Canonical owner: `titanspan.collections` (not implemented). | **Blocked** | — | Canonical ownership is `titanspan.collections`, which is not implemented yet. | [source][source-86] |
+| `Illuminate\Support\LazyCollection` | `containsStrict()` | — | Canonical owner: `titanspan.collections` (not implemented). | **Blocked** | — | Canonical ownership is `titanspan.collections`, which is not implemented yet. | [source][source-86] |
+| `Illuminate\Support\LazyCollection` | `doesntContain()` | — | Canonical owner: `titanspan.collections` (not implemented). | **Blocked** | — | Canonical ownership is `titanspan.collections`, which is not implemented yet. | [source][source-86] |
+| `Illuminate\Support\LazyCollection` | `doesntContainStrict()` | — | Canonical owner: `titanspan.collections` (not implemented). | **Blocked** | — | Canonical ownership is `titanspan.collections`, which is not implemented yet. | [source][source-86] |
+| `Illuminate\Support\LazyCollection` | `crossJoin()` | — | Canonical owner: `titanspan.collections` (not implemented). | **Blocked** | — | Canonical ownership is `titanspan.collections`, which is not implemented yet. | [source][source-86] |
+| `Illuminate\Support\LazyCollection` | `countBy()` | — | Canonical owner: `titanspan.collections` (not implemented). | **Blocked** | — | Canonical ownership is `titanspan.collections`, which is not implemented yet. | [source][source-86] |
+| `Illuminate\Support\LazyCollection` | `diff()` | — | Canonical owner: `titanspan.collections` (not implemented). | **Blocked** | — | Canonical ownership is `titanspan.collections`, which is not implemented yet. | [source][source-86] |
+| `Illuminate\Support\LazyCollection` | `diffUsing()` | — | Canonical owner: `titanspan.collections` (not implemented). | **Blocked** | — | Canonical ownership is `titanspan.collections`, which is not implemented yet. | [source][source-86] |
+| `Illuminate\Support\LazyCollection` | `diffAssoc()` | — | Canonical owner: `titanspan.collections` (not implemented). | **Blocked** | — | Canonical ownership is `titanspan.collections`, which is not implemented yet. | [source][source-86] |
+| `Illuminate\Support\LazyCollection` | `diffAssocUsing()` | — | Canonical owner: `titanspan.collections` (not implemented). | **Blocked** | — | Canonical ownership is `titanspan.collections`, which is not implemented yet. | [source][source-86] |
+| `Illuminate\Support\LazyCollection` | `diffKeys()` | — | Canonical owner: `titanspan.collections` (not implemented). | **Blocked** | — | Canonical ownership is `titanspan.collections`, which is not implemented yet. | [source][source-86] |
+| `Illuminate\Support\LazyCollection` | `diffKeysUsing()` | — | Canonical owner: `titanspan.collections` (not implemented). | **Blocked** | — | Canonical ownership is `titanspan.collections`, which is not implemented yet. | [source][source-86] |
+| `Illuminate\Support\LazyCollection` | `duplicates()` | — | Canonical owner: `titanspan.collections` (not implemented). | **Blocked** | — | Canonical ownership is `titanspan.collections`, which is not implemented yet. | [source][source-86] |
+| `Illuminate\Support\LazyCollection` | `duplicatesStrict()` | — | Canonical owner: `titanspan.collections` (not implemented). | **Blocked** | — | Canonical ownership is `titanspan.collections`, which is not implemented yet. | [source][source-86] |
+| `Illuminate\Support\LazyCollection` | `except()` | — | Canonical owner: `titanspan.collections` (not implemented). | **Blocked** | — | Canonical ownership is `titanspan.collections`, which is not implemented yet. | [source][source-86] |
+| `Illuminate\Support\LazyCollection` | `filter()` | — | Canonical owner: `titanspan.collections` (not implemented). | **Blocked** | — | Canonical ownership is `titanspan.collections`, which is not implemented yet. | [source][source-86] |
+| `Illuminate\Support\LazyCollection` | `first()` | — | Canonical owner: `titanspan.collections` (not implemented). | **Blocked** | — | Canonical ownership is `titanspan.collections`, which is not implemented yet. | [source][source-86] |
+| `Illuminate\Support\LazyCollection` | `flatten()` | — | Canonical owner: `titanspan.collections` (not implemented). | **Blocked** | — | Canonical ownership is `titanspan.collections`, which is not implemented yet. | [source][source-86] |
+| `Illuminate\Support\LazyCollection` | `flip()` | — | Canonical owner: `titanspan.collections` (not implemented). | **Blocked** | — | Canonical ownership is `titanspan.collections`, which is not implemented yet. | [source][source-86] |
+| `Illuminate\Support\LazyCollection` | `get()` | — | Canonical owner: `titanspan.collections` (not implemented). | **Blocked** | — | Canonical ownership is `titanspan.collections`, which is not implemented yet. | [source][source-86] |
+| `Illuminate\Support\LazyCollection` | `groupBy()` | — | Canonical owner: `titanspan.collections` (not implemented). | **Blocked** | — | Canonical ownership is `titanspan.collections`, which is not implemented yet. | [source][source-86] |
+| `Illuminate\Support\LazyCollection` | `keyBy()` | — | Canonical owner: `titanspan.collections` (not implemented). | **Blocked** | — | Canonical ownership is `titanspan.collections`, which is not implemented yet. | [source][source-86] |
+| `Illuminate\Support\LazyCollection` | `has()` | — | Canonical owner: `titanspan.collections` (not implemented). | **Blocked** | — | Canonical ownership is `titanspan.collections`, which is not implemented yet. | [source][source-86] |
+| `Illuminate\Support\LazyCollection` | `hasAny()` | — | Canonical owner: `titanspan.collections` (not implemented). | **Blocked** | — | Canonical ownership is `titanspan.collections`, which is not implemented yet. | [source][source-86] |
+| `Illuminate\Support\LazyCollection` | `implode()` | — | Canonical owner: `titanspan.collections` (not implemented). | **Blocked** | — | Canonical ownership is `titanspan.collections`, which is not implemented yet. | [source][source-86] |
+| `Illuminate\Support\LazyCollection` | `intersect()` | — | Canonical owner: `titanspan.collections` (not implemented). | **Blocked** | — | Canonical ownership is `titanspan.collections`, which is not implemented yet. | [source][source-86] |
+| `Illuminate\Support\LazyCollection` | `intersectUsing()` | — | Canonical owner: `titanspan.collections` (not implemented). | **Blocked** | — | Canonical ownership is `titanspan.collections`, which is not implemented yet. | [source][source-86] |
+| `Illuminate\Support\LazyCollection` | `intersectAssoc()` | — | Canonical owner: `titanspan.collections` (not implemented). | **Blocked** | — | Canonical ownership is `titanspan.collections`, which is not implemented yet. | [source][source-86] |
+| `Illuminate\Support\LazyCollection` | `intersectAssocUsing()` | — | Canonical owner: `titanspan.collections` (not implemented). | **Blocked** | — | Canonical ownership is `titanspan.collections`, which is not implemented yet. | [source][source-86] |
+| `Illuminate\Support\LazyCollection` | `intersectByKeys()` | — | Canonical owner: `titanspan.collections` (not implemented). | **Blocked** | — | Canonical ownership is `titanspan.collections`, which is not implemented yet. | [source][source-86] |
+| `Illuminate\Support\LazyCollection` | `isEmpty()` | — | Canonical owner: `titanspan.collections` (not implemented). | **Blocked** | — | Canonical ownership is `titanspan.collections`, which is not implemented yet. | [source][source-86] |
+| `Illuminate\Support\LazyCollection` | `containsOneItem()` | — | Canonical owner: `titanspan.collections` (not implemented). | **Blocked** | — | Canonical ownership is `titanspan.collections`, which is not implemented yet. | [source][source-86] |
+| `Illuminate\Support\LazyCollection` | `containsManyItems()` | — | Canonical owner: `titanspan.collections` (not implemented). | **Blocked** | — | Canonical ownership is `titanspan.collections`, which is not implemented yet. | [source][source-86] |
+| `Illuminate\Support\LazyCollection` | `join()` | — | Canonical owner: `titanspan.collections` (not implemented). | **Blocked** | — | Canonical ownership is `titanspan.collections`, which is not implemented yet. | [source][source-86] |
+| `Illuminate\Support\LazyCollection` | `keys()` | — | Canonical owner: `titanspan.collections` (not implemented). | **Blocked** | — | Canonical ownership is `titanspan.collections`, which is not implemented yet. | [source][source-86] |
+| `Illuminate\Support\LazyCollection` | `last()` | — | Canonical owner: `titanspan.collections` (not implemented). | **Blocked** | — | Canonical ownership is `titanspan.collections`, which is not implemented yet. | [source][source-86] |
+| `Illuminate\Support\LazyCollection` | `pluck()` | — | Canonical owner: `titanspan.collections` (not implemented). | **Blocked** | — | Canonical ownership is `titanspan.collections`, which is not implemented yet. | [source][source-86] |
+| `Illuminate\Support\LazyCollection` | `map()` | — | Canonical owner: `titanspan.collections` (not implemented). | **Blocked** | — | Canonical ownership is `titanspan.collections`, which is not implemented yet. | [source][source-86] |
+| `Illuminate\Support\LazyCollection` | `mapToDictionary()` | — | Canonical owner: `titanspan.collections` (not implemented). | **Blocked** | — | Canonical ownership is `titanspan.collections`, which is not implemented yet. | [source][source-86] |
+| `Illuminate\Support\LazyCollection` | `mapWithKeys()` | — | Canonical owner: `titanspan.collections` (not implemented). | **Blocked** | — | Canonical ownership is `titanspan.collections`, which is not implemented yet. | [source][source-86] |
+| `Illuminate\Support\LazyCollection` | `merge()` | — | Canonical owner: `titanspan.collections` (not implemented). | **Blocked** | — | Canonical ownership is `titanspan.collections`, which is not implemented yet. | [source][source-86] |
+| `Illuminate\Support\LazyCollection` | `mergeRecursive()` | — | Canonical owner: `titanspan.collections` (not implemented). | **Blocked** | — | Canonical ownership is `titanspan.collections`, which is not implemented yet. | [source][source-86] |
+| `Illuminate\Support\LazyCollection` | `multiply()` | — | Canonical owner: `titanspan.collections` (not implemented). | **Blocked** | — | Canonical ownership is `titanspan.collections`, which is not implemented yet. | [source][source-86] |
+| `Illuminate\Support\LazyCollection` | `combine()` | — | Canonical owner: `titanspan.collections` (not implemented). | **Blocked** | — | Canonical ownership is `titanspan.collections`, which is not implemented yet. | [source][source-86] |
+| `Illuminate\Support\LazyCollection` | `union()` | — | Canonical owner: `titanspan.collections` (not implemented). | **Blocked** | — | Canonical ownership is `titanspan.collections`, which is not implemented yet. | [source][source-86] |
+| `Illuminate\Support\LazyCollection` | `nth()` | — | Canonical owner: `titanspan.collections` (not implemented). | **Blocked** | — | Canonical ownership is `titanspan.collections`, which is not implemented yet. | [source][source-86] |
+| `Illuminate\Support\LazyCollection` | `only()` | — | Canonical owner: `titanspan.collections` (not implemented). | **Blocked** | — | Canonical ownership is `titanspan.collections`, which is not implemented yet. | [source][source-86] |
+| `Illuminate\Support\LazyCollection` | `select()` | — | Canonical owner: `titanspan.collections` (not implemented). | **Blocked** | — | Canonical ownership is `titanspan.collections`, which is not implemented yet. | [source][source-86] |
+| `Illuminate\Support\LazyCollection` | `concat()` | — | Canonical owner: `titanspan.collections` (not implemented). | **Blocked** | — | Canonical ownership is `titanspan.collections`, which is not implemented yet. | [source][source-86] |
+| `Illuminate\Support\LazyCollection` | `random()` | — | Canonical owner: `titanspan.collections` (not implemented). | **Blocked** | — | Canonical ownership is `titanspan.collections`, which is not implemented yet. | [source][source-86] |
+| `Illuminate\Support\LazyCollection` | `replace()` | — | Canonical owner: `titanspan.collections` (not implemented). | **Blocked** | — | Canonical ownership is `titanspan.collections`, which is not implemented yet. | [source][source-86] |
+| `Illuminate\Support\LazyCollection` | `replaceRecursive()` | — | Canonical owner: `titanspan.collections` (not implemented). | **Blocked** | — | Canonical ownership is `titanspan.collections`, which is not implemented yet. | [source][source-86] |
+| `Illuminate\Support\LazyCollection` | `reverse()` | — | Canonical owner: `titanspan.collections` (not implemented). | **Blocked** | — | Canonical ownership is `titanspan.collections`, which is not implemented yet. | [source][source-86] |
+| `Illuminate\Support\LazyCollection` | `search()` | — | Canonical owner: `titanspan.collections` (not implemented). | **Blocked** | — | Canonical ownership is `titanspan.collections`, which is not implemented yet. | [source][source-86] |
+| `Illuminate\Support\LazyCollection` | `before()` | — | Canonical owner: `titanspan.collections` (not implemented). | **Blocked** | — | Canonical ownership is `titanspan.collections`, which is not implemented yet. | [source][source-86] |
+| `Illuminate\Support\LazyCollection` | `after()` | — | Canonical owner: `titanspan.collections` (not implemented). | **Blocked** | — | Canonical ownership is `titanspan.collections`, which is not implemented yet. | [source][source-86] |
+| `Illuminate\Support\LazyCollection` | `shuffle()` | — | Canonical owner: `titanspan.collections` (not implemented). | **Blocked** | — | Canonical ownership is `titanspan.collections`, which is not implemented yet. | [source][source-86] |
+| `Illuminate\Support\LazyCollection` | `sliding()` | — | Canonical owner: `titanspan.collections` (not implemented). | **Blocked** | — | Canonical ownership is `titanspan.collections`, which is not implemented yet. | [source][source-86] |
+| `Illuminate\Support\LazyCollection` | `skip()` | — | Canonical owner: `titanspan.collections` (not implemented). | **Blocked** | — | Canonical ownership is `titanspan.collections`, which is not implemented yet. | [source][source-86] |
+| `Illuminate\Support\LazyCollection` | `skipUntil()` | — | Canonical owner: `titanspan.collections` (not implemented). | **Blocked** | — | Canonical ownership is `titanspan.collections`, which is not implemented yet. | [source][source-86] |
+| `Illuminate\Support\LazyCollection` | `skipWhile()` | — | Canonical owner: `titanspan.collections` (not implemented). | **Blocked** | — | Canonical ownership is `titanspan.collections`, which is not implemented yet. | [source][source-86] |
+| `Illuminate\Support\LazyCollection` | `slice()` | — | Canonical owner: `titanspan.collections` (not implemented). | **Blocked** | — | Canonical ownership is `titanspan.collections`, which is not implemented yet. | [source][source-86] |
+| `Illuminate\Support\LazyCollection` | `split()` | — | Canonical owner: `titanspan.collections` (not implemented). | **Blocked** | — | Canonical ownership is `titanspan.collections`, which is not implemented yet. | [source][source-86] |
+| `Illuminate\Support\LazyCollection` | `sole()` | — | Canonical owner: `titanspan.collections` (not implemented). | **Blocked** | — | Canonical ownership is `titanspan.collections`, which is not implemented yet. | [source][source-86] |
+| `Illuminate\Support\LazyCollection` | `hasSole()` | — | Canonical owner: `titanspan.collections` (not implemented). | **Blocked** | — | Canonical ownership is `titanspan.collections`, which is not implemented yet. | [source][source-86] |
+| `Illuminate\Support\LazyCollection` | `firstOrFail()` | — | Canonical owner: `titanspan.collections` (not implemented). | **Blocked** | — | Canonical ownership is `titanspan.collections`, which is not implemented yet. | [source][source-86] |
+| `Illuminate\Support\LazyCollection` | `chunk()` | — | Canonical owner: `titanspan.collections` (not implemented). | **Blocked** | — | Canonical ownership is `titanspan.collections`, which is not implemented yet. | [source][source-86] |
+| `Illuminate\Support\LazyCollection` | `splitIn()` | — | Canonical owner: `titanspan.collections` (not implemented). | **Blocked** | — | Canonical ownership is `titanspan.collections`, which is not implemented yet. | [source][source-86] |
+| `Illuminate\Support\LazyCollection` | `chunkWhile()` | — | Canonical owner: `titanspan.collections` (not implemented). | **Blocked** | — | Canonical ownership is `titanspan.collections`, which is not implemented yet. | [source][source-86] |
+| `Illuminate\Support\LazyCollection` | `sort()` | — | Canonical owner: `titanspan.collections` (not implemented). | **Blocked** | — | Canonical ownership is `titanspan.collections`, which is not implemented yet. | [source][source-86] |
+| `Illuminate\Support\LazyCollection` | `sortDesc()` | — | Canonical owner: `titanspan.collections` (not implemented). | **Blocked** | — | Canonical ownership is `titanspan.collections`, which is not implemented yet. | [source][source-86] |
+| `Illuminate\Support\LazyCollection` | `sortBy()` | — | Canonical owner: `titanspan.collections` (not implemented). | **Blocked** | — | Canonical ownership is `titanspan.collections`, which is not implemented yet. | [source][source-86] |
+| `Illuminate\Support\LazyCollection` | `sortByDesc()` | — | Canonical owner: `titanspan.collections` (not implemented). | **Blocked** | — | Canonical ownership is `titanspan.collections`, which is not implemented yet. | [source][source-86] |
+| `Illuminate\Support\LazyCollection` | `sortKeys()` | — | Canonical owner: `titanspan.collections` (not implemented). | **Blocked** | — | Canonical ownership is `titanspan.collections`, which is not implemented yet. | [source][source-86] |
+| `Illuminate\Support\LazyCollection` | `sortKeysDesc()` | — | Canonical owner: `titanspan.collections` (not implemented). | **Blocked** | — | Canonical ownership is `titanspan.collections`, which is not implemented yet. | [source][source-86] |
+| `Illuminate\Support\LazyCollection` | `sortKeysUsing()` | — | Canonical owner: `titanspan.collections` (not implemented). | **Blocked** | — | Canonical ownership is `titanspan.collections`, which is not implemented yet. | [source][source-86] |
+| `Illuminate\Support\LazyCollection` | `take()` | — | Canonical owner: `titanspan.collections` (not implemented). | **Blocked** | — | Canonical ownership is `titanspan.collections`, which is not implemented yet. | [source][source-86] |
+| `Illuminate\Support\LazyCollection` | `takeUntil()` | — | Canonical owner: `titanspan.collections` (not implemented). | **Blocked** | — | Canonical ownership is `titanspan.collections`, which is not implemented yet. | [source][source-86] |
+| `Illuminate\Support\LazyCollection` | `takeUntilTimeout()` | — | Canonical owner: `titanspan.collections` (not implemented). | **Blocked** | — | Canonical ownership is `titanspan.collections`, which is not implemented yet. | [source][source-86] |
+| `Illuminate\Support\LazyCollection` | `takeWhile()` | — | Canonical owner: `titanspan.collections` (not implemented). | **Blocked** | — | Canonical ownership is `titanspan.collections`, which is not implemented yet. | [source][source-86] |
+| `Illuminate\Support\LazyCollection` | `tapEach()` | — | Canonical owner: `titanspan.collections` (not implemented). | **Blocked** | — | Canonical ownership is `titanspan.collections`, which is not implemented yet. | [source][source-86] |
+| `Illuminate\Support\LazyCollection` | `throttle()` | — | Canonical owner: `titanspan.collections` (not implemented). | **Blocked** | — | Canonical ownership is `titanspan.collections`, which is not implemented yet. | [source][source-86] |
+| `Illuminate\Support\LazyCollection` | `dot()` | — | Canonical owner: `titanspan.collections` (not implemented). | **Blocked** | — | Canonical ownership is `titanspan.collections`, which is not implemented yet. | [source][source-86] |
+| `Illuminate\Support\LazyCollection` | `undot()` | — | Canonical owner: `titanspan.collections` (not implemented). | **Blocked** | — | Canonical ownership is `titanspan.collections`, which is not implemented yet. | [source][source-86] |
+| `Illuminate\Support\LazyCollection` | `unique()` | — | Canonical owner: `titanspan.collections` (not implemented). | **Blocked** | — | Canonical ownership is `titanspan.collections`, which is not implemented yet. | [source][source-86] |
+| `Illuminate\Support\LazyCollection` | `values()` | — | Canonical owner: `titanspan.collections` (not implemented). | **Blocked** | — | Canonical ownership is `titanspan.collections`, which is not implemented yet. | [source][source-86] |
+| `Illuminate\Support\LazyCollection` | `withHeartbeat()` | — | Canonical owner: `titanspan.collections` (not implemented). | **Blocked** | — | Canonical ownership is `titanspan.collections`, which is not implemented yet. | [source][source-86] |
+| `Illuminate\Support\LazyCollection` | `zip()` | — | Canonical owner: `titanspan.collections` (not implemented). | **Blocked** | — | Canonical ownership is `titanspan.collections`, which is not implemented yet. | [source][source-86] |
+| `Illuminate\Support\LazyCollection` | `pad()` | — | Canonical owner: `titanspan.collections` (not implemented). | **Blocked** | — | Canonical ownership is `titanspan.collections`, which is not implemented yet. | [source][source-86] |
+| `Illuminate\Support\LazyCollection` | `getIterator()` | — | Canonical owner: `titanspan.collections` (not implemented). | **Blocked** | — | Canonical ownership is `titanspan.collections`, which is not implemented yet. | [source][source-86] |
+| `Illuminate\Support\LazyCollection` | `count()` | — | Canonical owner: `titanspan.collections` (not implemented). | **Blocked** | — | Canonical ownership is `titanspan.collections`, which is not implemented yet. | [source][source-86] |
+
+</details>
+
+<details>
+<summary>Illuminate\Support\Lottery — 13 listed public members (class)</summary>
+
+| Upstream class | Upstream API | Titanspan API | Implementation location | Compatibility status | Test evidence | Differences | Upstream reference |
+|---|---|---|---|---|---|---|---|
+| `Illuminate\Support\Lottery` | `__construct()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-87] |
+| `Illuminate\Support\Lottery` | `odds()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-87] |
+| `Illuminate\Support\Lottery` | `winner()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-87] |
+| `Illuminate\Support\Lottery` | `loser()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-87] |
+| `Illuminate\Support\Lottery` | `__invoke()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-87] |
+| `Illuminate\Support\Lottery` | `choose()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-87] |
+| `Illuminate\Support\Lottery` | `alwaysWin()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-87] |
+| `Illuminate\Support\Lottery` | `alwaysLose()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-87] |
+| `Illuminate\Support\Lottery` | `fix()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-87] |
+| `Illuminate\Support\Lottery` | `forceResultWithSequence()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-87] |
+| `Illuminate\Support\Lottery` | `determineResultsNormally()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-87] |
+| `Illuminate\Support\Lottery` | `determineResultNormally()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-87] |
+| `Illuminate\Support\Lottery` | `setResultFactory()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-87] |
+
+</details>
+
+<details>
+<summary>Illuminate\Support\Manager — 8 listed public members (class)</summary>
+
+| Upstream class | Upstream API | Titanspan API | Implementation location | Compatibility status | Test evidence | Differences | Upstream reference |
+|---|---|---|---|---|---|---|---|
+| `Illuminate\Support\Manager` | `__construct()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-88] |
+| `Illuminate\Support\Manager` | `driver()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-88] |
+| `Illuminate\Support\Manager` | `extend()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-88] |
+| `Illuminate\Support\Manager` | `getDrivers()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-88] |
+| `Illuminate\Support\Manager` | `getContainer()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-88] |
+| `Illuminate\Support\Manager` | `setContainer()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-88] |
+| `Illuminate\Support\Manager` | `forgetDrivers()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-88] |
+| `Illuminate\Support\Manager` | `__call()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-88] |
+
+</details>
+
+<details>
+<summary>Illuminate\Support\MessageBag — 27 listed public members (class)</summary>
+
+| Upstream class | Upstream API | Titanspan API | Implementation location | Compatibility status | Test evidence | Differences | Upstream reference |
+|---|---|---|---|---|---|---|---|
+| `Illuminate\Support\MessageBag` | `__construct()` | `MessageBag(...) / __init__(...)` | `src/titanspan/support/message_bag.py` | **Python-adapted parity** | `tests/unit/support/test_message_bag.py` | Preserves PHP array key and formatting behavior where representable; uses Python integer/string keys, defensive copies, Python exceptions, and the documented JSON option subset. | [source][source-89] |
+| `Illuminate\Support\MessageBag` | `keys()` | `keys()` | `src/titanspan/support/message_bag.py` | **Python-adapted parity** | `tests/unit/support/test_message_bag.py` | Preserves PHP array key and formatting behavior where representable; uses Python integer/string keys, defensive copies, Python exceptions, and the documented JSON option subset. | [source][source-89] |
+| `Illuminate\Support\MessageBag` | `add()` | `add()` | `src/titanspan/support/message_bag.py` | **Python-adapted parity** | `tests/unit/support/test_message_bag.py` | Preserves PHP array key and formatting behavior where representable; uses Python integer/string keys, defensive copies, Python exceptions, and the documented JSON option subset. | [source][source-89] |
+| `Illuminate\Support\MessageBag` | `addIf()` | `addIf() / add_if()` | `src/titanspan/support/message_bag.py` | **Python-adapted parity** | `tests/unit/support/test_message_bag.py` | Preserves PHP array key and formatting behavior where representable; uses Python integer/string keys, defensive copies, Python exceptions, and the documented JSON option subset. | [source][source-89] |
+| `Illuminate\Support\MessageBag` | `merge()` | `merge()` | `src/titanspan/support/message_bag.py` | **Python-adapted parity** | `tests/unit/support/test_message_bag.py` | Preserves PHP array key and formatting behavior where representable; uses Python integer/string keys, defensive copies, Python exceptions, and the documented JSON option subset. | [source][source-89] |
+| `Illuminate\Support\MessageBag` | `has()` | `has()` | `src/titanspan/support/message_bag.py` | **Python-adapted parity** | `tests/unit/support/test_message_bag.py` | Preserves PHP array key and formatting behavior where representable; uses Python integer/string keys, defensive copies, Python exceptions, and the documented JSON option subset. | [source][source-89] |
+| `Illuminate\Support\MessageBag` | `hasAny()` | `hasAny() / has_any()` | `src/titanspan/support/message_bag.py` | **Python-adapted parity** | `tests/unit/support/test_message_bag.py` | Preserves PHP array key and formatting behavior where representable; uses Python integer/string keys, defensive copies, Python exceptions, and the documented JSON option subset. | [source][source-89] |
+| `Illuminate\Support\MessageBag` | `missing()` | `missing()` | `src/titanspan/support/message_bag.py` | **Python-adapted parity** | `tests/unit/support/test_message_bag.py` | Preserves PHP array key and formatting behavior where representable; uses Python integer/string keys, defensive copies, Python exceptions, and the documented JSON option subset. | [source][source-89] |
+| `Illuminate\Support\MessageBag` | `first()` | `first()` | `src/titanspan/support/message_bag.py` | **Python-adapted parity** | `tests/unit/support/test_message_bag.py` | Preserves PHP array key and formatting behavior where representable; uses Python integer/string keys, defensive copies, Python exceptions, and the documented JSON option subset. | [source][source-89] |
+| `Illuminate\Support\MessageBag` | `get()` | `get()` | `src/titanspan/support/message_bag.py` | **Python-adapted parity** | `tests/unit/support/test_message_bag.py` | Preserves PHP array key and formatting behavior where representable; uses Python integer/string keys, defensive copies, Python exceptions, and the documented JSON option subset. | [source][source-89] |
+| `Illuminate\Support\MessageBag` | `all()` | `all()` | `src/titanspan/support/message_bag.py` | **Python-adapted parity** | `tests/unit/support/test_message_bag.py` | Preserves PHP array key and formatting behavior where representable; uses Python integer/string keys, defensive copies, Python exceptions, and the documented JSON option subset. | [source][source-89] |
+| `Illuminate\Support\MessageBag` | `unique()` | `unique()` | `src/titanspan/support/message_bag.py` | **Python-adapted parity** | `tests/unit/support/test_message_bag.py` | Preserves PHP array key and formatting behavior where representable; uses Python integer/string keys, defensive copies, Python exceptions, and the documented JSON option subset. | [source][source-89] |
+| `Illuminate\Support\MessageBag` | `forget()` | `forget()` | `src/titanspan/support/message_bag.py` | **Python-adapted parity** | `tests/unit/support/test_message_bag.py` | Preserves PHP array key and formatting behavior where representable; uses Python integer/string keys, defensive copies, Python exceptions, and the documented JSON option subset. | [source][source-89] |
+| `Illuminate\Support\MessageBag` | `messages()` | `messages()` | `src/titanspan/support/message_bag.py` | **Python-adapted parity** | `tests/unit/support/test_message_bag.py` | Preserves PHP array key and formatting behavior where representable; uses Python integer/string keys, defensive copies, Python exceptions, and the documented JSON option subset. | [source][source-89] |
+| `Illuminate\Support\MessageBag` | `getMessages()` | `getMessages() / get_messages()` | `src/titanspan/support/message_bag.py` | **Python-adapted parity** | `tests/unit/support/test_message_bag.py` | Preserves PHP array key and formatting behavior where representable; uses Python integer/string keys, defensive copies, Python exceptions, and the documented JSON option subset. | [source][source-89] |
+| `Illuminate\Support\MessageBag` | `getMessageBag()` | `getMessageBag() / get_message_bag()` | `src/titanspan/support/message_bag.py` | **Python-adapted parity** | `tests/unit/support/test_message_bag.py` | Preserves PHP array key and formatting behavior where representable; uses Python integer/string keys, defensive copies, Python exceptions, and the documented JSON option subset. | [source][source-89] |
+| `Illuminate\Support\MessageBag` | `getFormat()` | `getFormat() / get_format()` | `src/titanspan/support/message_bag.py` | **Python-adapted parity** | `tests/unit/support/test_message_bag.py` | Preserves PHP array key and formatting behavior where representable; uses Python integer/string keys, defensive copies, Python exceptions, and the documented JSON option subset. | [source][source-89] |
+| `Illuminate\Support\MessageBag` | `setFormat()` | `setFormat() / set_format()` | `src/titanspan/support/message_bag.py` | **Python-adapted parity** | `tests/unit/support/test_message_bag.py` | Preserves PHP array key and formatting behavior where representable; uses Python integer/string keys, defensive copies, Python exceptions, and the documented JSON option subset. | [source][source-89] |
+| `Illuminate\Support\MessageBag` | `isEmpty()` | `isEmpty() / is_empty()` | `src/titanspan/support/message_bag.py` | **Python-adapted parity** | `tests/unit/support/test_message_bag.py` | Preserves PHP array key and formatting behavior where representable; uses Python integer/string keys, defensive copies, Python exceptions, and the documented JSON option subset. | [source][source-89] |
+| `Illuminate\Support\MessageBag` | `isNotEmpty()` | `isNotEmpty() / is_not_empty()` | `src/titanspan/support/message_bag.py` | **Python-adapted parity** | `tests/unit/support/test_message_bag.py` | Preserves PHP array key and formatting behavior where representable; uses Python integer/string keys, defensive copies, Python exceptions, and the documented JSON option subset. | [source][source-89] |
+| `Illuminate\Support\MessageBag` | `any()` | `any()` | `src/titanspan/support/message_bag.py` | **Python-adapted parity** | `tests/unit/support/test_message_bag.py` | Preserves PHP array key and formatting behavior where representable; uses Python integer/string keys, defensive copies, Python exceptions, and the documented JSON option subset. | [source][source-89] |
+| `Illuminate\Support\MessageBag` | `count()` | `count()` | `src/titanspan/support/message_bag.py` | **Python-adapted parity** | `tests/unit/support/test_message_bag.py` | Preserves PHP array key and formatting behavior where representable; uses Python integer/string keys, defensive copies, Python exceptions, and the documented JSON option subset. | [source][source-89] |
+| `Illuminate\Support\MessageBag` | `toArray()` | `toArray() / to_array()` | `src/titanspan/support/message_bag.py` | **Python-adapted parity** | `tests/unit/support/test_message_bag.py` | Preserves PHP array key and formatting behavior where representable; uses Python integer/string keys, defensive copies, Python exceptions, and the documented JSON option subset. | [source][source-89] |
+| `Illuminate\Support\MessageBag` | `jsonSerialize()` | `jsonSerialize() / json_serialize()` | `src/titanspan/support/message_bag.py` | **Python-adapted parity** | `tests/unit/support/test_message_bag.py` | Preserves PHP array key and formatting behavior where representable; uses Python integer/string keys, defensive copies, Python exceptions, and the documented JSON option subset. | [source][source-89] |
+| `Illuminate\Support\MessageBag` | `toJson()` | `toJson() / to_json()` | `src/titanspan/support/message_bag.py` | **Python-adapted parity** | `tests/unit/support/test_message_bag.py` | Preserves PHP array key and formatting behavior where representable; uses Python integer/string keys, defensive copies, Python exceptions, and the documented JSON option subset. | [source][source-89] |
+| `Illuminate\Support\MessageBag` | `toPrettyJson()` | `toPrettyJson() / to_pretty_json()` | `src/titanspan/support/message_bag.py` | **Python-adapted parity** | `tests/unit/support/test_message_bag.py` | Preserves PHP array key and formatting behavior where representable; uses Python integer/string keys, defensive copies, Python exceptions, and the documented JSON option subset. | [source][source-89] |
+| `Illuminate\Support\MessageBag` | `__toString()` | `str(bag) / __str__()` | `src/titanspan/support/message_bag.py` | **Python-adapted parity** | `tests/unit/support/test_message_bag.py` | Preserves PHP array key and formatting behavior where representable; uses Python integer/string keys, defensive copies, Python exceptions, and the documented JSON option subset. | [source][source-89] |
+</details>
+
+<details>
+<summary>Illuminate\Support\MultipleInstanceManager — 7 listed public members (class)</summary>
+
+| Upstream class | Upstream API | Titanspan API | Implementation location | Compatibility status | Test evidence | Differences | Upstream reference |
+|---|---|---|---|---|---|---|---|
+| `Illuminate\Support\MultipleInstanceManager` | `__construct()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-90] |
+| `Illuminate\Support\MultipleInstanceManager` | `instance()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-90] |
+| `Illuminate\Support\MultipleInstanceManager` | `forgetInstance()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-90] |
+| `Illuminate\Support\MultipleInstanceManager` | `purge()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-90] |
+| `Illuminate\Support\MultipleInstanceManager` | `extend()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-90] |
+| `Illuminate\Support\MultipleInstanceManager` | `setApplication()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-90] |
+| `Illuminate\Support\MultipleInstanceManager` | `__call()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-90] |
+
+</details>
+
+<details>
+<summary>Illuminate\Support\MultipleItemsFoundException — 2 listed public members (class)</summary>
+
+| Upstream class | Upstream API | Titanspan API | Implementation location | Compatibility status | Test evidence | Differences | Upstream reference |
+|---|---|---|---|---|---|---|---|
+| `Illuminate\Support\MultipleItemsFoundException` | `__construct()` | — | Canonical owner: `titanspan.collections` (not implemented). | **Blocked** | — | Canonical ownership is `titanspan.collections`, which is not implemented yet. | [source][source-91] |
+| `Illuminate\Support\MultipleItemsFoundException` | `getCount()` | — | Canonical owner: `titanspan.collections` (not implemented). | **Blocked** | — | Canonical ownership is `titanspan.collections`, which is not implemented yet. | [source][source-91] |
+
+</details>
+
+<details>
+<summary>Illuminate\Support\NamespacedItemResolver — 3 listed public members (class)</summary>
+
+| Upstream class | Upstream API | Titanspan API | Implementation location | Compatibility status | Test evidence | Differences | Upstream reference |
+|---|---|---|---|---|---|---|---|
+| `Illuminate\Support\NamespacedItemResolver` | `parseKey()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-92] |
+| `Illuminate\Support\NamespacedItemResolver` | `setParsedKey()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-92] |
+| `Illuminate\Support\NamespacedItemResolver` | `flushParsedKeys()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-92] |
+
+</details>
+
+<details>
+<summary>Illuminate\Support\NodePackageManager — 4 listed public members (class)</summary>
+
+| Upstream class | Upstream API | Titanspan API | Implementation location | Compatibility status | Test evidence | Differences | Upstream reference |
+|---|---|---|---|---|---|---|---|
+| `Illuminate\Support\NodePackageManager` | `__construct()` | — | Not implemented. | **Not applicable** | — | PHP-specific package-manager or Carbon class behavior has no equivalent Titanspan runtime API. | [source][source-93] |
+| `Illuminate\Support\NodePackageManager` | `getExecCommand()` | — | Not implemented. | **Not applicable** | — | PHP-specific package-manager or Carbon class behavior has no equivalent Titanspan runtime API. | [source][source-93] |
+| `Illuminate\Support\NodePackageManager` | `getRunCommand()` | — | Not implemented. | **Not applicable** | — | PHP-specific package-manager or Carbon class behavior has no equivalent Titanspan runtime API. | [source][source-93] |
+| `Illuminate\Support\NodePackageManager` | `packageManager()` | — | Not implemented. | **Not applicable** | — | PHP-specific package-manager or Carbon class behavior has no equivalent Titanspan runtime API. | [source][source-93] |
+
+</details>
+
+<details>
+<summary>Illuminate\Support\NodePackageManagers\Bun — 3 listed public members (class)</summary>
+
+| Upstream class | Upstream API | Titanspan API | Implementation location | Compatibility status | Test evidence | Differences | Upstream reference |
+|---|---|---|---|---|---|---|---|
+| `Illuminate\Support\NodePackageManagers\Bun` | `matches()` | — | Not implemented. | **Not applicable** | — | PHP-specific package-manager or Carbon class behavior has no equivalent Titanspan runtime API. | [source][source-94] |
+| `Illuminate\Support\NodePackageManagers\Bun` | `getRunCommand()` | — | Not implemented. | **Not applicable** | — | PHP-specific package-manager or Carbon class behavior has no equivalent Titanspan runtime API. | [source][source-94] |
+| `Illuminate\Support\NodePackageManagers\Bun` | `getExecCommand()` | — | Not implemented. | **Not applicable** | — | PHP-specific package-manager or Carbon class behavior has no equivalent Titanspan runtime API. | [source][source-94] |
+
+</details>
+
+<details>
+<summary>Illuminate\Support\NodePackageManagers\Npm — 3 listed public members (class)</summary>
+
+| Upstream class | Upstream API | Titanspan API | Implementation location | Compatibility status | Test evidence | Differences | Upstream reference |
+|---|---|---|---|---|---|---|---|
+| `Illuminate\Support\NodePackageManagers\Npm` | `matches()` | — | Not implemented. | **Not applicable** | — | PHP-specific package-manager or Carbon class behavior has no equivalent Titanspan runtime API. | [source][source-95] |
+| `Illuminate\Support\NodePackageManagers\Npm` | `getRunCommand()` | — | Not implemented. | **Not applicable** | — | PHP-specific package-manager or Carbon class behavior has no equivalent Titanspan runtime API. | [source][source-95] |
+| `Illuminate\Support\NodePackageManagers\Npm` | `getExecCommand()` | — | Not implemented. | **Not applicable** | — | PHP-specific package-manager or Carbon class behavior has no equivalent Titanspan runtime API. | [source][source-95] |
+
+</details>
+
+<details>
+<summary>Illuminate\Support\NodePackageManagers\Pnpm — 3 listed public members (class)</summary>
+
+| Upstream class | Upstream API | Titanspan API | Implementation location | Compatibility status | Test evidence | Differences | Upstream reference |
+|---|---|---|---|---|---|---|---|
+| `Illuminate\Support\NodePackageManagers\Pnpm` | `matches()` | — | Not implemented. | **Not applicable** | — | PHP-specific package-manager or Carbon class behavior has no equivalent Titanspan runtime API. | [source][source-96] |
+| `Illuminate\Support\NodePackageManagers\Pnpm` | `getRunCommand()` | — | Not implemented. | **Not applicable** | — | PHP-specific package-manager or Carbon class behavior has no equivalent Titanspan runtime API. | [source][source-96] |
+| `Illuminate\Support\NodePackageManagers\Pnpm` | `getExecCommand()` | — | Not implemented. | **Not applicable** | — | PHP-specific package-manager or Carbon class behavior has no equivalent Titanspan runtime API. | [source][source-96] |
+
+</details>
+
+<details>
+<summary>Illuminate\Support\NodePackageManagers\Yarn — 3 listed public members (class)</summary>
+
+| Upstream class | Upstream API | Titanspan API | Implementation location | Compatibility status | Test evidence | Differences | Upstream reference |
+|---|---|---|---|---|---|---|---|
+| `Illuminate\Support\NodePackageManagers\Yarn` | `matches()` | — | Not implemented. | **Not applicable** | — | PHP-specific package-manager or Carbon class behavior has no equivalent Titanspan runtime API. | [source][source-97] |
+| `Illuminate\Support\NodePackageManagers\Yarn` | `getRunCommand()` | — | Not implemented. | **Not applicable** | — | PHP-specific package-manager or Carbon class behavior has no equivalent Titanspan runtime API. | [source][source-97] |
+| `Illuminate\Support\NodePackageManagers\Yarn` | `getExecCommand()` | — | Not implemented. | **Not applicable** | — | PHP-specific package-manager or Carbon class behavior has no equivalent Titanspan runtime API. | [source][source-97] |
+
+</details>
+
+<details>
+<summary>Illuminate\Support\Number — 21 listed public members (class)</summary>
+
+| Upstream class | Upstream API | Titanspan API | Implementation location | Compatibility status | Test evidence | Differences | Upstream reference |
+|---|---|---|---|---|---|---|---|
+| `Illuminate\Support\Number` | `format()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-98] |
+| `Illuminate\Support\Number` | `parse()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-98] |
+| `Illuminate\Support\Number` | `parseInt()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-98] |
+| `Illuminate\Support\Number` | `parseFloat()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-98] |
+| `Illuminate\Support\Number` | `spell()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-98] |
+| `Illuminate\Support\Number` | `ordinal()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-98] |
+| `Illuminate\Support\Number` | `spellOrdinal()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-98] |
+| `Illuminate\Support\Number` | `percentage()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-98] |
+| `Illuminate\Support\Number` | `currency()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-98] |
+| `Illuminate\Support\Number` | `fileSize()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-98] |
+| `Illuminate\Support\Number` | `abbreviate()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-98] |
+| `Illuminate\Support\Number` | `forHumans()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-98] |
+| `Illuminate\Support\Number` | `clamp()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-98] |
+| `Illuminate\Support\Number` | `pairs()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-98] |
+| `Illuminate\Support\Number` | `trim()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-98] |
+| `Illuminate\Support\Number` | `withLocale()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-98] |
+| `Illuminate\Support\Number` | `withCurrency()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-98] |
+| `Illuminate\Support\Number` | `useLocale()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-98] |
+| `Illuminate\Support\Number` | `useCurrency()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-98] |
+| `Illuminate\Support\Number` | `defaultLocale()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-98] |
+| `Illuminate\Support\Number` | `defaultCurrency()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-98] |
+
+</details>
+
+<details>
+<summary>Illuminate\Support\Once — 5 listed public members (class)</summary>
+
+| Upstream class | Upstream API | Titanspan API | Implementation location | Compatibility status | Test evidence | Differences | Upstream reference |
+|---|---|---|---|---|---|---|---|
+| `Illuminate\Support\Once` | `instance()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-99] |
+| `Illuminate\Support\Once` | `value()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-99] |
+| `Illuminate\Support\Once` | `enable()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-99] |
+| `Illuminate\Support\Once` | `disable()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-99] |
+| `Illuminate\Support\Once` | `flush()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-99] |
+
+</details>
+
+<details>
+<summary>Illuminate\Support\Onceable — 5 listed public members (class)</summary>
+
+| Upstream class | Upstream API | Titanspan API | Implementation location | Compatibility status | Test evidence | Differences | Upstream reference |
+|---|---|---|---|---|---|---|---|
+| `Illuminate\Support\Onceable` | `__construct()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-100] |
+| `Illuminate\Support\Onceable` | `tryFromTrace()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-100] |
+| `Illuminate\Support\Onceable` | `objects()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-100] |
+| `Illuminate\Support\Onceable` | `hash` (property) | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-100] |
+| `Illuminate\Support\Onceable` | `object` (property) | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-100] |
+
+</details>
+
+<details>
+<summary>Illuminate\Support\Optional — 8 listed public members (class)</summary>
+
+| Upstream class | Upstream API | Titanspan API | Implementation location | Compatibility status | Test evidence | Differences | Upstream reference |
+|---|---|---|---|---|---|---|---|
+| `Illuminate\Support\Optional` | `__construct()` | `Optional(wrapped)` | `src/titanspan/support/optional.py` | **Python-adapted parity** | `tests/unit/support/test_optional.py` | Constructs a generic Python wrapper. | [source][source-101] |
+| `Illuminate\Support\Optional` | `__get()` | `Optional.__getattr__` | `src/titanspan/support/optional.py` | **Python-adapted parity** | `tests/unit/support/test_optional.py` | Missing and null values resolve to None; dynamic access is limited by Python typing. | [source][source-101] |
+| `Illuminate\Support\Optional` | `__isset()` | `Optional.is_set` | `src/titanspan/support/optional.py` | **Python-adapted parity** | `tests/unit/support/test_optional.py` | Uses None-aware Python attribute and item access. | [source][source-101] |
+| `Illuminate\Support\Optional` | `offsetExists()` | `Optional.__contains__ / Optional.has` | `src/titanspan/support/optional.py` | **Python-adapted parity** | `tests/unit/support/test_optional.py` | Requires a str or int key and treats a present None as existing. | [source][source-101] |
+| `Illuminate\Support\Optional` | `offsetGet()` | `Optional.__getitem__` | `src/titanspan/support/optional.py` | **Python-adapted parity** | `tests/unit/support/test_optional.py` | Returns None for a missing path and supports Python dot paths. | [source][source-101] |
+| `Illuminate\Support\Optional` | `offsetSet()` | `Optional.__setitem__` | `src/titanspan/support/optional.py` | **Python-adapted parity** | `tests/unit/support/test_optional.py` | Mutates mutable mappings and lists; immutable targets are ignored. | [source][source-101] |
+| `Illuminate\Support\Optional` | `offsetUnset()` | `Optional.__delitem__` | `src/titanspan/support/optional.py` | **Python-adapted parity** | `tests/unit/support/test_optional.py` | Mutates mutable mappings and lists; immutable targets are ignored. | [source][source-101] |
+| `Illuminate\Support\Optional` | `__call()` | `Optional.call / Optional.call_async` | `src/titanspan/support/optional.py` | **Python-adapted parity** | `tests/unit/support/test_optional.py` | Explicit method invocation replaces PHP magic dispatch; async results use call_async. | [source][source-101] |
+
+</details>
+
+<details>
+<summary>Illuminate\Support\Pluralizer — 5 listed public members (class)</summary>
+
+| Upstream class | Upstream API | Titanspan API | Implementation location | Compatibility status | Test evidence | Differences | Upstream reference |
+|---|---|---|---|---|---|---|---|
+| `Illuminate\Support\Pluralizer` | `plural()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-102] |
+| `Illuminate\Support\Pluralizer` | `singular()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-102] |
+| `Illuminate\Support\Pluralizer` | `inflector()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-102] |
+| `Illuminate\Support\Pluralizer` | `useLanguage()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-102] |
+| `Illuminate\Support\Pluralizer` | `uncountable` (property) | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-102] |
+
+</details>
+
+<details>
+<summary>Illuminate\Support\ProcessUtils — 1 listed public members (class)</summary>
+
+| Upstream class | Upstream API | Titanspan API | Implementation location | Compatibility status | Test evidence | Differences | Upstream reference |
+|---|---|---|---|---|---|---|---|
+| `Illuminate\Support\ProcessUtils` | `escapeArgument()` | — | Not implemented. | **Pending** | — | A Python process argument helper could use standard-library APIs; no Titanspan wrapper exists yet. | [source][source-103] |
+
+</details>
+
+<details>
+<summary>Illuminate\Support\Queue\Concerns\ResolvesQueueRoutes — 2 listed public members (trait)</summary>
+
+| Upstream class | Upstream API | Titanspan API | Implementation location | Compatibility status | Test evidence | Differences | Upstream reference |
+|---|---|---|---|---|---|---|---|
+| `Illuminate\Support\Queue\Concerns\ResolvesQueueRoutes` | `resolveConnectionFromQueueRoute()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-104] |
+| `Illuminate\Support\Queue\Concerns\ResolvesQueueRoutes` | `resolveQueueFromQueueRoute()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-104] |
+
+</details>
+
+<details>
+<summary>Illuminate\Support\RebindsCallbacksToSelf — 0 listed public members (trait)</summary>
+
+| Upstream class | Upstream API | Titanspan API | Implementation location | Compatibility status | Test evidence | Differences | Upstream reference |
+|---|---|---|---|---|---|---|---|
+| `Illuminate\Support\RebindsCallbacksToSelf` | Public type declaration | — | Not implemented | | Pending | — | No public members were found by the source scan. | [source][source-105] |
+
+</details>
+
+<details>
+<summary>Illuminate\Support\Reflector — 7 listed public members (class)</summary>
+
+| Upstream class | Upstream API | Titanspan API | Implementation location | Compatibility status | Test evidence | Differences | Upstream reference |
+|---|---|---|---|---|---|---|---|
+| `Illuminate\Support\Reflector` | `isCallable()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-106] |
+| `Illuminate\Support\Reflector` | `getClassAttribute()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-106] |
+| `Illuminate\Support\Reflector` | `getClassAttributes()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-106] |
+| `Illuminate\Support\Reflector` | `getParameterClassName()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-106] |
+| `Illuminate\Support\Reflector` | `getParameterClassNames()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-106] |
+| `Illuminate\Support\Reflector` | `isParameterSubclassOf()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-106] |
+| `Illuminate\Support\Reflector` | `isParameterBackedEnumWithStringBackingType()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-106] |
+
+</details>
+
+<details>
+<summary>Illuminate\Support\ServiceProvider — 22 listed public members (class)</summary>
+
+| Upstream class | Upstream API | Titanspan API | Implementation location | Compatibility status | Test evidence | Differences | Upstream reference |
+|---|---|---|---|---|---|---|---|
+| `Illuminate\Support\ServiceProvider` | `__construct()` | — | Canonical owner: `titanspan.foundation` (not implemented). | **Blocked** | — | Requires Titanspan service-provider lifecycle integration. | [source][source-107] |
+| `Illuminate\Support\ServiceProvider` | `register()` | — | Canonical owner: `titanspan.foundation` (not implemented). | **Blocked** | — | Requires Titanspan service-provider lifecycle integration. | [source][source-107] |
+| `Illuminate\Support\ServiceProvider` | `booting()` | — | Canonical owner: `titanspan.foundation` (not implemented). | **Blocked** | — | Requires Titanspan service-provider lifecycle integration. | [source][source-107] |
+| `Illuminate\Support\ServiceProvider` | `booted()` | — | Canonical owner: `titanspan.foundation` (not implemented). | **Blocked** | — | Requires Titanspan service-provider lifecycle integration. | [source][source-107] |
+| `Illuminate\Support\ServiceProvider` | `callBootingCallbacks()` | — | Canonical owner: `titanspan.foundation` (not implemented). | **Blocked** | — | Requires Titanspan service-provider lifecycle integration. | [source][source-107] |
+| `Illuminate\Support\ServiceProvider` | `callBootedCallbacks()` | — | Canonical owner: `titanspan.foundation` (not implemented). | **Blocked** | — | Requires Titanspan service-provider lifecycle integration. | [source][source-107] |
+| `Illuminate\Support\ServiceProvider` | `pathsToPublish()` | — | Canonical owner: `titanspan.foundation` (not implemented). | **Blocked** | — | Requires Titanspan service-provider lifecycle integration. | [source][source-107] |
+| `Illuminate\Support\ServiceProvider` | `publishableProviders()` | — | Canonical owner: `titanspan.foundation` (not implemented). | **Blocked** | — | Requires Titanspan service-provider lifecycle integration. | [source][source-107] |
+| `Illuminate\Support\ServiceProvider` | `publishableMigrationPaths()` | — | Canonical owner: `titanspan.foundation` (not implemented). | **Blocked** | — | Requires Titanspan service-provider lifecycle integration. | [source][source-107] |
+| `Illuminate\Support\ServiceProvider` | `publishableGroups()` | — | Canonical owner: `titanspan.foundation` (not implemented). | **Blocked** | — | Requires Titanspan service-provider lifecycle integration. | [source][source-107] |
+| `Illuminate\Support\ServiceProvider` | `commands()` | — | Canonical owner: `titanspan.foundation` (not implemented). | **Blocked** | — | Requires Titanspan service-provider lifecycle integration. | [source][source-107] |
+| `Illuminate\Support\ServiceProvider` | `provides()` | — | Canonical owner: `titanspan.foundation` (not implemented). | **Blocked** | — | Requires Titanspan service-provider lifecycle integration. | [source][source-107] |
+| `Illuminate\Support\ServiceProvider` | `when()` | — | Canonical owner: `titanspan.foundation` (not implemented). | **Blocked** | — | Requires Titanspan service-provider lifecycle integration. | [source][source-107] |
+| `Illuminate\Support\ServiceProvider` | `isDeferred()` | — | Canonical owner: `titanspan.foundation` (not implemented). | **Blocked** | — | Requires Titanspan service-provider lifecycle integration. | [source][source-107] |
+| `Illuminate\Support\ServiceProvider` | `defaultProviders()` | — | Canonical owner: `titanspan.foundation` (not implemented). | **Blocked** | — | Requires Titanspan service-provider lifecycle integration. | [source][source-107] |
+| `Illuminate\Support\ServiceProvider` | `addProviderToBootstrapFile()` | — | Canonical owner: `titanspan.foundation` (not implemented). | **Blocked** | — | Requires Titanspan service-provider lifecycle integration. | [source][source-107] |
+| `Illuminate\Support\ServiceProvider` | `removeProviderFromBootstrapFile()` | — | Canonical owner: `titanspan.foundation` (not implemented). | **Blocked** | — | Requires Titanspan service-provider lifecycle integration. | [source][source-107] |
+| `Illuminate\Support\ServiceProvider` | `publishes` (property) | — | Canonical owner: `titanspan.foundation` (not implemented). | **Blocked** | — | Requires Titanspan service-provider lifecycle integration. | [source][source-107] |
+| `Illuminate\Support\ServiceProvider` | `publishGroups` (property) | — | Canonical owner: `titanspan.foundation` (not implemented). | **Blocked** | — | Requires Titanspan service-provider lifecycle integration. | [source][source-107] |
+| `Illuminate\Support\ServiceProvider` | `optimizeCommands` (property) | — | Canonical owner: `titanspan.foundation` (not implemented). | **Blocked** | — | Requires Titanspan service-provider lifecycle integration. | [source][source-107] |
+| `Illuminate\Support\ServiceProvider` | `optimizeClearCommands` (property) | — | Canonical owner: `titanspan.foundation` (not implemented). | **Blocked** | — | Requires Titanspan service-provider lifecycle integration. | [source][source-107] |
+| `Illuminate\Support\ServiceProvider` | `reloadCommands` (property) | — | Canonical owner: `titanspan.foundation` (not implemented). | **Blocked** | — | Requires Titanspan service-provider lifecycle integration. | [source][source-107] |
+
+</details>
+
+<details>
+<summary>Illuminate\Support\Sleep — 28 listed public members (class)</summary>
+
+| Upstream class | Upstream API | Titanspan API | Implementation location | Compatibility status | Test evidence | Differences | Upstream reference |
+|---|---|---|---|---|---|---|---|
+| `Illuminate\Support\Sleep` | `__construct()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-108] |
+| `Illuminate\Support\Sleep` | `for()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-108] |
+| `Illuminate\Support\Sleep` | `until()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-108] |
+| `Illuminate\Support\Sleep` | `usleep()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-108] |
+| `Illuminate\Support\Sleep` | `sleep()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-108] |
+| `Illuminate\Support\Sleep` | `minutes()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-108] |
+| `Illuminate\Support\Sleep` | `minute()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-108] |
+| `Illuminate\Support\Sleep` | `seconds()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-108] |
+| `Illuminate\Support\Sleep` | `second()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-108] |
+| `Illuminate\Support\Sleep` | `milliseconds()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-108] |
+| `Illuminate\Support\Sleep` | `millisecond()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-108] |
+| `Illuminate\Support\Sleep` | `microseconds()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-108] |
+| `Illuminate\Support\Sleep` | `microsecond()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-108] |
+| `Illuminate\Support\Sleep` | `and()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-108] |
+| `Illuminate\Support\Sleep` | `while()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-108] |
+| `Illuminate\Support\Sleep` | `then()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-108] |
+| `Illuminate\Support\Sleep` | `__destruct()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-108] |
+| `Illuminate\Support\Sleep` | `fake()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-108] |
+| `Illuminate\Support\Sleep` | `assertSlept()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-108] |
+| `Illuminate\Support\Sleep` | `assertSleptTimes()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-108] |
+| `Illuminate\Support\Sleep` | `assertSequence()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-108] |
+| `Illuminate\Support\Sleep` | `assertNeverSlept()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-108] |
+| `Illuminate\Support\Sleep` | `assertInsomniac()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-108] |
+| `Illuminate\Support\Sleep` | `when()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-108] |
+| `Illuminate\Support\Sleep` | `unless()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-108] |
+| `Illuminate\Support\Sleep` | `whenFakingSleep()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-108] |
+| `Illuminate\Support\Sleep` | `syncWithCarbon()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-108] |
+| `Illuminate\Support\Sleep` | `fakeSleepCallbacks` (property) | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-108] |
+
+</details>
+
+<details>
+<summary>Illuminate\Support\Str — 112 listed public members (class)</summary>
+
+| Upstream class | Upstream API | Titanspan API | Implementation location | Compatibility status | Test evidence | Differences | Upstream reference |
+|---|---|---|---|---|---|---|---|
+| `Illuminate\Support\Str` | `of()` | `Str.of` | `src/titanspan/support/str.py` | **Python-adapted parity** | `tests/unit/support/test_stringable.py` | Lazily imports and constructs the fluent Python string wrapper. | [source][source-109] |
+| `Illuminate\Support\Str` | `trans()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-109] |
+| `Illuminate\Support\Str` | `after()` | `Str.after` | `src/titanspan/support/str.py` | **Python-adapted parity** | `tests/unit/support/test_str.py` | Python Unicode and standard-library semantics are used; see the method documentation. | [source][source-109] |
+| `Illuminate\Support\Str` | `afterLast()` | `Str.after_last` / `Str.afterLast` | `src/titanspan/support/str.py` | **Python-adapted parity** | `tests/unit/support/test_str.py` | Python Unicode and standard-library semantics are used; see the method documentation. | [source][source-109] |
+| `Illuminate\Support\Str` | `ascii()` | `Str.ascii` | `src/titanspan/support/str.py` | **Pending** | `tests/unit/support/test_str.py` | Uses standard Unicode decomposition and Latin substitutions; locale transliteration is pending. | [source][source-109] |
+| `Illuminate\Support\Str` | `transliterate()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-109] |
+| `Illuminate\Support\Str` | `before()` | `Str.before` | `src/titanspan/support/str.py` | **Python-adapted parity** | `tests/unit/support/test_str.py` | Python Unicode and standard-library semantics are used; see the method documentation. | [source][source-109] |
+| `Illuminate\Support\Str` | `beforeLast()` | `Str.before_last` / `Str.beforeLast` | `src/titanspan/support/str.py` | **Python-adapted parity** | `tests/unit/support/test_str.py` | Python Unicode and standard-library semantics are used; see the method documentation. | [source][source-109] |
+| `Illuminate\Support\Str` | `between()` | `Str.between` | `src/titanspan/support/str.py` | **Python-adapted parity** | `tests/unit/support/test_str.py` | Python Unicode and standard-library semantics are used; see the method documentation. | [source][source-109] |
+| `Illuminate\Support\Str` | `betweenFirst()` | `Str.between_first` / `Str.betweenFirst` | `src/titanspan/support/str.py` | **Python-adapted parity** | `tests/unit/support/test_str.py` | Python Unicode and standard-library semantics are used; see the method documentation. | [source][source-109] |
+| `Illuminate\Support\Str` | `camel()` | `Str.camel` | `src/titanspan/support/str.py` | **Python-adapted parity** | `tests/unit/support/test_str.py` | Python Unicode and standard-library semantics are used; see the method documentation. | [source][source-109] |
+| `Illuminate\Support\Str` | `charAt()` | `Str.char_at` / `Str.charAt` | `src/titanspan/support/str.py` | **Python-adapted parity** | `tests/unit/support/test_str.py` | Python Unicode and standard-library semantics are used; see the method documentation. | [source][source-109] |
+| `Illuminate\Support\Str` | `chopStart()` | `Str.chop_start` / `Str.chopStart` | `src/titanspan/support/str.py` | **Python-adapted parity** | `tests/unit/support/test_str.py` | Python Unicode and standard-library semantics are used; see the method documentation. | [source][source-109] |
+| `Illuminate\Support\Str` | `chopEnd()` | `Str.chop_end` / `Str.chopEnd` | `src/titanspan/support/str.py` | **Python-adapted parity** | `tests/unit/support/test_str.py` | Python Unicode and standard-library semantics are used; see the method documentation. | [source][source-109] |
+| `Illuminate\Support\Str` | `contains()` | `Str.contains` | `src/titanspan/support/str.py` | **Python-adapted parity** | `tests/unit/support/test_str.py` | Python Unicode and standard-library semantics are used; see the method documentation. | [source][source-109] |
+| `Illuminate\Support\Str` | `containsAll()` | `Str.contains_all` / `Str.containsAll` | `src/titanspan/support/str.py` | **Python-adapted parity** | `tests/unit/support/test_str.py` | Python Unicode and standard-library semantics are used; see the method documentation. | [source][source-109] |
+| `Illuminate\Support\Str` | `doesntContain()` | `Str.doesnt_contain` / `Str.doesntContain` | `src/titanspan/support/str.py` | **Python-adapted parity** | `tests/unit/support/test_str.py` | Python Unicode and standard-library semantics are used; see the method documentation. | [source][source-109] |
+| `Illuminate\Support\Str` | `convertCase()` | `Str.convert_case` / `Str.convertCase` | `src/titanspan/support/str.py` | **Python-adapted parity** | `tests/unit/support/test_str.py` | Supports standard upper, lower, title, and fold modes; simple case modes are pending. | [source][source-109] |
+| `Illuminate\Support\Str` | `counted()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-109] |
+| `Illuminate\Support\Str` | `deduplicate()` | `Str.deduplicate` | `src/titanspan/support/str.py` | **Python-adapted parity** | `tests/unit/support/test_str.py` | Python Unicode and standard-library semantics are used; see the method documentation. | [source][source-109] |
+| `Illuminate\Support\Str` | `endsWith()` | `Str.ends_with` / `Str.endsWith` | `src/titanspan/support/str.py` | **Python-adapted parity** | `tests/unit/support/test_str.py` | Python Unicode and standard-library semantics are used; see the method documentation. | [source][source-109] |
+| `Illuminate\Support\Str` | `doesntEndWith()` | `Str.doesnt_end_with` / `Str.doesntEndWith` | `src/titanspan/support/str.py` | **Python-adapted parity** | `tests/unit/support/test_str.py` | Python Unicode and standard-library semantics are used; see the method documentation. | [source][source-109] |
+| `Illuminate\Support\Str` | `excerpt()` | `Str.excerpt` | `src/titanspan/support/str.py` | **Python-adapted parity** | `tests/unit/support/test_str.py` | Uses Python regex case folding and code-point radius lengths. | [source][source-109] |
+| `Illuminate\Support\Str` | `finish()` | `Str.finish` | `src/titanspan/support/str.py` | **Python-adapted parity** | `tests/unit/support/test_str.py` | Python Unicode and standard-library semantics are used; see the method documentation. | [source][source-109] |
+| `Illuminate\Support\Str` | `wrap()` | `Str.wrap` | `src/titanspan/support/str.py` | **Python-adapted parity** | `tests/unit/support/test_str.py` | Python Unicode and standard-library semantics are used; see the method documentation. | [source][source-109] |
+| `Illuminate\Support\Str` | `unwrap()` | `Str.unwrap` | `src/titanspan/support/str.py` | **Python-adapted parity** | `tests/unit/support/test_str.py` | Python Unicode and standard-library semantics are used; see the method documentation. | [source][source-109] |
+| `Illuminate\Support\Str` | `is()` | `Str.is_` / `Str.is` | `src/titanspan/support/str.py` | **Python-adapted parity** | `tests/unit/support/test_str.py` | Python reserves `is`; the public method is `Str.is_`. | [source][source-109] |
+| `Illuminate\Support\Str` | `isAscii()` | `Str.is_ascii` / `Str.isAscii` | `src/titanspan/support/str.py` | **Python-adapted parity** | `tests/unit/support/test_str.py` | Python Unicode and standard-library semantics are used; see the method documentation. | [source][source-109] |
+| `Illuminate\Support\Str` | `isJson()` | `Str.is_json` / `Str.isJson` | `src/titanspan/support/str.py` | **Python-adapted parity** | `tests/unit/support/test_str.py` | Python Unicode and standard-library semantics are used; see the method documentation. | [source][source-109] |
+| `Illuminate\Support\Str` | `isUrl()` | `Str.is_url` / `Str.isUrl` | `src/titanspan/support/str.py` | **Pending** | `tests/unit/support/test_str.py` | Checks a conservative scheme set; it does not include Laravel's complete protocol list. | [source][source-109] |
+| `Illuminate\Support\Str` | `isUuid()` | `Str.is_uuid` / `Str.isUuid` | `src/titanspan/support/str.py` | **Python-adapted parity** | `tests/unit/support/test_str.py` | Python Unicode and standard-library semantics are used; see the method documentation. | [source][source-109] |
+| `Illuminate\Support\Str` | `isUlid()` | `Str.is_ulid` / `Str.isUlid` | `src/titanspan/support/str.py` | **Pending** | `tests/unit/support/test_str.py` | Accepts lowercase alphabet characters; exact Symfony UID validation is pending. | [source][source-109] |
+| `Illuminate\Support\Str` | `kebab()` | `Str.kebab` | `src/titanspan/support/str.py` | **Python-adapted parity** | `tests/unit/support/test_str.py` | Python Unicode and standard-library semantics are used; see the method documentation. | [source][source-109] |
+| `Illuminate\Support\Str` | `length()` | `Str.length` | `src/titanspan/support/str.py` | **Python-adapted parity** | `tests/unit/support/test_str.py` | Python Unicode and standard-library semantics are used; see the method documentation. | [source][source-109] |
+| `Illuminate\Support\Str` | `limit()` | `Str.limit` | `src/titanspan/support/str.py` | **Python-adapted parity** | `tests/unit/support/test_str.py` | Uses Python code-point lengths rather than terminal display widths. | [source][source-109] |
+| `Illuminate\Support\Str` | `lower()` | `Str.lower` | `src/titanspan/support/str.py` | **Python-adapted parity** | `tests/unit/support/test_str.py` | Python Unicode and standard-library semantics are used; see the method documentation. | [source][source-109] |
+| `Illuminate\Support\Str` | `words()` | `Str.words` | `src/titanspan/support/str.py` | **Python-adapted parity** | `tests/unit/support/test_str.py` | Python Unicode and standard-library semantics are used; see the method documentation. | [source][source-109] |
+| `Illuminate\Support\Str` | `markdown()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-109] |
+| `Illuminate\Support\Str` | `inlineMarkdown()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-109] |
+| `Illuminate\Support\Str` | `mask()` | `Str.mask` | `src/titanspan/support/str.py` | **Python-adapted parity** | `tests/unit/support/test_str.py` | Python Unicode and standard-library semantics are used; see the method documentation. | [source][source-109] |
+| `Illuminate\Support\Str` | `match()` | `Str.match` | `src/titanspan/support/str.py` | **Python-adapted parity** | `tests/unit/support/test_str.py` | Python Unicode and standard-library semantics are used; see the method documentation. | [source][source-109] |
+| `Illuminate\Support\Str` | `isMatch()` | `Str.is_match` / `Str.isMatch` | `src/titanspan/support/str.py` | **Python-adapted parity** | `tests/unit/support/test_str.py` | Python Unicode and standard-library semantics are used; see the method documentation. | [source][source-109] |
+| `Illuminate\Support\Str` | `matchAll()` | `Str.match_all` / `Str.matchAll` | `src/titanspan/support/str.py` | **Python-adapted parity** | `tests/unit/support/test_str.py` | Returns a Python list rather than Illuminate Collection. | [source][source-109] |
+| `Illuminate\Support\Str` | `numbers()` | `Str.numbers` | `src/titanspan/support/str.py` | **Python-adapted parity** | `tests/unit/support/test_str.py` | Python Unicode and standard-library semantics are used; see the method documentation. | [source][source-109] |
+| `Illuminate\Support\Str` | `padBoth()` | `Str.pad_both` / `Str.padBoth` | `src/titanspan/support/str.py` | **Python-adapted parity** | `tests/unit/support/test_str.py` | Python Unicode and standard-library semantics are used; see the method documentation. | [source][source-109] |
+| `Illuminate\Support\Str` | `padLeft()` | `Str.pad_left` / `Str.padLeft` | `src/titanspan/support/str.py` | **Python-adapted parity** | `tests/unit/support/test_str.py` | Python Unicode and standard-library semantics are used; see the method documentation. | [source][source-109] |
+| `Illuminate\Support\Str` | `padRight()` | `Str.pad_right` / `Str.padRight` | `src/titanspan/support/str.py` | **Python-adapted parity** | `tests/unit/support/test_str.py` | Python Unicode and standard-library semantics are used; see the method documentation. | [source][source-109] |
+| `Illuminate\Support\Str` | `parseCallback()` | `Str.parse_callback` / `Str.parseCallback` | `src/titanspan/support/str.py` | **Python-adapted parity** | `tests/unit/support/test_str.py` | Returns a Python tuple rather than a PHP two-item array. | [source][source-109] |
+| `Illuminate\Support\Str` | `plural()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-109] |
+| `Illuminate\Support\Str` | `pluralStudly()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-109] |
+| `Illuminate\Support\Str` | `pluralPascal()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-109] |
+| `Illuminate\Support\Str` | `password()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-109] |
+| `Illuminate\Support\Str` | `position()` | `Str.position` | `src/titanspan/support/str.py` | **Python-adapted parity** | `tests/unit/support/test_str.py` | Returns None for a missing match instead of PHP false. | [source][source-109] |
+| `Illuminate\Support\Str` | `random()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-109] |
+| `Illuminate\Support\Str` | `createRandomStringsUsing()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-109] |
+| `Illuminate\Support\Str` | `createRandomStringsUsingSequence()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-109] |
+| `Illuminate\Support\Str` | `createRandomStringsNormally()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-109] |
+| `Illuminate\Support\Str` | `repeat()` | `Str.repeat` | `src/titanspan/support/str.py` | **Python-adapted parity** | `tests/unit/support/test_str.py` | Python Unicode and standard-library semantics are used; see the method documentation. | [source][source-109] |
+| `Illuminate\Support\Str` | `replaceArray()` | `Str.replace_array` / `Str.replaceArray` | `src/titanspan/support/str.py` | **Python-adapted parity** | `tests/unit/support/test_str.py` | Python Unicode and standard-library semantics are used; see the method documentation. | [source][source-109] |
+| `Illuminate\Support\Str` | `replace()` | `Str.replace` | `src/titanspan/support/str.py` | **Python-adapted parity** | `tests/unit/support/test_str.py` | Python Unicode and standard-library semantics are used; see the method documentation. | [source][source-109] |
+| `Illuminate\Support\Str` | `replaceFirst()` | `Str.replace_first` / `Str.replaceFirst` | `src/titanspan/support/str.py` | **Python-adapted parity** | `tests/unit/support/test_str.py` | Python Unicode and standard-library semantics are used; see the method documentation. | [source][source-109] |
+| `Illuminate\Support\Str` | `replaceStart()` | `Str.replace_start` / `Str.replaceStart` | `src/titanspan/support/str.py` | **Python-adapted parity** | `tests/unit/support/test_str.py` | Python Unicode and standard-library semantics are used; see the method documentation. | [source][source-109] |
+| `Illuminate\Support\Str` | `replaceLast()` | `Str.replace_last` / `Str.replaceLast` | `src/titanspan/support/str.py` | **Python-adapted parity** | `tests/unit/support/test_str.py` | Python Unicode and standard-library semantics are used; see the method documentation. | [source][source-109] |
+| `Illuminate\Support\Str` | `replaceEnd()` | `Str.replace_end` / `Str.replaceEnd` | `src/titanspan/support/str.py` | **Python-adapted parity** | `tests/unit/support/test_str.py` | Python Unicode and standard-library semantics are used; see the method documentation. | [source][source-109] |
+| `Illuminate\Support\Str` | `replaceMatches()` | `Str.replace_matches` / `Str.replaceMatches` | `src/titanspan/support/str.py` | **Python-adapted parity** | `tests/unit/support/test_str.py` | Python Unicode and standard-library semantics are used; see the method documentation. | [source][source-109] |
+| `Illuminate\Support\Str` | `remove()` | `Str.remove` | `src/titanspan/support/str.py` | **Python-adapted parity** | `tests/unit/support/test_str.py` | Python Unicode and standard-library semantics are used; see the method documentation. | [source][source-109] |
+| `Illuminate\Support\Str` | `reverse()` | `Str.reverse` | `src/titanspan/support/str.py` | **Python-adapted parity** | `tests/unit/support/test_str.py` | Python Unicode and standard-library semantics are used; see the method documentation. | [source][source-109] |
+| `Illuminate\Support\Str` | `start()` | `Str.start` | `src/titanspan/support/str.py` | **Python-adapted parity** | `tests/unit/support/test_str.py` | Python Unicode and standard-library semantics are used; see the method documentation. | [source][source-109] |
+| `Illuminate\Support\Str` | `upper()` | `Str.upper` | `src/titanspan/support/str.py` | **Python-adapted parity** | `tests/unit/support/test_str.py` | Python Unicode and standard-library semantics are used; see the method documentation. | [source][source-109] |
+| `Illuminate\Support\Str` | `title()` | `Str.title` | `src/titanspan/support/str.py` | **Python-adapted parity** | `tests/unit/support/test_str.py` | Python Unicode and standard-library semantics are used; see the method documentation. | [source][source-109] |
+| `Illuminate\Support\Str` | `headline()` | `Str.headline` | `src/titanspan/support/str.py` | **Python-adapted parity** | `tests/unit/support/test_str.py` | Python Unicode and standard-library semantics are used; see the method documentation. | [source][source-109] |
+| `Illuminate\Support\Str` | `initials()` | `Str.initials` | `src/titanspan/support/str.py` | **Python-adapted parity** | `tests/unit/support/test_str.py` | Python Unicode and standard-library semantics are used; see the method documentation. | [source][source-109] |
+| `Illuminate\Support\Str` | `apa()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-109] |
+| `Illuminate\Support\Str` | `singular()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-109] |
+| `Illuminate\Support\Str` | `slug()` | `Str.slug` | `src/titanspan/support/str.py` | **Python-adapted parity** | `tests/unit/support/test_str.py` | Python Unicode and standard-library semantics are used; see the method documentation. | [source][source-109] |
+| `Illuminate\Support\Str` | `snake()` | `Str.snake` | `src/titanspan/support/str.py` | **Python-adapted parity** | `tests/unit/support/test_str.py` | Python Unicode and standard-library semantics are used; see the method documentation. | [source][source-109] |
+| `Illuminate\Support\Str` | `trim()` | `Str.trim` | `src/titanspan/support/str.py` | **Python-adapted parity** | `tests/unit/support/test_str.py` | Python Unicode and standard-library semantics are used; see the method documentation. | [source][source-109] |
+| `Illuminate\Support\Str` | `ltrim()` | `Str.ltrim` | `src/titanspan/support/str.py` | **Python-adapted parity** | `tests/unit/support/test_str.py` | Python Unicode and standard-library semantics are used; see the method documentation. | [source][source-109] |
+| `Illuminate\Support\Str` | `rtrim()` | `Str.rtrim` | `src/titanspan/support/str.py` | **Python-adapted parity** | `tests/unit/support/test_str.py` | Python Unicode and standard-library semantics are used; see the method documentation. | [source][source-109] |
+| `Illuminate\Support\Str` | `squish()` | `Str.squish` | `src/titanspan/support/str.py` | **Python-adapted parity** | `tests/unit/support/test_str.py` | Python Unicode and standard-library semantics are used; see the method documentation. | [source][source-109] |
+| `Illuminate\Support\Str` | `startsWith()` | `Str.starts_with` / `Str.startsWith` | `src/titanspan/support/str.py` | **Python-adapted parity** | `tests/unit/support/test_str.py` | Python Unicode and standard-library semantics are used; see the method documentation. | [source][source-109] |
+| `Illuminate\Support\Str` | `doesntStartWith()` | `Str.doesnt_start_with` / `Str.doesntStartWith` | `src/titanspan/support/str.py` | **Python-adapted parity** | `tests/unit/support/test_str.py` | Python Unicode and standard-library semantics are used; see the method documentation. | [source][source-109] |
+| `Illuminate\Support\Str` | `studly()` | `Str.studly` | `src/titanspan/support/str.py` | **Python-adapted parity** | `tests/unit/support/test_str.py` | Python Unicode and standard-library semantics are used; see the method documentation. | [source][source-109] |
+| `Illuminate\Support\Str` | `pascal()` | `Str.pascal` | `src/titanspan/support/str.py` | **Python-adapted parity** | `tests/unit/support/test_str.py` | Python Unicode and standard-library semantics are used; see the method documentation. | [source][source-109] |
+| `Illuminate\Support\Str` | `substr()` | `Str.substr` | `src/titanspan/support/str.py` | **Python-adapted parity** | `tests/unit/support/test_str.py` | Uses Python code-point offsets; encoding is accepted but ignored. | [source][source-109] |
+| `Illuminate\Support\Str` | `substrCount()` | `Str.substr_count` / `Str.substrCount` | `src/titanspan/support/str.py` | **Python-adapted parity** | `tests/unit/support/test_str.py` | Uses Python code-point offsets and raises ValueError for an empty needle. | [source][source-109] |
+| `Illuminate\Support\Str` | `substrReplace()` | `Str.substr_replace` / `Str.substrReplace` | `src/titanspan/support/str.py` | **Python-adapted parity** | `tests/unit/support/test_str.py` | Uses Python code-point offsets and immutable string replacement. | [source][source-109] |
+| `Illuminate\Support\Str` | `swap()` | `Str.swap` | `src/titanspan/support/str.py` | **Python-adapted parity** | `tests/unit/support/test_str.py` | Uses a single regex pass and ignores empty mapping keys. | [source][source-109] |
+| `Illuminate\Support\Str` | `take()` | `Str.take` | `src/titanspan/support/str.py` | **Python-adapted parity** | `tests/unit/support/test_str.py` | Python Unicode and standard-library semantics are used; see the method documentation. | [source][source-109] |
+| `Illuminate\Support\Str` | `toBase64()` | `Str.to_base64` / `Str.toBase64` | `src/titanspan/support/str.py` | **Python-adapted parity** | `tests/unit/support/test_str.py` | Python Unicode and standard-library semantics are used; see the method documentation. | [source][source-109] |
+| `Illuminate\Support\Str` | `fromBase64()` | `Str.from_base64` / `Str.fromBase64` | `src/titanspan/support/str.py` | **Python-adapted parity** | `tests/unit/support/test_str.py` | Python Unicode and standard-library semantics are used; see the method documentation. | [source][source-109] |
+| `Illuminate\Support\Str` | `lcfirst()` | `Str.lcfirst` | `src/titanspan/support/str.py` | **Python-adapted parity** | `tests/unit/support/test_str.py` | Python Unicode and standard-library semantics are used; see the method documentation. | [source][source-109] |
+| `Illuminate\Support\Str` | `ucfirst()` | `Str.ucfirst` | `src/titanspan/support/str.py` | **Python-adapted parity** | `tests/unit/support/test_str.py` | Python Unicode and standard-library semantics are used; see the method documentation. | [source][source-109] |
+| `Illuminate\Support\Str` | `ucwords()` | `Str.ucwords` | `src/titanspan/support/str.py` | **Python-adapted parity** | `tests/unit/support/test_str.py` | Python Unicode and standard-library semantics are used; see the method documentation. | [source][source-109] |
+| `Illuminate\Support\Str` | `ucsplit()` | `Str.ucsplit` | `src/titanspan/support/str.py` | **Python-adapted parity** | `tests/unit/support/test_str.py` | Python Unicode and standard-library semantics are used; see the method documentation. | [source][source-109] |
+| `Illuminate\Support\Str` | `wordCount()` | `Str.word_count` / `Str.wordCount` | `src/titanspan/support/str.py` | **Python-adapted parity** | `tests/unit/support/test_str.py` | Counts Unicode word characters; PHP's default is ASCII-oriented. | [source][source-109] |
+| `Illuminate\Support\Str` | `wordWrap()` | `Str.word_wrap` / `Str.wordWrap` | `src/titanspan/support/str.py` | **Python-adapted parity** | `tests/unit/support/test_str.py` | Uses textwrap; whitespace and long-word behavior can differ from PHP. | [source][source-109] |
+| `Illuminate\Support\Str` | `uuid()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-109] |
+| `Illuminate\Support\Str` | `uuid7()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-109] |
+| `Illuminate\Support\Str` | `orderedUuid()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-109] |
+| `Illuminate\Support\Str` | `createUuidsUsing()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-109] |
+| `Illuminate\Support\Str` | `createUuidsUsingSequence()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-109] |
+| `Illuminate\Support\Str` | `freezeUuids()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-109] |
+| `Illuminate\Support\Str` | `createUuidsNormally()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-109] |
+| `Illuminate\Support\Str` | `ulid()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-109] |
+| `Illuminate\Support\Str` | `createUlidsNormally()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-109] |
+| `Illuminate\Support\Str` | `createUlidsUsing()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-109] |
+| `Illuminate\Support\Str` | `createUlidsUsingSequence()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-109] |
+| `Illuminate\Support\Str` | `freezeUlids()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-109] |
+| `Illuminate\Support\Str` | `flushCache()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-109] |
+| `Illuminate\Support\Str` | `resetFactoryState()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-109] |
+| `Illuminate\Support\Str` | `INVISIBLE_CHARACTERS` (constant) | `Str.INVISIBLE_CHARACTERS` | `src/titanspan/support/str.py` | **Pending** | — | A subset is present; exact upstream constant contents and semantics remain unverified. | [source][source-109] |
+
+</details>
+
+<details>
+<summary>Illuminate\Support\Stringable — 142 listed public members (class)</summary>
+
+| Upstream class | Upstream API | Titanspan API | Implementation location | Compatibility status | Test evidence | Differences | Upstream reference |
+|---|---|---|---|---|---|---|---|
+| `Illuminate\Support\Stringable` | `__construct()` | `Stringable.Stringable(value)` | `src/titanspan/support/stringable.py` | **Python-adapted parity** | `tests/unit/support/test_stringable.py` | Constructor accepts Python strings only. | [source][source-110] |
+| `Illuminate\Support\Stringable` | `after()` | `Stringable.after` | `src/titanspan/support/stringable.py` | **Python-adapted parity** | `tests/unit/support/test_stringable.py` | Delegates to Str and uses Python Unicode indexing. | [source][source-110] |
+| `Illuminate\Support\Stringable` | `afterLast()` | `Stringable.after_last / afterLast` | `src/titanspan/support/stringable.py` | **Python-adapted parity** | `tests/unit/support/test_stringable.py` | Delegates to Str and uses Python Unicode indexing. | [source][source-110] |
+| `Illuminate\Support\Stringable` | `append()` | `Stringable.append` | `src/titanspan/support/stringable.py` | **Python-adapted parity** | `tests/unit/support/test_stringable.py` | Accepts Python string arguments and returns a new wrapper. | [source][source-110] |
+| `Illuminate\Support\Stringable` | `newLine()` | `Stringable.new_line / newLine` | `src/titanspan/support/stringable.py` | **Python-adapted parity** | `tests/unit/support/test_stringable.py` | Appends LF characters for portable Python text. | [source][source-110] |
+| `Illuminate\Support\Stringable` | `ascii()` | `Stringable.ascii` | `src/titanspan/support/stringable.py` | **Python-adapted parity** | `tests/unit/support/test_stringable.py` | Uses the standard-library transliteration rules documented by Str. | [source][source-110] |
+| `Illuminate\Support\Stringable` | `basename()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-110] |
+| `Illuminate\Support\Stringable` | `charAt()` | `Stringable.char_at / charAt` | `src/titanspan/support/stringable.py` | **Python-adapted parity** | `tests/unit/support/test_stringable.py` | Returns False for an out-of-range code point index. | [source][source-110] |
+| `Illuminate\Support\Stringable` | `chopStart()` | `Stringable.chop_start / chopStart` | `src/titanspan/support/stringable.py` | **Python-adapted parity** | `tests/unit/support/test_stringable.py` | Uses Python Unicode code points. | [source][source-110] |
+| `Illuminate\Support\Stringable` | `chopEnd()` | `Stringable.chop_end / chopEnd` | `src/titanspan/support/stringable.py` | **Python-adapted parity** | `tests/unit/support/test_stringable.py` | Uses Python Unicode code points. | [source][source-110] |
+| `Illuminate\Support\Stringable` | `classBasename()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-110] |
+| `Illuminate\Support\Stringable` | `before()` | `Stringable.before` | `src/titanspan/support/stringable.py` | **Python-adapted parity** | `tests/unit/support/test_stringable.py` | Delegates to Str and uses Python Unicode indexing. | [source][source-110] |
+| `Illuminate\Support\Stringable` | `beforeLast()` | `Stringable.before_last / beforeLast` | `src/titanspan/support/stringable.py` | **Python-adapted parity** | `tests/unit/support/test_stringable.py` | Delegates to Str and uses Python Unicode indexing. | [source][source-110] |
+| `Illuminate\Support\Stringable` | `between()` | `Stringable.between` | `src/titanspan/support/stringable.py` | **Python-adapted parity** | `tests/unit/support/test_stringable.py` | Delegates to Str and uses Python Unicode indexing. | [source][source-110] |
+| `Illuminate\Support\Stringable` | `betweenFirst()` | `Stringable.between_first / betweenFirst` | `src/titanspan/support/stringable.py` | **Python-adapted parity** | `tests/unit/support/test_stringable.py` | Delegates to Str and uses Python Unicode indexing. | [source][source-110] |
+| `Illuminate\Support\Stringable` | `camel()` | `Stringable.camel` | `src/titanspan/support/stringable.py` | **Python-adapted parity** | `tests/unit/support/test_stringable.py` | Delegates to Str and uses Python Unicode casing. | [source][source-110] |
+| `Illuminate\Support\Stringable` | `contains()` | `Stringable.contains` | `src/titanspan/support/stringable.py` | **Python-adapted parity** | `tests/unit/support/test_stringable.py` | Uses Python substring and case-folding semantics. | [source][source-110] |
+| `Illuminate\Support\Stringable` | `containsAll()` | `Stringable.contains_all / containsAll` | `src/titanspan/support/stringable.py` | **Python-adapted parity** | `tests/unit/support/test_stringable.py` | Uses Python substring and case-folding semantics. | [source][source-110] |
+| `Illuminate\Support\Stringable` | `doesntContain()` | `Stringable.doesnt_contain / doesntContain` | `src/titanspan/support/stringable.py` | **Python-adapted parity** | `tests/unit/support/test_stringable.py` | Uses Python substring and case-folding semantics. | [source][source-110] |
+| `Illuminate\Support\Stringable` | `convertCase()` | `Stringable.convert_case / convertCase` | `src/titanspan/support/stringable.py` | **Python-adapted parity** | `tests/unit/support/test_stringable.py` | Accepts Python Unicode text; encoding is compatibility-only. | [source][source-110] |
+| `Illuminate\Support\Stringable` | `counted()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-110] |
+| `Illuminate\Support\Stringable` | `deduplicate()` | `Stringable.deduplicate` | `src/titanspan/support/stringable.py` | **Python-adapted parity** | `tests/unit/support/test_stringable.py` | Uses Python Unicode code points. | [source][source-110] |
+| `Illuminate\Support\Stringable` | `dirname()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-110] |
+| `Illuminate\Support\Stringable` | `endsWith()` | `Stringable.ends_with / endsWith` | `src/titanspan/support/stringable.py` | **Python-adapted parity** | `tests/unit/support/test_stringable.py` | Uses Python string suffix semantics. | [source][source-110] |
+| `Illuminate\Support\Stringable` | `doesntEndWith()` | `Stringable.doesnt_end_with / doesntEndWith` | `src/titanspan/support/stringable.py` | **Python-adapted parity** | `tests/unit/support/test_stringable.py` | Uses Python string suffix semantics. | [source][source-110] |
+| `Illuminate\Support\Stringable` | `exactly()` | `Stringable.exactly` | `src/titanspan/support/stringable.py` | **Python-adapted parity** | `tests/unit/support/test_stringable.py::test_stringable_conditional_operations_delegate_to_conditionable` | Predicate checks use Titanspan string semantics; callback and fallback behavior delegate to Conditionable. | [source][source-110] |
+| `Illuminate\Support\Stringable` | `excerpt()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-110] |
+| `Illuminate\Support\Stringable` | `explode()` | — | Canonical owner: `titanspan.collections` (not implemented). | **Blocked** | — | Returns the canonical Collection type, which is not implemented. | [source][source-110] |
+| `Illuminate\Support\Stringable` | `split()` | — | Canonical owner: `titanspan.collections` (not implemented). | **Blocked** | — | Returns the canonical Collection type, which is not implemented. | [source][source-110] |
+| `Illuminate\Support\Stringable` | `finish()` | `Stringable.finish` | `src/titanspan/support/stringable.py` | **Python-adapted parity** | `tests/unit/support/test_stringable.py` | Uses Python string suffix semantics. | [source][source-110] |
+| `Illuminate\Support\Stringable` | `is()` | `Stringable.is_` | `src/titanspan/support/stringable.py` | **Python-adapted parity** | `tests/unit/support/test_stringable.py` | The Python keyword is exposed as is_. | [source][source-110] |
+| `Illuminate\Support\Stringable` | `isAscii()` | `Stringable.is_ascii / isAscii` | `src/titanspan/support/stringable.py` | **Python-adapted parity** | `tests/unit/support/test_stringable.py` | Uses Python ASCII character semantics. | [source][source-110] |
+| `Illuminate\Support\Stringable` | `isJson()` | `Stringable.is_json / isJson` | `src/titanspan/support/stringable.py` | **Python-adapted parity** | `tests/unit/support/test_stringable.py` | Uses Python's strict JSON parser. | [source][source-110] |
+| `Illuminate\Support\Stringable` | `isUrl()` | `Stringable.is_url / isUrl` | `src/titanspan/support/stringable.py` | **Python-adapted parity** | `tests/unit/support/test_stringable.py` | Uses Titanspan's documented URL validation rules. | [source][source-110] |
+| `Illuminate\Support\Stringable` | `isUuid()` | `Stringable.is_uuid / isUuid` | `src/titanspan/support/stringable.py` | **Python-adapted parity** | `tests/unit/support/test_stringable.py` | Uses Python UUID parsing and version validation. | [source][source-110] |
+| `Illuminate\Support\Stringable` | `isUlid()` | `Stringable.is_ulid / isUlid` | `src/titanspan/support/stringable.py` | **Python-adapted parity** | `tests/unit/support/test_stringable.py` | Uses Titanspan's documented ULID character validation. | [source][source-110] |
+| `Illuminate\Support\Stringable` | `isEmpty()` | `Stringable.is_empty / isEmpty` | `src/titanspan/support/stringable.py` | **Python-adapted parity** | `tests/unit/support/test_stringable.py` | Checks for an empty string, not whitespace. | [source][source-110] |
+| `Illuminate\Support\Stringable` | `isNotEmpty()` | `Stringable.is_not_empty / isNotEmpty` | `src/titanspan/support/stringable.py` | **Python-adapted parity** | `tests/unit/support/test_stringable.py` | Checks for a non-empty string. | [source][source-110] |
+| `Illuminate\Support\Stringable` | `isBlank()` | `Stringable.is_blank / isBlank` | `src/titanspan/support/stringable.py` | **Python-adapted parity** | `tests/unit/support/test_stringable.py` | Delegates to Titanspan's shared blank-value helper. | [source][source-110] |
+| `Illuminate\Support\Stringable` | `isNotBlank()` | `Stringable.is_not_blank / isNotBlank` | `src/titanspan/support/stringable.py` | **Python-adapted parity** | `tests/unit/support/test_stringable.py` | Delegates to Titanspan's shared blank-value helper. | [source][source-110] |
+| `Illuminate\Support\Stringable` | `kebab()` | `Stringable.kebab` | `src/titanspan/support/stringable.py` | **Python-adapted parity** | `tests/unit/support/test_stringable.py` | Delegates to Str and uses Python Unicode casing. | [source][source-110] |
+| `Illuminate\Support\Stringable` | `length()` | `Stringable.length` | `src/titanspan/support/stringable.py` | **Python-adapted parity** | `tests/unit/support/test_stringable.py` | Returns Python Unicode code point count. | [source][source-110] |
+| `Illuminate\Support\Stringable` | `limit()` | `Stringable.limit` | `src/titanspan/support/stringable.py` | **Python-adapted parity** | `tests/unit/support/test_stringable.py` | Uses Titanspan's tested Python truncation behavior. | [source][source-110] |
+| `Illuminate\Support\Stringable` | `lower()` | `Stringable.lower` | `src/titanspan/support/stringable.py` | **Python-adapted parity** | `tests/unit/support/test_stringable.py` | Uses Python Unicode lowercasing. | [source][source-110] |
+| `Illuminate\Support\Stringable` | `markdown()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-110] |
+| `Illuminate\Support\Stringable` | `inlineMarkdown()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-110] |
+| `Illuminate\Support\Stringable` | `mask()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-110] |
+| `Illuminate\Support\Stringable` | `match()` | `Stringable.match` | `src/titanspan/support/stringable.py` | **Python-adapted parity** | `tests/unit/support/test_stringable.py` | Uses Python regular-expression syntax and returns Stringable. | [source][source-110] |
+| `Illuminate\Support\Stringable` | `isMatch()` | `Stringable.is_match / isMatch` | `src/titanspan/support/stringable.py` | **Python-adapted parity** | `tests/unit/support/test_stringable.py` | Uses Python regular-expression syntax. | [source][source-110] |
+| `Illuminate\Support\Stringable` | `matchAll()` | — | Canonical owner: `titanspan.collections` (not implemented). | **Blocked** | — | Returns the canonical Collection type, which is not implemented. | [source][source-110] |
+| `Illuminate\Support\Stringable` | `test()` | `Stringable.test` | `src/titanspan/support/stringable.py` | **Python-adapted parity** | `tests/unit/support/test_stringable.py` | Uses Python regular-expression syntax. | [source][source-110] |
+| `Illuminate\Support\Stringable` | `numbers()` | `Stringable.numbers` | `src/titanspan/support/stringable.py` | **Python-adapted parity** | `tests/unit/support/test_stringable.py` | Retains Unicode decimal digits according to Python. | [source][source-110] |
+| `Illuminate\Support\Stringable` | `padBoth()` | `Stringable.pad_both / padBoth` | `src/titanspan/support/stringable.py` | **Python-adapted parity** | `tests/unit/support/test_stringable.py` | Measures padding by Python code points. | [source][source-110] |
+| `Illuminate\Support\Stringable` | `padLeft()` | `Stringable.pad_left / padLeft` | `src/titanspan/support/stringable.py` | **Python-adapted parity** | `tests/unit/support/test_stringable.py` | Measures padding by Python code points. | [source][source-110] |
+| `Illuminate\Support\Stringable` | `padRight()` | `Stringable.pad_right / padRight` | `src/titanspan/support/stringable.py` | **Python-adapted parity** | `tests/unit/support/test_stringable.py` | Measures padding by Python code points. | [source][source-110] |
+| `Illuminate\Support\Stringable` | `parseCallback()` | `Stringable.parse_callback / parseCallback` | `src/titanspan/support/stringable.py` | **Python-adapted parity** | `tests/unit/support/test_stringable.py` | Returns a typed Python tuple. | [source][source-110] |
+| `Illuminate\Support\Stringable` | `pipe()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-110] |
+| `Illuminate\Support\Stringable` | `plural()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-110] |
+| `Illuminate\Support\Stringable` | `pluralStudly()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-110] |
+| `Illuminate\Support\Stringable` | `pluralPascal()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-110] |
+| `Illuminate\Support\Stringable` | `position()` | `Stringable.position` | `src/titanspan/support/stringable.py` | **Python-adapted parity** | `tests/unit/support/test_stringable.py` | Returns None rather than PHP false when absent. | [source][source-110] |
+| `Illuminate\Support\Stringable` | `prepend()` | `Stringable.prepend` | `src/titanspan/support/stringable.py` | **Python-adapted parity** | `tests/unit/support/test_stringable.py` | Accepts Python string arguments and returns a new wrapper. | [source][source-110] |
+| `Illuminate\Support\Stringable` | `remove()` | `Stringable.remove` | `src/titanspan/support/stringable.py` | **Python-adapted parity** | `tests/unit/support/test_stringable.py` | Uses Python literal substring semantics. | [source][source-110] |
+| `Illuminate\Support\Stringable` | `reverse()` | `Stringable.reverse` | `src/titanspan/support/stringable.py` | **Python-adapted parity** | `tests/unit/support/test_stringable.py` | Reverses Python Unicode code points, not bytes or graphemes. | [source][source-110] |
+| `Illuminate\Support\Stringable` | `repeat()` | `Stringable.repeat` | `src/titanspan/support/stringable.py` | **Python-adapted parity** | `tests/unit/support/test_stringable.py` | Rejects negative counts with ValueError. | [source][source-110] |
+| `Illuminate\Support\Stringable` | `replace()` | `Stringable.replace` | `src/titanspan/support/stringable.py` | **Python-adapted parity** | `tests/unit/support/test_stringable.py` | Uses Python literal substring semantics. | [source][source-110] |
+| `Illuminate\Support\Stringable` | `replaceArray()` | `Stringable.replace_array / replaceArray` | `src/titanspan/support/stringable.py` | **Python-adapted parity** | `tests/unit/support/test_stringable.py` | Consumes a Python iterable in order. | [source][source-110] |
+| `Illuminate\Support\Stringable` | `replaceFirst()` | `Stringable.replace_first / replaceFirst` | `src/titanspan/support/stringable.py` | **Python-adapted parity** | `tests/unit/support/test_stringable.py` | Uses Python literal substring semantics. | [source][source-110] |
+| `Illuminate\Support\Stringable` | `replaceStart()` | `Stringable.replace_start / replaceStart` | `src/titanspan/support/stringable.py` | **Python-adapted parity** | `tests/unit/support/test_stringable.py` | Uses Python prefix semantics. | [source][source-110] |
+| `Illuminate\Support\Stringable` | `replaceLast()` | `Stringable.replace_last / replaceLast` | `src/titanspan/support/stringable.py` | **Python-adapted parity** | `tests/unit/support/test_stringable.py` | Uses Python literal substring semantics. | [source][source-110] |
+| `Illuminate\Support\Stringable` | `replaceEnd()` | `Stringable.replace_end / replaceEnd` | `src/titanspan/support/stringable.py` | **Python-adapted parity** | `tests/unit/support/test_stringable.py` | Uses Python suffix semantics. | [source][source-110] |
+| `Illuminate\Support\Stringable` | `replaceMatches()` | `Stringable.replace_matches / replaceMatches` | `src/titanspan/support/stringable.py` | **Python-adapted parity** | `tests/unit/support/test_stringable.py` | Uses Python regular-expression syntax. | [source][source-110] |
+| `Illuminate\Support\Stringable` | `scan()` | — | Canonical owner: `titanspan.collections` (not implemented). | **Blocked** | — | Returns the canonical Collection type, which is not implemented. | [source][source-110] |
+| `Illuminate\Support\Stringable` | `squish()` | `Stringable.squish` | `src/titanspan/support/stringable.py` | **Python-adapted parity** | `tests/unit/support/test_stringable.py` | Uses Python Unicode whitespace classification. | [source][source-110] |
+| `Illuminate\Support\Stringable` | `start()` | `Stringable.start` | `src/titanspan/support/stringable.py` | **Python-adapted parity** | `tests/unit/support/test_stringable.py` | Uses Python string prefix semantics. | [source][source-110] |
+| `Illuminate\Support\Stringable` | `stripTags()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-110] |
+| `Illuminate\Support\Stringable` | `upper()` | `Stringable.upper` | `src/titanspan/support/stringable.py` | **Python-adapted parity** | `tests/unit/support/test_stringable.py` | Uses Python Unicode uppercasing. | [source][source-110] |
+| `Illuminate\Support\Stringable` | `title()` | `Stringable.title` | `src/titanspan/support/stringable.py` | **Python-adapted parity** | `tests/unit/support/test_stringable.py` | Uses Python Unicode title casing. | [source][source-110] |
+| `Illuminate\Support\Stringable` | `headline()` | `Stringable.headline` | `src/titanspan/support/stringable.py` | **Python-adapted parity** | `tests/unit/support/test_stringable.py` | Uses Titanspan's tested identifier word splitting. | [source][source-110] |
+| `Illuminate\Support\Stringable` | `initials()` | `Stringable.initials` | `src/titanspan/support/stringable.py` | **Python-adapted parity** | `tests/unit/support/test_stringable.py` | Splits words using Python whitespace semantics. | [source][source-110] |
+| `Illuminate\Support\Stringable` | `apa()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-110] |
+| `Illuminate\Support\Stringable` | `transliterate()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-110] |
+| `Illuminate\Support\Stringable` | `singular()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-110] |
+| `Illuminate\Support\Stringable` | `slug()` | `Stringable.slug` | `src/titanspan/support/stringable.py` | **Python-adapted parity** | `tests/unit/support/test_stringable.py` | Uses Titanspan's standard-library transliteration rules. | [source][source-110] |
+| `Illuminate\Support\Stringable` | `snake()` | `Stringable.snake` | `src/titanspan/support/stringable.py` | **Python-adapted parity** | `tests/unit/support/test_stringable.py` | Uses Python Unicode casing and code points. | [source][source-110] |
+| `Illuminate\Support\Stringable` | `startsWith()` | `Stringable.starts_with / startsWith` | `src/titanspan/support/stringable.py` | **Python-adapted parity** | `tests/unit/support/test_stringable.py` | Uses Python string prefix semantics. | [source][source-110] |
+| `Illuminate\Support\Stringable` | `doesntStartWith()` | `Stringable.doesnt_start_with / doesntStartWith` | `src/titanspan/support/stringable.py` | **Python-adapted parity** | `tests/unit/support/test_stringable.py` | Uses Python string prefix semantics. | [source][source-110] |
+| `Illuminate\Support\Stringable` | `studly()` | `Stringable.studly` | `src/titanspan/support/stringable.py` | **Python-adapted parity** | `tests/unit/support/test_stringable.py` | Uses Python Unicode casing and code points. | [source][source-110] |
+| `Illuminate\Support\Stringable` | `pascal()` | `Stringable.pascal` | `src/titanspan/support/stringable.py` | **Python-adapted parity** | `tests/unit/support/test_stringable.py` | Uses Python Unicode casing and code points. | [source][source-110] |
+| `Illuminate\Support\Stringable` | `substr()` | `Stringable.substr` | `src/titanspan/support/stringable.py` | **Python-adapted parity** | `tests/unit/support/test_stringable.py` | Uses Python code point offsets and negative-index rules. | [source][source-110] |
+| `Illuminate\Support\Stringable` | `substrCount()` | `Stringable.substr_count / substrCount` | `src/titanspan/support/stringable.py` | **Python-adapted parity** | `tests/unit/support/test_stringable.py` | Uses Python non-overlapping substring counts. | [source][source-110] |
+| `Illuminate\Support\Stringable` | `substrReplace()` | `Stringable.substr_replace / substrReplace` | `src/titanspan/support/stringable.py` | **Python-adapted parity** | `tests/unit/support/test_stringable.py` | Uses Python code point offsets and slice rules. | [source][source-110] |
+| `Illuminate\Support\Stringable` | `swap()` | `Stringable.swap` | `src/titanspan/support/stringable.py` | **Python-adapted parity** | `tests/unit/support/test_stringable.py` | Uses one Python regular-expression replacement pass. | [source][source-110] |
+| `Illuminate\Support\Stringable` | `take()` | `Stringable.take` | `src/titanspan/support/stringable.py` | **Python-adapted parity** | `tests/unit/support/test_stringable.py` | Uses Python code point offsets. | [source][source-110] |
+| `Illuminate\Support\Stringable` | `trim()` | `Stringable.trim` | `src/titanspan/support/stringable.py` | **Python-adapted parity** | `tests/unit/support/test_stringable.py` | Uses Python's Unicode-aware str.strip semantics. | [source][source-110] |
+| `Illuminate\Support\Stringable` | `ltrim()` | `Stringable.ltrim` | `src/titanspan/support/stringable.py` | **Python-adapted parity** | `tests/unit/support/test_stringable.py` | Uses Python's Unicode-aware str.lstrip semantics. | [source][source-110] |
+| `Illuminate\Support\Stringable` | `rtrim()` | `Stringable.rtrim` | `src/titanspan/support/stringable.py` | **Python-adapted parity** | `tests/unit/support/test_stringable.py` | Uses Python's Unicode-aware str.rstrip semantics. | [source][source-110] |
+| `Illuminate\Support\Stringable` | `lcfirst()` | `Stringable.lcfirst` | `src/titanspan/support/stringable.py` | **Python-adapted parity** | `tests/unit/support/test_stringable.py` | Uses Python Unicode casing on the first code point. | [source][source-110] |
+| `Illuminate\Support\Stringable` | `ucfirst()` | `Stringable.ucfirst` | `src/titanspan/support/stringable.py` | **Python-adapted parity** | `tests/unit/support/test_stringable.py` | Uses Python Unicode casing on the first code point. | [source][source-110] |
+| `Illuminate\Support\Stringable` | `ucwords()` | `Stringable.ucwords` | `src/titanspan/support/stringable.py` | **Python-adapted parity** | `tests/unit/support/test_stringable.py` | Uses Python Unicode casing and explicit separators. | [source][source-110] |
+| `Illuminate\Support\Stringable` | `ucsplit()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-110] |
+| `Illuminate\Support\Stringable` | `whenContains()` | `Stringable.when_contains` / `Stringable.whenContains` | `src/titanspan/support/stringable.py` | **Python-adapted parity** | `tests/unit/support/test_stringable.py::test_stringable_conditional_operations_delegate_to_conditionable` | Predicate checks use Titanspan string semantics; callback and fallback behavior delegate to Conditionable. | [source][source-110] |
+| `Illuminate\Support\Stringable` | `whenContainsAll()` | `Stringable.when_contains_all` / `Stringable.whenContainsAll` | `src/titanspan/support/stringable.py` | **Python-adapted parity** | `tests/unit/support/test_stringable.py::test_stringable_conditional_operations_delegate_to_conditionable` | Predicate checks use Titanspan string semantics; callback and fallback behavior delegate to Conditionable. | [source][source-110] |
+| `Illuminate\Support\Stringable` | `whenEmpty()` | `Stringable.when_empty` / `Stringable.whenEmpty` | `src/titanspan/support/stringable.py` | **Python-adapted parity** | `tests/unit/support/test_stringable.py::test_stringable_conditional_operations_delegate_to_conditionable` | Predicate checks use Titanspan string semantics; callback and fallback behavior delegate to Conditionable. | [source][source-110] |
+| `Illuminate\Support\Stringable` | `whenNotEmpty()` | `Stringable.when_not_empty` / `Stringable.whenNotEmpty` | `src/titanspan/support/stringable.py` | **Python-adapted parity** | `tests/unit/support/test_stringable.py::test_stringable_conditional_operations_delegate_to_conditionable` | Predicate checks use Titanspan string semantics; callback and fallback behavior delegate to Conditionable. | [source][source-110] |
+| `Illuminate\Support\Stringable` | `whenEndsWith()` | `Stringable.when_ends_with` / `Stringable.whenEndsWith` | `src/titanspan/support/stringable.py` | **Python-adapted parity** | `tests/unit/support/test_stringable.py::test_stringable_conditional_operations_delegate_to_conditionable` | Predicate checks use Titanspan string semantics; callback and fallback behavior delegate to Conditionable. | [source][source-110] |
+| `Illuminate\Support\Stringable` | `whenDoesntEndWith()` | `Stringable.when_doesnt_end_with` / `Stringable.whenDoesntEndWith` | `src/titanspan/support/stringable.py` | **Python-adapted parity** | `tests/unit/support/test_stringable.py::test_stringable_conditional_operations_delegate_to_conditionable` | Predicate checks use Titanspan string semantics; callback and fallback behavior delegate to Conditionable. | [source][source-110] |
+| `Illuminate\Support\Stringable` | `whenExactly()` | `Stringable.when_exactly` / `Stringable.whenExactly` | `src/titanspan/support/stringable.py` | **Python-adapted parity** | `tests/unit/support/test_stringable.py::test_stringable_conditional_operations_delegate_to_conditionable` | Predicate checks use Titanspan string semantics; callback and fallback behavior delegate to Conditionable. | [source][source-110] |
+| `Illuminate\Support\Stringable` | `whenNotExactly()` | `Stringable.when_not_exactly` / `Stringable.whenNotExactly` | `src/titanspan/support/stringable.py` | **Python-adapted parity** | `tests/unit/support/test_stringable.py::test_stringable_conditional_operations_delegate_to_conditionable` | Predicate checks use Titanspan string semantics; callback and fallback behavior delegate to Conditionable. | [source][source-110] |
+| `Illuminate\Support\Stringable` | `whenIs()` | `Stringable.when_is` / `Stringable.whenIs` | `src/titanspan/support/stringable.py` | **Python-adapted parity** | `tests/unit/support/test_stringable.py::test_stringable_conditional_operations_delegate_to_conditionable` | Predicate checks use Titanspan string semantics; callback and fallback behavior delegate to Conditionable. | [source][source-110] |
+| `Illuminate\Support\Stringable` | `whenIsAscii()` | `Stringable.when_is_ascii` / `Stringable.whenIsAscii` | `src/titanspan/support/stringable.py` | **Python-adapted parity** | `tests/unit/support/test_stringable.py::test_stringable_conditional_operations_delegate_to_conditionable` | Predicate checks use Titanspan string semantics; callback and fallback behavior delegate to Conditionable. | [source][source-110] |
+| `Illuminate\Support\Stringable` | `whenIsUuid()` | `Stringable.when_is_uuid` / `Stringable.whenIsUuid` | `src/titanspan/support/stringable.py` | **Python-adapted parity** | `tests/unit/support/test_stringable.py::test_stringable_conditional_operations_delegate_to_conditionable` | Predicate checks use Titanspan string semantics; callback and fallback behavior delegate to Conditionable. | [source][source-110] |
+| `Illuminate\Support\Stringable` | `whenIsUlid()` | `Stringable.when_is_ulid` / `Stringable.whenIsUlid` | `src/titanspan/support/stringable.py` | **Python-adapted parity** | `tests/unit/support/test_stringable.py::test_stringable_conditional_operations_delegate_to_conditionable` | Predicate checks use Titanspan string semantics; callback and fallback behavior delegate to Conditionable. | [source][source-110] |
+| `Illuminate\Support\Stringable` | `whenStartsWith()` | `Stringable.when_starts_with` / `Stringable.whenStartsWith` | `src/titanspan/support/stringable.py` | **Python-adapted parity** | `tests/unit/support/test_stringable.py::test_stringable_conditional_operations_delegate_to_conditionable` | Predicate checks use Titanspan string semantics; callback and fallback behavior delegate to Conditionable. | [source][source-110] |
+| `Illuminate\Support\Stringable` | `whenDoesntStartWith()` | `Stringable.when_doesnt_start_with` / `Stringable.whenDoesntStartWith` | `src/titanspan/support/stringable.py` | **Python-adapted parity** | `tests/unit/support/test_stringable.py::test_stringable_conditional_operations_delegate_to_conditionable` | Predicate checks use Titanspan string semantics; callback and fallback behavior delegate to Conditionable. | [source][source-110] |
+| `Illuminate\Support\Stringable` | `whenTest()` | `Stringable.when_test` / `Stringable.whenTest` | `src/titanspan/support/stringable.py` | **Python-adapted parity** | `tests/unit/support/test_stringable.py::test_stringable_conditional_operations_delegate_to_conditionable` | Predicate checks use Titanspan string semantics; callback and fallback behavior delegate to Conditionable. | [source][source-110] |
+| `Illuminate\Support\Stringable` | `words()` | `Stringable.words` | `src/titanspan/support/stringable.py` | **Python-adapted parity** | `tests/unit/support/test_stringable.py` | Uses Python whitespace-delimited word boundaries. | [source][source-110] |
+| `Illuminate\Support\Stringable` | `wordCount()` | `Stringable.word_count / wordCount` | `src/titanspan/support/stringable.py` | **Python-adapted parity** | `tests/unit/support/test_stringable.py` | Uses Python Unicode regular-expression rules. | [source][source-110] |
+| `Illuminate\Support\Stringable` | `wordWrap()` | `Stringable.word_wrap / wordWrap` | `src/titanspan/support/stringable.py` | **Python-adapted parity** | `tests/unit/support/test_stringable.py` | Uses Python textwrap behavior. | [source][source-110] |
+| `Illuminate\Support\Stringable` | `wrap()` | `Stringable.wrap` | `src/titanspan/support/stringable.py` | **Python-adapted parity** | `tests/unit/support/test_stringable.py` | Returns a new wrapper around the formatted string. | [source][source-110] |
+| `Illuminate\Support\Stringable` | `unwrap()` | `Stringable.unwrap` | `src/titanspan/support/stringable.py` | **Python-adapted parity** | `tests/unit/support/test_stringable.py` | Returns a new wrapper around the formatted string. | [source][source-110] |
+| `Illuminate\Support\Stringable` | `toHtmlString()` | `Stringable.to_html_string / Stringable.toHtmlString` | `src/titanspan/support/stringable.py` | **Python-adapted parity** | `tests/unit/support/test_stringable.py` | Produces trusted HTML; callers must not pass unsanitized user input. | [source][source-110] |
+| `Illuminate\Support\Stringable` | `toBase64()` | `Stringable.to_base64 / toBase64` | `src/titanspan/support/stringable.py` | **Python-adapted parity** | `tests/unit/support/test_stringable.py` | Encodes UTF-8 text as standard Base64. | [source][source-110] |
+| `Illuminate\Support\Stringable` | `fromBase64()` | `Stringable.from_base64 / fromBase64` | `src/titanspan/support/stringable.py` | **Python-adapted parity** | `tests/unit/support/test_stringable.py` | Invalid decoded input becomes an empty string wrapper. | [source][source-110] |
+| `Illuminate\Support\Stringable` | `hash()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-110] |
+| `Illuminate\Support\Stringable` | `encrypt()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-110] |
+| `Illuminate\Support\Stringable` | `decrypt()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-110] |
+| `Illuminate\Support\Stringable` | `dump()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-110] |
+| `Illuminate\Support\Stringable` | `value()` | `Stringable.value` | `src/titanspan/support/stringable.py` | **Python-adapted parity** | `tests/unit/support/test_stringable.py` | Returns the underlying Python string. | [source][source-110] |
+| `Illuminate\Support\Stringable` | `toString()` | `Stringable.to_string / toString` | `src/titanspan/support/stringable.py` | **Python-adapted parity** | `tests/unit/support/test_stringable.py` | Exposes explicit and idiomatic Python conversion. | [source][source-110] |
+| `Illuminate\Support\Stringable` | `toInteger()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-110] |
+| `Illuminate\Support\Stringable` | `toFloat()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-110] |
+| `Illuminate\Support\Stringable` | `toBoolean()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-110] |
+| `Illuminate\Support\Stringable` | `toDate()` | — | Canonical owner: `titanspan.support.DateFactory` (not implemented). | **Blocked** | — | Requires a date/time factory and timezone parsing policy. | [source][source-110] |
+| `Illuminate\Support\Stringable` | `toUri()` | — | Canonical owner: `titanspan.support.Uri` (not implemented). | **Blocked** | — | Requires the canonical Titanspan URI abstraction. | [source][source-110] |
+| `Illuminate\Support\Stringable` | `jsonSerialize()` | `Stringable.json_serialize / jsonSerialize` | `src/titanspan/support/stringable.py` | **Python-adapted parity** | `tests/unit/support/test_stringable.py` | Returns a Python string for caller serialization. | [source][source-110] |
+| `Illuminate\Support\Stringable` | `offsetExists()` | `Stringable.offset_exists / offsetExists` | `src/titanspan/support/stringable.py` | **Python-adapted parity** | `tests/unit/support/test_stringable.py` | Uses Python Unicode code point offsets. | [source][source-110] |
+| `Illuminate\Support\Stringable` | `offsetGet()` | `Stringable.__getitem__` | `src/titanspan/support/stringable.py` | **Python-adapted parity** | `tests/unit/support/test_stringable.py` | Supports Python integer and slice indexing. | [source][source-110] |
+| `Illuminate\Support\Stringable` | `offsetSet()` | `Stringable.__setitem__` | `src/titanspan/support/stringable.py` | **Python-adapted parity** | `tests/unit/support/test_stringable.py` | Mutates by Python Unicode code point, not PHP byte offset. | [source][source-110] |
+| `Illuminate\Support\Stringable` | `offsetUnset()` | `Stringable.__delitem__` | `src/titanspan/support/stringable.py` | **Python-adapted parity** | `tests/unit/support/test_stringable.py` | Deletes a Python Unicode code point. | [source][source-110] |
+| `Illuminate\Support\Stringable` | `__get()` | — | Not implemented. | **Not applicable** | — | PHP dynamic property method has no safe explicit Python equivalent; Titanspan avoids magic attribute dispatch. | [source][source-110] |
+| `Illuminate\Support\Stringable` | `__toString()` | `Stringable.__str__` | `src/titanspan/support/stringable.py` | **Python-adapted parity** | `tests/unit/support/test_stringable.py` | Uses Python's string conversion protocol. | [source][source-110] |
+
+</details>
+
+<details>
+<summary>Illuminate\Support\Support.functions.php — 13 listed public members (functions)</summary>
+
+| Upstream class | Upstream API | Titanspan API | Implementation location | Compatibility status | Test evidence | Differences | Upstream reference |
+|---|---|---|---|---|---|---|---|
+| `Illuminate\Support\Support.functions.php` | `defer()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-111] |
+| `Illuminate\Support\Support.functions.php` | `php_binary()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-111] |
+| `Illuminate\Support\Support.functions.php` | `artisan_binary()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-111] |
+| `Illuminate\Support\Support.functions.php` | `now()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-111] |
+| `Illuminate\Support\Support.functions.php` | `microseconds()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-111] |
+| `Illuminate\Support\Support.functions.php` | `milliseconds()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-111] |
+| `Illuminate\Support\Support.functions.php` | `seconds()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-111] |
+| `Illuminate\Support\Support.functions.php` | `minutes()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-111] |
+| `Illuminate\Support\Support.functions.php` | `hours()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-111] |
+| `Illuminate\Support\Support.functions.php` | `days()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-111] |
+| `Illuminate\Support\Support.functions.php` | `weeks()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-111] |
+| `Illuminate\Support\Support.functions.php` | `months()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-111] |
+| `Illuminate\Support\Support.functions.php` | `years()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-111] |
+
+</details>
+
+<details>
+<summary>Illuminate\Support\Testing\Fakes\BatchFake — 10 listed public members (class)</summary>
+
+| Upstream class | Upstream API | Titanspan API | Implementation location | Compatibility status | Test evidence | Differences | Upstream reference |
+|---|---|---|---|---|---|---|---|
+| `Illuminate\Support\Testing\Fakes\BatchFake` | `__construct()` | — | Canonical owner: `titanspan.testing` (not implemented). | **Blocked** | — | Depends on the corresponding Titanspan testing or service module. | [source][source-112] |
+| `Illuminate\Support\Testing\Fakes\BatchFake` | `fresh()` | — | Canonical owner: `titanspan.testing` (not implemented). | **Blocked** | — | Depends on the corresponding Titanspan testing or service module. | [source][source-112] |
+| `Illuminate\Support\Testing\Fakes\BatchFake` | `add()` | — | Canonical owner: `titanspan.testing` (not implemented). | **Blocked** | — | Depends on the corresponding Titanspan testing or service module. | [source][source-112] |
+| `Illuminate\Support\Testing\Fakes\BatchFake` | `recordSuccessfulJob()` | — | Canonical owner: `titanspan.testing` (not implemented). | **Blocked** | — | Depends on the corresponding Titanspan testing or service module. | [source][source-112] |
+| `Illuminate\Support\Testing\Fakes\BatchFake` | `decrementPendingJobs()` | — | Canonical owner: `titanspan.testing` (not implemented). | **Blocked** | — | Depends on the corresponding Titanspan testing or service module. | [source][source-112] |
+| `Illuminate\Support\Testing\Fakes\BatchFake` | `recordFailedJob()` | — | Canonical owner: `titanspan.testing` (not implemented). | **Blocked** | — | Depends on the corresponding Titanspan testing or service module. | [source][source-112] |
+| `Illuminate\Support\Testing\Fakes\BatchFake` | `incrementFailedJobs()` | — | Canonical owner: `titanspan.testing` (not implemented). | **Blocked** | — | Depends on the corresponding Titanspan testing or service module. | [source][source-112] |
+| `Illuminate\Support\Testing\Fakes\BatchFake` | `cancel()` | — | Canonical owner: `titanspan.testing` (not implemented). | **Blocked** | — | Depends on the corresponding Titanspan testing or service module. | [source][source-112] |
+| `Illuminate\Support\Testing\Fakes\BatchFake` | `delete()` | — | Canonical owner: `titanspan.testing` (not implemented). | **Blocked** | — | Depends on the corresponding Titanspan testing or service module. | [source][source-112] |
+| `Illuminate\Support\Testing\Fakes\BatchFake` | `deleted()` | — | Canonical owner: `titanspan.testing` (not implemented). | **Blocked** | — | Depends on the corresponding Titanspan testing or service module. | [source][source-112] |
+
+</details>
+
+<details>
+<summary>Illuminate\Support\Testing\Fakes\BatchRepositoryFake — 11 listed public members (class)</summary>
+
+| Upstream class | Upstream API | Titanspan API | Implementation location | Compatibility status | Test evidence | Differences | Upstream reference |
+|---|---|---|---|---|---|---|---|
+| `Illuminate\Support\Testing\Fakes\BatchRepositoryFake` | `get()` | — | Canonical owner: `titanspan.testing` (not implemented). | **Blocked** | — | Depends on the corresponding Titanspan testing or service module. | [source][source-113] |
+| `Illuminate\Support\Testing\Fakes\BatchRepositoryFake` | `find()` | — | Canonical owner: `titanspan.testing` (not implemented). | **Blocked** | — | Depends on the corresponding Titanspan testing or service module. | [source][source-113] |
+| `Illuminate\Support\Testing\Fakes\BatchRepositoryFake` | `store()` | — | Canonical owner: `titanspan.testing` (not implemented). | **Blocked** | — | Depends on the corresponding Titanspan testing or service module. | [source][source-113] |
+| `Illuminate\Support\Testing\Fakes\BatchRepositoryFake` | `incrementTotalJobs()` | — | Canonical owner: `titanspan.testing` (not implemented). | **Blocked** | — | Depends on the corresponding Titanspan testing or service module. | [source][source-113] |
+| `Illuminate\Support\Testing\Fakes\BatchRepositoryFake` | `decrementPendingJobs()` | — | Canonical owner: `titanspan.testing` (not implemented). | **Blocked** | — | Depends on the corresponding Titanspan testing or service module. | [source][source-113] |
+| `Illuminate\Support\Testing\Fakes\BatchRepositoryFake` | `incrementFailedJobs()` | — | Canonical owner: `titanspan.testing` (not implemented). | **Blocked** | — | Depends on the corresponding Titanspan testing or service module. | [source][source-113] |
+| `Illuminate\Support\Testing\Fakes\BatchRepositoryFake` | `markAsFinished()` | — | Canonical owner: `titanspan.testing` (not implemented). | **Blocked** | — | Depends on the corresponding Titanspan testing or service module. | [source][source-113] |
+| `Illuminate\Support\Testing\Fakes\BatchRepositoryFake` | `cancel()` | — | Canonical owner: `titanspan.testing` (not implemented). | **Blocked** | — | Depends on the corresponding Titanspan testing or service module. | [source][source-113] |
+| `Illuminate\Support\Testing\Fakes\BatchRepositoryFake` | `delete()` | — | Canonical owner: `titanspan.testing` (not implemented). | **Blocked** | — | Depends on the corresponding Titanspan testing or service module. | [source][source-113] |
+| `Illuminate\Support\Testing\Fakes\BatchRepositoryFake` | `transaction()` | — | Canonical owner: `titanspan.testing` (not implemented). | **Blocked** | — | Depends on the corresponding Titanspan testing or service module. | [source][source-113] |
+| `Illuminate\Support\Testing\Fakes\BatchRepositoryFake` | `rollBack()` | — | Canonical owner: `titanspan.testing` (not implemented). | **Blocked** | — | Depends on the corresponding Titanspan testing or service module. | [source][source-113] |
+
+</details>
+
+<details>
+<summary>Illuminate\Support\Testing\Fakes\BusFake — 47 listed public members (class)</summary>
+
+| Upstream class | Upstream API | Titanspan API | Implementation location | Compatibility status | Test evidence | Differences | Upstream reference |
+|---|---|---|---|---|---|---|---|
+| `Illuminate\Support\Testing\Fakes\BusFake` | `__construct()` | — | Canonical owner: `titanspan.testing` (not implemented). | **Blocked** | — | Depends on the corresponding Titanspan testing or service module. | [source][source-114] |
+| `Illuminate\Support\Testing\Fakes\BusFake` | `except()` | — | Canonical owner: `titanspan.testing` (not implemented). | **Blocked** | — | Depends on the corresponding Titanspan testing or service module. | [source][source-114] |
+| `Illuminate\Support\Testing\Fakes\BusFake` | `assertDispatched()` | — | Canonical owner: `titanspan.testing` (not implemented). | **Blocked** | — | Depends on the corresponding Titanspan testing or service module. | [source][source-114] |
+| `Illuminate\Support\Testing\Fakes\BusFake` | `assertDispatchedOnce()` | — | Canonical owner: `titanspan.testing` (not implemented). | **Blocked** | — | Depends on the corresponding Titanspan testing or service module. | [source][source-114] |
+| `Illuminate\Support\Testing\Fakes\BusFake` | `assertDispatchedTimes()` | — | Canonical owner: `titanspan.testing` (not implemented). | **Blocked** | — | Depends on the corresponding Titanspan testing or service module. | [source][source-114] |
+| `Illuminate\Support\Testing\Fakes\BusFake` | `assertNotDispatched()` | — | Canonical owner: `titanspan.testing` (not implemented). | **Blocked** | — | Depends on the corresponding Titanspan testing or service module. | [source][source-114] |
+| `Illuminate\Support\Testing\Fakes\BusFake` | `assertNothingDispatched()` | — | Canonical owner: `titanspan.testing` (not implemented). | **Blocked** | — | Depends on the corresponding Titanspan testing or service module. | [source][source-114] |
+| `Illuminate\Support\Testing\Fakes\BusFake` | `assertDispatchedSync()` | — | Canonical owner: `titanspan.testing` (not implemented). | **Blocked** | — | Depends on the corresponding Titanspan testing or service module. | [source][source-114] |
+| `Illuminate\Support\Testing\Fakes\BusFake` | `assertDispatchedSyncTimes()` | — | Canonical owner: `titanspan.testing` (not implemented). | **Blocked** | — | Depends on the corresponding Titanspan testing or service module. | [source][source-114] |
+| `Illuminate\Support\Testing\Fakes\BusFake` | `assertNotDispatchedSync()` | — | Canonical owner: `titanspan.testing` (not implemented). | **Blocked** | — | Depends on the corresponding Titanspan testing or service module. | [source][source-114] |
+| `Illuminate\Support\Testing\Fakes\BusFake` | `assertDispatchedAfterResponse()` | — | Canonical owner: `titanspan.testing` (not implemented). | **Blocked** | — | Depends on the corresponding Titanspan testing or service module. | [source][source-114] |
+| `Illuminate\Support\Testing\Fakes\BusFake` | `assertDispatchedAfterResponseTimes()` | — | Canonical owner: `titanspan.testing` (not implemented). | **Blocked** | — | Depends on the corresponding Titanspan testing or service module. | [source][source-114] |
+| `Illuminate\Support\Testing\Fakes\BusFake` | `assertNotDispatchedAfterResponse()` | — | Canonical owner: `titanspan.testing` (not implemented). | **Blocked** | — | Depends on the corresponding Titanspan testing or service module. | [source][source-114] |
+| `Illuminate\Support\Testing\Fakes\BusFake` | `assertChained()` | — | Canonical owner: `titanspan.testing` (not implemented). | **Blocked** | — | Depends on the corresponding Titanspan testing or service module. | [source][source-114] |
+| `Illuminate\Support\Testing\Fakes\BusFake` | `assertNothingChained()` | — | Canonical owner: `titanspan.testing` (not implemented). | **Blocked** | — | Depends on the corresponding Titanspan testing or service module. | [source][source-114] |
+| `Illuminate\Support\Testing\Fakes\BusFake` | `assertDispatchedWithoutChain()` | — | Canonical owner: `titanspan.testing` (not implemented). | **Blocked** | — | Depends on the corresponding Titanspan testing or service module. | [source][source-114] |
+| `Illuminate\Support\Testing\Fakes\BusFake` | `chainedBatch()` | — | Canonical owner: `titanspan.testing` (not implemented). | **Blocked** | — | Depends on the corresponding Titanspan testing or service module. | [source][source-114] |
+| `Illuminate\Support\Testing\Fakes\BusFake` | `assertBatched()` | — | Canonical owner: `titanspan.testing` (not implemented). | **Blocked** | — | Depends on the corresponding Titanspan testing or service module. | [source][source-114] |
+| `Illuminate\Support\Testing\Fakes\BusFake` | `assertBatchCount()` | — | Canonical owner: `titanspan.testing` (not implemented). | **Blocked** | — | Depends on the corresponding Titanspan testing or service module. | [source][source-114] |
+| `Illuminate\Support\Testing\Fakes\BusFake` | `assertNothingBatched()` | — | Canonical owner: `titanspan.testing` (not implemented). | **Blocked** | — | Depends on the corresponding Titanspan testing or service module. | [source][source-114] |
+| `Illuminate\Support\Testing\Fakes\BusFake` | `assertNothingPlaced()` | — | Canonical owner: `titanspan.testing` (not implemented). | **Blocked** | — | Depends on the corresponding Titanspan testing or service module. | [source][source-114] |
+| `Illuminate\Support\Testing\Fakes\BusFake` | `dispatched()` | — | Canonical owner: `titanspan.testing` (not implemented). | **Blocked** | — | Depends on the corresponding Titanspan testing or service module. | [source][source-114] |
+| `Illuminate\Support\Testing\Fakes\BusFake` | `dispatchedSync()` | — | Canonical owner: `titanspan.testing` (not implemented). | **Blocked** | — | Depends on the corresponding Titanspan testing or service module. | [source][source-114] |
+| `Illuminate\Support\Testing\Fakes\BusFake` | `dispatchedAfterResponse()` | — | Canonical owner: `titanspan.testing` (not implemented). | **Blocked** | — | Depends on the corresponding Titanspan testing or service module. | [source][source-114] |
+| `Illuminate\Support\Testing\Fakes\BusFake` | `batched()` | — | Canonical owner: `titanspan.testing` (not implemented). | **Blocked** | — | Depends on the corresponding Titanspan testing or service module. | [source][source-114] |
+| `Illuminate\Support\Testing\Fakes\BusFake` | `hasDispatched()` | — | Canonical owner: `titanspan.testing` (not implemented). | **Blocked** | — | Depends on the corresponding Titanspan testing or service module. | [source][source-114] |
+| `Illuminate\Support\Testing\Fakes\BusFake` | `hasDispatchedSync()` | — | Canonical owner: `titanspan.testing` (not implemented). | **Blocked** | — | Depends on the corresponding Titanspan testing or service module. | [source][source-114] |
+| `Illuminate\Support\Testing\Fakes\BusFake` | `hasDispatchedAfterResponse()` | — | Canonical owner: `titanspan.testing` (not implemented). | **Blocked** | — | Depends on the corresponding Titanspan testing or service module. | [source][source-114] |
+| `Illuminate\Support\Testing\Fakes\BusFake` | `dispatch()` | — | Canonical owner: `titanspan.testing` (not implemented). | **Blocked** | — | Depends on the corresponding Titanspan testing or service module. | [source][source-114] |
+| `Illuminate\Support\Testing\Fakes\BusFake` | `dispatchSync()` | — | Canonical owner: `titanspan.testing` (not implemented). | **Blocked** | — | Depends on the corresponding Titanspan testing or service module. | [source][source-114] |
+| `Illuminate\Support\Testing\Fakes\BusFake` | `dispatchNow()` | — | Canonical owner: `titanspan.testing` (not implemented). | **Blocked** | — | Depends on the corresponding Titanspan testing or service module. | [source][source-114] |
+| `Illuminate\Support\Testing\Fakes\BusFake` | `dispatchToQueue()` | — | Canonical owner: `titanspan.testing` (not implemented). | **Blocked** | — | Depends on the corresponding Titanspan testing or service module. | [source][source-114] |
+| `Illuminate\Support\Testing\Fakes\BusFake` | `dispatchAfterResponse()` | — | Canonical owner: `titanspan.testing` (not implemented). | **Blocked** | — | Depends on the corresponding Titanspan testing or service module. | [source][source-114] |
+| `Illuminate\Support\Testing\Fakes\BusFake` | `bulk()` | — | Canonical owner: `titanspan.testing` (not implemented). | **Blocked** | — | Depends on the corresponding Titanspan testing or service module. | [source][source-114] |
+| `Illuminate\Support\Testing\Fakes\BusFake` | `chain()` | — | Canonical owner: `titanspan.testing` (not implemented). | **Blocked** | — | Depends on the corresponding Titanspan testing or service module. | [source][source-114] |
+| `Illuminate\Support\Testing\Fakes\BusFake` | `findBatch()` | — | Canonical owner: `titanspan.testing` (not implemented). | **Blocked** | — | Depends on the corresponding Titanspan testing or service module. | [source][source-114] |
+| `Illuminate\Support\Testing\Fakes\BusFake` | `batch()` | — | Canonical owner: `titanspan.testing` (not implemented). | **Blocked** | — | Depends on the corresponding Titanspan testing or service module. | [source][source-114] |
+| `Illuminate\Support\Testing\Fakes\BusFake` | `dispatchFakeBatch()` | — | Canonical owner: `titanspan.testing` (not implemented). | **Blocked** | — | Depends on the corresponding Titanspan testing or service module. | [source][source-114] |
+| `Illuminate\Support\Testing\Fakes\BusFake` | `recordPendingBatch()` | — | Canonical owner: `titanspan.testing` (not implemented). | **Blocked** | — | Depends on the corresponding Titanspan testing or service module. | [source][source-114] |
+| `Illuminate\Support\Testing\Fakes\BusFake` | `serializeAndRestore()` | — | Canonical owner: `titanspan.testing` (not implemented). | **Blocked** | — | Depends on the corresponding Titanspan testing or service module. | [source][source-114] |
+| `Illuminate\Support\Testing\Fakes\BusFake` | `pipeThrough()` | — | Canonical owner: `titanspan.testing` (not implemented). | **Blocked** | — | Depends on the corresponding Titanspan testing or service module. | [source][source-114] |
+| `Illuminate\Support\Testing\Fakes\BusFake` | `hasCommandHandler()` | — | Canonical owner: `titanspan.testing` (not implemented). | **Blocked** | — | Depends on the corresponding Titanspan testing or service module. | [source][source-114] |
+| `Illuminate\Support\Testing\Fakes\BusFake` | `getCommandHandler()` | — | Canonical owner: `titanspan.testing` (not implemented). | **Blocked** | — | Depends on the corresponding Titanspan testing or service module. | [source][source-114] |
+| `Illuminate\Support\Testing\Fakes\BusFake` | `map()` | — | Canonical owner: `titanspan.testing` (not implemented). | **Blocked** | — | Depends on the corresponding Titanspan testing or service module. | [source][source-114] |
+| `Illuminate\Support\Testing\Fakes\BusFake` | `withDispatchingAfterResponses()` | — | Canonical owner: `titanspan.testing` (not implemented). | **Blocked** | — | Depends on the corresponding Titanspan testing or service module. | [source][source-114] |
+| `Illuminate\Support\Testing\Fakes\BusFake` | `withoutDispatchingAfterResponses()` | — | Canonical owner: `titanspan.testing` (not implemented). | **Blocked** | — | Depends on the corresponding Titanspan testing or service module. | [source][source-114] |
+| `Illuminate\Support\Testing\Fakes\BusFake` | `dispatchedBatches()` | — | Canonical owner: `titanspan.testing` (not implemented). | **Blocked** | — | Depends on the corresponding Titanspan testing or service module. | [source][source-114] |
+
+</details>
+
+<details>
+<summary>Illuminate\Support\Testing\Fakes\ChainedBatchTruthTest — 2 listed public members (class)</summary>
+
+| Upstream class | Upstream API | Titanspan API | Implementation location | Compatibility status | Test evidence | Differences | Upstream reference |
+|---|---|---|---|---|---|---|---|
+| `Illuminate\Support\Testing\Fakes\ChainedBatchTruthTest` | `__construct()` | — | Canonical owner: `titanspan.testing` (not implemented). | **Blocked** | — | Depends on the corresponding Titanspan testing or service module. | [source][source-115] |
+| `Illuminate\Support\Testing\Fakes\ChainedBatchTruthTest` | `__invoke()` | — | Canonical owner: `titanspan.testing` (not implemented). | **Blocked** | — | Depends on the corresponding Titanspan testing or service module. | [source][source-115] |
+
+</details>
+
+<details>
+<summary>Illuminate\Support\Testing\Fakes\EventFake — 21 listed public members (class)</summary>
+
+| Upstream class | Upstream API | Titanspan API | Implementation location | Compatibility status | Test evidence | Differences | Upstream reference |
+|---|---|---|---|---|---|---|---|
+| `Illuminate\Support\Testing\Fakes\EventFake` | `__construct()` | — | Canonical owner: `titanspan.testing` (not implemented). | **Blocked** | — | Depends on the corresponding Titanspan testing or service module. | [source][source-116] |
+| `Illuminate\Support\Testing\Fakes\EventFake` | `except()` | — | Canonical owner: `titanspan.testing` (not implemented). | **Blocked** | — | Depends on the corresponding Titanspan testing or service module. | [source][source-116] |
+| `Illuminate\Support\Testing\Fakes\EventFake` | `assertListening()` | — | Canonical owner: `titanspan.testing` (not implemented). | **Blocked** | — | Depends on the corresponding Titanspan testing or service module. | [source][source-116] |
+| `Illuminate\Support\Testing\Fakes\EventFake` | `assertDispatched()` | — | Canonical owner: `titanspan.testing` (not implemented). | **Blocked** | — | Depends on the corresponding Titanspan testing or service module. | [source][source-116] |
+| `Illuminate\Support\Testing\Fakes\EventFake` | `assertDispatchedOnce()` | — | Canonical owner: `titanspan.testing` (not implemented). | **Blocked** | — | Depends on the corresponding Titanspan testing or service module. | [source][source-116] |
+| `Illuminate\Support\Testing\Fakes\EventFake` | `assertDispatchedTimes()` | — | Canonical owner: `titanspan.testing` (not implemented). | **Blocked** | — | Depends on the corresponding Titanspan testing or service module. | [source][source-116] |
+| `Illuminate\Support\Testing\Fakes\EventFake` | `assertNotDispatched()` | — | Canonical owner: `titanspan.testing` (not implemented). | **Blocked** | — | Depends on the corresponding Titanspan testing or service module. | [source][source-116] |
+| `Illuminate\Support\Testing\Fakes\EventFake` | `assertNothingDispatched()` | — | Canonical owner: `titanspan.testing` (not implemented). | **Blocked** | — | Depends on the corresponding Titanspan testing or service module. | [source][source-116] |
+| `Illuminate\Support\Testing\Fakes\EventFake` | `dispatched()` | — | Canonical owner: `titanspan.testing` (not implemented). | **Blocked** | — | Depends on the corresponding Titanspan testing or service module. | [source][source-116] |
+| `Illuminate\Support\Testing\Fakes\EventFake` | `hasDispatched()` | — | Canonical owner: `titanspan.testing` (not implemented). | **Blocked** | — | Depends on the corresponding Titanspan testing or service module. | [source][source-116] |
+| `Illuminate\Support\Testing\Fakes\EventFake` | `listen()` | — | Canonical owner: `titanspan.testing` (not implemented). | **Blocked** | — | Depends on the corresponding Titanspan testing or service module. | [source][source-116] |
+| `Illuminate\Support\Testing\Fakes\EventFake` | `hasListeners()` | — | Canonical owner: `titanspan.testing` (not implemented). | **Blocked** | — | Depends on the corresponding Titanspan testing or service module. | [source][source-116] |
+| `Illuminate\Support\Testing\Fakes\EventFake` | `push()` | — | Canonical owner: `titanspan.testing` (not implemented). | **Blocked** | — | Depends on the corresponding Titanspan testing or service module. | [source][source-116] |
+| `Illuminate\Support\Testing\Fakes\EventFake` | `subscribe()` | — | Canonical owner: `titanspan.testing` (not implemented). | **Blocked** | — | Depends on the corresponding Titanspan testing or service module. | [source][source-116] |
+| `Illuminate\Support\Testing\Fakes\EventFake` | `flush()` | — | Canonical owner: `titanspan.testing` (not implemented). | **Blocked** | — | Depends on the corresponding Titanspan testing or service module. | [source][source-116] |
+| `Illuminate\Support\Testing\Fakes\EventFake` | `dispatch()` | — | Canonical owner: `titanspan.testing` (not implemented). | **Blocked** | — | Depends on the corresponding Titanspan testing or service module. | [source][source-116] |
+| `Illuminate\Support\Testing\Fakes\EventFake` | `forget()` | — | Canonical owner: `titanspan.testing` (not implemented). | **Blocked** | — | Depends on the corresponding Titanspan testing or service module. | [source][source-116] |
+| `Illuminate\Support\Testing\Fakes\EventFake` | `forgetPushed()` | — | Canonical owner: `titanspan.testing` (not implemented). | **Blocked** | — | Depends on the corresponding Titanspan testing or service module. | [source][source-116] |
+| `Illuminate\Support\Testing\Fakes\EventFake` | `until()` | — | Canonical owner: `titanspan.testing` (not implemented). | **Blocked** | — | Depends on the corresponding Titanspan testing or service module. | [source][source-116] |
+| `Illuminate\Support\Testing\Fakes\EventFake` | `dispatchedEvents()` | — | Canonical owner: `titanspan.testing` (not implemented). | **Blocked** | — | Depends on the corresponding Titanspan testing or service module. | [source][source-116] |
+| `Illuminate\Support\Testing\Fakes\EventFake` | `__call()` | — | Canonical owner: `titanspan.testing` (not implemented). | **Blocked** | — | Depends on the corresponding Titanspan testing or service module. | [source][source-116] |
+
+</details>
+
+<details>
+<summary>Illuminate\Support\Testing\Fakes\ExceptionHandlerFake — 15 listed public members (class)</summary>
+
+| Upstream class | Upstream API | Titanspan API | Implementation location | Compatibility status | Test evidence | Differences | Upstream reference |
+|---|---|---|---|---|---|---|---|
+| `Illuminate\Support\Testing\Fakes\ExceptionHandlerFake` | `__construct()` | — | Canonical owner: `titanspan.testing` (not implemented). | **Blocked** | — | Depends on the corresponding Titanspan testing or service module. | [source][source-117] |
+| `Illuminate\Support\Testing\Fakes\ExceptionHandlerFake` | `handler()` | — | Canonical owner: `titanspan.testing` (not implemented). | **Blocked** | — | Depends on the corresponding Titanspan testing or service module. | [source][source-117] |
+| `Illuminate\Support\Testing\Fakes\ExceptionHandlerFake` | `assertReported()` | — | Canonical owner: `titanspan.testing` (not implemented). | **Blocked** | — | Depends on the corresponding Titanspan testing or service module. | [source][source-117] |
+| `Illuminate\Support\Testing\Fakes\ExceptionHandlerFake` | `assertReportedCount()` | — | Canonical owner: `titanspan.testing` (not implemented). | **Blocked** | — | Depends on the corresponding Titanspan testing or service module. | [source][source-117] |
+| `Illuminate\Support\Testing\Fakes\ExceptionHandlerFake` | `assertNotReported()` | — | Canonical owner: `titanspan.testing` (not implemented). | **Blocked** | — | Depends on the corresponding Titanspan testing or service module. | [source][source-117] |
+| `Illuminate\Support\Testing\Fakes\ExceptionHandlerFake` | `assertNothingReported()` | — | Canonical owner: `titanspan.testing` (not implemented). | **Blocked** | — | Depends on the corresponding Titanspan testing or service module. | [source][source-117] |
+| `Illuminate\Support\Testing\Fakes\ExceptionHandlerFake` | `report()` | — | Canonical owner: `titanspan.testing` (not implemented). | **Blocked** | — | Depends on the corresponding Titanspan testing or service module. | [source][source-117] |
+| `Illuminate\Support\Testing\Fakes\ExceptionHandlerFake` | `shouldReport()` | — | Canonical owner: `titanspan.testing` (not implemented). | **Blocked** | — | Depends on the corresponding Titanspan testing or service module. | [source][source-117] |
+| `Illuminate\Support\Testing\Fakes\ExceptionHandlerFake` | `render()` | — | Canonical owner: `titanspan.testing` (not implemented). | **Blocked** | — | Depends on the corresponding Titanspan testing or service module. | [source][source-117] |
+| `Illuminate\Support\Testing\Fakes\ExceptionHandlerFake` | `renderForConsole()` | — | Canonical owner: `titanspan.testing` (not implemented). | **Blocked** | — | Depends on the corresponding Titanspan testing or service module. | [source][source-117] |
+| `Illuminate\Support\Testing\Fakes\ExceptionHandlerFake` | `throwOnReport()` | — | Canonical owner: `titanspan.testing` (not implemented). | **Blocked** | — | Depends on the corresponding Titanspan testing or service module. | [source][source-117] |
+| `Illuminate\Support\Testing\Fakes\ExceptionHandlerFake` | `throwFirstReported()` | — | Canonical owner: `titanspan.testing` (not implemented). | **Blocked** | — | Depends on the corresponding Titanspan testing or service module. | [source][source-117] |
+| `Illuminate\Support\Testing\Fakes\ExceptionHandlerFake` | `reported()` | — | Canonical owner: `titanspan.testing` (not implemented). | **Blocked** | — | Depends on the corresponding Titanspan testing or service module. | [source][source-117] |
+| `Illuminate\Support\Testing\Fakes\ExceptionHandlerFake` | `setHandler()` | — | Canonical owner: `titanspan.testing` (not implemented). | **Blocked** | — | Depends on the corresponding Titanspan testing or service module. | [source][source-117] |
+| `Illuminate\Support\Testing\Fakes\ExceptionHandlerFake` | `__call()` | — | Canonical owner: `titanspan.testing` (not implemented). | **Blocked** | — | Depends on the corresponding Titanspan testing or service module. | [source][source-117] |
+
+</details>
+
+<details>
+<summary>Illuminate\Support\Testing\Fakes\Fake — 0 listed public members (interface)</summary>
+
+| Upstream class | Upstream API | Titanspan API | Implementation location | Compatibility status | Test evidence | Differences | Upstream reference |
+|---|---|---|---|---|---|---|---|
+| `Illuminate\Support\Testing\Fakes\Fake` | Public type declaration | — | Not implemented | | Pending | — | No public members were found by the source scan. | [source][source-118] |
+
+</details>
+
+<details>
+<summary>Illuminate\Support\Testing\Fakes\MailFake — 37 listed public members (class)</summary>
+
+| Upstream class | Upstream API | Titanspan API | Implementation location | Compatibility status | Test evidence | Differences | Upstream reference |
+|---|---|---|---|---|---|---|---|
+| `Illuminate\Support\Testing\Fakes\MailFake` | `__construct()` | — | Canonical owner: `titanspan.testing` (not implemented). | **Blocked** | — | Depends on the corresponding Titanspan testing or service module. | [source][source-119] |
+| `Illuminate\Support\Testing\Fakes\MailFake` | `assertSent()` | — | Canonical owner: `titanspan.testing` (not implemented). | **Blocked** | — | Depends on the corresponding Titanspan testing or service module. | [source][source-119] |
+| `Illuminate\Support\Testing\Fakes\MailFake` | `assertSentTimes()` | — | Canonical owner: `titanspan.testing` (not implemented). | **Blocked** | — | Depends on the corresponding Titanspan testing or service module. | [source][source-119] |
+| `Illuminate\Support\Testing\Fakes\MailFake` | `assertSentOnce()` | — | Canonical owner: `titanspan.testing` (not implemented). | **Blocked** | — | Depends on the corresponding Titanspan testing or service module. | [source][source-119] |
+| `Illuminate\Support\Testing\Fakes\MailFake` | `assertNotOutgoing()` | — | Canonical owner: `titanspan.testing` (not implemented). | **Blocked** | — | Depends on the corresponding Titanspan testing or service module. | [source][source-119] |
+| `Illuminate\Support\Testing\Fakes\MailFake` | `assertNotSent()` | — | Canonical owner: `titanspan.testing` (not implemented). | **Blocked** | — | Depends on the corresponding Titanspan testing or service module. | [source][source-119] |
+| `Illuminate\Support\Testing\Fakes\MailFake` | `assertNothingOutgoing()` | — | Canonical owner: `titanspan.testing` (not implemented). | **Blocked** | — | Depends on the corresponding Titanspan testing or service module. | [source][source-119] |
+| `Illuminate\Support\Testing\Fakes\MailFake` | `assertNothingSent()` | — | Canonical owner: `titanspan.testing` (not implemented). | **Blocked** | — | Depends on the corresponding Titanspan testing or service module. | [source][source-119] |
+| `Illuminate\Support\Testing\Fakes\MailFake` | `assertQueued()` | — | Canonical owner: `titanspan.testing` (not implemented). | **Blocked** | — | Depends on the corresponding Titanspan testing or service module. | [source][source-119] |
+| `Illuminate\Support\Testing\Fakes\MailFake` | `assertQueuedTimes()` | — | Canonical owner: `titanspan.testing` (not implemented). | **Blocked** | — | Depends on the corresponding Titanspan testing or service module. | [source][source-119] |
+| `Illuminate\Support\Testing\Fakes\MailFake` | `assertQueuedOnce()` | — | Canonical owner: `titanspan.testing` (not implemented). | **Blocked** | — | Depends on the corresponding Titanspan testing or service module. | [source][source-119] |
+| `Illuminate\Support\Testing\Fakes\MailFake` | `assertNotQueued()` | — | Canonical owner: `titanspan.testing` (not implemented). | **Blocked** | — | Depends on the corresponding Titanspan testing or service module. | [source][source-119] |
+| `Illuminate\Support\Testing\Fakes\MailFake` | `assertNothingQueued()` | — | Canonical owner: `titanspan.testing` (not implemented). | **Blocked** | — | Depends on the corresponding Titanspan testing or service module. | [source][source-119] |
+| `Illuminate\Support\Testing\Fakes\MailFake` | `assertSentCount()` | — | Canonical owner: `titanspan.testing` (not implemented). | **Blocked** | — | Depends on the corresponding Titanspan testing or service module. | [source][source-119] |
+| `Illuminate\Support\Testing\Fakes\MailFake` | `assertQueuedCount()` | — | Canonical owner: `titanspan.testing` (not implemented). | **Blocked** | — | Depends on the corresponding Titanspan testing or service module. | [source][source-119] |
+| `Illuminate\Support\Testing\Fakes\MailFake` | `assertOutgoingCount()` | — | Canonical owner: `titanspan.testing` (not implemented). | **Blocked** | — | Depends on the corresponding Titanspan testing or service module. | [source][source-119] |
+| `Illuminate\Support\Testing\Fakes\MailFake` | `sent()` | — | Canonical owner: `titanspan.testing` (not implemented). | **Blocked** | — | Depends on the corresponding Titanspan testing or service module. | [source][source-119] |
+| `Illuminate\Support\Testing\Fakes\MailFake` | `hasSent()` | — | Canonical owner: `titanspan.testing` (not implemented). | **Blocked** | — | Depends on the corresponding Titanspan testing or service module. | [source][source-119] |
+| `Illuminate\Support\Testing\Fakes\MailFake` | `queued()` | — | Canonical owner: `titanspan.testing` (not implemented). | **Blocked** | — | Depends on the corresponding Titanspan testing or service module. | [source][source-119] |
+| `Illuminate\Support\Testing\Fakes\MailFake` | `hasQueued()` | — | Canonical owner: `titanspan.testing` (not implemented). | **Blocked** | — | Depends on the corresponding Titanspan testing or service module. | [source][source-119] |
+| `Illuminate\Support\Testing\Fakes\MailFake` | `mailer()` | — | Canonical owner: `titanspan.testing` (not implemented). | **Blocked** | — | Depends on the corresponding Titanspan testing or service module. | [source][source-119] |
+| `Illuminate\Support\Testing\Fakes\MailFake` | `driver()` | — | Canonical owner: `titanspan.testing` (not implemented). | **Blocked** | — | Depends on the corresponding Titanspan testing or service module. | [source][source-119] |
+| `Illuminate\Support\Testing\Fakes\MailFake` | `to()` | — | Canonical owner: `titanspan.testing` (not implemented). | **Blocked** | — | Depends on the corresponding Titanspan testing or service module. | [source][source-119] |
+| `Illuminate\Support\Testing\Fakes\MailFake` | `cc()` | — | Canonical owner: `titanspan.testing` (not implemented). | **Blocked** | — | Depends on the corresponding Titanspan testing or service module. | [source][source-119] |
+| `Illuminate\Support\Testing\Fakes\MailFake` | `bcc()` | — | Canonical owner: `titanspan.testing` (not implemented). | **Blocked** | — | Depends on the corresponding Titanspan testing or service module. | [source][source-119] |
+| `Illuminate\Support\Testing\Fakes\MailFake` | `html()` | — | Canonical owner: `titanspan.testing` (not implemented). | **Blocked** | — | Depends on the corresponding Titanspan testing or service module. | [source][source-119] |
+| `Illuminate\Support\Testing\Fakes\MailFake` | `raw()` | — | Canonical owner: `titanspan.testing` (not implemented). | **Blocked** | — | Depends on the corresponding Titanspan testing or service module. | [source][source-119] |
+| `Illuminate\Support\Testing\Fakes\MailFake` | `plain()` | — | Canonical owner: `titanspan.testing` (not implemented). | **Blocked** | — | Depends on the corresponding Titanspan testing or service module. | [source][source-119] |
+| `Illuminate\Support\Testing\Fakes\MailFake` | `send()` | — | Canonical owner: `titanspan.testing` (not implemented). | **Blocked** | — | Depends on the corresponding Titanspan testing or service module. | [source][source-119] |
+| `Illuminate\Support\Testing\Fakes\MailFake` | `sendNow()` | — | Canonical owner: `titanspan.testing` (not implemented). | **Blocked** | — | Depends on the corresponding Titanspan testing or service module. | [source][source-119] |
+| `Illuminate\Support\Testing\Fakes\MailFake` | `queue()` | — | Canonical owner: `titanspan.testing` (not implemented). | **Blocked** | — | Depends on the corresponding Titanspan testing or service module. | [source][source-119] |
+| `Illuminate\Support\Testing\Fakes\MailFake` | `onQueue()` | — | Canonical owner: `titanspan.testing` (not implemented). | **Blocked** | — | Depends on the corresponding Titanspan testing or service module. | [source][source-119] |
+| `Illuminate\Support\Testing\Fakes\MailFake` | `queueOn()` | — | Canonical owner: `titanspan.testing` (not implemented). | **Blocked** | — | Depends on the corresponding Titanspan testing or service module. | [source][source-119] |
+| `Illuminate\Support\Testing\Fakes\MailFake` | `later()` | — | Canonical owner: `titanspan.testing` (not implemented). | **Blocked** | — | Depends on the corresponding Titanspan testing or service module. | [source][source-119] |
+| `Illuminate\Support\Testing\Fakes\MailFake` | `laterOn()` | — | Canonical owner: `titanspan.testing` (not implemented). | **Blocked** | — | Depends on the corresponding Titanspan testing or service module. | [source][source-119] |
+| `Illuminate\Support\Testing\Fakes\MailFake` | `forgetMailers()` | — | Canonical owner: `titanspan.testing` (not implemented). | **Blocked** | — | Depends on the corresponding Titanspan testing or service module. | [source][source-119] |
+| `Illuminate\Support\Testing\Fakes\MailFake` | `__call()` | — | Canonical owner: `titanspan.testing` (not implemented). | **Blocked** | — | Depends on the corresponding Titanspan testing or service module. | [source][source-119] |
+
+</details>
+
+<details>
+<summary>Illuminate\Support\Testing\Fakes\MatchesProperties — 0 listed public members (trait)</summary>
+
+| Upstream class | Upstream API | Titanspan API | Implementation location | Compatibility status | Test evidence | Differences | Upstream reference |
+|---|---|---|---|---|---|---|---|
+| `Illuminate\Support\Testing\Fakes\MatchesProperties` | Public type declaration | — | Not implemented | | Pending | — | No public members were found by the source scan. | [source][source-120] |
+
+</details>
+
+<details>
+<summary>Illuminate\Support\Testing\Fakes\NotificationFake — 19 listed public members (class)</summary>
+
+| Upstream class | Upstream API | Titanspan API | Implementation location | Compatibility status | Test evidence | Differences | Upstream reference |
+|---|---|---|---|---|---|---|---|
+| `Illuminate\Support\Testing\Fakes\NotificationFake` | `assertSentOnDemand()` | — | Canonical owner: `titanspan.testing` (not implemented). | **Blocked** | — | Depends on the corresponding Titanspan testing or service module. | [source][source-121] |
+| `Illuminate\Support\Testing\Fakes\NotificationFake` | `assertSentTo()` | — | Canonical owner: `titanspan.testing` (not implemented). | **Blocked** | — | Depends on the corresponding Titanspan testing or service module. | [source][source-121] |
+| `Illuminate\Support\Testing\Fakes\NotificationFake` | `assertSentOnDemandTimes()` | — | Canonical owner: `titanspan.testing` (not implemented). | **Blocked** | — | Depends on the corresponding Titanspan testing or service module. | [source][source-121] |
+| `Illuminate\Support\Testing\Fakes\NotificationFake` | `assertSentOnDemandOnce()` | — | Canonical owner: `titanspan.testing` (not implemented). | **Blocked** | — | Depends on the corresponding Titanspan testing or service module. | [source][source-121] |
+| `Illuminate\Support\Testing\Fakes\NotificationFake` | `assertSentToTimes()` | — | Canonical owner: `titanspan.testing` (not implemented). | **Blocked** | — | Depends on the corresponding Titanspan testing or service module. | [source][source-121] |
+| `Illuminate\Support\Testing\Fakes\NotificationFake` | `assertSentToOnce()` | — | Canonical owner: `titanspan.testing` (not implemented). | **Blocked** | — | Depends on the corresponding Titanspan testing or service module. | [source][source-121] |
+| `Illuminate\Support\Testing\Fakes\NotificationFake` | `assertNotSentTo()` | — | Canonical owner: `titanspan.testing` (not implemented). | **Blocked** | — | Depends on the corresponding Titanspan testing or service module. | [source][source-121] |
+| `Illuminate\Support\Testing\Fakes\NotificationFake` | `assertNothingSent()` | — | Canonical owner: `titanspan.testing` (not implemented). | **Blocked** | — | Depends on the corresponding Titanspan testing or service module. | [source][source-121] |
+| `Illuminate\Support\Testing\Fakes\NotificationFake` | `assertNothingSentTo()` | — | Canonical owner: `titanspan.testing` (not implemented). | **Blocked** | — | Depends on the corresponding Titanspan testing or service module. | [source][source-121] |
+| `Illuminate\Support\Testing\Fakes\NotificationFake` | `assertSentTimes()` | — | Canonical owner: `titanspan.testing` (not implemented). | **Blocked** | — | Depends on the corresponding Titanspan testing or service module. | [source][source-121] |
+| `Illuminate\Support\Testing\Fakes\NotificationFake` | `assertCount()` | — | Canonical owner: `titanspan.testing` (not implemented). | **Blocked** | — | Depends on the corresponding Titanspan testing or service module. | [source][source-121] |
+| `Illuminate\Support\Testing\Fakes\NotificationFake` | `sent()` | — | Canonical owner: `titanspan.testing` (not implemented). | **Blocked** | — | Depends on the corresponding Titanspan testing or service module. | [source][source-121] |
+| `Illuminate\Support\Testing\Fakes\NotificationFake` | `hasSent()` | — | Canonical owner: `titanspan.testing` (not implemented). | **Blocked** | — | Depends on the corresponding Titanspan testing or service module. | [source][source-121] |
+| `Illuminate\Support\Testing\Fakes\NotificationFake` | `send()` | — | Canonical owner: `titanspan.testing` (not implemented). | **Blocked** | — | Depends on the corresponding Titanspan testing or service module. | [source][source-121] |
+| `Illuminate\Support\Testing\Fakes\NotificationFake` | `sendNow()` | — | Canonical owner: `titanspan.testing` (not implemented). | **Blocked** | — | Depends on the corresponding Titanspan testing or service module. | [source][source-121] |
+| `Illuminate\Support\Testing\Fakes\NotificationFake` | `channel()` | — | Canonical owner: `titanspan.testing` (not implemented). | **Blocked** | — | Depends on the corresponding Titanspan testing or service module. | [source][source-121] |
+| `Illuminate\Support\Testing\Fakes\NotificationFake` | `locale()` | — | Canonical owner: `titanspan.testing` (not implemented). | **Blocked** | — | Depends on the corresponding Titanspan testing or service module. | [source][source-121] |
+| `Illuminate\Support\Testing\Fakes\NotificationFake` | `serializeAndRestore()` | — | Canonical owner: `titanspan.testing` (not implemented). | **Blocked** | — | Depends on the corresponding Titanspan testing or service module. | [source][source-121] |
+| `Illuminate\Support\Testing\Fakes\NotificationFake` | `sentNotifications()` | — | Canonical owner: `titanspan.testing` (not implemented). | **Blocked** | — | Depends on the corresponding Titanspan testing or service module. | [source][source-121] |
+
+</details>
+
+<details>
+<summary>Illuminate\Support\Testing\Fakes\PendingBatchFake — 4 listed public members (class)</summary>
+
+| Upstream class | Upstream API | Titanspan API | Implementation location | Compatibility status | Test evidence | Differences | Upstream reference |
+|---|---|---|---|---|---|---|---|
+| `Illuminate\Support\Testing\Fakes\PendingBatchFake` | `__construct()` | — | Canonical owner: `titanspan.testing` (not implemented). | **Blocked** | — | Depends on the corresponding Titanspan testing or service module. | [source][source-122] |
+| `Illuminate\Support\Testing\Fakes\PendingBatchFake` | `dispatch()` | — | Canonical owner: `titanspan.testing` (not implemented). | **Blocked** | — | Depends on the corresponding Titanspan testing or service module. | [source][source-122] |
+| `Illuminate\Support\Testing\Fakes\PendingBatchFake` | `dispatchAfterResponse()` | — | Canonical owner: `titanspan.testing` (not implemented). | **Blocked** | — | Depends on the corresponding Titanspan testing or service module. | [source][source-122] |
+| `Illuminate\Support\Testing\Fakes\PendingBatchFake` | `hasJobs()` | — | Canonical owner: `titanspan.testing` (not implemented). | **Blocked** | — | Depends on the corresponding Titanspan testing or service module. | [source][source-122] |
+
+</details>
+
+<details>
+<summary>Illuminate\Support\Testing\Fakes\PendingChainFake — 2 listed public members (class)</summary>
+
+| Upstream class | Upstream API | Titanspan API | Implementation location | Compatibility status | Test evidence | Differences | Upstream reference |
+|---|---|---|---|---|---|---|---|
+| `Illuminate\Support\Testing\Fakes\PendingChainFake` | `__construct()` | — | Canonical owner: `titanspan.testing` (not implemented). | **Blocked** | — | Depends on the corresponding Titanspan testing or service module. | [source][source-123] |
+| `Illuminate\Support\Testing\Fakes\PendingChainFake` | `dispatch()` | — | Canonical owner: `titanspan.testing` (not implemented). | **Blocked** | — | Depends on the corresponding Titanspan testing or service module. | [source][source-123] |
+
+</details>
+
+<details>
+<summary>Illuminate\Support\Testing\Fakes\PendingMailFake — 4 listed public members (class)</summary>
+
+| Upstream class | Upstream API | Titanspan API | Implementation location | Compatibility status | Test evidence | Differences | Upstream reference |
+|---|---|---|---|---|---|---|---|
+| `Illuminate\Support\Testing\Fakes\PendingMailFake` | `__construct()` | — | Canonical owner: `titanspan.testing` (not implemented). | **Blocked** | — | Depends on the corresponding Titanspan testing or service module. | [source][source-124] |
+| `Illuminate\Support\Testing\Fakes\PendingMailFake` | `send()` | — | Canonical owner: `titanspan.testing` (not implemented). | **Blocked** | — | Depends on the corresponding Titanspan testing or service module. | [source][source-124] |
+| `Illuminate\Support\Testing\Fakes\PendingMailFake` | `sendNow()` | — | Canonical owner: `titanspan.testing` (not implemented). | **Blocked** | — | Depends on the corresponding Titanspan testing or service module. | [source][source-124] |
+| `Illuminate\Support\Testing\Fakes\PendingMailFake` | `queue()` | — | Canonical owner: `titanspan.testing` (not implemented). | **Blocked** | — | Depends on the corresponding Titanspan testing or service module. | [source][source-124] |
+
+</details>
+
+<details>
+<summary>Illuminate\Support\Testing\Fakes\QueueFake — 52 listed public members (class)</summary>
+
+| Upstream class | Upstream API | Titanspan API | Implementation location | Compatibility status | Test evidence | Differences | Upstream reference |
+|---|---|---|---|---|---|---|---|
+| `Illuminate\Support\Testing\Fakes\QueueFake` | `__construct()` | — | Canonical owner: `titanspan.testing` (not implemented). | **Blocked** | — | Depends on the corresponding Titanspan testing or service module. | [source][source-125] |
+| `Illuminate\Support\Testing\Fakes\QueueFake` | `except()` | — | Canonical owner: `titanspan.testing` (not implemented). | **Blocked** | — | Depends on the corresponding Titanspan testing or service module. | [source][source-125] |
+| `Illuminate\Support\Testing\Fakes\QueueFake` | `assertPushed()` | — | Canonical owner: `titanspan.testing` (not implemented). | **Blocked** | — | Depends on the corresponding Titanspan testing or service module. | [source][source-125] |
+| `Illuminate\Support\Testing\Fakes\QueueFake` | `assertPushedTimes()` | — | Canonical owner: `titanspan.testing` (not implemented). | **Blocked** | — | Depends on the corresponding Titanspan testing or service module. | [source][source-125] |
+| `Illuminate\Support\Testing\Fakes\QueueFake` | `assertPushedOnce()` | — | Canonical owner: `titanspan.testing` (not implemented). | **Blocked** | — | Depends on the corresponding Titanspan testing or service module. | [source][source-125] |
+| `Illuminate\Support\Testing\Fakes\QueueFake` | `assertPushedOn()` | — | Canonical owner: `titanspan.testing` (not implemented). | **Blocked** | — | Depends on the corresponding Titanspan testing or service module. | [source][source-125] |
+| `Illuminate\Support\Testing\Fakes\QueueFake` | `assertPushedWithChain()` | — | Canonical owner: `titanspan.testing` (not implemented). | **Blocked** | — | Depends on the corresponding Titanspan testing or service module. | [source][source-125] |
+| `Illuminate\Support\Testing\Fakes\QueueFake` | `assertPushedWithoutChain()` | — | Canonical owner: `titanspan.testing` (not implemented). | **Blocked** | — | Depends on the corresponding Titanspan testing or service module. | [source][source-125] |
+| `Illuminate\Support\Testing\Fakes\QueueFake` | `assertClosurePushed()` | — | Canonical owner: `titanspan.testing` (not implemented). | **Blocked** | — | Depends on the corresponding Titanspan testing or service module. | [source][source-125] |
+| `Illuminate\Support\Testing\Fakes\QueueFake` | `assertClosureNotPushed()` | — | Canonical owner: `titanspan.testing` (not implemented). | **Blocked** | — | Depends on the corresponding Titanspan testing or service module. | [source][source-125] |
+| `Illuminate\Support\Testing\Fakes\QueueFake` | `assertNotPushed()` | — | Canonical owner: `titanspan.testing` (not implemented). | **Blocked** | — | Depends on the corresponding Titanspan testing or service module. | [source][source-125] |
+| `Illuminate\Support\Testing\Fakes\QueueFake` | `assertCount()` | — | Canonical owner: `titanspan.testing` (not implemented). | **Blocked** | — | Depends on the corresponding Titanspan testing or service module. | [source][source-125] |
+| `Illuminate\Support\Testing\Fakes\QueueFake` | `assertNothingPushed()` | — | Canonical owner: `titanspan.testing` (not implemented). | **Blocked** | — | Depends on the corresponding Titanspan testing or service module. | [source][source-125] |
+| `Illuminate\Support\Testing\Fakes\QueueFake` | `pushed()` | — | Canonical owner: `titanspan.testing` (not implemented). | **Blocked** | — | Depends on the corresponding Titanspan testing or service module. | [source][source-125] |
+| `Illuminate\Support\Testing\Fakes\QueueFake` | `pushedRaw()` | — | Canonical owner: `titanspan.testing` (not implemented). | **Blocked** | — | Depends on the corresponding Titanspan testing or service module. | [source][source-125] |
+| `Illuminate\Support\Testing\Fakes\QueueFake` | `listenersPushed()` | — | Canonical owner: `titanspan.testing` (not implemented). | **Blocked** | — | Depends on the corresponding Titanspan testing or service module. | [source][source-125] |
+| `Illuminate\Support\Testing\Fakes\QueueFake` | `hasPushed()` | — | Canonical owner: `titanspan.testing` (not implemented). | **Blocked** | — | Depends on the corresponding Titanspan testing or service module. | [source][source-125] |
+| `Illuminate\Support\Testing\Fakes\QueueFake` | `connection()` | — | Canonical owner: `titanspan.testing` (not implemented). | **Blocked** | — | Depends on the corresponding Titanspan testing or service module. | [source][source-125] |
+| `Illuminate\Support\Testing\Fakes\QueueFake` | `size()` | — | Canonical owner: `titanspan.testing` (not implemented). | **Blocked** | — | Depends on the corresponding Titanspan testing or service module. | [source][source-125] |
+| `Illuminate\Support\Testing\Fakes\QueueFake` | `pendingSize()` | — | Canonical owner: `titanspan.testing` (not implemented). | **Blocked** | — | Depends on the corresponding Titanspan testing or service module. | [source][source-125] |
+| `Illuminate\Support\Testing\Fakes\QueueFake` | `delayedSize()` | — | Canonical owner: `titanspan.testing` (not implemented). | **Blocked** | — | Depends on the corresponding Titanspan testing or service module. | [source][source-125] |
+| `Illuminate\Support\Testing\Fakes\QueueFake` | `reservedSize()` | — | Canonical owner: `titanspan.testing` (not implemented). | **Blocked** | — | Depends on the corresponding Titanspan testing or service module. | [source][source-125] |
+| `Illuminate\Support\Testing\Fakes\QueueFake` | `totalSize()` | — | Canonical owner: `titanspan.testing` (not implemented). | **Blocked** | — | Depends on the corresponding Titanspan testing or service module. | [source][source-125] |
+| `Illuminate\Support\Testing\Fakes\QueueFake` | `totalPendingSize()` | — | Canonical owner: `titanspan.testing` (not implemented). | **Blocked** | — | Depends on the corresponding Titanspan testing or service module. | [source][source-125] |
+| `Illuminate\Support\Testing\Fakes\QueueFake` | `totalDelayedSize()` | — | Canonical owner: `titanspan.testing` (not implemented). | **Blocked** | — | Depends on the corresponding Titanspan testing or service module. | [source][source-125] |
+| `Illuminate\Support\Testing\Fakes\QueueFake` | `totalReservedSize()` | — | Canonical owner: `titanspan.testing` (not implemented). | **Blocked** | — | Depends on the corresponding Titanspan testing or service module. | [source][source-125] |
+| `Illuminate\Support\Testing\Fakes\QueueFake` | `pendingJobs()` | — | Canonical owner: `titanspan.testing` (not implemented). | **Blocked** | — | Depends on the corresponding Titanspan testing or service module. | [source][source-125] |
+| `Illuminate\Support\Testing\Fakes\QueueFake` | `delayedJobs()` | — | Canonical owner: `titanspan.testing` (not implemented). | **Blocked** | — | Depends on the corresponding Titanspan testing or service module. | [source][source-125] |
+| `Illuminate\Support\Testing\Fakes\QueueFake` | `reservedJobs()` | — | Canonical owner: `titanspan.testing` (not implemented). | **Blocked** | — | Depends on the corresponding Titanspan testing or service module. | [source][source-125] |
+| `Illuminate\Support\Testing\Fakes\QueueFake` | `allPendingJobs()` | — | Canonical owner: `titanspan.testing` (not implemented). | **Blocked** | — | Depends on the corresponding Titanspan testing or service module. | [source][source-125] |
+| `Illuminate\Support\Testing\Fakes\QueueFake` | `allDelayedJobs()` | — | Canonical owner: `titanspan.testing` (not implemented). | **Blocked** | — | Depends on the corresponding Titanspan testing or service module. | [source][source-125] |
+| `Illuminate\Support\Testing\Fakes\QueueFake` | `allReservedJobs()` | — | Canonical owner: `titanspan.testing` (not implemented). | **Blocked** | — | Depends on the corresponding Titanspan testing or service module. | [source][source-125] |
+| `Illuminate\Support\Testing\Fakes\QueueFake` | `creationTimeOfOldestPendingJob()` | — | Canonical owner: `titanspan.testing` (not implemented). | **Blocked** | — | Depends on the corresponding Titanspan testing or service module. | [source][source-125] |
+| `Illuminate\Support\Testing\Fakes\QueueFake` | `push()` | — | Canonical owner: `titanspan.testing` (not implemented). | **Blocked** | — | Depends on the corresponding Titanspan testing or service module. | [source][source-125] |
+| `Illuminate\Support\Testing\Fakes\QueueFake` | `shouldFakeJob()` | — | Canonical owner: `titanspan.testing` (not implemented). | **Blocked** | — | Depends on the corresponding Titanspan testing or service module. | [source][source-125] |
+| `Illuminate\Support\Testing\Fakes\QueueFake` | `pushRaw()` | — | Canonical owner: `titanspan.testing` (not implemented). | **Blocked** | — | Depends on the corresponding Titanspan testing or service module. | [source][source-125] |
+| `Illuminate\Support\Testing\Fakes\QueueFake` | `later()` | — | Canonical owner: `titanspan.testing` (not implemented). | **Blocked** | — | Depends on the corresponding Titanspan testing or service module. | [source][source-125] |
+| `Illuminate\Support\Testing\Fakes\QueueFake` | `pushOn()` | — | Canonical owner: `titanspan.testing` (not implemented). | **Blocked** | — | Depends on the corresponding Titanspan testing or service module. | [source][source-125] |
+| `Illuminate\Support\Testing\Fakes\QueueFake` | `laterOn()` | — | Canonical owner: `titanspan.testing` (not implemented). | **Blocked** | — | Depends on the corresponding Titanspan testing or service module. | [source][source-125] |
+| `Illuminate\Support\Testing\Fakes\QueueFake` | `reserve()` | — | Canonical owner: `titanspan.testing` (not implemented). | **Blocked** | — | Depends on the corresponding Titanspan testing or service module. | [source][source-125] |
+| `Illuminate\Support\Testing\Fakes\QueueFake` | `pop()` | — | Canonical owner: `titanspan.testing` (not implemented). | **Blocked** | — | Depends on the corresponding Titanspan testing or service module. | [source][source-125] |
+| `Illuminate\Support\Testing\Fakes\QueueFake` | `bulk()` | — | Canonical owner: `titanspan.testing` (not implemented). | **Blocked** | — | Depends on the corresponding Titanspan testing or service module. | [source][source-125] |
+| `Illuminate\Support\Testing\Fakes\QueueFake` | `pushedJobs()` | — | Canonical owner: `titanspan.testing` (not implemented). | **Blocked** | — | Depends on the corresponding Titanspan testing or service module. | [source][source-125] |
+| `Illuminate\Support\Testing\Fakes\QueueFake` | `rawPushes()` | — | Canonical owner: `titanspan.testing` (not implemented). | **Blocked** | — | Depends on the corresponding Titanspan testing or service module. | [source][source-125] |
+| `Illuminate\Support\Testing\Fakes\QueueFake` | `serializeAndRestore()` | — | Canonical owner: `titanspan.testing` (not implemented). | **Blocked** | — | Depends on the corresponding Titanspan testing or service module. | [source][source-125] |
+| `Illuminate\Support\Testing\Fakes\QueueFake` | `releaseUniqueJobLocks()` | — | Canonical owner: `titanspan.testing` (not implemented). | **Blocked** | — | Depends on the corresponding Titanspan testing or service module. | [source][source-125] |
+| `Illuminate\Support\Testing\Fakes\QueueFake` | `clearReserved()` | — | Canonical owner: `titanspan.testing` (not implemented). | **Blocked** | — | Depends on the corresponding Titanspan testing or service module. | [source][source-125] |
+| `Illuminate\Support\Testing\Fakes\QueueFake` | `beforePushing()` | — | Canonical owner: `titanspan.testing` (not implemented). | **Blocked** | — | Depends on the corresponding Titanspan testing or service module. | [source][source-125] |
+| `Illuminate\Support\Testing\Fakes\QueueFake` | `afterPushing()` | — | Canonical owner: `titanspan.testing` (not implemented). | **Blocked** | — | Depends on the corresponding Titanspan testing or service module. | [source][source-125] |
+| `Illuminate\Support\Testing\Fakes\QueueFake` | `getConnectionName()` | — | Canonical owner: `titanspan.testing` (not implemented). | **Blocked** | — | Depends on the corresponding Titanspan testing or service module. | [source][source-125] |
+| `Illuminate\Support\Testing\Fakes\QueueFake` | `setConnectionName()` | — | Canonical owner: `titanspan.testing` (not implemented). | **Blocked** | — | Depends on the corresponding Titanspan testing or service module. | [source][source-125] |
+| `Illuminate\Support\Testing\Fakes\QueueFake` | `__call()` | — | Canonical owner: `titanspan.testing` (not implemented). | **Blocked** | — | Depends on the corresponding Titanspan testing or service module. | [source][source-125] |
+
+</details>
+
+<details>
+<summary>Illuminate\Support\Timebox — 3 listed public members (class)</summary>
+
+| Upstream class | Upstream API | Titanspan API | Implementation location | Compatibility status | Test evidence | Differences | Upstream reference |
+|---|---|---|---|---|---|---|---|
+| `Illuminate\Support\Timebox` | `call()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-126] |
+| `Illuminate\Support\Timebox` | `returnEarly()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-126] |
+| `Illuminate\Support\Timebox` | `dontReturnEarly()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-126] |
+
+</details>
+
+<details>
+<summary>Illuminate\Support\Traits\CapsuleManagerTrait — 3 listed public members (trait)</summary>
+
+| Upstream class | Upstream API | Titanspan API | Implementation location | Compatibility status | Test evidence | Differences | Upstream reference |
+|---|---|---|---|---|---|---|---|
+| `Illuminate\Support\Traits\CapsuleManagerTrait` | `setAsGlobal()` | — | Not implemented. | **Blocked** | — | Requires a Titanspan database manager; none exists yet. | [source][source-127] |
+| `Illuminate\Support\Traits\CapsuleManagerTrait` | `getContainer()` | — | Not implemented. | **Blocked** | — | Requires a Titanspan database manager; none exists yet. | [source][source-127] |
+| `Illuminate\Support\Traits\CapsuleManagerTrait` | `setContainer()` | — | Not implemented. | **Blocked** | — | Requires a Titanspan database manager; none exists yet. | [source][source-127] |
+
+</details>
+
+<details>
+<summary>Illuminate\Support\Traits\Conditionable — 2 listed public members (trait)</summary>
+
+| Upstream class | Upstream API | Titanspan API | Implementation location | Compatibility status | Test evidence | Differences | Upstream reference |
+|---|---|---|---|---|---|---|---|
+| `Illuminate\Support\Traits\Conditionable` | `when()` | `Conditionable.when` | src/titanspan/support/conditionable.py | **Pending** | `tests/unit/support/test_traits.py` (direct callback forms) | Direct callback forms exist; higher-order proxy forms remain unimplemented. | [source][source-128] |
+| `Illuminate\Support\Traits\Conditionable` | `unless()` | `Conditionable.unless` | src/titanspan/support/conditionable.py | **Pending** | `tests/unit/support/test_traits.py` (direct callback forms) | Direct callback forms exist; higher-order proxy forms remain unimplemented. | [source][source-128] |
+
+</details>
+
+<details>
+<summary>Illuminate\Support\Traits\Dumpable — 2 listed public members (trait)</summary>
+
+| Upstream class | Upstream API | Titanspan API | Implementation location | Compatibility status | Test evidence | Differences | Upstream reference |
+|---|---|---|---|---|---|---|---|
+| `Illuminate\Support\Traits\Dumpable` | `dd()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-129] |
+| `Illuminate\Support\Traits\Dumpable` | `dump()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-129] |
+
+</details>
+
+<details>
+<summary>Illuminate\Support\Traits\EnumeratesValues — 66 listed public members (trait)</summary>
+
+| Upstream class | Upstream API | Titanspan API | Implementation location | Compatibility status | Test evidence | Differences | Upstream reference |
+|---|---|---|---|---|---|---|---|
+| `Illuminate\Support\Traits\EnumeratesValues` | `make()` | — | Canonical owner: `titanspan.collections` (not implemented). | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-130] |
+| `Illuminate\Support\Traits\EnumeratesValues` | `wrap()` | — | Canonical owner: `titanspan.collections` (not implemented). | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-130] |
+| `Illuminate\Support\Traits\EnumeratesValues` | `unwrap()` | — | Canonical owner: `titanspan.collections` (not implemented). | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-130] |
+| `Illuminate\Support\Traits\EnumeratesValues` | `empty()` | — | Canonical owner: `titanspan.collections` (not implemented). | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-130] |
+| `Illuminate\Support\Traits\EnumeratesValues` | `times()` | — | Canonical owner: `titanspan.collections` (not implemented). | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-130] |
+| `Illuminate\Support\Traits\EnumeratesValues` | `fromJson()` | — | Canonical owner: `titanspan.collections` (not implemented). | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-130] |
+| `Illuminate\Support\Traits\EnumeratesValues` | `avg()` | — | Canonical owner: `titanspan.collections` (not implemented). | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-130] |
+| `Illuminate\Support\Traits\EnumeratesValues` | `average()` | — | Canonical owner: `titanspan.collections` (not implemented). | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-130] |
+| `Illuminate\Support\Traits\EnumeratesValues` | `some()` | — | Canonical owner: `titanspan.collections` (not implemented). | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-130] |
+| `Illuminate\Support\Traits\EnumeratesValues` | `dd()` | — | Canonical owner: `titanspan.collections` (not implemented). | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-130] |
+| `Illuminate\Support\Traits\EnumeratesValues` | `dump()` | — | Canonical owner: `titanspan.collections` (not implemented). | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-130] |
+| `Illuminate\Support\Traits\EnumeratesValues` | `each()` | — | Canonical owner: `titanspan.collections` (not implemented). | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-130] |
+| `Illuminate\Support\Traits\EnumeratesValues` | `eachSpread()` | — | Canonical owner: `titanspan.collections` (not implemented). | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-130] |
+| `Illuminate\Support\Traits\EnumeratesValues` | `every()` | — | Canonical owner: `titanspan.collections` (not implemented). | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-130] |
+| `Illuminate\Support\Traits\EnumeratesValues` | `firstWhere()` | — | Canonical owner: `titanspan.collections` (not implemented). | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-130] |
+| `Illuminate\Support\Traits\EnumeratesValues` | `hasMany()` | — | Canonical owner: `titanspan.collections` (not implemented). | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-130] |
+| `Illuminate\Support\Traits\EnumeratesValues` | `value()` | — | Canonical owner: `titanspan.collections` (not implemented). | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-130] |
+| `Illuminate\Support\Traits\EnumeratesValues` | `ensure()` | — | Canonical owner: `titanspan.collections` (not implemented). | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-130] |
+| `Illuminate\Support\Traits\EnumeratesValues` | `isNotEmpty()` | — | Canonical owner: `titanspan.collections` (not implemented). | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-130] |
+| `Illuminate\Support\Traits\EnumeratesValues` | `mapSpread()` | — | Canonical owner: `titanspan.collections` (not implemented). | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-130] |
+| `Illuminate\Support\Traits\EnumeratesValues` | `mapToGroups()` | — | Canonical owner: `titanspan.collections` (not implemented). | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-130] |
+| `Illuminate\Support\Traits\EnumeratesValues` | `flatMap()` | — | Canonical owner: `titanspan.collections` (not implemented). | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-130] |
+| `Illuminate\Support\Traits\EnumeratesValues` | `mapInto()` | — | Canonical owner: `titanspan.collections` (not implemented). | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-130] |
+| `Illuminate\Support\Traits\EnumeratesValues` | `min()` | — | Canonical owner: `titanspan.collections` (not implemented). | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-130] |
+| `Illuminate\Support\Traits\EnumeratesValues` | `max()` | — | Canonical owner: `titanspan.collections` (not implemented). | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-130] |
+| `Illuminate\Support\Traits\EnumeratesValues` | `forPage()` | — | Canonical owner: `titanspan.collections` (not implemented). | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-130] |
+| `Illuminate\Support\Traits\EnumeratesValues` | `partition()` | — | Canonical owner: `titanspan.collections` (not implemented). | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-130] |
+| `Illuminate\Support\Traits\EnumeratesValues` | `percentage()` | — | Canonical owner: `titanspan.collections` (not implemented). | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-130] |
+| `Illuminate\Support\Traits\EnumeratesValues` | `sum()` | — | Canonical owner: `titanspan.collections` (not implemented). | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-130] |
+| `Illuminate\Support\Traits\EnumeratesValues` | `whenEmpty()` | — | Canonical owner: `titanspan.collections` (not implemented). | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-130] |
+| `Illuminate\Support\Traits\EnumeratesValues` | `whenNotEmpty()` | — | Canonical owner: `titanspan.collections` (not implemented). | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-130] |
+| `Illuminate\Support\Traits\EnumeratesValues` | `unlessEmpty()` | — | Canonical owner: `titanspan.collections` (not implemented). | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-130] |
+| `Illuminate\Support\Traits\EnumeratesValues` | `unlessNotEmpty()` | — | Canonical owner: `titanspan.collections` (not implemented). | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-130] |
+| `Illuminate\Support\Traits\EnumeratesValues` | `where()` | — | Canonical owner: `titanspan.collections` (not implemented). | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-130] |
+| `Illuminate\Support\Traits\EnumeratesValues` | `whereNull()` | — | Canonical owner: `titanspan.collections` (not implemented). | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-130] |
+| `Illuminate\Support\Traits\EnumeratesValues` | `whereNotNull()` | — | Canonical owner: `titanspan.collections` (not implemented). | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-130] |
+| `Illuminate\Support\Traits\EnumeratesValues` | `whereStrict()` | — | Canonical owner: `titanspan.collections` (not implemented). | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-130] |
+| `Illuminate\Support\Traits\EnumeratesValues` | `whereIn()` | — | Canonical owner: `titanspan.collections` (not implemented). | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-130] |
+| `Illuminate\Support\Traits\EnumeratesValues` | `whereInStrict()` | — | Canonical owner: `titanspan.collections` (not implemented). | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-130] |
+| `Illuminate\Support\Traits\EnumeratesValues` | `whereBetween()` | — | Canonical owner: `titanspan.collections` (not implemented). | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-130] |
+| `Illuminate\Support\Traits\EnumeratesValues` | `whereNotBetween()` | — | Canonical owner: `titanspan.collections` (not implemented). | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-130] |
+| `Illuminate\Support\Traits\EnumeratesValues` | `whereNotIn()` | — | Canonical owner: `titanspan.collections` (not implemented). | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-130] |
+| `Illuminate\Support\Traits\EnumeratesValues` | `whereNotInStrict()` | — | Canonical owner: `titanspan.collections` (not implemented). | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-130] |
+| `Illuminate\Support\Traits\EnumeratesValues` | `whereInstanceOf()` | — | Canonical owner: `titanspan.collections` (not implemented). | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-130] |
+| `Illuminate\Support\Traits\EnumeratesValues` | `pipe()` | — | Canonical owner: `titanspan.collections` (not implemented). | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-130] |
+| `Illuminate\Support\Traits\EnumeratesValues` | `pipeInto()` | — | Canonical owner: `titanspan.collections` (not implemented). | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-130] |
+| `Illuminate\Support\Traits\EnumeratesValues` | `pipeThrough()` | — | Canonical owner: `titanspan.collections` (not implemented). | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-130] |
+| `Illuminate\Support\Traits\EnumeratesValues` | `reduce()` | — | Canonical owner: `titanspan.collections` (not implemented). | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-130] |
+| `Illuminate\Support\Traits\EnumeratesValues` | `reduceInto()` | — | Canonical owner: `titanspan.collections` (not implemented). | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-130] |
+| `Illuminate\Support\Traits\EnumeratesValues` | `reduceSpread()` | — | Canonical owner: `titanspan.collections` (not implemented). | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-130] |
+| `Illuminate\Support\Traits\EnumeratesValues` | `reduceWithKeys()` | — | Canonical owner: `titanspan.collections` (not implemented). | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-130] |
+| `Illuminate\Support\Traits\EnumeratesValues` | `reject()` | — | Canonical owner: `titanspan.collections` (not implemented). | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-130] |
+| `Illuminate\Support\Traits\EnumeratesValues` | `chunkBy()` | — | Canonical owner: `titanspan.collections` (not implemented). | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-130] |
+| `Illuminate\Support\Traits\EnumeratesValues` | `tap()` | — | Canonical owner: `titanspan.collections` (not implemented). | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-130] |
+| `Illuminate\Support\Traits\EnumeratesValues` | `unique()` | — | Canonical owner: `titanspan.collections` (not implemented). | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-130] |
+| `Illuminate\Support\Traits\EnumeratesValues` | `uniqueStrict()` | — | Canonical owner: `titanspan.collections` (not implemented). | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-130] |
+| `Illuminate\Support\Traits\EnumeratesValues` | `collect()` | — | Canonical owner: `titanspan.collections` (not implemented). | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-130] |
+| `Illuminate\Support\Traits\EnumeratesValues` | `toArray()` | — | Canonical owner: `titanspan.collections` (not implemented). | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-130] |
+| `Illuminate\Support\Traits\EnumeratesValues` | `jsonSerialize()` | — | Canonical owner: `titanspan.collections` (not implemented). | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-130] |
+| `Illuminate\Support\Traits\EnumeratesValues` | `toJson()` | — | Canonical owner: `titanspan.collections` (not implemented). | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-130] |
+| `Illuminate\Support\Traits\EnumeratesValues` | `toPrettyJson()` | — | Canonical owner: `titanspan.collections` (not implemented). | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-130] |
+| `Illuminate\Support\Traits\EnumeratesValues` | `getCachingIterator()` | — | Canonical owner: `titanspan.collections` (not implemented). | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-130] |
+| `Illuminate\Support\Traits\EnumeratesValues` | `__toString()` | — | Canonical owner: `titanspan.collections` (not implemented). | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-130] |
+| `Illuminate\Support\Traits\EnumeratesValues` | `escapeWhenCastingToString()` | — | Canonical owner: `titanspan.collections` (not implemented). | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-130] |
+| `Illuminate\Support\Traits\EnumeratesValues` | `proxy()` | — | Canonical owner: `titanspan.collections` (not implemented). | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-130] |
+| `Illuminate\Support\Traits\EnumeratesValues` | `__get()` | — | Canonical owner: `titanspan.collections` (not implemented). | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-130] |
+
+</details>
+
+<details>
+<summary>Illuminate\Support\Traits\ForwardsCalls — 0 listed public members (trait)</summary>
+
+| Upstream class | Upstream API | Titanspan API | Implementation location | Compatibility status | Test evidence | Differences | Upstream reference |
+|---|---|---|---|---|---|---|---|
+| `Illuminate\Support\Traits\ForwardsCalls` | Public type declaration | — | Not implemented | | Pending | — | No public members were found by the source scan. | [source][source-131] |
+
+</details>
+
+<details>
+<summary>Illuminate\Support\Traits\InteractsWithData — 27 listed public members (trait)</summary>
+
+| Upstream class | Upstream API | Titanspan API | Implementation location | Compatibility status | Test evidence | Differences | Upstream reference |
+|---|---|---|---|---|---|---|---|
+| `Illuminate\Support\Traits\InteractsWithData` | `exists()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-132] |
+| `Illuminate\Support\Traits\InteractsWithData` | `has()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-132] |
+| `Illuminate\Support\Traits\InteractsWithData` | `hasAny()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-132] |
+| `Illuminate\Support\Traits\InteractsWithData` | `whenHas()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-132] |
+| `Illuminate\Support\Traits\InteractsWithData` | `filled()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-132] |
+| `Illuminate\Support\Traits\InteractsWithData` | `isNotFilled()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-132] |
+| `Illuminate\Support\Traits\InteractsWithData` | `anyFilled()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-132] |
+| `Illuminate\Support\Traits\InteractsWithData` | `whenFilled()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-132] |
+| `Illuminate\Support\Traits\InteractsWithData` | `whenEnum()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-132] |
+| `Illuminate\Support\Traits\InteractsWithData` | `missing()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-132] |
+| `Illuminate\Support\Traits\InteractsWithData` | `whenMissing()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-132] |
+| `Illuminate\Support\Traits\InteractsWithData` | `str()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-132] |
+| `Illuminate\Support\Traits\InteractsWithData` | `string()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-132] |
+| `Illuminate\Support\Traits\InteractsWithData` | `boolean()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-132] |
+| `Illuminate\Support\Traits\InteractsWithData` | `integer()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-132] |
+| `Illuminate\Support\Traits\InteractsWithData` | `float()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-132] |
+| `Illuminate\Support\Traits\InteractsWithData` | `clamp()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-132] |
+| `Illuminate\Support\Traits\InteractsWithData` | `date()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-132] |
+| `Illuminate\Support\Traits\InteractsWithData` | `interval()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-132] |
+| `Illuminate\Support\Traits\InteractsWithData` | `uuid()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-132] |
+| `Illuminate\Support\Traits\InteractsWithData` | `ulid()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-132] |
+| `Illuminate\Support\Traits\InteractsWithData` | `enum()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-132] |
+| `Illuminate\Support\Traits\InteractsWithData` | `enums()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-132] |
+| `Illuminate\Support\Traits\InteractsWithData` | `array()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-132] |
+| `Illuminate\Support\Traits\InteractsWithData` | `collect()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-132] |
+| `Illuminate\Support\Traits\InteractsWithData` | `only()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-132] |
+| `Illuminate\Support\Traits\InteractsWithData` | `except()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-132] |
+
+</details>
+
+<details>
+<summary>Illuminate\Support\Traits\Localizable — 1 listed public members (trait)</summary>
+
+| Upstream class | Upstream API | Titanspan API | Implementation location | Compatibility status | Test evidence | Differences | Upstream reference |
+|---|---|---|---|---|---|---|---|
+| `Illuminate\Support\Traits\Localizable` | `withLocale()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-133] |
+
+</details>
+
+<details>
+<summary>Illuminate\Support\Traits\Macroable — 6 listed public members (trait)</summary>
+
+| Upstream class | Upstream API | Titanspan API | Implementation location | Compatibility status | Test evidence | Differences | Upstream reference |
+|---|---|---|---|---|---|---|---|
+| `Illuminate\Support\Traits\Macroable` | `macro()` | `Macroable.macro` | src/titanspan/support/macroable.py | **Python-adapted parity** | `tests/unit/support/test_traits.py` | Magic dispatch maps to explicit `invoke_macro` and `call_macro`; callback binding is Python-specific. | [source][source-134] |
+| `Illuminate\Support\Traits\Macroable` | `mixin()` | `Macroable.mixin` | src/titanspan/support/macroable.py | **Python-adapted parity** | `tests/unit/support/test_traits.py` | Magic dispatch maps to explicit `invoke_macro` and `call_macro`; callback binding is Python-specific. | [source][source-134] |
+| `Illuminate\Support\Traits\Macroable` | `hasMacro()` | `Macroable.hasMacro` / `Macroable.has_macro` | src/titanspan/support/macroable.py | **Python-adapted parity** | `tests/unit/support/test_traits.py` | Magic dispatch maps to explicit `invoke_macro` and `call_macro`; callback binding is Python-specific. | [source][source-134] |
+| `Illuminate\Support\Traits\Macroable` | `flushMacros()` | `Macroable.flushMacros` / `Macroable.flush_macros` | src/titanspan/support/macroable.py | **Python-adapted parity** | `tests/unit/support/test_traits.py` | Magic dispatch maps to explicit `invoke_macro` and `call_macro`; callback binding is Python-specific. | [source][source-134] |
+| `Illuminate\Support\Traits\Macroable` | `__callStatic()` | `Macroable.__callStatic` / `Macroable.invoke_macro` | src/titanspan/support/macroable.py | **Python-adapted parity** | `tests/unit/support/test_traits.py` | Magic dispatch maps to explicit `invoke_macro` and `call_macro`; callback binding is Python-specific. | [source][source-134] |
+| `Illuminate\Support\Traits\Macroable` | `__call()` | `Macroable.__call` / `Macroable.call_macro` | src/titanspan/support/macroable.py | **Python-adapted parity** | `tests/unit/support/test_traits.py` | Magic dispatch maps to explicit `invoke_macro` and `call_macro`; callback binding is Python-specific. | [source][source-134] |
+
+</details>
+
+<details>
+<summary>Illuminate\Support\Traits\ParsesSqlServerConfigurationUrls — 0 listed public members (trait)</summary>
+
+| Upstream class | Upstream API | Titanspan API | Implementation location | Compatibility status | Test evidence | Differences | Upstream reference |
+|---|---|---|---|---|---|---|---|
+| `Illuminate\Support\Traits\ParsesSqlServerConfigurationUrls` | Public type declaration | — | Not implemented | | Pending | — | No public members were found by the source scan. | [source][source-135] |
+
+</details>
+
+<details>
+<summary>Illuminate\Support\Traits\ReadsClassAttributes — 0 listed public members (trait)</summary>
+
+| Upstream class | Upstream API | Titanspan API | Implementation location | Compatibility status | Test evidence | Differences | Upstream reference |
+|---|---|---|---|---|---|---|---|
+| `Illuminate\Support\Traits\ReadsClassAttributes` | Public type declaration | — | Not implemented | | Pending | — | No public members were found by the source scan. | [source][source-136] |
+
+</details>
+
+<details>
+<summary>Illuminate\Support\Traits\ReflectsClosures — 0 listed public members (trait)</summary>
+
+| Upstream class | Upstream API | Titanspan API | Implementation location | Compatibility status | Test evidence | Differences | Upstream reference |
+|---|---|---|---|---|---|---|---|
+| `Illuminate\Support\Traits\ReflectsClosures` | Public type declaration | — | Not implemented | | Pending | — | No public members were found by the source scan. | [source][source-137] |
+
+</details>
+
+<details>
+<summary>Illuminate\Support\Traits\Tappable — 1 listed public members (trait)</summary>
+
+| Upstream class | Upstream API | Titanspan API | Implementation location | Compatibility status | Test evidence | Differences | Upstream reference |
+|---|---|---|---|---|---|---|---|
+| `Illuminate\Support\Traits\Tappable` | `tap()` | `Tappable.tap` | `src/titanspan/support/tappable.py` | **Python-adapted parity** | `tests/unit/support/test_tappable.py` | Delegates to the typed helper; higher-order calls use explicit `call`. | [source][source-138] |
+
+</details>
+
+<details>
+<summary>Illuminate\Support\Traits\TransformsToResourceCollection — 1 listed public members (trait)</summary>
+
+| Upstream class | Upstream API | Titanspan API | Implementation location | Compatibility status | Test evidence | Differences | Upstream reference |
+|---|---|---|---|---|---|---|---|
+| `Illuminate\Support\Traits\TransformsToResourceCollection` | `toResourceCollection()` | — | Canonical owner: `titanspan.collections` (not implemented). | **Blocked** | — | Canonical ownership is `titanspan.collections`, which is not implemented yet. | [source][source-139] |
+
+</details>
+
+<details>
+<summary>Illuminate\Support\UndefinedValue — 2 listed public members (class)</summary>
+
+| Upstream class | Upstream API | Titanspan API | Implementation location | Compatibility status | Test evidence | Differences | Upstream reference |
+|---|---|---|---|---|---|---|---|
+| `Illuminate\Support\UndefinedValue` | `equalsTo()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-140] |
+| `Illuminate\Support\UndefinedValue` | `jsonSerialize()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-140] |
+
+</details>
+
+<details>
+<summary>Illuminate\Support\Uri — 44 listed public members (class)</summary>
+
+| Upstream class | Upstream API | Titanspan API | Implementation location | Compatibility status | Test evidence | Differences | Upstream reference |
+|---|---|---|---|---|---|---|---|
+| `Illuminate\Support\Uri` | `__construct()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-141] |
+| `Illuminate\Support\Uri` | `of()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-141] |
+| `Illuminate\Support\Uri` | `to()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-141] |
+| `Illuminate\Support\Uri` | `route()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-141] |
+| `Illuminate\Support\Uri` | `signedRoute()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-141] |
+| `Illuminate\Support\Uri` | `temporarySignedRoute()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-141] |
+| `Illuminate\Support\Uri` | `action()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-141] |
+| `Illuminate\Support\Uri` | `authority()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-141] |
+| `Illuminate\Support\Uri` | `scheme()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-141] |
+| `Illuminate\Support\Uri` | `user()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-141] |
+| `Illuminate\Support\Uri` | `password()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-141] |
+| `Illuminate\Support\Uri` | `host()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-141] |
+| `Illuminate\Support\Uri` | `port()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-141] |
+| `Illuminate\Support\Uri` | `origin()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-141] |
+| `Illuminate\Support\Uri` | `path()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-141] |
+| `Illuminate\Support\Uri` | `pathSegments()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-141] |
+| `Illuminate\Support\Uri` | `query()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-141] |
+| `Illuminate\Support\Uri` | `fragment()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-141] |
+| `Illuminate\Support\Uri` | `withScheme()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-141] |
+| `Illuminate\Support\Uri` | `withUser()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-141] |
+| `Illuminate\Support\Uri` | `withHost()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-141] |
+| `Illuminate\Support\Uri` | `withPort()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-141] |
+| `Illuminate\Support\Uri` | `withPath()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-141] |
+| `Illuminate\Support\Uri` | `withQuery()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-141] |
+| `Illuminate\Support\Uri` | `withQueryIfMissing()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-141] |
+| `Illuminate\Support\Uri` | `pushOntoQuery()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-141] |
+| `Illuminate\Support\Uri` | `withoutQuery()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-141] |
+| `Illuminate\Support\Uri` | `replaceQuery()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-141] |
+| `Illuminate\Support\Uri` | `withFragment()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-141] |
+| `Illuminate\Support\Uri` | `withoutFragment()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-141] |
+| `Illuminate\Support\Uri` | `redirect()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-141] |
+| `Illuminate\Support\Uri` | `toStringable()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-141] |
+| `Illuminate\Support\Uri` | `toResponse()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-141] |
+| `Illuminate\Support\Uri` | `toHtml()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-141] |
+| `Illuminate\Support\Uri` | `decode()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-141] |
+| `Illuminate\Support\Uri` | `value()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-141] |
+| `Illuminate\Support\Uri` | `toString()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-141] |
+| `Illuminate\Support\Uri` | `isEmpty()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-141] |
+| `Illuminate\Support\Uri` | `isNotEmpty()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-141] |
+| `Illuminate\Support\Uri` | `dump()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-141] |
+| `Illuminate\Support\Uri` | `setUrlGeneratorResolver()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-141] |
+| `Illuminate\Support\Uri` | `getUri()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-141] |
+| `Illuminate\Support\Uri` | `jsonSerialize()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-141] |
+| `Illuminate\Support\Uri` | `__toString()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-141] |
+
+</details>
+
+<details>
+<summary>Illuminate\Support\UriQueryString — 7 listed public members (class)</summary>
+
+| Upstream class | Upstream API | Titanspan API | Implementation location | Compatibility status | Test evidence | Differences | Upstream reference |
+|---|---|---|---|---|---|---|---|
+| `Illuminate\Support\UriQueryString` | `__construct()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-142] |
+| `Illuminate\Support\UriQueryString` | `all()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-142] |
+| `Illuminate\Support\UriQueryString` | `get()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-142] |
+| `Illuminate\Support\UriQueryString` | `decode()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-142] |
+| `Illuminate\Support\UriQueryString` | `value()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-142] |
+| `Illuminate\Support\UriQueryString` | `toArray()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-142] |
+| `Illuminate\Support\UriQueryString` | `__toString()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-142] |
+
+</details>
+
+<details>
+<summary>Illuminate\Support\ValidatedInput — 17 listed public members (class)</summary>
+
+| Upstream class | Upstream API | Titanspan API | Implementation location | Compatibility status | Test evidence | Differences | Upstream reference |
+|---|---|---|---|---|---|---|---|
+| `Illuminate\Support\ValidatedInput` | `__construct()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-143] |
+| `Illuminate\Support\ValidatedInput` | `merge()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-143] |
+| `Illuminate\Support\ValidatedInput` | `all()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-143] |
+| `Illuminate\Support\ValidatedInput` | `keys()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-143] |
+| `Illuminate\Support\ValidatedInput` | `input()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-143] |
+| `Illuminate\Support\ValidatedInput` | `file()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-143] |
+| `Illuminate\Support\ValidatedInput` | `dump()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-143] |
+| `Illuminate\Support\ValidatedInput` | `toArray()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-143] |
+| `Illuminate\Support\ValidatedInput` | `__get()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-143] |
+| `Illuminate\Support\ValidatedInput` | `__set()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-143] |
+| `Illuminate\Support\ValidatedInput` | `__isset()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-143] |
+| `Illuminate\Support\ValidatedInput` | `__unset()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-143] |
+| `Illuminate\Support\ValidatedInput` | `offsetExists()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-143] |
+| `Illuminate\Support\ValidatedInput` | `offsetGet()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-143] |
+| `Illuminate\Support\ValidatedInput` | `offsetSet()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-143] |
+| `Illuminate\Support\ValidatedInput` | `offsetUnset()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-143] |
+| `Illuminate\Support\ValidatedInput` | `getIterator()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-143] |
+
+</details>
+
+<details>
+<summary>Illuminate\Support\ViewErrorBag — 10 listed public members (class)</summary>
+
+| Upstream class | Upstream API | Titanspan API | Implementation location | Compatibility status | Test evidence | Differences | Upstream reference |
+|---|---|---|---|---|---|---|---|
+| `Illuminate\Support\ViewErrorBag` | `hasBag()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-144] |
+| `Illuminate\Support\ViewErrorBag` | `getBag()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-144] |
+| `Illuminate\Support\ViewErrorBag` | `getBags()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-144] |
+| `Illuminate\Support\ViewErrorBag` | `put()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-144] |
+| `Illuminate\Support\ViewErrorBag` | `any()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-144] |
+| `Illuminate\Support\ViewErrorBag` | `count()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-144] |
+| `Illuminate\Support\ViewErrorBag` | `__call()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-144] |
+| `Illuminate\Support\ViewErrorBag` | `__get()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-144] |
+| `Illuminate\Support\ViewErrorBag` | `__set()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-144] |
+| `Illuminate\Support\ViewErrorBag` | `__toString()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-144] |
+
+</details>
+
+<details>
+<summary>\Collections.helpers.php — 10 listed public members (functions)</summary>
+
+| Upstream class | Upstream API | Titanspan API | Implementation location | Compatibility status | Test evidence | Differences | Upstream reference |
+|---|---|---|---|---|---|---|---|
+| `\Collections.helpers.php` | `collect()` | — | Canonical owner: `titanspan.collections` (not implemented). | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-145] |
+| `\Collections.helpers.php` | `data_fill()` | `data_fill` | `src/titanspan/support/helpers.py` | **Python-adapted parity** | `tests/unit/support/test_helpers.py` | Python list and mapping mutation follows mutable-object semantics. | [source][source-145] |
+| `\Collections.helpers.php` | `data_has()` | `data_has` | `src/titanspan/support/helpers.py` | **Python-adapted parity** | `tests/unit/support/test_helpers.py` | Explicit None values count as present; Python object attributes are traversed. | [source][source-145] |
+| `\Collections.helpers.php` | `data_get()` | `data_get` | `src/titanspan/support/helpers.py` | **Python-adapted parity** | `tests/unit/support/test_helpers.py` | Supports Python mappings, sequences, object attributes, wildcards, and lazy defaults. | [source][source-145] |
+| `\Collections.helpers.php` | `data_set()` | `data_set` | `src/titanspan/support/helpers.py` | **Python-adapted parity** | `tests/unit/support/test_helpers.py` | Mutates mutable mappings and lists; a replacement root must be used for immutable scalar inputs. | [source][source-145] |
+| `\Collections.helpers.php` | `data_forget()` | `data_forget` | `src/titanspan/support/helpers.py` | **Python-adapted parity** | `tests/unit/support/test_helpers.py` | List deletion shifts later Python indexes; mapping and object mutation is in place. | [source][source-145] |
+| `\Collections.helpers.php` | `head()` | `head` | `src/titanspan/support/helpers.py` | **Python-adapted parity** | `tests/unit/support/test_helpers.py` | Consumes one item from an iterable and returns False for empty input. | [source][source-145] |
+| `\Collections.helpers.php` | `last()` | `last` | `src/titanspan/support/helpers.py` | **Python-adapted parity** | `tests/unit/support/test_helpers.py` | Consumes the iterable in constant auxiliary memory and returns False when empty. | [source][source-145] |
+| `\Collections.helpers.php` | `value()` | `value` | `src/titanspan/support/helpers.py` | **Python-adapted parity** | `tests/unit/support/test_helpers.py` | Any Python callable is invoked as a deferred value; PHP invokes Closure values. | [source][source-145] |
+| `\Collections.helpers.php` | `when()` | — | Canonical owner: `titanspan.collections` (not implemented). | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-145] |
+
+</details>
+
+<details>
+<summary>\Reflection.helpers.php — 2 listed public members (functions)</summary>
+
+| Upstream class | Upstream API | Titanspan API | Implementation location | Compatibility status | Test evidence | Differences | Upstream reference |
+|---|---|---|---|---|---|---|---|
+| `\Reflection.helpers.php` | `lazy()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-146] |
+| `\Reflection.helpers.php` | `proxy()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-146] |
+
+</details>
+
+<details>
+<summary>\Support.helpers.php — 23 listed public members (functions)</summary>
+
+| Upstream class | Upstream API | Titanspan API | Implementation location | Compatibility status | Test evidence | Differences | Upstream reference |
+|---|---|---|---|---|---|---|---|
+| `\Support.helpers.php` | `append_config()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-147] |
+| `\Support.helpers.php` | `blank()` | `blank` | `src/titanspan/support/helpers.py` | **Python-adapted parity** | `tests/unit/support/test_helpers.py` | Whitespace strings and empty Sized values are blank; numeric and boolean scalars, including zero, are filled. | [source][source-147] |
+| `\Support.helpers.php` | `class_basename()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-147] |
+| `\Support.helpers.php` | `class_uses_recursive()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-147] |
+| `\Support.helpers.php` | `e()` | `e` | `src/titanspan/support/helpers.py` | **Python-adapted parity** | `tests/unit/support/test_helpers.py` | Delegates escaping, deferred values, trusted HTML, and encoder overrides to EncodedHtmlString; Python strings cannot contain invalid UTF-8 byte sequences. | [source][source-147] |
+| `\Support.helpers.php` | `env()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-147] |
+| `\Support.helpers.php` | `filled()` | `filled` | `src/titanspan/support/helpers.py` | **Python-adapted parity** | `tests/unit/support/test_helpers.py` | Uses Titanspan blank-value rules for Python containers and scalar values. | [source][source-147] |
+| `\Support.helpers.php` | `fluent()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-147] |
+| `\Support.helpers.php` | `literal()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-147] |
+| `\Support.helpers.php` | `object_get()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-147] |
+| `\Support.helpers.php` | `laravel_cloud()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-147] |
+| `\Support.helpers.php` | `once()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-147] |
+| `\Support.helpers.php` | `optional()` | `optional` | `src/titanspan/support/optional.py` | **Python-adapted parity** | `tests/unit/support/test_helpers.py` | Provides typed wrapper and callback forms; async callbacks use optional_async. | [source][source-147] |
+| `\Support.helpers.php` | `preg_replace_array()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-147] |
+| `\Support.helpers.php` | `retry()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-147] |
+| `\Support.helpers.php` | `str()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-147] |
+| `\Support.helpers.php` | `tap()` | `tap` | `src/titanspan/support/helpers.py` | **Python-adapted parity** | `tests/unit/support/test_helpers.py` | Synchronous callbacks preserve the original value; awaitables require tap_async, and method forwarding has a typed call API. | [source][source-147] |
+| `\Support.helpers.php` | `throw_if()` | `throw_if` | `src/titanspan/support/helpers.py` | **Python-adapted parity** | `tests/unit/support/test_helpers.py` | Uses Python truthiness and Python exception classes; recognized built-in exception names are supported. | [source][source-147] |
+| `\Support.helpers.php` | `throw_unless()` | `throw_unless` | `src/titanspan/support/helpers.py` | **Python-adapted parity** | `tests/unit/support/test_helpers.py` | Uses Python truthiness and Python exception classes; recognized built-in exception names are supported. | [source][source-147] |
+| `\Support.helpers.php` | `trait_uses_recursive()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-147] |
+| `\Support.helpers.php` | `transform()` | `transform` | `src/titanspan/support/helpers.py` | **Python-adapted parity** | `tests/unit/support/test_helpers.py` | Uses Python blank-value rules and invokes a fallback callback with the original value. | [source][source-147] |
+| `\Support.helpers.php` | `windows_os()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-147] |
+| `\Support.helpers.php` | `with()` | `with_` | `src/titanspan/support/helpers.py` | **Python-adapted parity** | `tests/unit/support/test_helpers.py` | The Python keyword is exposed as with_. | [source][source-147] |
+
+</details>
+
+## Pinned source links
+
+[source-1]: https://github.com/laravel/framework/blob/8a8c4a84852869e13190d89f9da873cd9a70f14c/src/Illuminate/Contracts/Support/Arrayable.php
+[source-2]: https://github.com/laravel/framework/blob/8a8c4a84852869e13190d89f9da873cd9a70f14c/src/Illuminate/Contracts/Support/CanBeEscapedWhenCastToString.php
+[source-3]: https://github.com/laravel/framework/blob/8a8c4a84852869e13190d89f9da873cd9a70f14c/src/Illuminate/Contracts/Support/DeferrableProvider.php
+[source-4]: https://github.com/laravel/framework/blob/8a8c4a84852869e13190d89f9da873cd9a70f14c/src/Illuminate/Contracts/Support/DeferringDisplayableValue.php
+[source-5]: https://github.com/laravel/framework/blob/8a8c4a84852869e13190d89f9da873cd9a70f14c/src/Illuminate/Contracts/Support/HasOnceHash.php
+[source-6]: https://github.com/laravel/framework/blob/8a8c4a84852869e13190d89f9da873cd9a70f14c/src/Illuminate/Contracts/Support/Htmlable.php
+[source-7]: https://github.com/laravel/framework/blob/8a8c4a84852869e13190d89f9da873cd9a70f14c/src/Illuminate/Contracts/Support/Jsonable.php
+[source-8]: https://github.com/laravel/framework/blob/8a8c4a84852869e13190d89f9da873cd9a70f14c/src/Illuminate/Contracts/Support/MessageBag.php
+[source-9]: https://github.com/laravel/framework/blob/8a8c4a84852869e13190d89f9da873cd9a70f14c/src/Illuminate/Contracts/Support/MessageProvider.php
+[source-10]: https://github.com/laravel/framework/blob/8a8c4a84852869e13190d89f9da873cd9a70f14c/src/Illuminate/Contracts/Support/Renderable.php
+[source-11]: https://github.com/laravel/framework/blob/8a8c4a84852869e13190d89f9da873cd9a70f14c/src/Illuminate/Contracts/Support/Responsable.php
+[source-12]: https://github.com/laravel/framework/blob/8a8c4a84852869e13190d89f9da873cd9a70f14c/src/Illuminate/Contracts/Support/ValidatedData.php
+[source-13]: https://github.com/laravel/framework/blob/8a8c4a84852869e13190d89f9da873cd9a70f14c/src/Illuminate/Support/AggregateServiceProvider.php
+[source-14]: https://github.com/laravel/framework/blob/8a8c4a84852869e13190d89f9da873cd9a70f14c/src/Illuminate/Collections/Arr.php
+[source-15]: https://github.com/laravel/framework/blob/8a8c4a84852869e13190d89f9da873cd9a70f14c/src/Illuminate/Support/Benchmark.php
+[source-16]: https://github.com/laravel/framework/blob/8a8c4a84852869e13190d89f9da873cd9a70f14c/src/Illuminate/Support/BinaryCodec.php
+[source-17]: https://github.com/laravel/framework/blob/8a8c4a84852869e13190d89f9da873cd9a70f14c/src/Illuminate/Support/Carbon.php
+[source-18]: https://github.com/laravel/framework/blob/8a8c4a84852869e13190d89f9da873cd9a70f14c/src/Illuminate/Collections/Collection.php
+[source-19]: https://github.com/laravel/framework/blob/8a8c4a84852869e13190d89f9da873cd9a70f14c/src/Illuminate/Collections/functions.php
+[source-20]: https://github.com/laravel/framework/blob/8a8c4a84852869e13190d89f9da873cd9a70f14c/src/Illuminate/Support/Composer.php
+[source-21]: https://github.com/laravel/framework/blob/8a8c4a84852869e13190d89f9da873cd9a70f14c/src/Illuminate/Support/ConfigurationUrlParser.php
+[source-22]: https://github.com/laravel/framework/blob/8a8c4a84852869e13190d89f9da873cd9a70f14c/src/Illuminate/Support/Contracts/NodePackageManager.php
+[source-23]: https://github.com/laravel/framework/blob/8a8c4a84852869e13190d89f9da873cd9a70f14c/src/Illuminate/Support/DateFactory.php
+[source-24]: https://github.com/laravel/framework/blob/8a8c4a84852869e13190d89f9da873cd9a70f14c/src/Illuminate/Support/DefaultProviders.php
+[source-25]: https://github.com/laravel/framework/blob/8a8c4a84852869e13190d89f9da873cd9a70f14c/src/Illuminate/Support/Defer/DeferredCallback.php
+[source-26]: https://github.com/laravel/framework/blob/8a8c4a84852869e13190d89f9da873cd9a70f14c/src/Illuminate/Support/Defer/DeferredCallbackCollection.php
+[source-27]: https://github.com/laravel/framework/blob/8a8c4a84852869e13190d89f9da873cd9a70f14c/src/Illuminate/Support/EncodedHtmlString.php
+[source-28]: https://github.com/laravel/framework/blob/8a8c4a84852869e13190d89f9da873cd9a70f14c/src/Illuminate/Collections/Enumerable.php
+[source-29]: https://github.com/laravel/framework/blob/8a8c4a84852869e13190d89f9da873cd9a70f14c/src/Illuminate/Support/Env.php
+[source-30]: https://github.com/laravel/framework/blob/8a8c4a84852869e13190d89f9da873cd9a70f14c/src/Illuminate/Support/Exceptions/MathException.php
+[source-31]: https://github.com/laravel/framework/blob/8a8c4a84852869e13190d89f9da873cd9a70f14c/src/Illuminate/Support/Facades/App.php
+[source-32]: https://github.com/laravel/framework/blob/8a8c4a84852869e13190d89f9da873cd9a70f14c/src/Illuminate/Support/Facades/Artisan.php
+[source-33]: https://github.com/laravel/framework/blob/8a8c4a84852869e13190d89f9da873cd9a70f14c/src/Illuminate/Support/Facades/Auth.php
+[source-34]: https://github.com/laravel/framework/blob/8a8c4a84852869e13190d89f9da873cd9a70f14c/src/Illuminate/Support/Facades/Blade.php
+[source-35]: https://github.com/laravel/framework/blob/8a8c4a84852869e13190d89f9da873cd9a70f14c/src/Illuminate/Support/Facades/Broadcast.php
+[source-36]: https://github.com/laravel/framework/blob/8a8c4a84852869e13190d89f9da873cd9a70f14c/src/Illuminate/Support/Facades/Bus.php
+[source-37]: https://github.com/laravel/framework/blob/8a8c4a84852869e13190d89f9da873cd9a70f14c/src/Illuminate/Support/Facades/Cache.php
+[source-38]: https://github.com/laravel/framework/blob/8a8c4a84852869e13190d89f9da873cd9a70f14c/src/Illuminate/Support/Facades/Cloud.php
+[source-39]: https://github.com/laravel/framework/blob/8a8c4a84852869e13190d89f9da873cd9a70f14c/src/Illuminate/Support/Facades/Concurrency.php
+[source-40]: https://github.com/laravel/framework/blob/8a8c4a84852869e13190d89f9da873cd9a70f14c/src/Illuminate/Support/Facades/Config.php
+[source-41]: https://github.com/laravel/framework/blob/8a8c4a84852869e13190d89f9da873cd9a70f14c/src/Illuminate/Support/Facades/Context.php
+[source-42]: https://github.com/laravel/framework/blob/8a8c4a84852869e13190d89f9da873cd9a70f14c/src/Illuminate/Support/Facades/Cookie.php
+[source-43]: https://github.com/laravel/framework/blob/8a8c4a84852869e13190d89f9da873cd9a70f14c/src/Illuminate/Support/Facades/Crypt.php
+[source-44]: https://github.com/laravel/framework/blob/8a8c4a84852869e13190d89f9da873cd9a70f14c/src/Illuminate/Support/Facades/DB.php
+[source-45]: https://github.com/laravel/framework/blob/8a8c4a84852869e13190d89f9da873cd9a70f14c/src/Illuminate/Support/Facades/Date.php
+[source-46]: https://github.com/laravel/framework/blob/8a8c4a84852869e13190d89f9da873cd9a70f14c/src/Illuminate/Support/Facades/Event.php
+[source-47]: https://github.com/laravel/framework/blob/8a8c4a84852869e13190d89f9da873cd9a70f14c/src/Illuminate/Support/Facades/Exceptions.php
+[source-48]: https://github.com/laravel/framework/blob/8a8c4a84852869e13190d89f9da873cd9a70f14c/src/Illuminate/Support/Facades/Facade.php
+[source-49]: https://github.com/laravel/framework/blob/8a8c4a84852869e13190d89f9da873cd9a70f14c/src/Illuminate/Support/Facades/File.php
+[source-50]: https://github.com/laravel/framework/blob/8a8c4a84852869e13190d89f9da873cd9a70f14c/src/Illuminate/Support/Facades/Gate.php
+[source-51]: https://github.com/laravel/framework/blob/8a8c4a84852869e13190d89f9da873cd9a70f14c/src/Illuminate/Support/Facades/Hash.php
+[source-52]: https://github.com/laravel/framework/blob/8a8c4a84852869e13190d89f9da873cd9a70f14c/src/Illuminate/Support/Facades/Http.php
+[source-53]: https://github.com/laravel/framework/blob/8a8c4a84852869e13190d89f9da873cd9a70f14c/src/Illuminate/Support/Facades/Image.php
+[source-54]: https://github.com/laravel/framework/blob/8a8c4a84852869e13190d89f9da873cd9a70f14c/src/Illuminate/Support/Facades/Lang.php
+[source-55]: https://github.com/laravel/framework/blob/8a8c4a84852869e13190d89f9da873cd9a70f14c/src/Illuminate/Support/Facades/Log.php
+[source-56]: https://github.com/laravel/framework/blob/8a8c4a84852869e13190d89f9da873cd9a70f14c/src/Illuminate/Support/Facades/Mail.php
+[source-57]: https://github.com/laravel/framework/blob/8a8c4a84852869e13190d89f9da873cd9a70f14c/src/Illuminate/Support/Facades/MaintenanceMode.php
+[source-58]: https://github.com/laravel/framework/blob/8a8c4a84852869e13190d89f9da873cd9a70f14c/src/Illuminate/Support/Facades/Notification.php
+[source-59]: https://github.com/laravel/framework/blob/8a8c4a84852869e13190d89f9da873cd9a70f14c/src/Illuminate/Support/Facades/ParallelTesting.php
+[source-60]: https://github.com/laravel/framework/blob/8a8c4a84852869e13190d89f9da873cd9a70f14c/src/Illuminate/Support/Facades/Password.php
+[source-61]: https://github.com/laravel/framework/blob/8a8c4a84852869e13190d89f9da873cd9a70f14c/src/Illuminate/Support/Facades/Pipeline.php
+[source-62]: https://github.com/laravel/framework/blob/8a8c4a84852869e13190d89f9da873cd9a70f14c/src/Illuminate/Support/Facades/Process.php
+[source-63]: https://github.com/laravel/framework/blob/8a8c4a84852869e13190d89f9da873cd9a70f14c/src/Illuminate/Support/Facades/Queue.php
+[source-64]: https://github.com/laravel/framework/blob/8a8c4a84852869e13190d89f9da873cd9a70f14c/src/Illuminate/Support/Facades/RateLimiter.php
+[source-65]: https://github.com/laravel/framework/blob/8a8c4a84852869e13190d89f9da873cd9a70f14c/src/Illuminate/Support/Facades/Redirect.php
+[source-66]: https://github.com/laravel/framework/blob/8a8c4a84852869e13190d89f9da873cd9a70f14c/src/Illuminate/Support/Facades/Redis.php
+[source-67]: https://github.com/laravel/framework/blob/8a8c4a84852869e13190d89f9da873cd9a70f14c/src/Illuminate/Support/Facades/Request.php
+[source-68]: https://github.com/laravel/framework/blob/8a8c4a84852869e13190d89f9da873cd9a70f14c/src/Illuminate/Support/Facades/Response.php
+[source-69]: https://github.com/laravel/framework/blob/8a8c4a84852869e13190d89f9da873cd9a70f14c/src/Illuminate/Support/Facades/Route.php
+[source-70]: https://github.com/laravel/framework/blob/8a8c4a84852869e13190d89f9da873cd9a70f14c/src/Illuminate/Support/Facades/Schedule.php
+[source-71]: https://github.com/laravel/framework/blob/8a8c4a84852869e13190d89f9da873cd9a70f14c/src/Illuminate/Support/Facades/Schema.php
+[source-72]: https://github.com/laravel/framework/blob/8a8c4a84852869e13190d89f9da873cd9a70f14c/src/Illuminate/Support/Facades/Session.php
+[source-73]: https://github.com/laravel/framework/blob/8a8c4a84852869e13190d89f9da873cd9a70f14c/src/Illuminate/Support/Facades/Storage.php
+[source-74]: https://github.com/laravel/framework/blob/8a8c4a84852869e13190d89f9da873cd9a70f14c/src/Illuminate/Support/Facades/URL.php
+[source-75]: https://github.com/laravel/framework/blob/8a8c4a84852869e13190d89f9da873cd9a70f14c/src/Illuminate/Support/Facades/Validator.php
+[source-76]: https://github.com/laravel/framework/blob/8a8c4a84852869e13190d89f9da873cd9a70f14c/src/Illuminate/Support/Facades/View.php
+[source-77]: https://github.com/laravel/framework/blob/8a8c4a84852869e13190d89f9da873cd9a70f14c/src/Illuminate/Support/Facades/Vite.php
+[source-78]: https://github.com/laravel/framework/blob/8a8c4a84852869e13190d89f9da873cd9a70f14c/src/Illuminate/Support/Fluent.php
+[source-79]: https://github.com/laravel/framework/blob/8a8c4a84852869e13190d89f9da873cd9a70f14c/src/Illuminate/Collections/HigherOrderCollectionProxy.php
+[source-80]: https://github.com/laravel/framework/blob/8a8c4a84852869e13190d89f9da873cd9a70f14c/src/Illuminate/Support/HigherOrderTapProxy.php
+[source-81]: https://github.com/laravel/framework/blob/8a8c4a84852869e13190d89f9da873cd9a70f14c/src/Illuminate/Conditionable/HigherOrderWhenProxy.php
+[source-82]: https://github.com/laravel/framework/blob/8a8c4a84852869e13190d89f9da873cd9a70f14c/src/Illuminate/Support/HtmlString.php
+[source-83]: https://github.com/laravel/framework/blob/8a8c4a84852869e13190d89f9da873cd9a70f14c/src/Illuminate/Support/InteractsWithTime.php
+[source-84]: https://github.com/laravel/framework/blob/8a8c4a84852869e13190d89f9da873cd9a70f14c/src/Illuminate/Collections/ItemNotFoundException.php
+[source-85]: https://github.com/laravel/framework/blob/8a8c4a84852869e13190d89f9da873cd9a70f14c/src/Illuminate/Support/Js.php
+[source-86]: https://github.com/laravel/framework/blob/8a8c4a84852869e13190d89f9da873cd9a70f14c/src/Illuminate/Collections/LazyCollection.php
+[source-87]: https://github.com/laravel/framework/blob/8a8c4a84852869e13190d89f9da873cd9a70f14c/src/Illuminate/Support/Lottery.php
+[source-88]: https://github.com/laravel/framework/blob/8a8c4a84852869e13190d89f9da873cd9a70f14c/src/Illuminate/Support/Manager.php
+[source-89]: https://github.com/laravel/framework/blob/8a8c4a84852869e13190d89f9da873cd9a70f14c/src/Illuminate/Support/MessageBag.php
+[source-90]: https://github.com/laravel/framework/blob/8a8c4a84852869e13190d89f9da873cd9a70f14c/src/Illuminate/Support/MultipleInstanceManager.php
+[source-91]: https://github.com/laravel/framework/blob/8a8c4a84852869e13190d89f9da873cd9a70f14c/src/Illuminate/Collections/MultipleItemsFoundException.php
+[source-92]: https://github.com/laravel/framework/blob/8a8c4a84852869e13190d89f9da873cd9a70f14c/src/Illuminate/Support/NamespacedItemResolver.php
+[source-93]: https://github.com/laravel/framework/blob/8a8c4a84852869e13190d89f9da873cd9a70f14c/src/Illuminate/Support/NodePackageManager.php
+[source-94]: https://github.com/laravel/framework/blob/8a8c4a84852869e13190d89f9da873cd9a70f14c/src/Illuminate/Support/NodePackageManagers/Bun.php
+[source-95]: https://github.com/laravel/framework/blob/8a8c4a84852869e13190d89f9da873cd9a70f14c/src/Illuminate/Support/NodePackageManagers/Npm.php
+[source-96]: https://github.com/laravel/framework/blob/8a8c4a84852869e13190d89f9da873cd9a70f14c/src/Illuminate/Support/NodePackageManagers/Pnpm.php
+[source-97]: https://github.com/laravel/framework/blob/8a8c4a84852869e13190d89f9da873cd9a70f14c/src/Illuminate/Support/NodePackageManagers/Yarn.php
+[source-98]: https://github.com/laravel/framework/blob/8a8c4a84852869e13190d89f9da873cd9a70f14c/src/Illuminate/Support/Number.php
+[source-99]: https://github.com/laravel/framework/blob/8a8c4a84852869e13190d89f9da873cd9a70f14c/src/Illuminate/Support/Once.php
+[source-100]: https://github.com/laravel/framework/blob/8a8c4a84852869e13190d89f9da873cd9a70f14c/src/Illuminate/Support/Onceable.php
+[source-101]: https://github.com/laravel/framework/blob/8a8c4a84852869e13190d89f9da873cd9a70f14c/src/Illuminate/Support/Optional.php
+[source-102]: https://github.com/laravel/framework/blob/8a8c4a84852869e13190d89f9da873cd9a70f14c/src/Illuminate/Support/Pluralizer.php
+[source-103]: https://github.com/laravel/framework/blob/8a8c4a84852869e13190d89f9da873cd9a70f14c/src/Illuminate/Support/ProcessUtils.php
+[source-104]: https://github.com/laravel/framework/blob/8a8c4a84852869e13190d89f9da873cd9a70f14c/src/Illuminate/Support/Queue/Concerns/ResolvesQueueRoutes.php
+[source-105]: https://github.com/laravel/framework/blob/8a8c4a84852869e13190d89f9da873cd9a70f14c/src/Illuminate/Support/RebindsCallbacksToSelf.php
+[source-106]: https://github.com/laravel/framework/blob/8a8c4a84852869e13190d89f9da873cd9a70f14c/src/Illuminate/Reflection/Reflector.php
+[source-107]: https://github.com/laravel/framework/blob/8a8c4a84852869e13190d89f9da873cd9a70f14c/src/Illuminate/Support/ServiceProvider.php
+[source-108]: https://github.com/laravel/framework/blob/8a8c4a84852869e13190d89f9da873cd9a70f14c/src/Illuminate/Support/Sleep.php
+[source-109]: https://github.com/laravel/framework/blob/8a8c4a84852869e13190d89f9da873cd9a70f14c/src/Illuminate/Support/Str.php
+[source-110]: https://github.com/laravel/framework/blob/8a8c4a84852869e13190d89f9da873cd9a70f14c/src/Illuminate/Support/Stringable.php
+[source-111]: https://github.com/laravel/framework/blob/8a8c4a84852869e13190d89f9da873cd9a70f14c/src/Illuminate/Support/functions.php
+[source-112]: https://github.com/laravel/framework/blob/8a8c4a84852869e13190d89f9da873cd9a70f14c/src/Illuminate/Support/Testing/Fakes/BatchFake.php
+[source-113]: https://github.com/laravel/framework/blob/8a8c4a84852869e13190d89f9da873cd9a70f14c/src/Illuminate/Support/Testing/Fakes/BatchRepositoryFake.php
+[source-114]: https://github.com/laravel/framework/blob/8a8c4a84852869e13190d89f9da873cd9a70f14c/src/Illuminate/Support/Testing/Fakes/BusFake.php
+[source-115]: https://github.com/laravel/framework/blob/8a8c4a84852869e13190d89f9da873cd9a70f14c/src/Illuminate/Support/Testing/Fakes/ChainedBatchTruthTest.php
+[source-116]: https://github.com/laravel/framework/blob/8a8c4a84852869e13190d89f9da873cd9a70f14c/src/Illuminate/Support/Testing/Fakes/EventFake.php
+[source-117]: https://github.com/laravel/framework/blob/8a8c4a84852869e13190d89f9da873cd9a70f14c/src/Illuminate/Support/Testing/Fakes/ExceptionHandlerFake.php
+[source-118]: https://github.com/laravel/framework/blob/8a8c4a84852869e13190d89f9da873cd9a70f14c/src/Illuminate/Support/Testing/Fakes/Fake.php
+[source-119]: https://github.com/laravel/framework/blob/8a8c4a84852869e13190d89f9da873cd9a70f14c/src/Illuminate/Support/Testing/Fakes/MailFake.php
+[source-120]: https://github.com/laravel/framework/blob/8a8c4a84852869e13190d89f9da873cd9a70f14c/src/Illuminate/Support/Testing/Fakes/MatchesProperties.php
+[source-121]: https://github.com/laravel/framework/blob/8a8c4a84852869e13190d89f9da873cd9a70f14c/src/Illuminate/Support/Testing/Fakes/NotificationFake.php
+[source-122]: https://github.com/laravel/framework/blob/8a8c4a84852869e13190d89f9da873cd9a70f14c/src/Illuminate/Support/Testing/Fakes/PendingBatchFake.php
+[source-123]: https://github.com/laravel/framework/blob/8a8c4a84852869e13190d89f9da873cd9a70f14c/src/Illuminate/Support/Testing/Fakes/PendingChainFake.php
+[source-124]: https://github.com/laravel/framework/blob/8a8c4a84852869e13190d89f9da873cd9a70f14c/src/Illuminate/Support/Testing/Fakes/PendingMailFake.php
+[source-125]: https://github.com/laravel/framework/blob/8a8c4a84852869e13190d89f9da873cd9a70f14c/src/Illuminate/Support/Testing/Fakes/QueueFake.php
+[source-126]: https://github.com/laravel/framework/blob/8a8c4a84852869e13190d89f9da873cd9a70f14c/src/Illuminate/Support/Timebox.php
+[source-127]: https://github.com/laravel/framework/blob/8a8c4a84852869e13190d89f9da873cd9a70f14c/src/Illuminate/Support/Traits/CapsuleManagerTrait.php
+[source-128]: https://github.com/laravel/framework/blob/8a8c4a84852869e13190d89f9da873cd9a70f14c/src/Illuminate/Conditionable/Traits/Conditionable.php
+[source-129]: https://github.com/laravel/framework/blob/8a8c4a84852869e13190d89f9da873cd9a70f14c/src/Illuminate/Support/Traits/Dumpable.php
+[source-130]: https://github.com/laravel/framework/blob/8a8c4a84852869e13190d89f9da873cd9a70f14c/src/Illuminate/Collections/Traits/EnumeratesValues.php
+[source-131]: https://github.com/laravel/framework/blob/8a8c4a84852869e13190d89f9da873cd9a70f14c/src/Illuminate/Support/Traits/ForwardsCalls.php
+[source-132]: https://github.com/laravel/framework/blob/8a8c4a84852869e13190d89f9da873cd9a70f14c/src/Illuminate/Support/Traits/InteractsWithData.php
+[source-133]: https://github.com/laravel/framework/blob/8a8c4a84852869e13190d89f9da873cd9a70f14c/src/Illuminate/Support/Traits/Localizable.php
+[source-134]: https://github.com/laravel/framework/blob/8a8c4a84852869e13190d89f9da873cd9a70f14c/src/Illuminate/Macroable/Traits/Macroable.php
+[source-135]: https://github.com/laravel/framework/blob/8a8c4a84852869e13190d89f9da873cd9a70f14c/src/Illuminate/Support/Traits/ParsesSqlServerConfigurationUrls.php
+[source-136]: https://github.com/laravel/framework/blob/8a8c4a84852869e13190d89f9da873cd9a70f14c/src/Illuminate/Support/Traits/ReadsClassAttributes.php
+[source-137]: https://github.com/laravel/framework/blob/8a8c4a84852869e13190d89f9da873cd9a70f14c/src/Illuminate/Reflection/Traits/ReflectsClosures.php
+[source-138]: https://github.com/laravel/framework/blob/8a8c4a84852869e13190d89f9da873cd9a70f14c/src/Illuminate/Support/Traits/Tappable.php
+[source-139]: https://github.com/laravel/framework/blob/8a8c4a84852869e13190d89f9da873cd9a70f14c/src/Illuminate/Collections/Traits/TransformsToResourceCollection.php
+[source-140]: https://github.com/laravel/framework/blob/8a8c4a84852869e13190d89f9da873cd9a70f14c/src/Illuminate/Support/UndefinedValue.php
+[source-141]: https://github.com/laravel/framework/blob/8a8c4a84852869e13190d89f9da873cd9a70f14c/src/Illuminate/Support/Uri.php
+[source-142]: https://github.com/laravel/framework/blob/8a8c4a84852869e13190d89f9da873cd9a70f14c/src/Illuminate/Support/UriQueryString.php
+[source-143]: https://github.com/laravel/framework/blob/8a8c4a84852869e13190d89f9da873cd9a70f14c/src/Illuminate/Support/ValidatedInput.php
+[source-144]: https://github.com/laravel/framework/blob/8a8c4a84852869e13190d89f9da873cd9a70f14c/src/Illuminate/Support/ViewErrorBag.php
+[source-145]: https://github.com/laravel/framework/blob/8a8c4a84852869e13190d89f9da873cd9a70f14c/src/Illuminate/Collections/helpers.php
+[source-146]: https://github.com/laravel/framework/blob/8a8c4a84852869e13190d89f9da873cd9a70f14c/src/Illuminate/Reflection/helpers.php
+[source-147]: https://github.com/laravel/framework/blob/8a8c4a84852869e13190d89f9da873cd9a70f14c/src/Illuminate/Support/helpers.php

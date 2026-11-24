@@ -8,6 +8,8 @@ The supported foundation currently includes:
 - The `titanspan` CLI with `--help` and `--version`.
 - Dishka provider resolution and app-scoped resource cleanup during ASGI
   lifespan shutdown.
+- The initial `titanspan.support` array utilities and reusable conditional
+  and macro registration primitives.
 
 Use native FastAPI APIs for routes and middleware. Service-provider discovery,
 facades, fluent routing, and configuration repositories are planned.
