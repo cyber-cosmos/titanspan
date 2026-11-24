@@ -34,6 +34,15 @@ wheels = [
 ]
 
 [[package]]
+name = "babel"
+version = "2.19.0"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/32/44/744169ce3677a541439bc9506ef08bd85674e9d6e3895ebe5a87ff65fb7a/babel-2.19.0.tar.gz", hash = "sha256:fddd2cbbbac7c299af3c2880be23609c331bd94f0912baca6cb0abfe054dfc27", size = 10695455, upload-time = "2026-11-24T20:14:32.427Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/71/3b/ddf4b07be846bfa361683729b5948c9c61a87fbdf09e69540d8e586bb7c5/babel-2.19.0-py3-none-any.whl", hash = "sha256:6d49734aed1d595b2c065d012174df8c83964692f26fc461702281634dd7555b", size = 10983582, upload-time = "2026-11-24T20:14:30.163Z" },
+]
+
+[[package]]
 name = "boolean-py"
 version = "5.0"
 source = { registry = "https://pypi.org/simple" }
@@ -393,6 +402,12 @@ sdist = { url = "https://files.pythonhosted.org/packages/68/bc/d36966de7304047a1
 wheels = [
     { url = "https://files.pythonhosted.org/packages/c1/2b/238f02a4927fa2e27aa995371d240a468b52e42eae44a678434aff736b38/distlib-0.4.4-py2.py3-none-any.whl", hash = "sha256:cf09d55b1e85a89576b036aeb71550bfd68320f3f21761ca329eadadad918638", size = 472099, upload-time = "2026-10-16T13:56:32.053Z" },
 ]
+
+[[package]]
+name = "docopt"
+version = "0.6.2"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/a2/55/8f8cab2afd404cf578136ef2cc5dfb50baa1761b68c9da1fb1e4eed343c9/docopt-0.6.2.tar.gz", hash = "sha256:49b3a825280bd66b3aa83585ef59c4a8c82f2c8a522dbe754a8bc8d08c85c491", size = 25901, upload-time = "2014-06-16T11:18:57.406Z" }
 
 [[package]]
 name = "fastapi"
@@ -878,6 +893,18 @@ source = { registry = "https://pypi.org/simple" }
 sdist = { url = "https://files.pythonhosted.org/packages/e6/99/d27cfc9518f49e4cbc25c683ec7cf8704a9d31311341c291c0e78ddf791b/nodeenv-1.12.0.tar.gz", hash = "sha256:4ea7f88339310afebc3253f2c7a91b94bacf97d73a36a5c108962abdfaca501e", size = 131292, upload-time = "2026-10-31T19:03:18.847Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/2d/6a/8a9ac7d5e2f7cf53c459bfef90ebc17a2f8cd54b665af96799d4c534840e/nodeenv-1.12.0-py3-none-any.whl", hash = "sha256:80644d65c10cc2be12e3e4b54b3367ff288c7ad24ae75c2dcc65454fc7449d4d", size = 39442, upload-time = "2026-10-31T19:03:17.427Z" },
+]
+
+[[package]]
+name = "num2words"
+version = "0.5.14"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "docopt" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/f6/58/ad645bd38b4b648eb2fc2ba1b909398e54eb0cbb6a7dbd2b4953e38c9621/num2words-0.5.14.tar.gz", hash = "sha256:b066ec18e56b6616a3b38086b5747daafbaa8868b226a36127e0451c0cf379c6", size = 218213, upload-time = "2024-12-17T20:17:10.191Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/d6/5b/545e9267a1cc080c8a1be2746113a063e34bcdd0f5173fd665a5c13cb234/num2words-0.5.14-py3-none-any.whl", hash = "sha256:1c8e5b00142fc2966fd8d685001e36c4a9911e070d1b120e1beb721fa1edb33d", size = 163525, upload-time = "2024-12-17T20:17:06.074Z" },
 ]
 
 [[package]]
@@ -1435,12 +1462,20 @@ dependencies = [
     { name = "typer" },
 ]
 
+[package.optional-dependencies]
+numbers = [
+    { name = "babel" },
+    { name = "num2words" },
+]
+
 [package.dev-dependencies]
 dev = [
+    { name = "babel" },
     { name = "detect-secrets" },
     { name = "httpx2" },
     { name = "hypothesis" },
     { name = "import-linter" },
+    { name = "num2words" },
     { name = "pip-audit" },
     { name = "pre-commit" },
     { name = "pyright" },
@@ -1455,20 +1490,25 @@ dev = [
 [package.metadata]
 requires-dist = [
     { name = "anyio", specifier = ">=4.16,<5" },
+    { name = "babel", marker = "extra == 'numbers'", specifier = ">=2.18,<3" },
     { name = "dishka", specifier = ">=1.6,<2" },
     { name = "fastapi", specifier = ">=0.115,<1" },
+    { name = "num2words", marker = "extra == 'numbers'", specifier = ">=0.5.14,<1" },
     { name = "pydantic-settings", specifier = ">=2.7,<3" },
     { name = "rich", specifier = ">=13.9,<15" },
     { name = "tenacity", specifier = ">=9.1,<10" },
     { name = "typer", specifier = ">=0.15,<1" },
 ]
+provides-extras = ["numbers"]
 
 [package.metadata.requires-dev]
 dev = [
+    { name = "babel", specifier = ">=2.18,<3" },
     { name = "detect-secrets", specifier = ">=1.5,<2" },
     { name = "httpx2", specifier = ">=2,<3" },
     { name = "hypothesis", specifier = ">=6.130,<7" },
     { name = "import-linter", specifier = ">=2.17,<3" },
+    { name = "num2words", specifier = ">=0.5.14,<1" },
     { name = "pip-audit", specifier = ">=2.9,<3" },
     { name = "pre-commit", specifier = ">=4.2,<5" },
     { name = "pyright", specifier = ">=1.1.400,<2" },

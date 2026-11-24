@@ -8,8 +8,10 @@ developer experience and builds on established Python libraries.
 
 The project is at the beginning of **Phase 0: Engineering foundation**. The
 current implementation includes a FastAPI-backed application lifecycle, an
-async Dishka container integration, typed environment settings, and a small
-CLI. AI workflows, persistence, distributed execution, and the other modules
+async Dishka container integration, typed environment settings, a small CLI,
+and tested Support utilities for arrays, strings, URIs, timing, and numbers.
+Numeric locale formatting and number spelling use the optional `numbers`
+extra. AI workflows, persistence, distributed execution, and other modules
 described in the architecture are planned, not implemented or production
 ready.
 

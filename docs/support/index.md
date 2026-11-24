@@ -13,6 +13,8 @@ The current implementation includes:
   and explicit dotenv file updates.
 - `Str` for tested string transformations and validators.
 - `Stringable` for explicit chainable transformations over `Str`.
+- `Number` for locale-aware formatting, parsing, spelling, and summaries;
+  Babel and `num2words` are available through the optional `numbers` extra.
 - `HtmlString` and `EncodedHtmlString` for trusted markup and escaped text.
 - `MessageBag` for keyed messages, wildcard reads, formatting, and JSON output.
 - `Benchmark`, `Lottery`, `Sleep`, and `Timebox` for measured execution,
@@ -69,4 +71,5 @@ for the implemented surface. See [URI utilities](./uris) and
 their Python behavior, [HTML values](./html) for context-aware rendering
 guidance, [timing utilities](./timing) for `Benchmark`, `Lottery`, and
 `Timebox`, and [Sleep](./sleep) for explicit synchronous and asynchronous
-waiting.
+waiting. See [Number utilities](./numbers) for numeric formatting, locale
+scopes, optional dependencies, and Python-specific behavior.

@@ -30,12 +30,12 @@ A method is not counted as compatible because it has a similarly named Python me
 ## Measured status
 
 - Exact behavioural parity: 0.
-- Python-adapted parity: 410.
+- Python-adapted parity: 431.
 - Delegated: 0.
 - Blocked: 3141.
 - Not applicable: 32.
-- Pending: 467.
-- Verified compatibility: 410/4050 listed member entries (10.12%).
+- Pending: 446.
+- Verified compatibility: 431/4050 listed member entries (10.64%).
 
 For the timing utilities in this implementation slice, behavior was checked
 against the pinned upstream tests for [Benchmark](https://github.com/laravel/framework/blob/8a8c4a84852869e13190d89f9da873cd9a70f14c/tests/Support/SupportBenchmarkTest.php),
@@ -4056,27 +4056,27 @@ and [environment bootstrap tests](https://github.com/laravel/framework/blob/8a8c
 
 | Upstream class | Upstream API | Titanspan API | Implementation location | Compatibility status | Test evidence | Differences | Upstream reference |
 |---|---|---|---|---|---|---|---|
-| `Illuminate\Support\Number` | `format()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-98] |
-| `Illuminate\Support\Number` | `parse()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-98] |
-| `Illuminate\Support\Number` | `parseInt()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-98] |
-| `Illuminate\Support\Number` | `parseFloat()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-98] |
-| `Illuminate\Support\Number` | `spell()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-98] |
-| `Illuminate\Support\Number` | `ordinal()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-98] |
-| `Illuminate\Support\Number` | `spellOrdinal()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-98] |
-| `Illuminate\Support\Number` | `percentage()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-98] |
-| `Illuminate\Support\Number` | `currency()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-98] |
-| `Illuminate\Support\Number` | `fileSize()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-98] |
-| `Illuminate\Support\Number` | `abbreviate()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-98] |
-| `Illuminate\Support\Number` | `forHumans()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-98] |
-| `Illuminate\Support\Number` | `clamp()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-98] |
-| `Illuminate\Support\Number` | `pairs()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-98] |
-| `Illuminate\Support\Number` | `trim()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-98] |
-| `Illuminate\Support\Number` | `withLocale()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-98] |
-| `Illuminate\Support\Number` | `withCurrency()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-98] |
-| `Illuminate\Support\Number` | `useLocale()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-98] |
-| `Illuminate\Support\Number` | `useCurrency()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-98] |
-| `Illuminate\Support\Number` | `defaultLocale()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-98] |
-| `Illuminate\Support\Number` | `defaultCurrency()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-98] |
+| `Illuminate\Support\Number` | `format()` | `Number.format` | `src/titanspan/support/number.py` | **Python-adapted parity** | `test_format_uses_locale_grouping_and_precision`; Babel integration test | Uses Babel/CLDR; locale data may differ from PHP Intl/ICU releases. | [source][source-98] |
+| `Illuminate\Support\Number` | `parse()` | `Number.parse` | `src/titanspan/support/number.py` | **Python-adapted parity** | `test_parse_uses_current_or_explicit_locale`; `test_parse_respects_numeric_result_type` | Integer modes return arbitrary-precision Python integers; invalid input returns `False`. | [source][source-98] |
+| `Illuminate\Support\Number` | `parseInt()` | `Number.parse_int`; `Number.parseInt` | `src/titanspan/support/number.py` | **Python-adapted parity** | `test_parse_respects_numeric_result_type`; alias test | Uses Python `int`, with no fixed-width overflow. | [source][source-98] |
+| `Illuminate\Support\Number` | `parseFloat()` | `Number.parse_float`; `Number.parseFloat` | `src/titanspan/support/number.py` | **Python-adapted parity** | `test_parse_respects_numeric_result_type`; invalid-input test | Returns Python `float` and `False` on parse failure. | [source][source-98] |
+| `Illuminate\Support\Number` | `spell()` | `Number.spell` | `src/titanspan/support/number.py` | **Python-adapted parity** | `test_spell_uses_locale_and_thresholds`; num2words integration test | Word forms and supported locales follow num2words. | [source][source-98] |
+| `Illuminate\Support\Number` | `ordinal()` | `Number.ordinal` | `src/titanspan/support/number.py` | **Python-adapted parity** | `test_ordinal_and_spelled_ordinal`; num2words integration test | Locale support follows num2words. | [source][source-98] |
+| `Illuminate\Support\Number` | `spellOrdinal()` | `Number.spell_ordinal`; `Number.spellOrdinal` | `src/titanspan/support/number.py` | **Python-adapted parity** | `test_ordinal_and_spelled_ordinal` | Locale support follows num2words. | [source][source-98] |
+| `Illuminate\Support\Number` | `percentage()` | `Number.percentage` | `src/titanspan/support/number.py` | **Python-adapted parity** | `test_percentage_matches_integer_scale_semantics` | Babel supplies locale patterns; input is formatted on Laravel's same-scale convention. | [source][source-98] |
+| `Illuminate\Support\Number` | `currency()` | `Number.currency` | `src/titanspan/support/number.py` | **Python-adapted parity** | `test_currency_uses_default_or_explicit_currency_and_locale`; Babel integration test | Currency symbols, precision, and spacing depend on Babel's CLDR data. | [source][source-98] |
+| `Illuminate\Support\Number` | `fileSize()` | `Number.file_size`; `Number.fileSize` | `src/titanspan/support/number.py` | **Python-adapted parity** | `test_file_size_uses_binary_units_and_precision` | Uses binary 1024-byte units and preserves values above the last named unit. | [source][source-98] |
+| `Illuminate\Support\Number` | `abbreviate()` | `Number.abbreviate` | `src/titanspan/support/number.py` | **Python-adapted parity** | `test_abbreviate_uses_short_magnitude_suffixes` | Locale formatting uses Babel; suffixes are Titanspan's documented table. | [source][source-98] |
+| `Illuminate\Support\Number` | `forHumans()` | `Number.for_humans`; `Number.forHumans` | `src/titanspan/support/number.py` | **Python-adapted parity** | `test_for_humans_summarizes_values`; zero-value test | Locale formatting uses Babel; suffix rounding is covered at unit boundaries. | [source][source-98] |
+| `Illuminate\Support\Number` | `clamp()` | `Number.clamp` | `src/titanspan/support/number.py` | **Python-adapted parity** | `test_number_clamp_preserves_values_inside_bounds` | Accepts Python integers and floats; boolean inputs are rejected. | [source][source-98] |
+| `Illuminate\Support\Number` | `pairs()` | `Number.pairs` | `src/titanspan/support/number.py` | **Python-adapted parity** | `test_number_pairs_preserves_inclusive_range_semantics`; range error tests | Rejects zero and non-advancing float steps to prevent non-terminating loops. | [source][source-98] |
+| `Illuminate\Support\Number` | `trim()` | `Number.trim` | `src/titanspan/support/number.py` | **Python-adapted parity** | `test_trim_removes_fractional_zeroes_and_preserves_non_finite_values` | Integral finite floats become Python integers; non-finite values remain floats. | [source][source-98] |
+| `Illuminate\Support\Number` | `withLocale()` | `Number.with_locale`; `Number.withLocale`; async extension `with_locale_async` | `src/titanspan/support/number.py` | **Python-adapted parity** | Scope restoration, async completion/cancellation, and task isolation tests | Locale state uses `ContextVar` instead of shared process-global state; async callbacks require the explicit async API. | [source][source-98] |
+| `Illuminate\Support\Number` | `withCurrency()` | `Number.with_currency`; `Number.withCurrency`; async extension `with_currency_async` | `src/titanspan/support/number.py` | **Python-adapted parity** | Scope restoration and async-currency tests | Currency state is context-local; async callbacks require the explicit async API. | [source][source-98] |
+| `Illuminate\Support\Number` | `useLocale()` | `Number.use_locale`; `Number.useLocale` | `src/titanspan/support/number.py` | **Python-adapted parity** | `test_locale_and_currency_scopes_restore_after_success_and_failure`; task isolation test | Sets the active execution context's locale rather than a process-global static property. | [source][source-98] |
+| `Illuminate\Support\Number` | `useCurrency()` | `Number.use_currency`; `Number.useCurrency` | `src/titanspan/support/number.py` | **Python-adapted parity** | `test_locale_and_currency_scopes_restore_after_success_and_failure`; currency-scope tests | Sets the active execution context's currency rather than a process-global static property. | [source][source-98] |
+| `Illuminate\Support\Number` | `defaultLocale()` | `Number.default_locale`; `Number.defaultLocale` | `src/titanspan/support/number.py` | **Python-adapted parity** | `test_default_locale_and_currency_match_upstream_defaults`; alias test | Defaults are `en` and context-local overrides are restored at scope boundaries. | [source][source-98] |
+| `Illuminate\Support\Number` | `defaultCurrency()` | `Number.default_currency`; `Number.defaultCurrency` | `src/titanspan/support/number.py` | **Python-adapted parity** | `test_default_locale_and_currency_match_upstream_defaults`; alias test | Defaults to `USD`; context-local overrides do not leak across tasks. | [source][source-98] |
 
 </details>
 

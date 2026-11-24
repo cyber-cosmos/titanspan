@@ -16,12 +16,19 @@ from titanspan.support.exceptions import (
     AsyncCallbackUsageError,
     InvalidMacroCallbackError,
     InvalidMacroNameError,
+    InvalidNumberParseTypeError,
+    InvalidNumberPrecisionError,
+    InvalidNumberPrecisionTypeError,
+    InvalidNumberStepError,
+    InvalidNumberValueError,
     InvalidRetryConfigurationError,
     InvalidRetryConfigurationTypeError,
     InvalidSortCriterionError,
     MacroNotFoundError,
+    MissingNumberDependencyError,
     MultipleMatchingArrayItemsError,
     NoMatchingArrayItemError,
+    NonAdvancingNumberRangeError,
     RandomSelectionError,
 )
 from titanspan.support.fluent import Fluent
@@ -53,6 +60,7 @@ from titanspan.support.html_string import HtmlString
 from titanspan.support.lottery import Lottery
 from titanspan.support.macroable import Macroable
 from titanspan.support.message_bag import MessageBag
+from titanspan.support.number import Number, NumberParseType
 from titanspan.support.optional import Optional, optional, optional_async
 from titanspan.support.sleep import Sleep
 from titanspan.support.str import Str
@@ -77,6 +85,11 @@ __all__ = [
     "HtmlString",
     "InvalidMacroCallbackError",
     "InvalidMacroNameError",
+    "InvalidNumberParseTypeError",
+    "InvalidNumberPrecisionError",
+    "InvalidNumberPrecisionTypeError",
+    "InvalidNumberStepError",
+    "InvalidNumberValueError",
     "InvalidRetryConfigurationError",
     "InvalidRetryConfigurationTypeError",
     "InvalidSortCriterionError",
@@ -84,8 +97,12 @@ __all__ = [
     "MacroNotFoundError",
     "Macroable",
     "MessageBag",
+    "MissingNumberDependencyError",
     "MultipleMatchingArrayItemsError",
     "NoMatchingArrayItemError",
+    "NonAdvancingNumberRangeError",
+    "Number",
+    "NumberParseType",
     "Optional",
     "RandomSelectionError",
     "Sleep",

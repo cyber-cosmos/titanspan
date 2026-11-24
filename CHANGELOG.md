@@ -13,5 +13,8 @@ public release.
   and validated dotenv file updates.
 - Added synchronous and AnyIO-based asynchronous retry helpers backed by
   Tenacity.
+- Added locale-aware numeric formatting, parsing, spelling, summaries, and
+  context-local locale and currency scopes through the optional `numbers`
+  extra.
 - Added initial tests, architecture decisions, contributor documentation, and
   repository automation.

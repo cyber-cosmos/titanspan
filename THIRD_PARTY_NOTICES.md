@@ -50,6 +50,21 @@ AnyIO 4.16.0 is distributed under the MIT License. Copyright (c) 2018 Alex
 Grönholm. See the [official AnyIO 4.16.0 license](https://github.com/agronholm/anyio/blob/4.16.0/LICENSE)
 for the complete notice.
 
+## Babel
+
+The optional `numbers` extra uses Babel 2.19.0's public locale formatting
+and parsing APIs. Titanspan does not copy Babel source. Babel is distributed
+under the BSD 3-Clause License; see the
+[Babel 2.19.0 license](https://github.com/python-babel/babel/blob/v2.19.0/LICENSE).
+
+## num2words
+
+The optional `numbers` extra uses the public `num2words` function from
+num2words 0.5.14. Titanspan does not copy num2words source. The upstream
+package is distributed under LGPL-2.1; see the
+[0.5.14 release metadata](https://pypi.org/project/num2words/0.5.14/) and
+[upstream license text](https://raw.githubusercontent.com/savoirfairelinux/num2words/6abe2c6/COPYING).
+
 ## Tenacity
 
 Titanspan delegates bounded retry execution to Tenacity 9.2.1. No Tenacity

@@ -45,12 +45,20 @@ Changelog = "https://github.com/titanspan/titanspan/blob/main/CHANGELOG.md"
 [project.scripts]
 titanspan = "titanspan.console.cli:main"
 
+[project.optional-dependencies]
+numbers = [
+    "babel>=2.18,<3",
+    "num2words>=0.5.14,<1",
+]
+
 [dependency-groups]
 dev = [
+    "babel>=2.18,<3",
     "detect-secrets>=1.5,<2",
     "httpx2>=2,<3",
     "hypothesis>=6.130,<7",
     "import-linter>=2.17,<3",
+    "num2words>=0.5.14,<1",
     "pip-audit>=2.9,<3",
     "pre-commit>=4.2,<5",
     "pyright>=1.1.400,<2",
@@ -219,6 +227,18 @@ ignore = [
     "N802", # Preserve Laravel-compatible camelCase method aliases.
     "N815", # Preserve Laravel-compatible camelCase method aliases.
 ]
+"src/titanspan/support/number.py" = [
+    "A002", # Preserve ICU-compatible type and Laravel numeric bounds.
+    "N802", # Preserve Laravel-compatible public method aliases.
+    "N815", # Preserve Laravel-compatible method alias assignments.
+    "PLC0415", # Load optional number libraries only when methods are called.
+]
+"tests/unit/support/test_number.py" = [
+    "PLR2004", # Keep expected numeric outputs readable in behavior examples.
+]
+"tests/integration/support/test_number_integration.py" = [
+    "PLR2004", # Keep exact locale conversion fixtures readable.
+]
 "src/titanspan/contracts/htmlable.py" = [
     "N802", # Preserve the Laravel-compatible Protocol method spelling.
 ]
@@ -247,6 +267,7 @@ quote-style = "double"
 [tool.pyright]
 pythonVersion = "3.12"
 typeCheckingMode = "strict"
+stubPath = "stubs"
 include = ["src", "tests", "examples", "benchmarks", "scripts"]
 exclude = ["**/__pycache__"]
 extraPaths = ["src", "examples/hello-world"]
