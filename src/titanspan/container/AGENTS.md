@@ -15,7 +15,11 @@ Dishka.
   only where concrete code and scope semantics justify them.
 - Ensure scoped objects do not leak across concurrent requests or jobs, and
   finalize resources on failure and cancellation.
-- Test resolution, missing dependencies, scope isolation, overrides, startup
-  failure, and cleanup as applicable.
+- Use a failing test first. Test actual Dishka integration for resolution,
+  scope isolation, resource initialization/finalization, startup failure, and
+  cleanup; cover invalid graphs and overrides at the appropriate boundary.
+- Strictly type and document every declaration with a multi-line docstring.
+  Explain non-obvious scope ownership and cleanup ordering in comments.
 - Consult `ARCHITECTURE.md` and ADRs 0005 and 0009. Run `make test`,
-  `make types`, and `make check` for applicable changes.
+  `make integration-test`, `make types`, and `make check` for applicable
+  changes.

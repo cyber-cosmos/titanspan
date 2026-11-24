@@ -37,4 +37,3 @@ Dependabot and vulnerability auditing.
 
 - [PEP 621 optional dependencies](https://packaging.python.org/en/latest/specifications/pyproject-toml/#dependencies-optional-dependencies)
 - [uv dependency groups](https://docs.astral.sh/uv/concepts/projects/dependencies/)
-

@@ -1,1 +1,4 @@
-"""Command-line application entry points and generators."""
+"""Provide the initial command-line application entry point.
+
+Generators and framework scaffolding remain planned and are not public APIs.
+"""

@@ -1,0 +1,25 @@
+extends: default
+
+ignore: |
+  /.venv/
+  /docs/node_modules/
+  /.cache/
+
+rules:
+  document-start: disable
+  # GitHub Actions pin comments use one separating space after the value.
+  comments:
+    min-spaces-from-content: 1
+  indentation:
+    spaces: 2
+    indent-sequences: consistent
+  line-length:
+    max: 100
+    level: error
+  truthy:
+    allowed-values:
+      - "true"
+      - "false"
+      - "on"
+      - "off"
+    check-keys: false

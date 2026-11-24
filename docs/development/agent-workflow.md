@@ -31,9 +31,13 @@ and would materially change the implementation; continue independent work.
 
 ## 4. Implement
 
-- Use small, cohesive changes and test-driven development for behavior.
+- Use small, cohesive changes and Red-Green-Refactor for every meaningful
+  behavior change. Write a failing regression test before implementation and
+  confirm that it fails for the intended reason.
 - Preserve existing APIs and user changes. Avoid speculative features and
   unnecessary dependencies.
+- Fully type and document every declaration. Require physically multi-line
+  docstrings and meaningful comments explaining non-obvious decisions.
 - Keep async behavior bounded and cancellation-safe. Make ownership and
   cleanup explicit.
 - Make integrations thin and preserve access to the underlying library.
@@ -53,10 +57,13 @@ make check
 make agents-check
 make build
 make docs-build
+make ci
 ```
 
-Run security, integration, stress, or benchmark checks when relevant. Do not
-run unstable performance thresholds on shared CI. Do not claim a command
+`make check` includes the complete applicable unit and integration suite and
+enforces line and branch coverage independently. Run security, stress, or
+benchmark commands when relevant. Do not run unstable performance thresholds
+on shared CI. Do not weaken any policy to make a check pass or claim a command
 passed unless it completed successfully in the current work.
 
 ## 6. Review

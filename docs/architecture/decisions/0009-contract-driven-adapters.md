@@ -41,4 +41,3 @@ hatches and review contracts alongside concrete adapters.
 
 - [Python Protocols](https://docs.python.org/3/library/typing.html#typing.Protocol)
 - [PEP 544](https://peps.python.org/pep-0544/)
-

@@ -72,20 +72,53 @@ jobs:
           uv run --locked titanspan --help
           uv run --locked titanspan --version
 
+  repository-policy:
+    name: repository-policy
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Install uv and Python
+        uses: astral-sh/setup-uv@1db35dd8eee11c5894872e0b383ae6c406cf738d # v10.4.0
+        with:
+          enable-cache: true
+          python-version: "3.12"
+          version: 0.13.9
+      - name: Install locked dependencies
+        run: uv sync --locked --all-groups
+      - name: Install Node.js
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: docs/package-lock.json
+      - name: Run repository hooks, docs, and stress checks
+        run: |
+          make hooks-check
+          make docs-check
+          make stress-test
+
   ci-required:
     name: ci-required
     if: always()
-    needs: [quality, platform-smoke]
+    needs: [quality, platform-smoke, repository-policy]
     runs-on: ubuntu-latest
     steps:
       - name: Confirm required jobs succeeded
         env:
           QUALITY_RESULT: ${{ needs.quality.result }}
           PLATFORM_SMOKE_RESULT: ${{ needs.platform-smoke.result }}
+          REPOSITORY_POLICY_RESULT: ${{ needs.repository-policy.result }}
         run: |
-          if [[ "$QUALITY_RESULT" != "success" || "$PLATFORM_SMOKE_RESULT" != "success" ]]; then
-            echo "CI jobs failed: quality=$QUALITY_RESULT platform-smoke=$PLATFORM_SMOKE_RESULT"
+          if [[ "$QUALITY_RESULT" != "success" ]] \
+            || [[ "$PLATFORM_SMOKE_RESULT" != "success" ]] \
+            || [[ "$REPOSITORY_POLICY_RESULT" != "success" ]]; then
+            echo "CI jobs failed:"
+            echo "quality=$QUALITY_RESULT"
+            echo "platform-smoke=$PLATFORM_SMOKE_RESULT"
+            echo "repository-policy=$REPOSITORY_POLICY_RESULT"
             exit 1
           fi
           echo "All CI jobs succeeded."
-

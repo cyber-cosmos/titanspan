@@ -1,136 +1,174 @@
-# Development standards
+# Engineering standards
 
-These standards apply to human contributors and coding agents. The executable
-checks live in `pyproject.toml`, `.pre-commit-config.yaml`, the `Makefile`, and
-GitHub Actions. Instructions explain the intent; they do not replace checks.
+These requirements apply to every contributor and coding agent. Instructions
+do not replace enforcement: `pyproject.toml`, repository scripts, pre-commit,
+Make, and GitHub Actions implement the checks. A failed required check must be
+fixed; contributors must not bypass or weaken a policy to finish sooner.
 
-## Architecture and public APIs
+## Architecture and compatibility
 
-- Read `ARCHITECTURE.md` and the relevant ADRs before changing module
-  boundaries, integration lifecycles, or public APIs.
-- Prefer an existing, maintained library over a competing implementation.
-  A Titanspan abstraction should add clear API ergonomics, conventions,
-  lifecycle, a contract, or a test seam.
-- Keep wrappers thin and preserve access to the underlying library. Document
-  what Titanspan owns and what the dependency provides.
-- Prefer composition, explicit providers, protocols, and typed APIs. Avoid
-  deep inheritance, unnecessary metaprogramming, premature interfaces, and
-  speculative abstractions.
-- Keep dependencies flowing toward framework primitives and contracts. Core
-  modules must not depend on optional infrastructure integrations. Prevent
-  circular imports.
-- Use idiomatic Python and domain-oriented Titanspan filenames. Public module
-  filenames should describe the framework capability, not merely the package
-  being wrapped. For example, prefer `container/container.py`; explain the
-  Dishka integration in its implementation and documentation.
-- Distinguish implemented behavior from roadmap items. Do not publish an API
-  whose implementation is a stub or TODO.
-- Record consequential decisions in an ADR with alternatives, consequences,
-  risks, and official references.
+- Read `ARCHITECTURE.md`, the nearest scoped `AGENTS.md`, and applicable ADRs
+  before changing module boundaries, public APIs, lifecycle, or integrations.
+- Build on maintained libraries. Keep Titanspan wrappers thin, domain-named,
+  typed, and interoperable with native APIs. Do not duplicate their engines.
+- Use idiomatic Python and Laravel as a developer-experience reference. Do
+  not translate PHP syntax mechanically.
+- Keep optional integrations out of core dependency direction. Avoid cycles,
+  global mutable state, speculative abstractions, and unrelated refactors.
+- Preserve documented public behavior where applicable. Record consequential
+  decisions as ADRs and explain breaking changes.
+- Verify unfamiliar and version-sensitive APIs through official docs and the
+  installed, locked package before relying on them.
 
-## Python style and types
+## Python source policy
 
-- Target Python 3.12 or later versions supported by CI.
-- Use four spaces, an 80-character maximum line length, and PEP 8 naming.
-- Annotate parameters and return values. Keep Pyright strict; use `Any`, casts,
-  and ignores only at narrow, documented third-party boundaries.
-- Write concise Google-style docstrings for public modules, classes, functions,
-  methods, and protocols. Explain invariants or non-obvious behavior in
-  comments; do not narrate the code.
-- Prefer `pathlib`, context managers, protocols for structural boundaries,
-  immutable values where suitable, and explicit side effects.
-- Avoid mutable defaults, wildcard imports, unexplained constants, broad
-  exception handling, swallowed exceptions, unnecessary global state, and
-  blocking calls in async paths.
-- Use timezone-aware datetimes.
+Apply the policy to runtime modules, tests, benchmarks, examples, stubs, and
+repository-maintained Python scripts:
 
-## Async and resource lifecycle
+- UTF-8 source, LF line endings, four-space indentation, and at most 80
+  characters per physical line.
+- PEP 8 names: `snake_case` for functions, methods, and variables;
+  `PascalCase` for classes; `UPPER_SNAKE_CASE` for constants.
+- Use explicit, descriptive names, absolute imports, and explicit public
+  exports. Do not use wildcard imports, unused names, dead code, or commented
+  out implementations.
+- Use comprehensive parameter, return, attribute, callback, and generic
+  annotations. Keep Pyright in strict mode. Avoid `Any`, bare containers,
+  unsafe casts, and suppressions except at narrow, explained library edges.
+- Avoid mutable defaults, unexplained values, unnecessary duplication,
+  blocking work in async paths, and broad or swallowed exceptions.
+- Use `pathlib`, context managers, typed protocols, and immutable structures
+  where they make lifecycle and ownership clearer.
+- Add trailing commas in multi-line collections and calls where appropriate.
 
-- Keep asynchronous I/O explicit. Never block the event loop; use an
-  appropriate offloading mechanism when unavoidable.
-- Prefer structured concurrency. Bound fan-out, queues, buffers, retries, and
-  resource use. Apply backpressure and stream large workloads incrementally.
-- Propagate cancellation and deadlines. Finalize resources after success,
-  failure, cancellation, and shutdown.
-- Do not share unsafe mutable database sessions between concurrent tasks.
-  Keep transaction boundaries explicit and database relationship I/O visible.
+Ruff is the central linter and formatter. It checks correctness, imports,
+annotations, docstrings, security, async use, exceptions, complexity, tests,
+paths, resource handling, logging, and modern Python syntax. E501 is enabled;
+the formatter is not considered proof of line-length compliance. A separate
+read-only AST/source check rejects lines over 80 characters, including URLs
+and comments, and requires each module, class, and function or method to have
+a physically multi-line docstring.
+
+The documented Ruff exceptions are narrow: D200 conflicts with the required
+multi-line docstring form; D418 discourages docstrings on overload
+declarations, while this project requires each declaration to be documented
+and the source checker enforces it; S101 is allowed only in tests and
+benchmarks because assertions are their test contract. Any new exception
+requires a focused explanation and review. Do not add blanket exclusions or
+type ignores.
+
+Run the canonical checks:
+
+```bash
+uv run --locked ruff check .
+uv run --locked ruff format --check .
+uv run --locked python scripts/check_python_standards.py
+uv run --locked pyright
+```
+
+## Docstrings and implementation comments
+
+Use Google-style, physically multi-line docstrings for modules, classes,
+protocols, functions, methods, properties, decorators, fixtures, and tests.
+Document non-trivial private helpers as well as public APIs. Explain
+responsibility and relevant inputs, outputs, exceptions, side effects,
+resource ownership, lifecycle, concurrency, cancellation, and transaction
+semantics. Omit sections that do not apply. Do not write redundant prose that
+merely repeats a signature or statement.
+
+Use comments to explain why an implementation exists, an invariant, a
+concurrency or security constraint, an error-recovery choice, or a subtle
+compatibility/performance decision. Place the comment at the decision it
+explains. Do not narrate simple statements or add comments to inflate a
+comment count. Ruff and the source checker enforce docstring form; meaningful
+comment content requires code review because a linter cannot judge intent.
+
+## Test-driven development and test quality
+
+For every meaningful behavior change, use Red-Green-Refactor:
+
+1. Write a focused test for the desired contract or reproduced defect.
+2. Run it and confirm the failure is for the intended reason.
+3. Implement the smallest correct change and make the test pass.
+4. Add applicable failure, boundary, cleanup, cancellation, isolation, and
+   concurrency cases, then refactor with tests remaining green.
+
+Bug fixes require a regression test. Cover every meaningful public behavior
+and internal decision. Use unit tests for isolated behavior and real
+integration tests at implemented library boundaries. Do not mock the behavior
+the test is supposed to prove. Fakes may isolate external providers and paid
+services; no default test may require production credentials or billable AI.
+
+Use markers declared in `pyproject.toml`: `unit`, `integration`, `feature`,
+`regression`, `security`, `benchmark`, `stress`, and `slow`. Add directories
+only as corresponding functionality is implemented. Keep async tests
+deterministic: use synchronization primitives and explicit deadlines instead
+of arbitrary sleeps. Test cancellation, timeouts, task/resource cleanup, and
+scope isolation when they apply.
+
+Hypothesis is available for invariant-heavy inputs such as collections,
+parsing, reducers, transformations, and retry policies. Bound generated work
+so property tests remain deterministic and suitable for CI.
+
+Coverage thresholds are enforced independently: at least 95% statement
+coverage and 90% branch coverage for `src/titanspan`. Use meaningful
+assertions; coverage percentage alone does not establish correctness. Do not
+exclude production code or lower thresholds to get a green build. Critical
+behavior still requires direct assertions and integration coverage.
+
+## Async, concurrency, and performance
+
+- Keep async I/O explicit and avoid blocking the event loop. Offload blocking
+  work only through an appropriate, bounded mechanism.
+- Give tasks an owner. Prefer structured concurrency and propagate
+  cancellation, timeouts, and failures.
+- Bound task fan-out, buffers, retries, connections, and memory. Apply
+  backpressure and process large input incrementally.
+- Do not share mutable SQLAlchemy `AsyncSession` objects across concurrent
+  tasks; keep transaction boundaries explicit.
 - Separate I/O concurrency, CPU parallelism, and distributed execution.
-- Make retries safe for non-idempotent work. Never claim scalability from
-  `async` syntax alone.
+- Ensure failures and cancellation release resources and do not duplicate
+  non-idempotent work on retry.
+- Never infer scalability from async syntax. Performance claims require a
+  reproducible workload, native-library baseline where relevant, and recorded
+  environment, versions, throughput, latency distribution, concurrency, and
+  peak memory. Shared-runner timing is informational, not a brittle gate.
 
-## Dependencies and packaging
+## Documentation, security, and dependencies
 
-- Use uv for Python dependency, environment, lock, build, and publishing
-  operations. Keep `uv.lock` committed and reproducible; update it using
-  `uv lock`, never by hand.
-- Check maintenance, Python support, async behavior, license, and advisories
-  before adding a dependency. Prefer optional extras for integrations.
-- Do not install packages globally or introduce another Python package
-  manager.
-- Keep AI instructions, skills, harness settings, and development scripts out
-  of `src/titanspan/`, except narrowly scoped Markdown instructions where
-  discovery requires them. Build and inspect the wheel to ensure these files
-  are not distributed.
+- Keep docs, examples, and changelog accurate to tested implementation.
+  Clearly label planned work and verify every public API example.
+- Check dependency maintenance, Python support, async behavior, license, and
+  advisories before adding or upgrading a package. Use `uv add` / `uv lock`;
+  never hand-edit `uv.lock` or install globally.
+- Keep secrets out of source, logs, fixtures, examples, and history. Validate
+  untrusted input, bind database parameters, and preserve authorization and
+  tenant boundaries.
+- Do not disable security checks, tests, hooks, CI, typing, lint, formatting,
+  coverage, or architecture validation to make a change pass.
+- Do not use paid infrastructure or services without explicit authorization.
 
-## Testing and quality
+## Standard commands
 
-- Use Pytest and TDD for meaningful behavior. Start with a focused failing
-  test; then cover success, failures, cleanup, cancellation, scope isolation,
-  concurrency, and input validation where they apply.
-- Test public contracts, not only mocked implementation details. Keep tests
-  deterministic and independent of paid services or live AI providers.
-- Use fakes at integration boundaries. Do not weaken tests or quality gates to
-  get a green result.
-- Add property-based, integration, performance, or stress checks when the
-  behavior warrants them. Performance changes need a reproducible workload and
-  baseline; shared-runner wall-clock thresholds are not stable gates.
-- Do not invent test or benchmark results. Report commands and outcomes that
-  were actually observed.
-
-## Documentation and configuration
-
-- Keep examples runnable against implemented APIs. Mark planned capabilities
-  plainly and include limitations that affect users.
-- Update the relevant guide, README, changelog, and ADR when public behavior
-  or architecture changes.
-- YAML uses two spaces and valid, consistent syntax. JSON and TOML must parse.
-- Keep harness adapters short and link to `AGENTS.md` and the relevant
-  architecture documents. Keep canonical skills progressive and task-specific.
-- Do not create redundant configs, modify user-level agent settings, change
-  model/provider choices, or loosen approval settings.
-- Do not add hooks that run shell commands automatically unless a narrowly
-  justified change is reviewed independently. Never use hooks as the only
-  enforcement layer.
-
-## Security, git, and policy
-
-- Never add real secrets, weaken security checks, bypass hooks, or commit
-  private user data.
-- Preserve existing work. Avoid destructive resets, force pushes, history
-  rewrites, unrelated cleanup, and changes to organization permissions.
-- Do not modify tests, coverage, typing, lint, security, or architecture rules
-  merely to bypass a failure. Such policy changes need focused rationale and
-  independent review.
-- Only commit, push, publish, release, deploy, or send external messages when
-  explicitly authorized by the active task.
-
-## Validation commands
-
-Use the existing targets; run only checks relevant to the change and report
-their real outcomes.
+Use the uv-managed environment and the Makefile as the contributor interface:
 
 ```bash
 make lint
 make format-check
 make types
-make test
-make check
-make agents-check
-make docs-build
+make unit-test
 make integration-test
-make security
-make build
+make coverage
+make architecture-check
+make agents-check
+make check
+make ci
 ```
 
-`make check` must remain read-only and match CI. Inspect `make help` and the
-Makefile before referencing a target that may have changed.
+`make check` is read-only and the standard local gate. It includes lint,
+formatting, line/docstring checks, strict types, architecture validation,
+agent configuration checks, and the test suite with both coverage thresholds.
+`make ci` adds the repository's full documentation, security, packaging, and
+stress validation. Use `make fix` only for safe Ruff fixes and formatting;
+inspect the resulting diff before accepting it. CI is authoritative, and
+unavailable or failed checks must be reported as such.

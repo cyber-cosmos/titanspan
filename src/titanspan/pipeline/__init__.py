@@ -1,1 +1,4 @@
-"""Composable, bounded, streaming data transformations. Planned."""
+"""Reserve composable, bounded, streaming transformation conventions.
+
+Pipeline behavior is planned and is not available as a public API.
+"""

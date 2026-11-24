@@ -26,22 +26,41 @@ make help
 make check
 ```
 
-Run `make docs-build` when changing documentation. Use `make integration-test`
-for integration coverage and `make security` for a local dependency audit.
+`make check` is the required, read-only local gate. It runs strict Ruff
+linting and formatting checks, the 80-column and multi-line-docstring
+validator, strict Pyright, YAML and lockfile checks, architecture boundaries,
+agent configuration validation, the full applicable test suite, and separate
+95% statement and 90% branch coverage thresholds.
+
+Run `make docs-build` when changing documentation. Use `make ci` for the
+complete local CI suite, including dependency and secret audits, documentation
+build, packaging audit, and stress checks. Do not skip, weaken, or bypass a
+required check to complete a contribution sooner.
 
 ## Engineering workflow
 
 - Read [ARCHITECTURE.md](ARCHITECTURE.md) and relevant ADRs before changing
   module boundaries or public APIs.
-- Use test-driven development: write a focused failing test, verify the
-  failure, implement the smallest change, and rerun the suite.
-- Add type annotations, public API docstrings, and tests for meaningful
-  behavior and failure paths.
+- Use Red-Green-Refactor for every meaningful behavior: write a focused
+  failing test, verify the failure is relevant, implement the smallest
+  change, and refactor with tests passing. Bug fixes require regression tests.
+- Add comprehensive unit tests and real integration tests for implemented
+  dependency boundaries. Cover failure, validation, cleanup, cancellation,
+  scope isolation, and concurrency where applicable.
+- Fully annotate production, tests, examples, benchmarks, and development
+  scripts. Every module, class, function, method, fixture, and test needs a
+  physically multi-line Google-style docstring. Add concise comments that
+  explain non-obvious rationale, invariants, and lifecycle behavior.
 - Keep Python formatting at 80 columns and follow Ruff and strict Pyright.
+- Use UTF-8, LF, four-space Python indentation, two-space YAML indentation,
+  and GNU Make's required tab indentation for recipes.
 - Prefer mature libraries over new infrastructure abstractions.
 - Preserve native library access and propagate cancellation.
 - Update user documentation and the changelog for public behavior changes.
 - Record major architectural decisions in a new ADR.
+- Do not lower coverage, disable quality policies, skip failing tests, or add
+  blanket exclusions/suppressions to make a change pass. Policy changes need a
+  focused justification and independent maintainer review.
 
 ## Pull requests
 

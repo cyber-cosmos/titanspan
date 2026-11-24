@@ -12,5 +12,11 @@ application construction, startup, shutdown, and service-provider lifecycle.
   production containers at runtime.
 - Test startup, shutdown, partial startup failure, cleanup, and concurrent
   request behavior that changes.
+- Write the regression or lifecycle test first and run it before
+  implementation. Include real FastAPI/Dishka integration coverage for
+  changes to their boundary.
+- Keep every declaration strictly annotated and physically multi-line
+  documented. Comment the ownership and ordering of non-obvious cleanup.
 - Consult `ARCHITECTURE.md`, ADRs 0001, 0004, and 0005. Run `make test`,
-  `make types`, and `make check` for applicable changes.
+  `make integration-test`, `make types`, and `make check` for applicable
+  changes.

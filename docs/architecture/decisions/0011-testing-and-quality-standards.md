@@ -10,10 +10,16 @@ integration behavior. A passing linter cannot establish runtime correctness.
 
 ## Decision
 
-Use Pytest, pytest-cov with an initial 90 percent coverage gate, Ruff for
-linting and formatting, and strict Pyright for static analysis. Use
-test-driven development for meaningful functionality. Keep performance tests
-informational on shared CI runners.
+Use Pytest and Red-Green-Refactor for meaningful behavior changes. Require
+real unit and integration tests for implemented contracts and dependency
+boundaries. Enforce at least 95 percent statement coverage and 90 percent
+branch coverage independently for first-party runtime code. Ruff enforces
+strict linting and formatting; a repository AST checker additionally enforces
+80-column lines and physically multi-line docstrings. Pyright checks runtime
+code, tests, examples, benchmarks, and development scripts in strict mode.
+Yamllint enforces two-space YAML indentation. Import Linter enforces the
+implemented core dependency direction. Keep performance tests informational
+on shared CI runners.
 
 ## Alternatives considered
 
@@ -28,11 +34,15 @@ informational on shared CI runners.
 
 Capabilities include tests for success, failure, and cleanup where applicable.
 Local make check is read-only and mirrors the core CI quality commands.
+Contributors must not disable checks or lower thresholds to make a change
+pass. Significant policy edits require focused justification and independent
+maintainer review.
 
 ## Risks
 
 A numerical coverage threshold can encourage shallow tests. Review behavioral
-assertions and adjust the threshold only with evidence and an explicit decision.
+assertions and retain direct integration coverage for critical behavior.
+More coverage does not substitute for useful assertions.
 
 ## References
 
@@ -40,4 +50,3 @@ assertions and adjust the threshold only with evidence and an explicit decision.
 - [pytest-cov](https://pytest-cov.readthedocs.io/en/latest/)
 - [Ruff](https://docs.astral.sh/ruff/)
 - [Pyright](https://microsoft.github.io/pyright/)
-

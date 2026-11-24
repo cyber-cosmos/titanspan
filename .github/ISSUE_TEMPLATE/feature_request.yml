@@ -39,4 +39,3 @@ body:
           required: true
         - label: This request does not require a paid service.
           required: false
-

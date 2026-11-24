@@ -23,10 +23,14 @@ uncommitted diff.
    understand the changed contract.
 2. Check correctness, failure cases, cleanup, concurrency, security, type
    quality, and API compatibility.
-3. Check tests prove the intended contract rather than only mock behavior.
-4. Check docs, examples, changelog, ADR, and roadmap status for accuracy.
-5. Check dependencies, packaging, CI, and quality policy for scope and safety.
-6. Report actionable findings by severity with file and line references.
+3. Check tests prove the intended contract rather than only mock behavior;
+   verify test-first evidence and real integration coverage at changed
+   dependency boundaries.
+4. Check strict annotations, 80-column formatting, multi-line docstrings,
+   and comments that explain non-obvious reasoning rather than narrate code.
+5. Check docs, examples, changelog, ADR, and roadmap status for accuracy.
+6. Check dependencies, packaging, CI, and quality policy for scope and safety.
+7. Report actionable findings by severity with file and line references.
 
 ## Failure modes
 

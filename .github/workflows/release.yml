@@ -90,4 +90,3 @@ jobs:
           path: dist
       - name: Publish with PyPI Trusted Publishing
         run: uv publish
-

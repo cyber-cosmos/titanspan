@@ -1,8 +1,11 @@
 # Testing
 
-The repository uses Pytest, Ruff, strict Pyright, and a 90 percent initial
-coverage gate for implemented first-party code. Tests run without paid
-infrastructure or live AI model APIs.
+The repository uses Pytest, Ruff, strict Pyright, and independent minimums of
+95 percent statement coverage and 90 percent branch coverage for implemented
+first-party code. Tests include real integration boundaries and require no
+paid infrastructure or live AI model APIs. See
+[`docs/development/standards.md`](../development/standards.md) for TDD,
+docstring, comment, typing, and quality-gate requirements.
 
 From a checkout, run:
 

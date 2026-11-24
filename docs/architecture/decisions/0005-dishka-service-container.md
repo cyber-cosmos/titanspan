@@ -43,4 +43,3 @@ boundary and test cleanup after success and failure.
 
 - [Dishka FastAPI integration](https://dishka.readthedocs.io/en/stable/integrations/fastapi.html)
 - [Dishka container lifecycle](https://dishka.readthedocs.io/en/stable/container/)
-

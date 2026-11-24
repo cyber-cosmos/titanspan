@@ -26,10 +26,12 @@ Use when implementing or extending a real module capability or public API.
    failure is relevant.
 4. Implement the smallest cohesive change using existing conventions,
    explicit types, and narrow module dependencies.
-5. Handle cleanup, cancellation, timeout, and concurrency behavior where
+5. Add complete annotations and physically multi-line Google-style docstrings
+   for each declaration. Comment on non-obvious invariants and design choices.
+6. Handle cleanup, cancellation, timeout, and concurrency behavior where
    relevant.
-6. Update API docs, examples, changelog, or ADRs as needed.
-7. Inspect the complete diff and run applicable checks.
+7. Update API docs, examples, changelog, or ADRs as needed.
+8. Inspect the complete diff and run applicable checks.
 
 ## Failure modes
 

@@ -1,4 +1,7 @@
-"""Application lifecycle, bootstrapping, kernels, and provider lifecycle."""
+"""Expose Titanspan application lifecycle primitives.
+
+The initial implementation coordinates FastAPI startup and Dishka cleanup.
+"""
 
 from titanspan.foundation.application import Application
 

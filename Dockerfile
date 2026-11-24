@@ -25,4 +25,3 @@ COPY --from=build --chown=app:app /app/.venv /app/.venv
 USER app
 
 ENTRYPOINT ["titanspan"]
-

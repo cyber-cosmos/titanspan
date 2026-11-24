@@ -8,7 +8,10 @@ application settings and configuration conventions using Pydantic Settings.
   real credentials.
 - Prefer explicit, typed settings and documented precedence. Avoid hidden
   process-global mutation and import-time environment reads.
-- Test valid values, invalid values, defaults, precedence, and secret-safe
-  error behavior.
+- Use test-driven changes; cover valid and invalid values, defaults,
+  precedence, boundary inputs, and secret-safe errors.
+- Annotate every declaration and use a multi-line Google-style docstring.
+  Comments should explain validation or precedence decisions that are not
+  evident from Pydantic's field declarations.
 - Consult `ARCHITECTURE.md` and ADRs 0003 and 0010. Run `make test`,
   `make types`, and `make check` for applicable changes.

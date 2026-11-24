@@ -50,4 +50,3 @@ documentation before expanding its surface area.
 - Workflow monitoring and developer experience improvements.
 - Public API stabilization after compatibility and migration policies are
   established.
-

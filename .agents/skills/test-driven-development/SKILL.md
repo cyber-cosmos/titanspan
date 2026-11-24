@@ -24,9 +24,12 @@ resource lifecycles, or concurrency changes.
 3. Run that test and confirm it fails for the intended reason.
 4. Implement the smallest change that makes it pass.
 5. Add cases for meaningful failure, cleanup, concurrency, or boundary
-   conditions.
+   conditions. Test real implemented library boundaries with integration
+   tests rather than replacing the behavior under test with mocks.
 6. Refactor only while the focused tests remain green.
-7. Run the full relevant suite and `make check`.
+7. Add strict annotations, physically multi-line docstrings, meaningful
+   implementation comments, and relevant documentation.
+8. Run the full relevant suite and `make check`.
 
 ## Failure modes
 

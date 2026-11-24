@@ -8,6 +8,10 @@ Follow root `AGENTS.md` and `src/titanspan/AGENTS.md`. This module owns the
   implicit project modifications without an explicit user command.
 - Keep CLI startup lightweight and ensure runtime templates, if introduced,
   are included in the installed distribution intentionally.
-- Test command output, exit codes, errors, and distribution entry points.
+- Use test-driven changes. Test help, output, exit codes, errors, version
+  metadata, module entry points, and installed-wheel commands as applicable.
+- Keep declarations strictly typed and multi-line documented. Explain
+  non-obvious option callback or exit behavior with implementation comments.
 - Consult `ARCHITECTURE.md`, `ROADMAP.md`, and `CONTRIBUTING.md`. Run
-  `make test`, `make types`, and `make check` for applicable changes.
+  `make unit-test`, `make types`, `make coverage`, and `make check` for
+  applicable changes.

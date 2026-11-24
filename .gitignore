@@ -8,6 +8,7 @@ __pycache__/
 build/
 dist/
 coverage.xml
+coverage.json
 .coverage
 .coverage.*
 .pytest_cache/
@@ -27,4 +28,3 @@ docs/.vitepress/dist/
 .aider.input.history
 .DS_Store
 Thumbs.db
-

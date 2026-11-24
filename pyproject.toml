@@ -44,8 +44,10 @@ titanspan = "titanspan.console.cli:main"
 
 [dependency-groups]
 dev = [
+    "detect-secrets>=1.5,<2",
     "httpx2>=2,<3",
     "hypothesis>=6.130,<7",
+    "import-linter>=2.17,<3",
     "pip-audit>=2.9,<3",
     "pre-commit>=4.2,<5",
     "pyright>=1.1.400,<2",
@@ -54,6 +56,7 @@ dev = [
     "pytest-cov>=6,<8",
     "ruff>=0.14,<0.15",
     "uvicorn[standard]>=0.34,<1",
+    "yamllint>=1.37,<2",
 ]
 
 [tool.uv]
@@ -64,13 +67,19 @@ wheel-exclude = ["**/AGENTS.md"]
 
 [tool.pytest.ini_options]
 addopts = "-ra"
-pythonpath = ["src", "examples/hello-world"]
+pythonpath = [".", "src", "examples/hello-world"]
 strict_config = true
 strict_markers = true
 testpaths = ["tests"]
 markers = [
     "benchmark: performance measurement without a shared-runner threshold",
+    "feature: user-visible behavior across framework boundaries",
+    "integration: real framework or dependency boundary behavior",
+    "regression: reproduces a previously observed defect",
+    "security: validates a security or repository security policy",
     "stress: repeated or high-volume behavior checks",
+    "slow: test excluded from the fast default suite",
+    "unit: isolated behavior without infrastructure services",
 ]
 
 [tool.coverage.run]
@@ -78,37 +87,82 @@ branch = true
 source = ["titanspan"]
 
 [tool.coverage.report]
-fail_under = 90
+fail_under = 95
 show_missing = true
 skip_covered = true
 
+[tool.titanspan.quality]
+minimum-branch-coverage = 90
+
 [tool.ruff]
 line-length = 80
+indent-width = 4
 target-version = "py312"
-src = ["src", "tests", "examples"]
+src = ["src", "tests", "examples", "benchmarks", "scripts"]
 
 [tool.ruff.lint]
 select = [
+    "A",
     "ANN",
+    "ARG",
     "ASYNC",
     "B",
+    "C4",
+    "C90",
     "D",
+    "DTZ",
     "E",
+    "EM",
+    "ERA",
     "F",
+    "G",
     "I",
+    "LOG",
+    "N",
     "PERF",
+    "PIE",
+    "PL",
+    "PT",
+    "PTH",
+    "RET",
+    "RSE",
+    "RUF",
     "S",
     "SIM",
-    "TCH",
+    "SLF",
+    "T20",
+    "TC",
+    "TID",
+    "TRY",
     "UP",
+    "W",
+]
+ignore = [
+    "D200", # Multi-line docstrings are required, even when concise.
+    "D418", # Project policy requires docs on overload declarations too.
 ]
 
 [tool.ruff.lint.per-file-ignores]
-"tests/**" = ["D", "S101"]
-"benchmarks/**" = ["D", "S101"]
+"tests/**" = ["S101"]
+"benchmarks/**" = ["S101"]
+
+[tool.ruff.lint.mccabe]
+max-complexity = 10
+
+[tool.ruff.lint.pylint]
+max-args = 6
+max-branches = 12
+max-returns = 8
+max-statements = 50
+
+[tool.ruff.lint.pycodestyle]
+max-line-length = 80
 
 [tool.ruff.lint.pydocstyle]
 convention = "google"
+
+[tool.ruff.lint.flake8-tidy-imports]
+ban-relative-imports = "all"
 
 [tool.ruff.format]
 quote-style = "double"
@@ -116,7 +170,22 @@ quote-style = "double"
 [tool.pyright]
 pythonVersion = "3.12"
 typeCheckingMode = "strict"
-include = ["src"]
-exclude = ["**/__pycache__", "tests", "benchmarks"]
+include = ["src", "tests", "examples", "benchmarks", "scripts"]
+exclude = ["**/__pycache__"]
+extraPaths = ["src", "examples/hello-world"]
 venvPath = "."
 venv = ".venv"
+
+[tool.importlinter]
+root_packages = ["titanspan"]
+include_external_packages = false
+
+[[tool.importlinter.contracts]]
+name = "Implemented core dependency direction"
+type = "layers"
+layers = [
+    "titanspan.console",
+    "titanspan.foundation",
+    "titanspan.container",
+    "titanspan.config",
+]

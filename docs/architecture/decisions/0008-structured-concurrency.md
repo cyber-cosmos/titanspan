@@ -39,4 +39,3 @@ supported backends where practical.
 
 - [AnyIO documentation](https://anyio.readthedocs.io/en/stable/)
 - [Python concurrent futures](https://docs.python.org/3/library/concurrent.futures.html)
-

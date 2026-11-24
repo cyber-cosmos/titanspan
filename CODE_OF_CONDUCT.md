@@ -21,4 +21,3 @@ Maintainers may remove content or restrict participation that violates this
 policy. Report a conduct concern using GitHub's report-content controls or by
 contacting a repository administrator through GitHub. Include relevant links
 and context, and do not post private information publicly.
-

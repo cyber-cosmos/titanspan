@@ -41,4 +41,3 @@ behavior in CI before widening compatibility claims.
 - [FastAPI](https://fastapi.tiangolo.com/)
 - [Starlette](https://www.starlette.io/)
 - [Starlette TestClient](https://www.starlette.io/testclient/)
-

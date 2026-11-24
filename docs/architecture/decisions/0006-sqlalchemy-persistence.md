@@ -42,4 +42,3 @@ explicit and test session isolation before public release.
 - [SQLAlchemy asyncio](https://docs.sqlalchemy.org/en/20/orm/extensions/asyncio.html)
 - [SQLAlchemy ORM](https://docs.sqlalchemy.org/en/20/orm/)
 - [Alembic documentation](https://alembic.sqlalchemy.org/en/latest/)
-

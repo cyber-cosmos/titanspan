@@ -193,10 +193,22 @@ documented and tested before becoming public APIs.
 
 ## Testing strategy
 
-Use Pytest for unit, integration, feature, performance, and stress coverage.
-Test public behavior, scope isolation, cleanup after success and failure,
-cancellation, and concurrent execution. Use fakes only at integration
-boundaries. Tests must not require paid services or live commercial model APIs.
+Use Pytest with test-driven development for unit, integration, feature,
+regression, security, performance, and stress coverage. Write the focused
+failing test first for meaningful behavior changes and bug fixes. Cover public
+contracts and actual behavior at each implemented dependency boundary; mocks
+must not replace the behavior under test. Test scope isolation, cleanup after
+success and failure, cancellation, timeouts, and concurrent execution where
+applicable. Tests must not require paid services or live commercial model
+APIs.
+
+CI enforces at least 95% statement coverage and 90% branch coverage
+independently for implemented first-party runtime code. Every Python module,
+class, function, method, fixture, and test has strict typing and a physically
+multi-line Google-style docstring. Implementation comments explain non-obvious
+decisions and invariants. These policies are checked with Ruff, strict
+Pyright, and the repository's read-only source checker; comment quality is
+reviewed because it cannot be reliably inferred mechanically.
 
 Performance measurements record the machine, operating system, Python and
 dependency versions, workload, concurrency, throughput, latency distribution,
@@ -209,4 +221,3 @@ Applications will extend the framework through explicit providers, adapters,
 routers, and typed contracts. Do not require a Titanspan wrapper when native
 FastAPI, Dishka, SQLAlchemy, LangGraph, or other selected library APIs already
 solve the problem clearly.
-

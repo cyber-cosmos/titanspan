@@ -1,12 +1,15 @@
 # Example application instructions
 
-Follow root `AGENTS.md`, `ARCHITECTURE.md`, and the getting-started
-documentation. Examples must run against the implemented package.
+Follow root `AGENTS.md`, `docs/development/standards.md`, and the nearest
+framework module instructions. Examples demonstrate only implemented APIs.
 
-- Keep examples small and complete, with explicit setup and cleanup.
-- Do not use planned APIs, paid services, real credentials, or live model
-  calls in the default Hello World example.
-- Keep secrets in local environment configuration; document placeholders only
-  in `.env.example`.
-- Run the example's documented command and relevant tests before claiming it
-  works. Run `make check` and `make build` for related package changes.
+- Keep each example runnable, minimal, typed, and explicit about required
+  local setup. Do not require paid services or credentials by default.
+- Use physically multi-line docstrings for Python modules and declarations.
+  Add comments for non-obvious setup or lifecycle decisions.
+- Test runnable behavior through a real local framework boundary where
+  practical. Keep assertions deterministic and update corresponding guides.
+- Keep sample secrets fake, clearly marked, and nonfunctional. Do not include
+  generated environments, data dumps, or private user data.
+- Run `make python-standards`, `make types`, `make integration-test`,
+  `make docs-build`, and `make check` when applicable.

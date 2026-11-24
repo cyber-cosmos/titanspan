@@ -36,4 +36,3 @@ uv release, and the backend is bounded below 0.14.
 - [uv build backend](https://docs.astral.sh/uv/concepts/build-backend/)
 - [uv projects](https://docs.astral.sh/uv/guides/projects/)
 - [PEP 621](https://peps.python.org/pep-0621/)
-

@@ -22,4 +22,3 @@ body:
       label: Suggested correction
     validations:
       required: false
-

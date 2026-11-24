@@ -9,4 +9,3 @@ public release.
   Dishka dependency integration, and typed settings.
 - Added initial tests, architecture decisions, contributor documentation, and
   repository automation.
-

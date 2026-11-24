@@ -94,9 +94,17 @@ The current technology foundation is recorded in
 
 ## Python and package standards
 
-- Python 3.12+; four-space indentation; 80-column maximum; PEP 8 names.
-- Use comprehensive annotations, explicit return types, strict Pyright, and
-  meaningful Google-style docstrings for public APIs.
+- Python 3.12+; UTF-8; LF; four-space indentation; strict 80-column maximum;
+  PEP 8 naming; absolute imports; explicit public exports; no wildcard imports,
+  dead code, commented-out implementations, or unexplained magic numbers.
+- Use comprehensive annotations and explicit returns for production, tests,
+  examples, benchmarks, and development scripts. Pyright must remain strict.
+  Keep `Any`, unsafe casts, and type suppressions at narrow, documented
+  third-party boundaries only.
+- Every module, class, function, method, fixture, and test needs a physically
+  multi-line Google-style docstring. Add meaningful implementation comments
+  for non-obvious rationale, invariants, lifecycle, concurrency, security,
+  and error recovery; comments must explain why, not restate code.
 - Prefer `pathlib`, context managers, protocols, immutable values when
   appropriate, and explicit side effects.
 - Avoid mutable defaults, wildcard imports, unexplained values, broad
@@ -105,15 +113,26 @@ The current technology foundation is recorded in
 - Use `uv` exclusively for Python dependencies, environments, locking,
   building, and publishing. Preserve `uv.lock`; update it through `uv lock`.
   Do not add Poetry, Pipenv, Conda, global installs, or unjustified packages.
-- Apply TDD to meaningful changes and test success, failures, cleanup,
-  cancellation, isolation, concurrency, and validation as applicable.
+- Use Red-Green-Refactor for every meaningful behavior change: write and run
+  the focused failing test before implementation. Bug fixes need regression
+  tests. Add unit and real integration coverage for implemented boundaries;
+  test success, failures, cleanup, cancellation, isolation, concurrency, and
+  validation as applicable.
+- Enforce at least 95% statement and 90% branch coverage independently for
+  `src/titanspan`. Never lower thresholds, weaken assertions, skip failing
+  tests, disable quality policies, or add blanket lint/type suppressions to
+  make a change pass. Meaningful comment quality receives human review.
 - Keep development tooling and agent assets outside `src/titanspan/`, except
   scoped Markdown instructions where necessary. Confirm built distributions
   do not contain development-only instructions or agent configuration.
 
-Use the existing Make targets. In particular, `make check` is read-only and
-must remain consistent with CI; it includes `make agents-check` for repository
-agent configuration. Do not claim an unavailable command exists.
+Use the existing Make targets and `uv run --locked` for tools. Required
+commands include Ruff lint and format checks, strict `pyright`, source line
+and docstring validation, import architecture checks, agent configuration
+validation, and applicable unit and integration tests. `make check` is
+read-only and mirrors required CI; it includes the independently enforced
+coverage thresholds. `make ci` adds security, docs, packaging, and extended
+validation. Do not claim an unavailable command exists.
 
 ## Protected engineering policies
 
