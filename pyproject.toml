@@ -55,18 +55,25 @@ numbers = [
 [dependency-groups]
 dev = [
     "babel>=2.18,<3",
+    "defusedxml>=0.7.1,<1",
     "detect-secrets>=1.5,<2",
+    "diff-cover>=9,<12",
     "httpx2>=2,<3",
     "hypothesis>=6.130,<7",
     "import-linter>=2.17,<3",
     "num2words>=0.5.14,<1",
+    "packaging>=25,<27",
     "pip-audit>=2.9,<3",
+    "pip-licenses>=5,<6",
     "pre-commit>=4.2,<5",
     "pyright>=1.1.400,<2",
     "pytest>=8.3,<10",
     "pytest-benchmark>=5,<6",
     "pytest-cov>=6,<8",
+    "pyyaml>=6,<7",
     "ruff>=0.14,<0.15",
+    "twine>=7,<8",
+    "types-pyyaml>=6.0,<7",
     "uvicorn[standard]>=0.34,<1",
     "yamllint>=1.37,<2",
 ]
@@ -75,6 +82,7 @@ dev = [
 default-groups = ["dev"]
 
 [tool.uv.build-backend]
+source-exclude = ["**/AGENTS.md"]
 wheel-exclude = ["**/AGENTS.md"]
 
 [tool.pytest.ini_options]
@@ -85,6 +93,7 @@ strict_markers = true
 testpaths = ["tests"]
 markers = [
     "benchmark: performance measurement without a shared-runner threshold",
+    "concurrency: cancellation, isolation, bounded execution, or shutdown",
     "feature: user-visible behavior across framework boundaries",
     "integration: real framework or dependency boundary behavior",
     "regression: reproduces a previously observed defect",

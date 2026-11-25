@@ -94,6 +94,78 @@ def test_validator_rejects_lines_longer_than_eighty_columns(
     assert any(":5: line exceeds 80 characters" in error for error in errors)
 
 
+def test_validator_can_check_docblocks_without_line_length(
+    tmp_path: Path,
+) -> None:
+    """Report missing documentation while ignoring unrelated long lines.
+
+    The focused CI job can report docstring status independently from the
+    separate physical line-length job.
+    """
+    source = tmp_path / "docblocks.py"
+    source.write_text(
+        '"""Document the module.\n\nMore detail.\n"""\n'
+        "# " + ("x" * 90) + "\n"
+        "def undocumented() -> None:\n    pass\n",
+        encoding="utf-8",
+    )
+
+    errors = validate_python_file(
+        source,
+        check_line_length=False,
+        check_docstrings=True,
+        check_syntax=True,
+    )
+
+    assert any("undocumented" in error for error in errors)
+    assert not any("line exceeds" in error for error in errors)
+
+
+def test_validator_can_check_line_length_without_docstrings(
+    tmp_path: Path,
+) -> None:
+    """Enforce line endings and length independently of documentation.
+
+    This separation makes line-length failures visible as their own CI
+    status while retaining the shared strict source policy.
+    """
+    source = tmp_path / "lines.py"
+    source.write_text(
+        "def undocumented() -> None:\n    pass\n",
+        encoding="utf-8",
+    )
+
+    errors = validate_python_file(
+        source,
+        check_line_length=True,
+        check_docstrings=False,
+        check_syntax=False,
+    )
+
+    assert errors == []
+
+
+def test_validator_can_parse_syntax_without_other_policies(
+    tmp_path: Path,
+) -> None:
+    """Reject invalid Python without importing or checking its docstrings.
+
+    Syntax verification is safe for maintained scripts with import side
+    effects because the validator only invokes the Python parser.
+    """
+    source = tmp_path / "syntax.py"
+    source.write_text("def broken(:\n    pass\n", encoding="utf-8")
+
+    errors = validate_python_file(
+        source,
+        check_line_length=False,
+        check_docstrings=False,
+        check_syntax=True,
+    )
+
+    assert any("invalid Python syntax" in error for error in errors)
+
+
 @pytest.mark.regression
 def test_validator_rejects_crlf_line_endings(tmp_path: Path) -> None:
     """Reject CRLF source so repository Python files remain LF-only.

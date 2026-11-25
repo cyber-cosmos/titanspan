@@ -111,6 +111,10 @@ export default defineConfig({
           { text: "Deployment", link: "/deployment/" },
           { text: "Development standards", link: "/development/standards" },
           {
+            text: "Continuous integration",
+            link: "/development/continuous-integration",
+          },
+          {
             text: "AI agent compatibility",
             link: "/development/agent-compatibility",
           },

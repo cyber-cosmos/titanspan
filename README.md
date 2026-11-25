@@ -2,6 +2,10 @@
 
 **Engineer beyond limits.**
 
+[![CI](https://github.com/titanspan/titanspan/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/titanspan/titanspan/actions/workflows/ci.yml)
+[![Security](https://github.com/titanspan/titanspan/actions/workflows/security.yml/badge.svg?branch=main)](https://github.com/titanspan/titanspan/actions/workflows/security.yml)
+[![Documentation](https://github.com/titanspan/titanspan/actions/workflows/docs.yml/badge.svg?branch=main)](https://github.com/titanspan/titanspan/actions/workflows/docs.yml)
+
 Titanspan is an open-source, async-first Python application framework for
 building intelligent systems at scale. It is inspired by Laravel's expressive
 developer experience and builds on established Python libraries.

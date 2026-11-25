@@ -37,6 +37,11 @@ complete local CI suite, including dependency and secret audits, documentation
 build, packaging audit, and stress checks. Do not skip, weaken, or bypass a
 required check to complete a contribution sooner.
 
+See the [CI architecture](docs/development/continuous-integration.md) for the
+required job inventory, compatibility matrices, artifact flow, and fail-closed
+gate. Changes to CI policy must explain why each affected status remains
+mandatory and preserve independent verification.
+
 ## Engineering workflow
 
 - Read [ARCHITECTURE.md](ARCHITECTURE.md) and relevant ADRs before changing

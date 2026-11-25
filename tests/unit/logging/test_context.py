@@ -61,6 +61,7 @@ def test_manager_context_restores_after_exception() -> None:
 
 
 @pytest.mark.anyio
+@pytest.mark.concurrency
 async def test_context_is_isolated_between_concurrent_tasks() -> None:
     """Keep request context separate across concurrent async logging calls.
 
@@ -80,6 +81,7 @@ async def test_context_is_isolated_between_concurrent_tasks() -> None:
         with manager.context(request_id=request_id):
             await logger.info_async("request handled")
 
+    # A task group owns both writes and cancels siblings if either fails.
     async with anyio.create_task_group() as group:
         group.start_soon(write, "request-a")
         group.start_soon(write, "request-b")

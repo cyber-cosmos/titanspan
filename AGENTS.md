@@ -149,6 +149,16 @@ Agents must not:
 - Change these instructions, quality policies, CI, or architectural
   constraints without a focused justification and independent review through
   the repository contribution process.
+- Remove mandatory GitHub Actions jobs or omit them from the fail-closed
+  `ci-gate`; make a required job best-effort; accept missing, skipped, or
+  cancelled results; or fabricate a successful summary.
+- Weaken workflow permissions, unpin external actions, suppress security
+  findings, bypass hooks, or remove platform and integration checks to make
+  a change pass.
+
+CI policy changes need a focused rationale and maintainer review. Keep every
+required check independently visible, preserve the exact gate inventory, and
+verify workflow syntax and policy locally before changing remote rules.
 
 ## Security and repository safety
 

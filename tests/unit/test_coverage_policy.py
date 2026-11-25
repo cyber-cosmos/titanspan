@@ -7,7 +7,11 @@ inside an aggregate percentage.
 from pathlib import Path
 
 import pytest
-from scripts.check_coverage import read_coverage_policy, validate_coverage
+from scripts.check_coverage import (
+    read_coverage_policy,
+    render_coverage_summary,
+    validate_coverage,
+)
 
 EXPECTED_COVERAGE_METRIC_COUNT = 2
 
@@ -79,3 +83,37 @@ def test_coverage_policy_rejects_missing_metrics() -> None:
     )
 
     assert len(errors) == EXPECTED_COVERAGE_METRIC_COUNT
+
+
+def test_coverage_summary_reports_measured_values_and_thresholds() -> None:
+    """Show measured line and branch results in a Markdown table.
+
+    The report is suitable for appending to a GitHub Actions job summary.
+    """
+    totals: dict[str, object] = {
+        "percent_statements_covered": 96.25,
+        "percent_branches_covered": 92.5,
+    }
+
+    summary = render_coverage_summary(
+        totals,
+        minimum_line_coverage=95.0,
+        minimum_branch_coverage=90.0,
+    )
+
+    assert "96.25%" in summary
+    assert "92.50%" in summary
+    assert summary.count("Passed") == EXPECTED_COVERAGE_METRIC_COUNT
+
+
+def test_coverage_summary_rejects_missing_metrics() -> None:
+    """Reject incomplete report data rather than inventing coverage values.
+
+    GitHub summaries must reflect actual coverage.py output.
+    """
+    with pytest.raises(ValueError, match="line metric"):
+        render_coverage_summary(
+            {},
+            minimum_line_coverage=95.0,
+            minimum_branch_coverage=90.0,
+        )

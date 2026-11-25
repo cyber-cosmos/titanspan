@@ -117,15 +117,21 @@ def validate_python_file(
     path: Path,
     *,
     max_line_length: int = 80,
+    check_line_length: bool = True,
+    check_docstrings: bool = True,
+    check_syntax: bool = True,
 ) -> list[str]:
-    """Return line-length and multiline-docstring violations for one file.
+    """Return selected source-standard violations for one Python file.
 
     Args:
         path: Python source file to inspect.
         max_line_length: Maximum number of Unicode code points per line.
+        check_line_length: Whether to enforce the physical line-length cap.
+        check_docstrings: Whether declarations need multiline docstrings.
+        check_syntax: Whether the source must parse as Python.
 
     Returns:
-        Human-readable violations. An empty list means the file complies.
+        Human-readable violations for enabled checks.
     """
     errors: list[str] = []
     try:
@@ -134,19 +140,26 @@ def validate_python_file(
     except (OSError, UnicodeError) as exc:
         return [f"{path}: cannot read UTF-8 source: {exc}"]
 
-    for line_number, line in enumerate(source.splitlines(), start=1):
-        if len(line) > max_line_length:
-            errors.append(
-                f"{path}:{line_number}: line exceeds "
-                f"{max_line_length} characters ({len(line)})"
-            )
-    if "\r" in source:
+    if check_line_length:
+        errors.extend(
+            f"{path}:{line_number}: line exceeds "
+            f"{max_line_length} characters ({len(line)})"
+            for line_number, line in enumerate(source.splitlines(), start=1)
+            if len(line) > max_line_length
+        )
+    if (check_line_length or check_docstrings) and "\r" in source:
         errors.append(f"{path}: line endings must be LF")
+
+    if not check_syntax and not check_docstrings:
+        return errors
 
     try:
         tree = ast.parse(source, filename=str(path))
     except SyntaxError as exc:
         errors.append(f"{path}:{exc.lineno}: invalid Python syntax: {exc.msg}")
+        return errors
+
+    if not check_docstrings:
         return errors
 
     for kind, name, line_number, body in _declarations(tree):
@@ -224,11 +237,20 @@ def _configured_line_length(root: Path) -> int:
     return line_length
 
 
-def validate_repository(root: Path) -> list[str]:
+def validate_repository(
+    root: Path,
+    *,
+    check_line_length: bool = True,
+    check_docstrings: bool = True,
+    check_syntax: bool = True,
+) -> list[str]:
     """Check every maintained Python file under configured project areas.
 
     Args:
         root: Repository root containing pyproject.toml and source folders.
+        check_line_length: Whether to enforce the physical line-length cap.
+        check_docstrings: Whether declarations need multiline docstrings.
+        check_syntax: Whether maintained source files must parse.
 
     Returns:
         Violations from all discovered Python files.
@@ -246,6 +268,9 @@ def validate_repository(root: Path) -> list[str]:
         for error in validate_python_file(
             path,
             max_line_length=line_length,
+            check_line_length=check_line_length,
+            check_docstrings=check_docstrings,
+            check_syntax=check_syntax,
         )
     ]
 
@@ -262,10 +287,31 @@ def main() -> int:
         default=Path(__file__).resolve().parents[1],
         help="repository root to validate",
     )
+    modes = parser.add_mutually_exclusive_group()
+    modes.add_argument(
+        "--docblocks-only",
+        action="store_true",
+        help="check multiline documentation and Python syntax",
+    )
+    modes.add_argument(
+        "--line-length-only",
+        action="store_true",
+        help="check strict physical line length and LF endings",
+    )
+    modes.add_argument(
+        "--syntax-only",
+        action="store_true",
+        help="parse maintained Python files without importing them",
+    )
     args = parser.parse_args()
 
     try:
-        errors = validate_repository(args.root)
+        errors = validate_repository(
+            args.root,
+            check_line_length=not args.docblocks_only and not args.syntax_only,
+            check_docstrings=not args.line_length_only and not args.syntax_only,
+            check_syntax=not args.line_length_only,
+        )
     except PythonStandardsConfigurationError as exc:
         sys.stderr.write(f"ERROR: {exc}\n")
         return 1

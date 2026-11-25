@@ -11,6 +11,7 @@ from titanspan import Application
 
 
 @pytest.mark.stress
+@pytest.mark.concurrency
 def test_application_can_start_and_stop_repeatedly() -> None:
     """Start and stop independent ASGI applications repeatedly.
 

@@ -153,6 +153,7 @@ def test_app_scope_resource_is_shared_and_closed_at_shutdown() -> None:
     assert resources == [ManagedResource(closed=True)]
 
 
+@pytest.mark.concurrency
 def test_request_scope_isolated_between_concurrent_http_requests() -> None:
     """Create a distinct dependency instance for each concurrent request.
 
@@ -180,6 +181,7 @@ def test_request_scope_isolated_between_concurrent_http_requests() -> None:
 
     application.asgi.include_router(router)
 
+    # Submit requests together to exercise actual independent ASGI scopes.
     with (
         TestClient(application.asgi) as client,
         ThreadPoolExecutor(

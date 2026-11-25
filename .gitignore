@@ -11,6 +11,10 @@ coverage.xml
 coverage.json
 .coverage
 .coverage.*
+test-results/
+coverage-artifacts/
+coverage-combined/
+benchmark-results/
 .pytest_cache/
 .ruff_cache/
 .pyright/

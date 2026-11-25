@@ -9,6 +9,7 @@ from __future__ import annotations
 import argparse
 import json
 import math
+import os
 import sys
 import tomllib
 from pathlib import Path
@@ -17,7 +18,12 @@ from typing import TypeGuard, cast
 MINIMUM_COVERAGE_PERCENTAGE = 0.0
 MAXIMUM_COVERAGE_PERCENTAGE = 100.0
 
-__all__ = ["main", "read_coverage_policy", "validate_coverage"]
+__all__ = [
+    "main",
+    "read_coverage_policy",
+    "render_coverage_summary",
+    "validate_coverage",
+]
 
 
 class CoveragePolicyError(Exception):
@@ -102,6 +108,46 @@ def validate_coverage(
                 f"{label} is {value:.2f}%; minimum is {threshold:.2f}%"
             )
     return errors
+
+
+def render_coverage_summary(
+    totals: dict[str, object],
+    *,
+    minimum_line_coverage: float,
+    minimum_branch_coverage: float,
+) -> str:
+    """Render measured coverage values and policy thresholds for CI.
+
+    Args:
+        totals: Coverage.py totals object from the combined report.
+        minimum_line_coverage: Required statement coverage percentage.
+        minimum_branch_coverage: Required branch coverage percentage.
+
+    Returns:
+        A Markdown table populated from the actual report metrics.
+
+    Raises:
+        ValueError: If either coverage metric is missing or invalid.
+    """
+    line = totals.get("percent_statements_covered")
+    branch = totals.get("percent_branches_covered")
+    if not _is_coverage_percentage(line):
+        reason = "coverage report is missing a valid line metric"
+        raise ValueError(reason)
+    if not _is_coverage_percentage(branch):
+        reason = "coverage report is missing a valid branch metric"
+        raise ValueError(reason)
+
+    line_status = "Passed" if line >= minimum_line_coverage else "Failed"
+    branch_status = "Passed" if branch >= minimum_branch_coverage else "Failed"
+    return (
+        "| Metric | Measured | Minimum | Result |\n"
+        "|---|---:|---:|---|\n"
+        f"| Line coverage | {line:.2f}% | "
+        f"{minimum_line_coverage:.2f}% | {line_status} |\n"
+        f"| Branch coverage | {branch:.2f}% | "
+        f"{minimum_branch_coverage:.2f}% | {branch_status} |\n"
+    )
 
 
 def read_coverage_policy(path: Path) -> tuple[float, float]:
@@ -225,6 +271,20 @@ def main() -> int:
         minimum_line_coverage=minimum_line,
         minimum_branch_coverage=minimum_branch,
     )
+    try:
+        summary = render_coverage_summary(
+            totals,
+            minimum_line_coverage=minimum_line,
+            minimum_branch_coverage=minimum_branch,
+        )
+        github_summary = os.environ.get("GITHUB_STEP_SUMMARY")
+        if github_summary:
+            with Path(github_summary).open("a", encoding="utf-8") as stream:
+                stream.write(summary)
+    except (OSError, ValueError) as exc:
+        sys.stderr.write(f"ERROR: cannot write coverage summary: {exc}\n")
+        return 1
+    sys.stdout.write(summary)
     if errors:
         for error in errors:
             sys.stderr.write(f"ERROR: {error}\n")
