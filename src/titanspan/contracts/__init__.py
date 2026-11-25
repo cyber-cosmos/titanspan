@@ -4,7 +4,10 @@ The package re-exports canonical contracts without adding implementations.
 """
 
 from titanspan.contracts.config_repository import ConfigRepository
-from titanspan.contracts.container import AsyncServiceContainer
+from titanspan.contracts.container import (
+    AsyncServiceContainer,
+    InstanceRegistration,
+)
 from titanspan.contracts.support import (
     Arrayable,
     ArrayKey,
@@ -31,6 +34,7 @@ __all__ = [
     "ConfigRepository",
     "DeferringDisplayableValue",
     "Htmlable",
+    "InstanceRegistration",
     "Jsonable",
     "LaravelArrayable",
     "LaravelDeferringDisplayableValue",

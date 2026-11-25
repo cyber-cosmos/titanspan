@@ -9,6 +9,33 @@ from typing import Protocol, runtime_checkable
 
 
 @runtime_checkable
+class InstanceRegistration(Protocol):
+    """Describe an externally constructed value registered by a provider.
+
+    Framework components can contribute application-owned instances without
+    importing a concrete container or dependency-engine provider class.
+    """
+
+    @property
+    def service(self) -> type[object]:
+        """Return the contract key used for dependency resolution.
+
+        Returns:
+            The native service type registered by this provider.
+        """
+        ...
+
+    @property
+    def value(self) -> object:
+        """Return the already constructed application-owned value.
+
+        Returns:
+            The instance supplied to the active application container.
+        """
+        ...
+
+
+@runtime_checkable
 class AsyncServiceContainer(Protocol):
     """Resolve typed services and finalize owned asynchronous resources.
 
@@ -50,4 +77,4 @@ class AsyncServiceContainer(Protocol):
         ...
 
 
-__all__ = ["AsyncServiceContainer"]
+__all__ = ["AsyncServiceContainer", "InstanceRegistration"]

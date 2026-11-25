@@ -9,8 +9,6 @@ from contextlib import AsyncExitStack, asynccontextmanager
 from pathlib import Path
 from uuid import uuid4
 
-from dishka import Provider
-from dishka.integrations.fastapi import setup_dishka
 from fastapi import FastAPI, Request, Response
 from starlette.middleware.base import RequestResponseEndpoint
 
@@ -20,7 +18,10 @@ from titanspan.config import (
     Repository,
     Settings,
 )
-from titanspan.container.container import create_container
+from titanspan.container._backends.fastapi import (
+    create_fastapi_container,
+    setup_fastapi_container,
+)
 from titanspan.facades import Config, Log
 from titanspan.logging import (
     LogCustomizer,
@@ -32,11 +33,11 @@ _REQUEST_ID_MAX_LENGTH = 128
 
 
 class Application:
-    """Compose a FastAPI application and own its Dishka container lifecycle.
+    """Compose an ASGI application and own its dependency lifecycle.
 
-    Use ``asgi`` to access native FastAPI routers, middleware, state, and
-    server integration. Dishka remains responsible for dependency graph
-    resolution and resource finalization.
+    Use ``asgi`` to access FastAPI routers, middleware, state, and server
+    integration. A private adapter integrates application dependencies with
+    the web framework lifecycle.
 
     Attributes:
         asgi: The configured FastAPI application served by an ASGI server.
@@ -56,7 +57,7 @@ class Application:
         base_path: str | Path | None = None,
         config: Mapping[str, object] | None = None,
         settings: Settings | None = None,
-        providers: Sequence[Provider] = (),
+        providers: Sequence[object] = (),
         logging: LoggingConfiguration | Mapping[str, object] | None = None,
         logging_customizers: Mapping[str, LogCustomizer] | None = None,
     ) -> None:
@@ -68,12 +69,13 @@ class Application:
             config: Explicit final bootstrap configuration overrides.
             settings: Validated application settings, or environment-backed
                 values when omitted.
-            providers: Dishka providers that own application dependencies.
+            providers: Advanced integration registrations consumed by the
+                private dependency adapter.
             logging: Optional native logging configuration.
             logging_customizers: Native channel setup hooks keyed by name.
 
         Side Effects:
-            Loads trusted configuration files, creates a Dishka container,
+            Loads trusted configuration files and creates a dependency graph,
             and configures FastAPI integration. Logging resources and the
             container close when ASGI lifespan exits.
         """
@@ -89,7 +91,7 @@ class Application:
             *providers,
             ConfigServiceProvider(config_repository),
         ]
-        container = create_container(application_providers)
+        container = create_fastapi_container(application_providers)
         log_manager = LogManager(
             logging,
             customizers=logging_customizers,
@@ -101,8 +103,8 @@ class Application:
         async def lifespan(_: FastAPI) -> AsyncGenerator[None, None]:
             """Own the container until the host exits the ASGI lifespan.
 
-            Dishka finalizes yielded resources from ``close``. A ``finally``
-            block keeps that cleanup attached to both normal shutdown and
+            The container finalizes yielded resources from ``close``. A
+            ``finally`` block keeps that cleanup attached to normal shutdown and
             exceptions raised while the host is serving the application.
             """
             async with AsyncExitStack() as resources:
@@ -144,7 +146,7 @@ class Application:
             ):
                 return await call_next(request)
 
-        setup_dishka(container=container, app=self.asgi)
+        setup_fastapi_container(container=container, application=self.asgi)
 
     @property
     def settings(self) -> Settings:

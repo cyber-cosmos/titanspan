@@ -10,6 +10,8 @@ The package currently exports:
 
 - `ConfigRepository`, a structural interface for mutable configuration.
 - `AsyncServiceContainer`, a typed async resolution and cleanup interface.
+- `InstanceRegistration`, a native contract for supplying an existing service
+  instance to the active container adapter.
 - Support data and presentation protocols such as `Arrayable`, `Jsonable`,
   `Renderable`, `Responsable`, and `ValidatedData`.
 - Existing canonical Support protocols for HTML values and message bags.
@@ -23,10 +25,9 @@ components remain pending in the [Laravel compatibility inventory](
 These interfaces describe substitution points. Defining a protocol does not
 mean a production implementation or complete framework feature exists.
 The configuration component provides the native `Repository` implementation
-of `ConfigRepository`; application startup binds it under that contract using
-the existing Dishka container. The application still uses Dishka's native
-container API directly, and there is not yet an `AsyncServiceContainer`
-adapter.
+of `ConfigRepository`; application startup registers it through the private
+container adapter. `titanspan.container.Container` implements
+`AsyncServiceContainer` and keeps graph-engine types out of its public API.
 `ConfigRepository.get` accepts either one path or an ordered sequence of
 paths. The concrete Repository also exposes `get_many` and `getMany`, strict
 typed accessors, mapping behavior, and Support macros. Those additions are not

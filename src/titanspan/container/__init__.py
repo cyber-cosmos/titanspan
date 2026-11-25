@@ -1,5 +1,34 @@
-"""Expose the Dishka-backed dependency container integration boundary.
+"""Expose Titanspan's native dependency registration and resolution API.
 
-Dishka resolves graphs and finalizes resources; no competing container engine
-is implemented by Titanspan.
+Keep backend graph and provider types behind the private adapter boundary.
 """
+
+from titanspan.container.binding import Binding, Lifetime, ServiceFactory
+from titanspan.container.container import Container, ContainerScope
+from titanspan.container.decorators import scoped, singleton
+from titanspan.container.exceptions import (
+    BindingError,
+    BindingResolutionError,
+    ContainerClosedError,
+    ContainerError,
+    GraphLimitError,
+    ScopeError,
+)
+from titanspan.container.scope import Scope
+
+__all__ = [
+    "Binding",
+    "BindingError",
+    "BindingResolutionError",
+    "Container",
+    "ContainerClosedError",
+    "ContainerError",
+    "ContainerScope",
+    "GraphLimitError",
+    "Lifetime",
+    "Scope",
+    "ScopeError",
+    "ServiceFactory",
+    "scoped",
+    "singleton",
+]

@@ -17,3 +17,4 @@ for compatibility, maintenance, licensing, and security before use.
 - [0011 — Testing and quality standards](./0011-testing-and-quality-standards)
 - [0012 — Native logging API and private backends](./0012-native-logging)
 - [0013 — Native configuration repository and safe snapshots](./0013-native-configuration)
+- [0014 — Native service container API](./0014-native-container-api)

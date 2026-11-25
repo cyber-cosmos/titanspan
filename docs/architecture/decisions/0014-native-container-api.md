@@ -1,0 +1,75 @@
+# ADR 0014: Native service container API
+
+- Status: Accepted for the current implementation milestone
+- Date: 2026-11-25
+
+## Context
+
+Applications need a Titanspan-owned registration and resolution surface while
+the framework continues to use a mature graph resolver for construction and
+resource cleanup. The first application integration exposed backend provider
+types directly and required every class to be registered before startup.
+
+The new API also needs to resolve concrete typed graphs discovered after the
+container is created. The selected resolver validates a graph at composition
+time and does not document in-place graph mutation. Replacing a live graph
+could invalidate singleton and scoped resources.
+
+The reference behavior is pinned to release `13.44.1` at commit
+`8a8c4a84852869e13190d89f9da873cd9a70f14c`.
+
+## Decision
+
+- Add `titanspan.container.Container`, native binding and lifetime metadata,
+  typed aliases, tags, declarative class lifetime decorators, and asynchronous
+  scope contexts.
+- Keep all direct resolver imports in `container._backends`.
+- Discover constructor type dependencies without creating service instances;
+  pass the resulting class set to the resolver for graph construction.
+- Compose and cache one graph for each newly requested root. Do not rebuild a
+  graph for repeated resolutions of the same root.
+- Keep application graph generations on the container. Keep graph generations
+  discovered inside an execution scope on that scope and close them when the
+  scope exits.
+- Seed tracked shared values into later generations through public context
+  registration APIs. Close newer generations before earlier generations so
+  borrowed values outlive their consumers.
+- Track only the requested root's dependency closure for lazy shared-value
+  capture. Use per-service async locks to preserve shared identity across
+  concurrent graph generations.
+- Resolve uncached application singletons through an application-owned graph
+  before creating a shorter-lived graph that depends on them. This keeps
+  generator-backed singleton cleanup attached to application shutdown.
+- Treat each scope context object as one-shot because it owns closed backend
+  child graphs and cannot safely reopen those resources.
+- Freeze registration after first graph composition. Runtime rebinding,
+  contextual changes, and live overrides are deferred until an explicit safe
+  graph-generation design is tested.
+- Bound retained generations with a configurable default limit of 128.
+- Map semantic execution scope names onto the existing ordered backend scope
+  levels. Document equivalent-level and nesting limitations instead of
+  claiming independent scope trees.
+- Preserve the existing web application integration during this milestone.
+  The native container is not yet the application's single composition root.
+
+## Consequences
+
+Applications can use a typed native API and resolve unregistered concrete
+constructor graphs. Graph composition still validates the whole provider
+graph. Dynamic root graphs are retained for the owning application or scope,
+and the explicit limit prevents unbounded root metadata growth.
+
+The public API includes callable injection, method callback registration, and
+lazy resolver factories. Contextual bindings, primitive injection, custom
+attributes, extensions, callbacks, and safe live rebinding remain pending in
+`docs/specifications/container.md`. The application lifecycle still accepts
+the established integration provider boundary and does not expose `Container`
+as its canonical container.
+
+## Verification required for future changes
+
+Any change to dynamic graph ownership must retain regression tests for
+application singleton identity, overlapping execution scopes, generator
+resource cleanup, concurrent discovery, and cleanup after cancellation. A
+future application integration must use one lifecycle owner for HTTP, direct
+resolution, configuration, and logging services.

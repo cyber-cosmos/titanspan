@@ -1,23 +1,17 @@
-"""Register one application configuration repository with Dishka.
+"""Declare the application configuration repository registration.
 
-The provider exposes the native contract key and leaves graph resolution and
-resource lifecycle handling to the existing container implementation.
+The private container adapter translates this native registration into its
+dependency graph while preserving the repository's contract identity.
 """
-
-from dishka import (
-    Provider,
-    Scope,
-    provide,  # pyright: ignore[reportUnknownVariableType]
-)
 
 from titanspan.contracts.config_repository import ConfigRepository
 
 
-class ConfigServiceProvider(Provider):
+class ConfigServiceProvider:
     """Bind an application-owned repository under its native contract.
 
-    The repository is already constructed by application bootstrap. Returning
-    that same instance ensures facade, container, and FastAPI metadata agree.
+    The repository is already constructed by application bootstrap. The
+    container adapter reuses that instance for graph resolution.
 
     Attributes:
         repository_instance: Repository owned by the current application.
@@ -29,15 +23,23 @@ class ConfigServiceProvider(Provider):
         Args:
             repository: Application-specific contract implementation.
         """
-        super().__init__()
         self.repository_instance = repository
 
-    @provide(scope=Scope.APP, provides=ConfigRepository)
-    def repository(self) -> ConfigRepository:
-        """Provide the already initialized configuration service.
+    @property
+    def service(self) -> type[object]:
+        """Expose the repository contract as a container registration key.
 
         Returns:
-            The repository bound to the current application.
+            The canonical configuration repository contract.
+        """
+        return ConfigRepository
+
+    @property
+    def value(self) -> object:
+        """Expose the initialized repository through a native registration.
+
+        Returns:
+            The repository instance owned by application bootstrap.
         """
         return self.repository_instance
 

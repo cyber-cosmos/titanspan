@@ -16,7 +16,9 @@ from dishka import (
     provide,  # pyright: ignore[reportUnknownVariableType]
 )
 
-from titanspan.container.container import create_container
+from titanspan.config import ConfigServiceProvider, Repository
+from titanspan.container import Container
+from titanspan.container._backends.fastapi import create_fastapi_container
 from titanspan.contracts import ConfigRepository
 
 pytestmark = pytest.mark.integration
@@ -167,7 +169,7 @@ async def test_native_contract_is_a_real_dependency_resolution_key() -> None:
     The test verifies protocol-based registration, value retrieval, and
     container cleanup through the real Dishka dependency graph.
     """
-    container = create_container([ConfigRepositoryProvider()])
+    container = create_fastapi_container([ConfigRepositoryProvider()])
 
     try:
         repository = await container.get(ConfigRepository)
@@ -175,3 +177,20 @@ async def test_native_contract_is_a_real_dependency_resolution_key() -> None:
         assert repository.get("app.name") == "Titanspan"
     finally:
         await container.close()
+
+
+@pytest.mark.anyio
+async def test_native_container_adapts_config_registration() -> None:
+    """Resolve a native config registration through the container facade.
+
+    Exercise container and config components together to verify registration
+    adaptation across the real dependency integration boundary.
+    """
+    repository = Repository({"app": {"name": "Titanspan"}})
+    async with Container(providers=(ConfigServiceProvider(repository),)) as (
+        container
+    ):
+        resolved = await container.make(ConfigRepository)
+
+    assert resolved is repository
+    assert resolved.get("app.name") == "Titanspan"

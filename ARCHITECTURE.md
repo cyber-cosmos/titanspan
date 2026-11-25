@@ -30,7 +30,7 @@ table.
 | Module | Responsibility | Status |
 | --- | --- | --- |
 | `foundation` | Application lifecycle, bootstrapping, kernels, shutdown, and provider lifecycle. | Initial `Application` implemented. |
-| `container` | Dependency injection, bindings, autowiring, scopes, contextual bindings, and resource management. | Dishka adapter implemented. |
+| `container` | Dependency injection, bindings, concrete graph discovery, scopes, and resource management. | Native asynchronous registry and private graph adapter implemented incrementally; see `docs/specifications/container.md`. |
 | `contracts` | Dependency-independent typed protocols and shared abstraction boundaries. | Initial configuration, async container, and Support contracts implemented; many component contracts remain pending. |
 | `support` | Shared utilities, managers, and lightweight helpers. | Selected Laravel-inspired utilities implemented; compatibility inventory is incremental. |
 | `config` | Typed configuration, trusted sources, environment integration, and safe snapshots. | Native repository, settings, source loader, cache, commands, and application provider implemented; see `docs/config/`. |
@@ -96,11 +96,12 @@ only `Application` and `__version__` today.
 
 ## Application lifecycle
 
-`Application` creates a FastAPI application and a Dishka `AsyncContainer` from
-the provided registrations. The caller can include native FastAPI routers via
-`application.asgi`. Dishka's FastAPI integration manages request scopes, and
-the application lifespan closes the app-scoped container in a `finally`
-block.
+`Application` creates a FastAPI application and its existing explicit
+dependency graph from the provided registrations. The caller can include
+native FastAPI routers via `application.asgi`. The web integration manages
+request scopes, and the application lifespan closes the app-scoped graph.
+The native `titanspan.container.Container` API is implemented incrementally;
+it is not yet the `Application` object's single composition root.
 
 ```mermaid
 sequenceDiagram
@@ -125,10 +126,13 @@ builder DSL, service-provider discovery, or implicit module scanning.
 
 ## Service container and execution scopes
 
-Dishka owns graph resolution and resource finalization. Titanspan may later
-provide conventions for transient, application, request, connection, job,
-workflow, node, agent, and tool lifetimes. These are separate execution
-lifecycles, not necessarily one linear scope hierarchy.
+The native container owns registration metadata and task-local scope contexts.
+Its private dependency adapter composes graphs and delegates construction and
+resource finalization. Concrete class graphs can be discovered on demand and
+are cached by root until application or scope shutdown. Registration freezes
+when graph composition starts. The current adapter maps semantic scope names
+onto a finite ordered hierarchy; see the specification for equivalent-level
+and nesting limits.
 
 Application-scoped objects may be shared only when they are safe for concurrent
 use. Mutable sessions and request data belong to narrower scopes. Facades, if
@@ -144,13 +148,13 @@ SQLAlchemy, Taskiq, Cashews, or LangGraph. Keep native library objects
 accessible so users can opt out of a Titanspan convenience API when necessary.
 
 The package-level contracts currently include `ConfigRepository`,
-`AsyncServiceContainer`, and generic Support protocols for array conversion,
-JSON text, rendering, response conversion, and validated data. The native
-`config.Repository` implements the canonical configuration protocol and is
-registered by the application-owned Dishka provider. The async container
-contract remains a protocol; the Dishka adapter retains its own API. Existing
-HTML and message-bag contracts retain their canonical identities and are
-re-exported there. Logging contracts remain owned by
+`AsyncServiceContainer`, `InstanceRegistration`, and generic Support protocols
+for array conversion, JSON text, rendering, response conversion, and validated
+data. The native `config.Repository` implements the canonical configuration
+protocol and is registered through the private graph adapter. The native
+`container.Container` implements the async container protocol. Existing HTML
+and message-bag contracts retain their canonical identities and are re-exported
+there. Logging contracts remain owned by
 `titanspan.logging.contracts` to avoid duplicate types and dependency cycles.
 
 The package dependency order places `titanspan.contracts` below configuration

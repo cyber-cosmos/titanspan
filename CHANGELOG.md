@@ -5,6 +5,14 @@ public release.
 
 ## Unreleased
 
+- Added an incremental native asynchronous container API with typed bindings,
+  application singletons, execution-scoped values, ordered tags, aliases,
+  automatic concrete dependency discovery, bounded graph generations, and
+  synchronous and asynchronous generator cleanup, callable injection, method
+  callback bindings, and declarative class lifetime decorators. Existing web
+  lifecycle integration remains in place; contextual injection, dynamic
+  rebinding, and application composition-root integration remain pending. See
+  `docs/specifications/container.md` and `docs/container/`.
 - Added the native configuration repository, strict typed accessors, trusted
   Python/JSON/TOML source loading, isolated dotenv integration, validated
   settings, application-scoped facade and Dishka contract binding. Added
