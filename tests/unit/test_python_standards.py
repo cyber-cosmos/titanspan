@@ -15,6 +15,29 @@ from scripts.check_python_standards import (
 pytestmark = pytest.mark.unit
 
 
+def _write_source(path: Path, contents: str) -> None:
+    """Write test source without platform-dependent newline translation.
+
+    Args:
+        path: Temporary source file to create.
+        contents: Python source represented with the intended line endings.
+    """
+    path.write_bytes(contents.encode("utf-8"))
+
+
+def test_write_source_preserves_lf_line_endings(tmp_path: Path) -> None:
+    """Keep source fixtures portable across operating systems.
+
+    Newline translation by text-mode file writes must not make tests depend
+    on the host platform's default line ending.
+    """
+    source = tmp_path / "source.py"
+
+    _write_source(source, "first\nsecond\n")
+
+    assert source.read_bytes() == b"first\nsecond\n"
+
+
 def test_validator_accepts_multiline_documented_source(
     tmp_path: Path,
 ) -> None:
@@ -24,7 +47,8 @@ def test_validator_accepts_multiline_documented_source(
     validator checks nested and top-level declarations.
     """
     source = tmp_path / "valid.py"
-    source.write_text(
+    _write_source(
+        source,
         '"""Describe the example module.\n\nMore detail follows.\n"""\n'
         "\n"
         "class Example:\n"
@@ -39,7 +63,6 @@ def test_validator_accepts_multiline_documented_source(
         '    """Build the example.\n\nReturn the documented value.\n'
         '    """\n'
         "    return Example()\n",
-        encoding="utf-8",
     )
 
     assert validate_python_file(source) == []
@@ -55,7 +78,8 @@ def test_validator_rejects_missing_and_single_line_docstrings(
     concise.
     """
     source = tmp_path / "undocumented.py"
-    source.write_text(
+    _write_source(
+        source,
         '"""One-line module description."""\n'
         "\n"
         "def undocumented() -> None:\n"
@@ -64,7 +88,6 @@ def test_validator_rejects_missing_and_single_line_docstrings(
         "def one_line() -> None:\n"
         '    """One-line function description."""\n'
         "    pass\n",
-        encoding="utf-8",
     )
 
     errors = validate_python_file(source)
@@ -83,10 +106,10 @@ def test_validator_rejects_lines_longer_than_eighty_columns(
     """
     source = tmp_path / "long_line.py"
     long_line = "# " + ("x" * 79)
-    source.write_text(
+    _write_source(
+        source,
         '"""Describe the example module.\n\nMore detail follows.\n"""\n'
         f"{long_line}\n",
-        encoding="utf-8",
     )
 
     errors = validate_python_file(source)
@@ -103,11 +126,11 @@ def test_validator_can_check_docblocks_without_line_length(
     separate physical line-length job.
     """
     source = tmp_path / "docblocks.py"
-    source.write_text(
+    _write_source(
+        source,
         '"""Document the module.\n\nMore detail.\n"""\n'
         "# " + ("x" * 90) + "\n"
         "def undocumented() -> None:\n    pass\n",
-        encoding="utf-8",
     )
 
     errors = validate_python_file(
@@ -130,10 +153,7 @@ def test_validator_can_check_line_length_without_docstrings(
     status while retaining the shared strict source policy.
     """
     source = tmp_path / "lines.py"
-    source.write_text(
-        "def undocumented() -> None:\n    pass\n",
-        encoding="utf-8",
-    )
+    _write_source(source, "def undocumented() -> None:\n    pass\n")
 
     errors = validate_python_file(
         source,
@@ -154,7 +174,7 @@ def test_validator_can_parse_syntax_without_other_policies(
     effects because the validator only invokes the Python parser.
     """
     source = tmp_path / "syntax.py"
-    source.write_text("def broken(:\n    pass\n", encoding="utf-8")
+    _write_source(source, "def broken(:\n    pass\n")
 
     errors = validate_python_file(
         source,
