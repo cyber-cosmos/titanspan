@@ -22,14 +22,16 @@ components remain pending in the [Laravel compatibility inventory](
 
 These interfaces describe substitution points. Defining a protocol does not
 mean a production implementation or complete framework feature exists.
-Current settings use Pydantic Settings directly, and the application currently
-uses Dishka's native container directly. There is not yet a production
-`ConfigRepository` implementation or `AsyncServiceContainer` adapter.
+The configuration component provides the native `Repository` implementation
+of `ConfigRepository`; application startup binds it under that contract using
+the existing Dishka container. The application still uses Dishka's native
+container API directly, and there is not yet an `AsyncServiceContainer`
+adapter.
 `ConfigRepository.get` accepts either one path or an ordered sequence of
-paths, matching the upstream repository's single `get` operation for a
-single key or array of keys. It does not add a separate `getMany` method.
-Typed application settings remain the responsibility of Pydantic Settings;
-no extra typed getter API is promised by the repository contract.
+paths. The concrete Repository also exposes `get_many` and `getMany`, strict
+typed accessors, mapping behavior, and Support macros. Those additions are not
+required of every structural implementation. Pydantic Settings remains the
+private validation backend for Titanspan's native `Settings` type.
 
 ## Structural typing
 

@@ -1,7 +1,7 @@
-"""Define the typed contract for mutable application configuration.
+"""Define the dependency-independent configuration repository contract.
 
-The protocol describes repository behavior only. Pydantic Settings remains
-the canonical implementation for Titanspan's current application settings.
+The protocol describes behavior only. Titanspan's native Repository
+implements it, while Pydantic Settings validates typed environment settings.
 """
 
 from collections.abc import Mapping

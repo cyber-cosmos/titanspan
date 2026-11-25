@@ -30,6 +30,7 @@ dependencies = [
     "dishka>=1.6,<2",
     "fastapi>=0.115,<1",
     "pydantic-settings>=2.7,<3",
+    "python-dotenv>=1.0,<2",
     "rich>=13.9,<15",
     "structlog>=26.1,<27",
     "tenacity>=9.1,<10",
@@ -250,6 +251,12 @@ ignore = [
 ]
 "src/titanspan/support/lottery.py" = [
     "N815", # Laravel-compatible aliases intentionally retain camelCase.
+]
+"src/titanspan/config/repository.py" = [
+    "N815", # Preserve the Laravel-compatible getMany repository alias.
+]
+"src/titanspan/facades/config.py" = [
+    "N815", # Preserve the Laravel-compatible getMany facade alias.
 ]
 "src/titanspan/support/timebox.py" = [
     "N802", # Preserve the Laravel-compatible earlyReturn property.

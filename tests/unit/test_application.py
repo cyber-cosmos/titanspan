@@ -4,10 +4,12 @@ Environment parsing is isolated here; ASGI and dependency lifecycle behavior
 is covered by the integration suite.
 """
 
-import pytest
-from pydantic import ValidationError
+from pathlib import Path
 
-from titanspan.config import Settings
+import pytest
+
+from titanspan.config import Settings, SettingsValidationError
+from titanspan.foundation import Application
 
 pytestmark = pytest.mark.unit
 
@@ -35,5 +37,19 @@ def test_settings_reject_invalid_boolean_values(
     """
     monkeypatch.setenv("TITANSPAN_DEBUG", "sometimes")
 
-    with pytest.raises(ValidationError):
+    with pytest.raises(SettingsValidationError):
         Settings()
+
+
+def test_application_exposes_its_typed_settings_lazily(
+    tmp_path: Path,
+) -> None:
+    """Expose the exact Settings instance used during bootstrap.
+
+    Args:
+        tmp_path: Isolated temporary directory for application sources.
+    """
+    settings = Settings(app_name="Configured")
+    application = Application(base_path=tmp_path, settings=settings)
+
+    assert application.settings is settings

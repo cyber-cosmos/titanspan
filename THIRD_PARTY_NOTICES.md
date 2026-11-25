@@ -2,8 +2,8 @@
 
 ## Laravel framework
 
-Titanspan's Support API inventory and selected behavior are informed by
-Laravel framework `v13.44.1`, commit
+Titanspan's Support, Contracts, Logging, and Configuration API inventories
+and selected behavior are informed by Laravel framework `v13.44.1`, commit
 `8a8c4a84852869e13190d89f9da873cd9a70f14c`:
 
 <https://github.com/laravel/framework/tree/8a8c4a84852869e13190d89f9da873cd9a70f14c>
@@ -74,3 +74,10 @@ package is distributed under LGPL-2.1; see the
 Titanspan delegates bounded retry execution to Tenacity 9.2.1. No Tenacity
 source code is copied into Titanspan. Tenacity is distributed under the
 Apache License 2.0; see the [official Tenacity 9.2.1 license](https://github.com/jd/tenacity/blob/9.2.1/LICENSE).
+
+## python-dotenv
+
+Titanspan uses python-dotenv 1.2.4 to read dotenv values without mutating
+the process environment. No python-dotenv source code is copied into
+Titanspan. The package is distributed under the BSD 3-Clause License; see
+the [official python-dotenv 1.2.4 license](https://github.com/theskumar/python-dotenv/blob/v1.2.4/LICENSE).

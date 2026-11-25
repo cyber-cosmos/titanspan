@@ -2,6 +2,7 @@
 .env
 .env.*
 !.env.example
+bootstrap/cache/config.json
 __pycache__/
 *.py[cod]
 *.egg-info/

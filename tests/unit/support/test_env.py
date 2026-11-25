@@ -21,6 +21,7 @@ if TYPE_CHECKING:
 _REQUIRED_ENV_ERROR_PATTERN = (
     r"Environment variable \[TITANSPAN_REQUIRED_VALUE\] has no value\."
 )
+_SCOPE_FAILURE = "scope failure"
 
 
 @pytest.fixture(autouse=True)
@@ -512,3 +513,33 @@ def test_required_read_rejects_invalid_repository_values(
     monkeypatch.setattr(Env, "get", classmethod(invalid_get))
     with pytest.raises(TypeError, match="must be a string or boolean"):
         Env.get_or_fail("APP_VALUE")
+
+
+@pytest.mark.unit
+def test_using_scopes_an_environment_mapping_and_restores_after_failure(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Expose file-backed values only within a restored context scope.
+
+    Args:
+        monkeypatch: Fixture that restores process environment changes.
+
+    Returns:
+        None.
+    """
+    monkeypatch.delenv("TITANSPAN_SCOPED_ENV", raising=False)
+
+    def fail_within_environment_scope() -> None:
+        """Raise after observing the scoped environment value.
+
+        Returns:
+            None.
+        """
+        with Env.using({"TITANSPAN_SCOPED_ENV": "file-value"}):
+            assert Env.get("TITANSPAN_SCOPED_ENV") == "file-value"
+            raise RuntimeError(_SCOPE_FAILURE)
+
+    with pytest.raises(RuntimeError, match=_SCOPE_FAILURE):
+        fail_within_environment_scope()
+
+    assert Env.get("TITANSPAN_SCOPED_ENV") is None

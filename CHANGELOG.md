@@ -5,6 +5,14 @@ public release.
 
 ## Unreleased
 
+- Added the native configuration repository, strict typed accessors, trusted
+  Python/JSON/TOML source loading, isolated dotenv integration, validated
+  settings, application-scoped facade and Dishka contract binding. Added
+  secret-safe configuration inspection, atomic JSON caching, and config CLI
+  commands. See `docs/config/` and the Laravel compatibility inventory.
+- Projected explicitly supplied custom settings fields into configuration
+  paths, preserving nested sibling values and file precedence for unset
+  defaults.
 - Added dependency-independent contracts for mutable configuration, typed
   asynchronous service resolution, and generic Support data/presentation
   interfaces. Existing HTML and message-bag contract identities remain

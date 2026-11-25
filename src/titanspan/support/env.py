@@ -10,7 +10,8 @@ from __future__ import annotations
 import math
 import os
 import re
-from collections.abc import Callable, Mapping
+from collections.abc import Callable, Generator, Mapping
+from contextlib import contextmanager
 from contextvars import ContextVar
 from dataclasses import dataclass, replace
 from pathlib import Path
@@ -39,6 +40,33 @@ _ENV_OVERWRITE_TYPE_ERROR = "overwrite must be a boolean"
 _ENV_VALUE_RETURN_ERROR = "environment value must be a string or boolean"
 
 
+def _snapshot_environment_mapping(
+    factory: EnvironmentAdapter,
+) -> Mapping[str, str | None]:
+    """Create and validate an immutable environment adapter snapshot.
+
+    Args:
+        factory: Callback that returns one environment mapping.
+
+    Returns:
+        An immutable copy of the adapter's key-value pairs.
+
+    Raises:
+        TypeError: If values are not strings or a string mapping.
+    """
+    values = factory()
+    if not isinstance(cast("object", values), Mapping):
+        raise TypeError(_ENV_ADAPTER_ERROR)
+    snapshot: dict[str, str | None] = {}
+    for key, value in values.items():
+        if not isinstance(cast("object", key), str) or (
+            value is not None and not isinstance(cast("object", value), str)
+        ):
+            raise TypeError(_ENV_ADAPTER_ERROR)
+        snapshot[key] = value
+    return MappingProxyType(snapshot)
+
+
 class _EnvironmentRepository:
     """Read process values before configured custom mappings.
 
@@ -63,7 +91,7 @@ class _EnvironmentRepository:
         """
         self._use_process_environment = use_process_environment
         self._adapters = tuple(
-            self._snapshot_adapter(adapter) for adapter in adapters
+            _snapshot_environment_mapping(adapter) for adapter in adapters
         )
 
     def get(self, key: str) -> str | None:
@@ -84,33 +112,6 @@ class _EnvironmentRepository:
             if value is not None:
                 return value
         return None
-
-    @staticmethod
-    def _snapshot_adapter(
-        factory: EnvironmentAdapter,
-    ) -> Mapping[str, str | None]:
-        """Create and validate an immutable adapter mapping.
-
-        Args:
-            factory: A callback that produces one adapter mapping.
-
-        Returns:
-            An immutable copy of the adapter's key-value pairs.
-
-        Raises:
-            TypeError: If the factory or its mapping values are invalid.
-        """
-        values = factory()
-        if not isinstance(cast("object", values), Mapping):
-            raise TypeError(_ENV_ADAPTER_ERROR)
-        snapshot: dict[str, str | None] = {}
-        for key, value in values.items():
-            if not isinstance(cast("object", key), str) or (
-                value is not None and not isinstance(cast("object", value), str)
-            ):
-                raise TypeError(_ENV_ADAPTER_ERROR)
-            snapshot[key] = value
-        return MappingProxyType(snapshot)
 
 
 @dataclass(frozen=True, slots=True)
@@ -258,6 +259,52 @@ class Env:
         )
         _ENV_STATE.set(replace(state, repository=repository))
         return repository
+
+    @classmethod
+    @contextmanager
+    def using(
+        cls,
+        values: Mapping[str, str | None],
+    ) -> Generator[None, None, None]:
+        """Add a copied environment source for one execution scope.
+
+        Process values retain precedence over the supplied mapping. The
+        ContextVar token restores the prior adapter set after failures and
+        asynchronous cancellation.
+
+        Args:
+            values: Environment file or test mapping to expose temporarily.
+
+        Yields:
+            Control while the mapping is active.
+
+        Raises:
+            TypeError: If the mapping contains non-string keys or values.
+        """
+        snapshot = _snapshot_environment_mapping(lambda: values)
+
+        def scoped_adapter() -> Mapping[str, str | None]:
+            """Return the immutable mapping captured at scope entry.
+
+            Returns:
+                A validated environment snapshot.
+            """
+            return snapshot
+
+        state = _environment_state()
+        scoped_state = replace(
+            state,
+            adapter_factories=(
+                *state.adapter_factories,
+                (None, scoped_adapter),
+            ),
+            repository=None,
+        )
+        token = _ENV_STATE.set(scoped_state)
+        try:
+            yield
+        finally:
+            _ENV_STATE.reset(token)
 
     @classmethod
     def get(

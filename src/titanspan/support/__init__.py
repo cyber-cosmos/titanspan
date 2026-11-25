@@ -39,6 +39,7 @@ from titanspan.support.forwards_calls import ForwardsCalls
 from titanspan.support.helpers import (
     HigherOrderTapProxy,
     blank,
+    config,
     data_fill,
     data_forget,
     data_get,
@@ -125,6 +126,7 @@ __all__ = [
     "UriQueryString",
     "UriUrlGenerator",
     "blank",
+    "config",
     "data_fill",
     "data_forget",
     "data_get",

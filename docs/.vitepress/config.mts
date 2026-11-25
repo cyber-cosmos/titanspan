@@ -46,6 +46,29 @@ export default defineConfig({
         ],
       },
       {
+        text: "Configuration",
+        items: [
+          { text: "Overview", link: "/config/" },
+          { text: "Repository", link: "/config/repository" },
+          { text: "Environment", link: "/config/environment" },
+          {
+            text: "Configuration files",
+            link: "/config/configuration-files",
+          },
+          { text: "Typed settings", link: "/config/typed-settings" },
+          { text: "Precedence", link: "/config/precedence" },
+          { text: "Package defaults", link: "/config/package-defaults" },
+          { text: "Caching and commands", link: "/config/caching" },
+          { text: "Overrides", link: "/config/overrides" },
+          { text: "Testing", link: "/config/testing" },
+          { text: "Security", link: "/config/security" },
+          {
+            text: "Laravel compatibility",
+            link: "/compatibility/laravel-config",
+          },
+        ],
+      },
+      {
         text: "Logging",
         items: [
           { text: "Overview", link: "/logging/" },

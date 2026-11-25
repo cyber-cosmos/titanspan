@@ -483,12 +483,12 @@ The inventory covers every namespace directory in the pinned source tree:
 
 | Upstream interface/API | Parameters and return semantics | Titanspan equivalent and owner | Status | Evidence and differences | Source |
 | --- | --- | --- | --- | --- | --- |
-| <code>has($key) -&gt; bool</code> | Parameters: <code>$key</code>: <code>string</code>. Return contract: <code>bool</code>. | <code>titanspan.contracts.config_repository.has</code> | **Contract defined, implementation pending** | No production repository implementation exists; Pydantic Settings remains the current application settings boundary. Test evidence: tests/unit/contracts/test_contracts.py. | [source](https://github.com/laravel/framework/blob/8a8c4a84852869e13190d89f9da873cd9a70f14c/src/Illuminate/Contracts/Config/Repository.php) |
-| <code>get($key, $default = null) -&gt; mixed</code> | Parameters: <code>$key</code>: <code>array&#124;string</code>. Return contract: <code>mixed</code>. | <code>titanspan.contracts.config_repository.get</code> | **Contract defined, implementation pending** | No production repository implementation exists; Pydantic Settings remains the current application settings boundary. Test evidence: tests/unit/contracts/test_contracts.py. | [source](https://github.com/laravel/framework/blob/8a8c4a84852869e13190d89f9da873cd9a70f14c/src/Illuminate/Contracts/Config/Repository.php) |
-| <code>all() -&gt; array&lt;string, mixed&gt;</code> | Parameters: none. Return contract: <code>array&lt;string, mixed&gt;</code>. | <code>titanspan.contracts.config_repository.all</code> | **Contract defined, implementation pending** | No production repository implementation exists; Pydantic Settings remains the current application settings boundary. Test evidence: tests/unit/contracts/test_contracts.py. | [source](https://github.com/laravel/framework/blob/8a8c4a84852869e13190d89f9da873cd9a70f14c/src/Illuminate/Contracts/Config/Repository.php) |
-| <code>set($key, $value = null) -&gt; void</code> | Parameters: <code>$key</code>: <code>array&#124;string</code>. Return contract: <code>void</code>. | <code>titanspan.contracts.config_repository.set</code> | **Contract defined, implementation pending** | No production repository implementation exists; Pydantic Settings remains the current application settings boundary. Test evidence: tests/unit/contracts/test_contracts.py. | [source](https://github.com/laravel/framework/blob/8a8c4a84852869e13190d89f9da873cd9a70f14c/src/Illuminate/Contracts/Config/Repository.php) |
-| <code>prepend($key, $value) -&gt; void</code> | Parameters: <code>$key</code>: <code>string</code>. Return contract: <code>void</code>. | <code>titanspan.contracts.config_repository.prepend</code> | **Contract defined, implementation pending** | No production repository implementation exists; Pydantic Settings remains the current application settings boundary. Test evidence: tests/unit/contracts/test_contracts.py. | [source](https://github.com/laravel/framework/blob/8a8c4a84852869e13190d89f9da873cd9a70f14c/src/Illuminate/Contracts/Config/Repository.php) |
-| <code>push($key, $value) -&gt; void</code> | Parameters: <code>$key</code>: <code>string</code>. Return contract: <code>void</code>. | <code>titanspan.contracts.config_repository.push</code> | **Contract defined, implementation pending** | No production repository implementation exists; Pydantic Settings remains the current application settings boundary. Test evidence: tests/unit/contracts/test_contracts.py. | [source](https://github.com/laravel/framework/blob/8a8c4a84852869e13190d89f9da873cd9a70f14c/src/Illuminate/Contracts/Config/Repository.php) |
+| <code>has($key) -&gt; bool</code> | Parameters: <code>$key</code>: <code>string</code>. Return contract: <code>bool</code>. | <code>titanspan.contracts.config_repository.has</code> | **Verified implementation** | Native Repository conforms to the protocol and is behavior-tested. Test evidence: tests/unit/contracts/test_contracts.py and tests/unit/config/test_repository.py. | [source](https://github.com/laravel/framework/blob/8a8c4a84852869e13190d89f9da873cd9a70f14c/src/Illuminate/Contracts/Config/Repository.php) |
+| <code>get($key, $default = null) -&gt; mixed</code> | Parameters: <code>$key</code>: <code>array&#124;string</code>. Return contract: <code>mixed</code>. | <code>titanspan.contracts.config_repository.get</code> | **Verified implementation** | Native Repository conforms to the protocol and is behavior-tested. Test evidence: tests/unit/contracts/test_contracts.py and tests/unit/config/test_repository.py. | [source](https://github.com/laravel/framework/blob/8a8c4a84852869e13190d89f9da873cd9a70f14c/src/Illuminate/Contracts/Config/Repository.php) |
+| <code>all() -&gt; array&lt;string, mixed&gt;</code> | Parameters: none. Return contract: <code>array&lt;string, mixed&gt;</code>. | <code>titanspan.contracts.config_repository.all</code> | **Verified implementation** | Native Repository conforms to the protocol and is behavior-tested. Test evidence: tests/unit/contracts/test_contracts.py and tests/unit/config/test_repository.py. | [source](https://github.com/laravel/framework/blob/8a8c4a84852869e13190d89f9da873cd9a70f14c/src/Illuminate/Contracts/Config/Repository.php) |
+| <code>set($key, $value = null) -&gt; void</code> | Parameters: <code>$key</code>: <code>array&#124;string</code>. Return contract: <code>void</code>. | <code>titanspan.contracts.config_repository.set</code> | **Verified implementation** | Native Repository conforms to the protocol and is behavior-tested. Test evidence: tests/unit/contracts/test_contracts.py and tests/unit/config/test_repository.py. | [source](https://github.com/laravel/framework/blob/8a8c4a84852869e13190d89f9da873cd9a70f14c/src/Illuminate/Contracts/Config/Repository.php) |
+| <code>prepend($key, $value) -&gt; void</code> | Parameters: <code>$key</code>: <code>string</code>. Return contract: <code>void</code>. | <code>titanspan.contracts.config_repository.prepend</code> | **Verified implementation** | Native Repository conforms to the protocol and is behavior-tested. Test evidence: tests/unit/contracts/test_contracts.py and tests/unit/config/test_repository.py. | [source](https://github.com/laravel/framework/blob/8a8c4a84852869e13190d89f9da873cd9a70f14c/src/Illuminate/Contracts/Config/Repository.php) |
+| <code>push($key, $value) -&gt; void</code> | Parameters: <code>$key</code>: <code>string</code>. Return contract: <code>void</code>. | <code>titanspan.contracts.config_repository.push</code> | **Verified implementation** | Native Repository conforms to the protocol and is behavior-tested. Test evidence: tests/unit/contracts/test_contracts.py and tests/unit/config/test_repository.py. | [source](https://github.com/laravel/framework/blob/8a8c4a84852869e13190d89f9da873cd9a70f14c/src/Illuminate/Contracts/Config/Repository.php) |
 
 ### `Illuminate\Contracts\Console\Application`
 
@@ -2019,8 +2019,8 @@ The source tree also contains concrete exception and helper classes. They are in
 - Concrete class declarations: **11**.
 - Exact behavioural compatibility: **0** methods.
 - Python-adapted compatibility: **16** methods.
-- Verified implementation: **0** methods.
-- Contract defined, implementation pending: **11** methods.
+- Verified implementation: **6** methods.
+- Contract defined, implementation pending: **5** methods.
 - Blocked: **363** methods.
 - Not applicable: **0** methods.
 - Pending: **174** methods.
@@ -2045,13 +2045,12 @@ The denominator includes only methods declared directly by upstream interfaces. 
 
 ## Ownership and implementation policy
 
-Titanspan's current canonical contracts remain dependency-independent. The Support, configuration, and container protocols are declared in `src/titanspan/contracts/`; Logging contracts remain owned by `src/titanspan/logging/contracts/` to avoid a duplicate identity or a dependency cycle. Dishka remains the current container engine, and Pydantic Settings remains the current typed settings boundary. Neither is represented as a complete implementation of its Laravel contract.
+Titanspan's current canonical contracts remain dependency-independent. The Support, configuration, and container protocols are declared in `src/titanspan/contracts/`; Logging contracts remain owned by `src/titanspan/logging/contracts/` to avoid a duplicate identity or a dependency cycle. Dishka remains the current container engine, while the native configuration Repository implements the canonical ConfigRepository contract. Pydantic Settings stays private to typed settings validation. The async container protocol still has no adapter.
 
 The Laravel framework is the API reference, not an affiliation or runtime dependency. Python naming, asynchronous resolution, mapping semantics, and application-owned HTTP request/response types are documented adaptations. The full API inventory may contain future work, but pending rows are not supported Titanspan APIs.
 
 The upstream configuration contract uses `get` for either one string key or
 an array of keys; it does not declare a separate `getMany` method. Titanspan
-models the multi-key form as an overload accepting a list or tuple. Typed
-settings continue to use Pydantic Settings, so the initial repository protocol
-does not add unimplemented string, integer, float, boolean, or collection
-getter methods.
+models the multi-key form as an overload accepting a list or tuple. The
+concrete configuration Repository adds strict string, integer, float,
+boolean, and array accessors; the minimal protocol does not require them.

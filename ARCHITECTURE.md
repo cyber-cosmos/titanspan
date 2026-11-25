@@ -8,10 +8,11 @@ testing experience. Mature libraries provide the underlying web server,
 dependency resolution, persistence, and workflow execution.
 
 The current package is intentionally small. The implemented foundation is a
-FastAPI-backed ASGI application, a Dishka async container, Pydantic Settings,
-a Typer CLI, selected Support utilities, and an initial native logging
-component. Other modules below remain planned boundaries unless marked as
-implemented in the table.
+FastAPI-backed ASGI application, a Dishka async container, a native
+configuration repository with Pydantic Settings validation, a Typer CLI,
+selected Support utilities, and an initial native logging component. Other
+modules below remain planned boundaries unless marked as implemented in the
+table.
 
 ## Architectural principles
 
@@ -32,8 +33,8 @@ implemented in the table.
 | `container` | Dependency injection, bindings, autowiring, scopes, contextual bindings, and resource management. | Dishka adapter implemented. |
 | `contracts` | Dependency-independent typed protocols and shared abstraction boundaries. | Initial configuration, async container, and Support contracts implemented; many component contracts remain pending. |
 | `support` | Shared utilities, managers, and lightweight helpers. | Selected Laravel-inspired utilities implemented; compatibility inventory is incremental. |
-| `config` | Typed configuration, environment variables, and configuration repositories. | Initial `Settings` implemented. |
-| `facades` | Context-aware access to container-managed services. | Explicit execution-local `Log` facade implemented; other facades planned. |
+| `config` | Typed configuration, trusted sources, environment integration, and safe snapshots. | Native repository, settings, source loader, cache, commands, and application provider implemented; see `docs/config/`. |
+| `facades` | Context-aware access to application-owned services. | Execution-local `Config` and `Log` facades implemented. |
 | `routing` | Fluent routing, route groups, controllers, and workflow endpoints. | Planned; FastAPI routers remain directly accessible. |
 | `http` | HTTP requests, responses, middleware, and fluent HTTP clients. | Planned. |
 | `auth` | Authentication, authorization, guards, gates, and policies. | Planned. |
@@ -144,12 +145,12 @@ accessible so users can opt out of a Titanspan convenience API when necessary.
 
 The package-level contracts currently include `ConfigRepository`,
 `AsyncServiceContainer`, and generic Support protocols for array conversion,
-JSON text, rendering, response conversion, and validated data. Existing HTML
-and message-bag contracts retain their canonical identities and are re-exported
-there. These protocols are not implementations: current settings remain
-Pydantic Settings values and `Application` still uses Dishka directly. In
-particular, no production config repository or `AsyncServiceContainer` adapter
-is currently provided. Logging contracts remain owned by
+JSON text, rendering, response conversion, and validated data. The native
+`config.Repository` implements the canonical configuration protocol and is
+registered by the application-owned Dishka provider. The async container
+contract remains a protocol; the Dishka adapter retains its own API. Existing
+HTML and message-bag contracts retain their canonical identities and are
+re-exported there. Logging contracts remain owned by
 `titanspan.logging.contracts` to avoid duplicate types and dependency cycles.
 
 The package dependency order places `titanspan.contracts` below configuration
@@ -158,6 +159,12 @@ facilities and do not import optional database, AI, queue, or storage adapters.
 The full pinned Laravel namespace and method inventory, including inherited
 surfaces and intentionally deferred APIs, is in
 [`docs/compatibility/laravel-contracts.md`](docs/compatibility/laravel-contracts.md).
+
+Configuration source precedence and security boundaries are recorded in
+[ADR 0013](docs/architecture/decisions/0013-native-configuration.md). The
+Pydantic Settings backend stays private; trusted file loading, source
+precedence, secret-safe diagnostics, and JSON cache behavior are owned by
+Titanspan.
 
 An adapter should not duplicate the library's engine, query compiler, worker
 system, or execution runtime. Add a contract only when it enables a real

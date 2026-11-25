@@ -50,6 +50,8 @@ from titanspan.support.exceptions import (
 if TYPE_CHECKING:
     from concurrent.futures import Future
 
+    from titanspan.contracts.config_repository import ConfigRepository
+
 T = TypeVar("T")
 R = TypeVar("R")
 D = TypeVar("D")
@@ -390,6 +392,71 @@ def env(key: str, default: object = None) -> object:
         The normalized environment value or its resolved default.
     """
     return Env.get(key, default)
+
+
+@overload
+def config() -> ConfigRepository:
+    """Describe retrieval of the active configuration repository.
+
+    Returns:
+        The repository bound to the active application context.
+    """
+
+
+@overload
+def config(key: Mapping[str, object]) -> None:
+    """Describe batch configuration mutation.
+
+    Args:
+        key: Dotted paths and values to assign.
+
+    Returns:
+        ``None`` after applying the configuration values.
+    """
+
+
+@overload
+def config(key: str, default: object = None) -> object:
+    """Describe a single configuration lookup.
+
+    Args:
+        key: Dotted configuration path.
+        default: Value returned when the path is absent.
+
+    Returns:
+        The stored value or fallback.
+    """
+
+
+def config(
+    key: str | Mapping[str, object] | None = None,
+    default: object = None,
+) -> ConfigRepository | object | None:
+    """Read or mutate the repository bound to the active application.
+
+    With no argument, return the canonical repository. A string reads one
+    value, and a mapping applies a batch update. The helper never creates a
+    process-global configuration store.
+
+    Args:
+        key: Optional dotted path or batch of dotted path assignments.
+        default: Value returned when a requested path is absent.
+
+    Returns:
+        The repository, a configured value, or ``None`` after mutation.
+
+    Raises:
+        ConfigContextError: If no application or test context is active.
+    """
+    # Resolve lazily to keep Support imports independent of config bootstrap.
+    from titanspan.facades.config import Config  # noqa: PLC0415
+
+    if key is None:
+        return Config.repository()
+    if isinstance(key, Mapping):
+        Config.set(key)
+        return None
+    return Config.get(key, default)
 
 
 def retry[T](
@@ -1526,6 +1593,7 @@ def _reject_awaitable(result: object, context: str) -> None:
 __all__ = [
     "HigherOrderTapProxy",
     "blank",
+    "config",
     "data_fill",
     "data_forget",
     "data_get",
