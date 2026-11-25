@@ -61,6 +61,7 @@ from titanspan.support.helpers import (
     with_,
 )
 from titanspan.support.html_string import HtmlString
+from titanspan.support.interacts_with_time import InteractsWithTime
 from titanspan.support.lottery import Lottery
 from titanspan.support.macroable import Macroable
 from titanspan.support.message_bag import MessageBag
@@ -91,6 +92,7 @@ __all__ = [
     "ForwardsCalls",
     "HigherOrderTapProxy",
     "HtmlString",
+    "InteractsWithTime",
     "InvalidMacroCallbackError",
     "InvalidMacroNameError",
     "InvalidNumberParseTypeError",

@@ -1,10 +1,46 @@
 # Timing and execution utilities
 
-Titanspan provides `Benchmark`, `Lottery`, and `Timebox` for measuring
-callables, choosing deterministic or probability-based outcomes, and
-enforcing a minimum operation duration. Benchmarking and random draws use
-the standard library. The asynchronous timebox uses the framework's AnyIO
-dependency for backend-neutral cancellation-aware waiting.
+Titanspan provides `Benchmark`, `InteractsWithTime`, `Lottery`, and `Timebox`
+for measuring callables, calculating deadlines, choosing deterministic or
+probability-based outcomes, and enforcing a minimum operation duration.
+Benchmarking and random draws use the standard library. The asynchronous
+timebox uses AnyIO for backend-neutral cancellation-aware waiting.
+
+## Deadline calculations
+
+`InteractsWithTime` supplies whole-second Unix deadlines for integer delays,
+aware datetimes, and `timedelta` values. Override `_now_datetime` in a
+subclass to provide a deterministic clock:
+
+```python
+from datetime import UTC, datetime
+
+from titanspan.support import InteractsWithTime
+
+
+class FixedClock(InteractsWithTime):
+    """Provide an explicit instant for deadline calculations."""
+
+    def _now_datetime(self) -> datetime:
+        """Return the fixed UTC instant for this example."""
+        return datetime(2026, 1, 1, tzinfo=UTC)
+
+
+clock = FixedClock()
+deadline = datetime.fromtimestamp(clock.available_at(60), UTC)
+assert clock.seconds_until(deadline) == 60
+```
+
+Naive datetimes are rejected to avoid host-local timezone assumptions.
+Python's `timedelta` has no calendar months; human-readable formatting uses
+the Carbon default cascade of four weeks per month and twelve months per
+year. The compatibility methods `secondsUntil`, `availableAt`,
+`parseDateInterval`, `currentTime`, and `runTimeForHumans` are also available.
+Boolean delays normalize to integer seconds for compatibility.
+
+`run_time_for_humans` follows the upstream wall-clock timestamp contract.
+For new duration measurements, prefer a monotonic clock such as
+`time.perf_counter`.
 
 ## Benchmark
 
@@ -126,4 +162,4 @@ iteration counts must be positive.
 The class and method mapping, behavior differences, pinned Laravel source,
 and test evidence are recorded in the [compatibility inventory](/compatibility/laravel-support).
 Focused tests are in `tests/unit/support/test_benchmark.py`,
-`test_lottery.py`, and `test_timebox.py`.
+`test_interacts_with_time.py`, `test_lottery.py`, and `test_timebox.py`.

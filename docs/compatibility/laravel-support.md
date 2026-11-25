@@ -12,7 +12,7 @@ The baseline is pinned to an immutable commit rather than the moving `13.x` bran
 
 ## Inventory scope and measurement
 
-The source scan accounts for **147 declared symbols** and **4053 member entries**: 4025 public methods, facade `@method` proxies, and namespace-level helper functions; 13 public constants; 12 public properties; and 3 protected trait methods included in the trait inventory. Each member is listed below. The scan covers Support, Collections, Macroable, Conditionable, Reflection, and Contracts/Support source trees so cross-package ownership remains visible.
+The source scan accounts for **147 declared symbols** and **4058 member entries**: 4025 public methods, facade `@method` proxies, and namespace-level helper functions; 13 public constants; 12 public properties; and 8 protected trait methods included in the trait inventory. Each member is listed below. The scan covers Support, Collections, Macroable, Conditionable, Reflection, and Contracts/Support source trees so cross-package ownership remains visible.
 
 This source scan is not a complete PHP reflection dump. Inherited methods not declared or documented on a symbol are not expanded into a separate row, and PHPDoc parameter and return signatures are not normalized yet. Those inherited surfaces and signatures remain audit work; the compatibility percentage below is a lower bound over listed entries, not a claim that the entire Illuminate ecosystem is covered.
 
@@ -30,12 +30,12 @@ A method is not counted as compatible because it has a similarly named Python me
 ## Measured status
 
 - Exact behavioural parity: 0.
-- Python-adapted parity: 445.
+- Python-adapted parity: 450.
 - Delegated: 0.
 - Blocked: 3141.
 - Not applicable: 32.
 - Pending: 435.
-- Verified compatibility: 445/4053 listed member entries (10.98%).
+- Verified compatibility: 450/4058 listed member entries (11.09%).
 
 For the timing utilities in this implementation slice, behavior was checked
 against the pinned upstream tests for [Benchmark](https://github.com/laravel/framework/blob/8a8c4a84852869e13190d89f9da873cd9a70f14c/tests/Support/SupportBenchmarkTest.php),
@@ -57,6 +57,10 @@ and the translated cases in its
 [ForwardsCalls tests](https://github.com/laravel/framework/blob/8a8c4a84852869e13190d89f9da873cd9a70f14c/tests/Support/ForwardsCallsTest.php).
 The Python tests cover direct and nested forwarding, fluent target identity,
 missing method diagnostics, and preservation of errors from real target code.
+Time calculations follow the pinned
+[InteractsWithTime trait source](https://github.com/laravel/framework/blob/8a8c4a84852869e13190d89f9da873cd9a70f14c/src/Illuminate/Support/InteractsWithTime.php).
+Its use of Carbon interval formatting is adapted with the default cascade
+documented in [Carbon's interval guide](https://carbon.nesbot.com/guide/specialized-use/carbon-interval.html).
 
 ## Method-level inventory
 
@@ -3762,11 +3766,15 @@ missing method diagnostics, and preservation of errors from real target code.
 </details>
 
 <details>
-<summary>Illuminate\Support\InteractsWithTime — 0 listed public members (trait)</summary>
+<summary>Illuminate\Support\InteractsWithTime — 5 listed protected members (trait)</summary>
 
 | Upstream class | Upstream API | Titanspan API | Implementation location | Compatibility status | Test evidence | Differences | Upstream reference |
 |---|---|---|---|---|---|---|---|
-| `Illuminate\Support\InteractsWithTime` | Public type declaration | — | Not implemented | | Pending | — | No public members were found by the source scan. | [source][source-83] |
+| `Illuminate\Support\InteractsWithTime` | `secondsUntil()` | `InteractsWithTime.seconds_until / InteractsWithTime.secondsUntil` | `src/titanspan/support/interacts_with_time.py` | **Python-adapted parity** | `tests/unit/support/test_interacts_with_time.py` | Accepts aware `datetime`, `timedelta`, or integer seconds. Datetime delays are clamped at zero; integer delays are returned unchanged. | [source][source-83] |
+| `Illuminate\Support\InteractsWithTime` | `availableAt()` | `InteractsWithTime.available_at / InteractsWithTime.availableAt` | `src/titanspan/support/interacts_with_time.py` | **Python-adapted parity** | `tests/unit/support/test_interacts_with_time.py` | Returns whole Unix seconds; aware datetimes are absolute and durations use an injectable UTC clock. | [source][source-83] |
+| `Illuminate\Support\InteractsWithTime` | `parseDateInterval()` | `InteractsWithTime.parse_date_interval / InteractsWithTime.parseDateInterval` | `src/titanspan/support/interacts_with_time.py` | **Python-adapted parity** | `tests/unit/support/test_interacts_with_time.py` | Uses `timedelta` for intervals and normalizes booleans to integer seconds; naive datetimes and other unsupported runtime values raise errors. | [source][source-83] |
+| `Illuminate\Support\InteractsWithTime` | `currentTime()` | `InteractsWithTime.current_time / InteractsWithTime.currentTime` | `src/titanspan/support/interacts_with_time.py` | **Python-adapted parity** | `tests/unit/support/test_interacts_with_time.py` | Returns whole Unix seconds from an aware UTC clock hook. | [source][source-83] |
+| `Illuminate\Support\InteractsWithTime` | `runTimeForHumans()` | `InteractsWithTime.run_time_for_humans / InteractsWithTime.runTimeForHumans` | `src/titanspan/support/interacts_with_time.py` | **Python-adapted parity** | `tests/unit/support/test_interacts_with_time.py` | Uses English short units and Carbon's 4-week month cascade; sub-second values use grouped, half-up millisecond formatting. | [source][source-83] |
 
 </details>
 

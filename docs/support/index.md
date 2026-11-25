@@ -24,8 +24,9 @@ The current implementation includes:
   per-instance parsed-value cache.
 - `HtmlString` and `EncodedHtmlString` for trusted markup and escaped text.
 - `MessageBag` for keyed messages, wildcard reads, formatting, and JSON output.
-- `Benchmark`, `Lottery`, `Sleep`, and `Timebox` for measured execution,
-  probabilistic callbacks, explicit waiting, and minimum-duration operations.
+- `Benchmark`, `InteractsWithTime`, `Lottery`, `Sleep`, and `Timebox` for
+  measured execution, deadlines, probabilistic callbacks, explicit waiting,
+  and minimum-duration operations.
 - `Uri` and `UriQueryString` for immutable URL components and nested query
   data, with Starlette redirect interoperability.
 - `Macroable` for explicit, typed macro registration and invocation.
@@ -77,11 +78,11 @@ See [arrays](./arrays), [environment utilities](./environment),
 for the implemented surface. See [URI utilities](./uris) and
 [fluent strings](./stringable) for the implemented `Stringable` methods and
 their Python behavior, [HTML values](./html) for context-aware rendering
-guidance, [timing utilities](./timing) for `Benchmark`, `Lottery`, and
-`Timebox`, and [Sleep](./sleep) for explicit synchronous and asynchronous
-waiting. See [Number utilities](./numbers) for numeric formatting, locale
-scopes, optional dependencies, and Python-specific behavior, and
-[binary codecs](./binary-codecs) for UUID and ULID conversion.
-See [configuration URLs](./configuration-urls) for parsing database URLs and
-SQL Server DSN values, and [namespaced item keys](./namespaced-items) for
-dotted-key parsing and cache control.
+guidance, [timing utilities](./timing) for `Benchmark`, `InteractsWithTime`,
+`Lottery`, and `Timebox`, and [Sleep](./sleep) for explicit synchronous and
+asynchronous waiting. See [Number utilities](./numbers) for numeric
+formatting, locale scopes, optional dependencies, and Python-specific behavior,
+and [binary codecs](./binary-codecs) for UUID and ULID conversion. See
+[configuration URLs](./configuration-urls) for parsing database URLs and SQL
+Server DSN values, and [namespaced item keys](./namespaced-items) for dotted-key
+parsing and cache control.
