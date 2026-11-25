@@ -11,9 +11,13 @@ import base64
 import binascii
 import json
 import re
+import secrets
 import textwrap
 import unicodedata
 import uuid
+from contextvars import ContextVar
+from dataclasses import dataclass
+from string import ascii_letters, digits, punctuation
 from typing import TYPE_CHECKING, ClassVar, overload
 from urllib.parse import urlsplit
 
@@ -41,6 +45,80 @@ _ASCII_REPLACEMENTS = {
     "Þ": "Th",
     "þ": "th",
 }
+_RANDOM_ALPHABET = ascii_letters + digits
+_PASSWORD_SYMBOLS = punctuation
+_RANDOM_FACTORY_TYPE_ERROR = "random string factory must be callable"
+_RANDOM_FALLBACK_TYPE_ERROR = "random string fallback must be callable"
+_RANDOM_SEQUENCE_TYPE_ERROR = "random string sequence must be iterable"
+_RANDOM_SEQUENCE_VALUE_ERROR = "random string sequence values must be strings"
+_RANDOM_RESULT_TYPE_ERROR = "random string factory must return a string"
+_LENGTH_TYPE_ERROR = "length must be an integer"
+_LENGTH_CLASS_VALUE_ERROR = (
+    "length must be at least the number of enabled character classes"
+)
+_NO_CHARACTER_CLASS_ERROR = "at least one character class must be enabled"
+
+
+@dataclass(frozen=True, slots=True)
+class _RandomStringState:
+    """Store random-string overrides for one execution context.
+
+    Attributes:
+        factory: Optional callback used instead of secure random generation.
+        sequence: Optional immutable values consumed before the fallback.
+        index: Index of the next sequence value in this context.
+        when_missing: Optional callback used after sequence exhaustion.
+
+    Notes:
+        The immutable state is replaced on sequence consumption so copied
+        context variables do not share a mutable counter between tasks.
+    """
+
+    factory: Callable[[int], str] | None = None
+    sequence: tuple[str, ...] | None = None
+    index: int = 0
+    when_missing: Callable[[int], str] | None = None
+
+
+_RANDOM_STRING_STATE: ContextVar[_RandomStringState | None] = ContextVar(
+    "titanspan_support_random_string_state",
+    default=None,
+)
+
+
+def _require_random_string(value: object, error_message: str) -> str:
+    """Validate a callback or sequence value as Python text.
+
+    Args:
+        value: The untrusted value to validate at the typed boundary.
+        error_message: The focused message used when validation fails.
+
+    Returns:
+        The validated string value.
+
+    Raises:
+        TypeError: If ``value`` is not a string.
+    """
+    if not isinstance(value, str):
+        raise TypeError(error_message)
+    return value
+
+
+def _require_password_length(value: object) -> int:
+    """Validate an integer password length without accepting booleans.
+
+    Args:
+        value: The caller-provided length value.
+
+    Returns:
+        The validated non-boolean integer.
+
+    Raises:
+        TypeError: If the value is not an integer or is a boolean.
+    """
+    if isinstance(value, bool) or not isinstance(value, int):
+        raise TypeError(_LENGTH_TYPE_ERROR)
+    return value
 
 
 def _needles(value: str | Iterable[str]) -> tuple[str, ...]:
@@ -140,7 +218,9 @@ class Str(Macroable):
 
     ``Str`` groups pure text transformations and validators. It follows
     Python string indexing and regular expression rules, and uses only the
-    standard library. Runtime macros are inherited from :class:`Macroable`.
+    standard library. Random strings and passwords use the system CSPRNG.
+    Random string factory overrides are local to the active execution
+    context. Runtime macros are inherited from :class:`Macroable`.
 
     Notes:
         Unicode operations index code points, not grapheme clusters or
@@ -168,6 +248,216 @@ class Str(Macroable):
         from titanspan.support.stringable import Stringable  # noqa: PLC0415
 
         return Stringable(value)
+
+    @staticmethod
+    def random(length: int = 16) -> str:
+        """Generate a cryptographically secure alphanumeric string.
+
+        Args:
+            length: Requested number of ASCII letters and digits.
+
+        Returns:
+            The generated string. Negative lengths produce an empty string,
+            matching the pinned Laravel behavior.
+
+        Raises:
+            TypeError: If an active factory returns a non-string value or
+                ``length`` cannot be used as an integer.
+
+        Notes:
+            The default generator uses ``secrets.choice`` over a 62-character
+            alphabet. Factory overrides apply only to the current execution
+            context and are intended for deterministic tests and integrations.
+        """
+        state = _RANDOM_STRING_STATE.get()
+        if state is None:
+            return Str._secure_random_string(length)
+
+        if state.sequence is not None:
+            if state.index < len(state.sequence):
+                result = state.sequence[state.index]
+                _RANDOM_STRING_STATE.set(
+                    _RandomStringState(
+                        sequence=state.sequence,
+                        index=state.index + 1,
+                        when_missing=state.when_missing,
+                    )
+                )
+                return result
+            if state.when_missing is not None:
+                return Str._call_random_factory(state.when_missing, length)
+            return Str._secure_random_string(length)
+
+        if state.factory is not None:
+            return Str._call_random_factory(state.factory, length)
+        return Str._secure_random_string(length)
+
+    @staticmethod
+    def create_random_strings_using(
+        factory: Callable[[int], str] | None = None,
+    ) -> None:
+        """Install a random-string factory in the active context.
+
+        Args:
+            factory: A synchronous callback accepting a requested length, or
+                ``None`` to restore secure generation in this context.
+
+        Raises:
+            TypeError: If a non-callable factory is supplied.
+
+        Notes:
+            Unlike Laravel's process-wide static override, this state is
+            scoped to the current context to isolate concurrent tasks.
+        """
+        if factory is None:
+            _RANDOM_STRING_STATE.set(None)
+            return
+        if not callable(factory):
+            raise TypeError(_RANDOM_FACTORY_TYPE_ERROR)
+        _RANDOM_STRING_STATE.set(_RandomStringState(factory=factory))
+
+    @staticmethod
+    def create_random_strings_using_sequence(
+        sequence: Iterable[str],
+        when_missing: Callable[[int], str] | None = None,
+    ) -> None:
+        """Install deterministic values with an optional fallback callback.
+
+        Args:
+            sequence: Values returned in order before the fallback is used.
+            when_missing: Optional callback for requests after exhaustion.
+                When omitted, secure random generation resumes.
+
+        Raises:
+            TypeError: If a sequence item is not a string or the fallback is
+                not callable.
+
+        Notes:
+            Sequence consumption is replaced as immutable context-local
+            state, preventing concurrent execution contexts from sharing an
+            incrementing sequence counter.
+        """
+        if when_missing is not None and not callable(when_missing):
+            raise TypeError(_RANDOM_FALLBACK_TYPE_ERROR)
+        try:
+            raw_values: tuple[object, ...] = tuple(sequence)
+        except TypeError as error:
+            raise TypeError(_RANDOM_SEQUENCE_TYPE_ERROR) from error
+        values = tuple(
+            _require_random_string(value, _RANDOM_SEQUENCE_VALUE_ERROR)
+            for value in raw_values
+        )
+        _RANDOM_STRING_STATE.set(
+            _RandomStringState(
+                sequence=tuple(values),
+                when_missing=when_missing,
+            )
+        )
+
+    @staticmethod
+    def create_random_strings_normally() -> None:
+        """Clear random-string overrides in the active context.
+
+        Notes:
+            Other execution contexts retain their own configured factories.
+        """
+        _RANDOM_STRING_STATE.set(None)
+
+    @staticmethod
+    def _secure_random_string(length: int) -> str:
+        """Choose each character from the secure alphanumeric alphabet.
+
+        Args:
+            length: Number of characters to generate.
+
+        Returns:
+            A secure string, or an empty string for non-positive lengths.
+
+        Raises:
+            TypeError: If ``length`` is not an integer accepted by ``range``.
+        """
+        return "".join(
+            secrets.choice(_RANDOM_ALPHABET) for _ in range(max(length, 0))
+        )
+
+    @staticmethod
+    def _call_random_factory(
+        factory: Callable[[int], str],
+        length: int,
+    ) -> str:
+        """Run a configured factory and enforce its string result contract.
+
+        Args:
+            factory: The callback that supplies deterministic or custom text.
+            length: Requested length forwarded to the callback.
+
+        Returns:
+            The callback's string result.
+
+        Raises:
+            TypeError: If the factory returns a non-string value.
+        """
+        return _require_random_string(
+            factory(length),
+            _RANDOM_RESULT_TYPE_ERROR,
+        )
+
+    @staticmethod
+    def password(
+        length: int = 32,
+        *,
+        letters: bool = True,
+        numbers: bool = True,
+        symbols: bool = True,
+    ) -> str:
+        """Generate a secure password from selected character classes.
+
+        Args:
+            length: Number of ASCII characters to return.
+            letters: Include uppercase and lowercase ASCII letters.
+            numbers: Include decimal digits.
+            symbols: Include printable ASCII punctuation.
+
+        Returns:
+            A password containing at least one character from every enabled
+            class, with remaining characters chosen from their combined
+            alphabet.
+
+        Raises:
+            TypeError: If ``length`` is not an integer or is a boolean.
+            ValueError: If no class is enabled or ``length`` cannot include
+                all enabled classes.
+
+        Notes:
+            This is a Titanspan extension, not a method in the pinned Laravel
+            ``Str`` API. Character selection and final shuffling use the
+            standard library's system-backed cryptographic randomness.
+        """
+        length = _require_password_length(length)
+        enabled_classes = tuple(
+            characters
+            for enabled, characters in (
+                (letters, ascii_letters),
+                (numbers, digits),
+                (symbols, _PASSWORD_SYMBOLS),
+            )
+            if enabled
+        )
+        if not enabled_classes:
+            raise ValueError(_NO_CHARACTER_CLASS_ERROR)
+        if length < len(enabled_classes):
+            raise ValueError(_LENGTH_CLASS_VALUE_ERROR)
+
+        alphabet = "".join(enabled_classes)
+        selected = [
+            secrets.choice(characters) for characters in enabled_classes
+        ]
+        selected.extend(
+            secrets.choice(alphabet)
+            for _ in range(length - len(enabled_classes))
+        )
+        secrets.SystemRandom().shuffle(selected)
+        return "".join(selected)
 
     @staticmethod
     def after(subject: str, search: str) -> str:
@@ -1762,6 +2052,9 @@ class Str(Macroable):
     wordCount = word_count
     wordWrap = word_wrap
     isMatch = is_match
+    createRandomStringsUsing = create_random_strings_using
+    createRandomStringsUsingSequence = create_random_strings_using_sequence
+    createRandomStringsNormally = create_random_strings_normally
 
 
 def _reject_json_constant(value: str) -> None:

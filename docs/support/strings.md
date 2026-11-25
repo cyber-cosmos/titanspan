@@ -24,8 +24,9 @@ The tested surface includes delimiter extraction, prefix and suffix checks,
 case conversion, slugs, truncation, padding, masking, literal and regular
 expression replacement, callback-name parsing, keyword swapping, contextual
 excerpts, Unicode slicing, JSON and UUID checks, Base64 conversion, and
-whitespace utilities. The exact member status is tracked in the
-[Laravel compatibility inventory](../compatibility/laravel-support).
+whitespace utilities. It also includes secure random strings and a
+Titanspan-specific password generator. The exact upstream member status is
+tracked in the [Laravel compatibility inventory](../compatibility/laravel-support).
 
 ```python
 assert Str.between("[section] body", "[", "]") == "section"
@@ -38,7 +39,37 @@ assert Str.parseCallback("Job@handle") == ("Job", "handle")
 assert Str.excerpt("This is a beautiful morning", "beautiful", {"radius": 5}) == (
     "...is a beautiful morn..."
 )
+assert len(Str.random(40)) == 40
+assert len(Str.password(24)) == 24
 ```
+
+## Secure random strings and passwords
+
+`Str.random()` uses the system-backed `secrets` module to generate ASCII
+letters and digits. Its default length is 16. The factory controls mirror the
+pinned Laravel API and provide deterministic values for tests; Titanspan
+stores these overrides in the active execution context, so one task's test
+factory does not mutate another task's state.
+
+`Str.password()` is an additional Titanspan utility because the pinned
+Laravel `Str` API does not define password generation. It defaults to 32
+characters and includes at least one uppercase or lowercase letter, digit,
+and printable ASCII punctuation character. Callers may disable categories,
+but the requested length must be large enough to include one character from
+each enabled category.
+
+```python
+password = Str.password(
+    24,
+    letters=True,
+    numbers=True,
+    symbols=False,
+)
+```
+
+Password output is plaintext secret material. Store only an appropriate
+one-way password hash when persisting it, and do not place generated values in
+logs or telemetry.
 
 ## Python behavior
 
@@ -66,8 +97,8 @@ assert Str.excerpt("This is a beautiful morning", "beautiful", {"radius": 5}) ==
   modes. PHP's simple case-mapping modes are not implemented.
 
 The remaining methods in Laravel's pinned Str inventory, including
-translation, Markdown conversion, inflection, random factories, UUID/ULID
-factories, and several locale-specific utilities remain pending. The
+translation, Markdown conversion, inflection, UUID/ULID factories, and
+several locale-specific utilities remain pending. The
 compatibility inventory distinguishes implemented partial behavior from
 verified parity.
 

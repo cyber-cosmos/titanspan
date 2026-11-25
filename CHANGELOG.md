@@ -24,5 +24,7 @@ public release.
 - Added wrapper call delegation with fluent identity preservation.
 - Added aware datetime and duration deadline calculations with runtime
   formatting based on Carbon's default interval cascade.
+- Added context-local random string factories and secure password generation
+  as a Titanspan-specific string utility extension.
 - Added initial tests, architecture decisions, contributor documentation, and
   repository automation.

@@ -12,9 +12,9 @@ The baseline is pinned to an immutable commit rather than the moving `13.x` bran
 
 ## Inventory scope and measurement
 
-The source scan accounts for **147 declared symbols** and **4058 member entries**: 4025 public methods, facade `@method` proxies, and namespace-level helper functions; 13 public constants; 12 public properties; and 8 protected trait methods included in the trait inventory. Each member is listed below. The scan covers Support, Collections, Macroable, Conditionable, Reflection, and Contracts/Support source trees so cross-package ownership remains visible.
+The source scan accounts for **147 declared symbols** and **4057 member entries**: 4024 public methods, facade `@method` proxies, and namespace-level helper functions; 13 public constants; 12 public properties; and 8 protected trait methods included in the trait inventory. Each member is listed below. The scan covers Support, Collections, Macroable, Conditionable, Reflection, and Contracts/Support source trees so cross-package ownership remains visible.
 
-This source scan is not a complete PHP reflection dump. Inherited methods not declared or documented on a symbol are not expanded into a separate row, and PHPDoc parameter and return signatures are not normalized yet. Those inherited surfaces and signatures remain audit work; the compatibility percentage below is a lower bound over listed entries, not a claim that the entire Illuminate ecosystem is covered.
+This source scan is not a complete PHP reflection dump. Inherited methods not declared or documented on a symbol are not expanded into a separate row, and PHPDoc parameter and return signatures are not normalized yet. Those inherited surfaces and signatures remain audit work; the compatibility percentage below is a lower bound over listed entries, not a claim that the entire Illuminate ecosystem is covered. Titanspan-specific extensions are documented separately and are excluded from this upstream inventory and its denominator.
 
 A method is not counted as compatible because it has a similarly named Python method. A parity status requires behavioral evidence against the pinned API. “Pending” includes code that exists but does not yet have complete upstream parity evidence.
 
@@ -30,12 +30,12 @@ A method is not counted as compatible because it has a similarly named Python me
 ## Measured status
 
 - Exact behavioural parity: 0.
-- Python-adapted parity: 450.
+- Python-adapted parity: 454.
 - Delegated: 0.
 - Blocked: 3141.
 - Not applicable: 32.
-- Pending: 435.
-- Verified compatibility: 450/4058 listed member entries (11.09%).
+- Pending: 430.
+- Verified compatibility: 454/4057 listed member entries (11.19%).
 
 For the timing utilities in this implementation slice, behavior was checked
 against the pinned upstream tests for [Benchmark](https://github.com/laravel/framework/blob/8a8c4a84852869e13190d89f9da873cd9a70f14c/tests/Support/SupportBenchmarkTest.php),
@@ -61,6 +61,17 @@ Time calculations follow the pinned
 [InteractsWithTime trait source](https://github.com/laravel/framework/blob/8a8c4a84852869e13190d89f9da873cd9a70f14c/src/Illuminate/Support/InteractsWithTime.php).
 Its use of Carbon interval formatting is adapted with the default cascade
 documented in [Carbon's interval guide](https://carbon.nesbot.com/guide/specialized-use/carbon-interval.html).
+Random string generation and its test factories follow the pinned
+[Str implementation](https://github.com/laravel/framework/blob/8a8c4a84852869e13190d89f9da873cd9a70f14c/src/Illuminate/Support/Str.php)
+and the focused cases in its
+[Support string tests](https://github.com/laravel/framework/blob/8a8c4a84852869e13190d89f9da873cd9a70f14c/tests/Support/SupportStrTest.php).
+Titanspan scopes factory overrides to the active context instead of sharing
+Laravel's process-wide mutable callback.
+
+`Str.password()` is a Titanspan-specific secure password generator, not a
+method in the pinned Laravel API. It is documented in the
+[string utility guide](../support/strings.md#secure-random-strings-and-passwords)
+and is not counted in the parity metrics.
 
 ## Method-level inventory
 
@@ -4268,7 +4279,7 @@ documented in [Carbon's interval guide](https://carbon.nesbot.com/guide/speciali
 </details>
 
 <details>
-<summary>Illuminate\Support\Str — 112 listed public members (class)</summary>
+<summary>Illuminate\Support\Str — 111 listed public members (class)</summary>
 
 | Upstream class | Upstream API | Titanspan API | Implementation location | Compatibility status | Test evidence | Differences | Upstream reference |
 |---|---|---|---|---|---|---|---|
@@ -4323,12 +4334,11 @@ documented in [Carbon's interval guide](https://carbon.nesbot.com/guide/speciali
 | `Illuminate\Support\Str` | `plural()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-109] |
 | `Illuminate\Support\Str` | `pluralStudly()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-109] |
 | `Illuminate\Support\Str` | `pluralPascal()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-109] |
-| `Illuminate\Support\Str` | `password()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-109] |
 | `Illuminate\Support\Str` | `position()` | `Str.position` | `src/titanspan/support/str.py` | **Python-adapted parity** | `tests/unit/support/test_str.py` | Returns None for a missing match instead of PHP false. | [source][source-109] |
-| `Illuminate\Support\Str` | `random()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-109] |
-| `Illuminate\Support\Str` | `createRandomStringsUsing()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-109] |
-| `Illuminate\Support\Str` | `createRandomStringsUsingSequence()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-109] |
-| `Illuminate\Support\Str` | `createRandomStringsNormally()` | — | Not implemented. | **Pending** | — | No verified Titanspan implementation or parity test exists. | [source][source-109] |
+| `Illuminate\Support\Str` | `random()` | `Str.random` | `src/titanspan/support/str.py` | **Python-adapted parity** | `tests/unit/support/test_str_random.py::test_random_returns_requested_alphanumeric_length`; `test_random_defaults_to_sixteen_characters` | Uses `secrets.choice` over the same 62 ASCII alphanumeric characters; negative lengths yield an empty string. | [source][source-109] |
+| `Illuminate\Support\Str` | `createRandomStringsUsing()` | `Str.create_random_strings_using` / `Str.createRandomStringsUsing` | `src/titanspan/support/str.py` | **Python-adapted parity** | `tests/unit/support/test_str_random.py::test_random_uses_a_factory_override_and_camel_case_aliases`; `test_factory_override_isolated_to_copied_context` | Factory overrides are context-local to prevent unrelated tasks from sharing mutable global state. | [source][source-109] |
+| `Illuminate\Support\Str` | `createRandomStringsUsingSequence()` | `Str.create_random_strings_using_sequence` / `Str.createRandomStringsUsingSequence` | `src/titanspan/support/str.py` | **Python-adapted parity** | `tests/unit/support/test_str_random.py::test_sequence_factory_uses_values_then_secure_fallback`; `test_sequence_factory_uses_custom_fallback_for_missing_values` | Sequence position is immutable context-local state; omitted fallback resumes secure generation. | [source][source-109] |
+| `Illuminate\Support\Str` | `createRandomStringsNormally()` | `Str.create_random_strings_normally` / `Str.createRandomStringsNormally` | `src/titanspan/support/str.py` | **Python-adapted parity** | `tests/unit/support/test_str_random.py::test_none_factory_restores_secure_generation` | Clears the factory only in the active execution context. | [source][source-109] |
 | `Illuminate\Support\Str` | `repeat()` | `Str.repeat` | `src/titanspan/support/str.py` | **Python-adapted parity** | `tests/unit/support/test_str.py` | Python Unicode and standard-library semantics are used; see the method documentation. | [source][source-109] |
 | `Illuminate\Support\Str` | `replaceArray()` | `Str.replace_array` / `Str.replaceArray` | `src/titanspan/support/str.py` | **Python-adapted parity** | `tests/unit/support/test_str.py` | Python Unicode and standard-library semantics are used; see the method documentation. | [source][source-109] |
 | `Illuminate\Support\Str` | `replace()` | `Str.replace` | `src/titanspan/support/str.py` | **Python-adapted parity** | `tests/unit/support/test_str.py` | Python Unicode and standard-library semantics are used; see the method documentation. | [source][source-109] |
