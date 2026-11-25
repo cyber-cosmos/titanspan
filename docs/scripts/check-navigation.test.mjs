@@ -114,11 +114,13 @@ test("reports duplicate sidebar destinations after URL normalization", async () 
 });
 
 test("reports missing nav or sidebar arrays", async () => {
-  const errors = validateDocumentationNavigation(
-    tmpdir(),
-    "export default { themeConfig: {} };",
-  );
+  await withDocs(async (root) => {
+    const errors = validateDocumentationNavigation(
+      root,
+      "export default { themeConfig: {} };",
+    );
 
-  assert.ok(errors.some((error) => error.includes("nav array")));
-  assert.ok(errors.some((error) => error.includes("sidebar array")));
+    assert.ok(errors.some((error) => error.includes("nav array")));
+    assert.ok(errors.some((error) => error.includes("sidebar array")));
+  });
 });
