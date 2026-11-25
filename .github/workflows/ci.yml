@@ -1022,9 +1022,10 @@ jobs:
         env:
           COVERAGE_FILE: coverage-combined/.coverage
         run: |
+          # The policy validator checks line and branch coverage separately.
           uv run --locked coverage report --fail-under=0
-          uv run --locked coverage json -o coverage.json
-          uv run --locked coverage xml -o coverage.xml
+          uv run --locked coverage json --fail-under=0 -o coverage.json
+          uv run --locked coverage xml --fail-under=0 -o coverage.xml
           uv run --locked python scripts/check_coverage.py coverage.json
       - name: Enforce changed source line coverage
         shell: bash

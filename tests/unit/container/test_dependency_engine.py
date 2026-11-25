@@ -22,6 +22,8 @@ from titanspan.container._backends.dependency_engine import (
 )
 from titanspan.container.scope import Scope
 
+pytestmark = pytest.mark.unit
+
 if TYPE_CHECKING:
 
     class UnavailableDependency:

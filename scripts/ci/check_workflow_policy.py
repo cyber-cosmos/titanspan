@@ -370,6 +370,7 @@ def _validate_coverage_job(jobs: dict[str, object]) -> list[str]:
         )
         else []
     )
+    errors.extend(_validate_independent_coverage_reports(steps))
     diff_coverage_runs: list[str] = []
     for step_value in steps:
         step = _string_mapping(step_value)
@@ -391,6 +392,44 @@ def _validate_coverage_job(jobs: dict[str, object]) -> list[str]:
     ):
         errors.append(
             "coverage job must enforce 95% changed source line coverage"
+        )
+    return errors
+
+
+def _validate_independent_coverage_reports(
+    steps: list[object],
+) -> list[str]:
+    """Require report commands to defer thresholds to the native validator.
+
+    Args:
+        steps: Parsed coverage job steps.
+
+    Returns:
+        Diagnostics for missing reports or combined coverage thresholds.
+    """
+    required_commands = ("report", "json", "xml")
+    observed_commands: set[str] = set()
+    errors: list[str] = []
+    for step_value in steps:
+        step = _string_mapping(step_value)
+        if step is None:
+            continue
+        command = step.get("run")
+        if not isinstance(command, str):
+            continue
+        for line in command.splitlines():
+            for report_command in required_commands:
+                if f"coverage {report_command}" not in line:
+                    continue
+                observed_commands.add(report_command)
+                if "--fail-under=0" not in line:
+                    errors.append(
+                        "coverage reporting must defer the combined coverage "
+                        "floor to the independent line and branch validator"
+                    )
+    if observed_commands != set(required_commands):
+        errors.append(
+            "coverage job must generate report, JSON, and XML outputs"
         )
     return errors
 

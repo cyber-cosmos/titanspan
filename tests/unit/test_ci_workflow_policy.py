@@ -67,6 +67,13 @@ def _workflow() -> dict[str, object]:
         "steps": [
             {
                 "run": (
+                    "uv run coverage report --fail-under=0\n"
+                    "uv run coverage json --fail-under=0 -o coverage.json\n"
+                    "uv run coverage xml --fail-under=0 -o coverage.xml"
+                ),
+            },
+            {
+                "run": (
                     "uv run diff-cover coverage.xml --include "
                     "src/titanspan/** --fail-under=95 "
                     "--markdown-report=diff-coverage.md"
@@ -218,12 +225,34 @@ def test_workflow_policy_requires_changed_source_coverage() -> None:
     steps = coverage["steps"]
     assert isinstance(steps, list)
     typed_steps = cast("list[object]", steps)
-    step = _mapping(typed_steps[0])
+    step = _mapping(typed_steps[1])
     step["run"] = "uv run diff-cover coverage.xml --fail-under=80"
 
     errors = validate_ci_workflow(workflow)
 
     assert any("changed source line coverage" in error for error in errors)
+
+
+def test_workflow_policy_rejects_combined_coverage_floor() -> None:
+    """Keep report generation from masking independent metric checks.
+
+    The dedicated validator checks line and branch thresholds separately, so
+    report commands must not enforce coverage.py's combined percentage.
+    """
+    workflow = _workflow()
+    jobs = _mapping(workflow["jobs"])
+    coverage = _mapping(jobs["coverage"])
+    steps = cast("list[object]", coverage["steps"])
+    report_step = _mapping(steps[0])
+    report_step["run"] = (
+        "uv run coverage report --fail-under=0\n"
+        "uv run coverage json -o coverage.json\n"
+        "uv run coverage xml --fail-under=0 -o coverage.xml"
+    )
+
+    errors = validate_ci_workflow(workflow)
+
+    assert any("combined coverage floor" in error for error in errors)
 
 
 def test_checked_in_workflow_inventory_is_valid() -> None:

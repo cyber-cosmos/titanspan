@@ -14,6 +14,8 @@ from titanspan.container import (
     singleton,
 )
 
+pytestmark = pytest.mark.unit
+
 
 @singleton
 class DeclaredSingleton:

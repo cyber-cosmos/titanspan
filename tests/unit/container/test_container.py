@@ -26,6 +26,8 @@ from titanspan.container import (
     ScopeError,
 )
 
+pytestmark = pytest.mark.unit
+
 _EXPECTED_SCOPE_PARTICIPANTS = 2
 _EXPECTED_ATTEMPTS = 3
 _DEFAULT_CALL_ATTEMPTS = 3
