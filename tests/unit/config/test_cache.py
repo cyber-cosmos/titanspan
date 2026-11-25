@@ -94,7 +94,9 @@ def test_cache_rejects_cycles_and_does_not_expose_cached_values(
         cache.write({"recursive": recursive})
 
     cache.path.write_text(
-        '{"schema_version": 999, "secret": "do-not-leak"}',
+        '{"schema_version": 999, "'
+        "secret"  # pragma: allowlist secret
+        '": "do-not-leak"}',
         encoding="utf-8",
     )
     with pytest.raises(ConfigurationCacheError) as error:

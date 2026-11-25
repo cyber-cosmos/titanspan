@@ -283,8 +283,13 @@ def test_repository_merges_nested_override_mappings_and_redacts_repr() -> None:
     """
     repository = Repository(
         {
-            "app": {"debug": False, "name": "Titanspan"},
-            "database": {"password": "secret-value"},
+            "app": {
+                "debug": False,
+                "name": "Titanspan",
+            },
+            "database": {
+                "password": "secret-value",  # pragma: allowlist secret
+            },
         }
     )
 

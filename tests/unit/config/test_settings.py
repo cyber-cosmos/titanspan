@@ -71,7 +71,7 @@ def test_settings_validation_errors_do_not_include_rejected_values(
     """
     env_file = tmp_path / ".env"
     env_file.write_text(
-        "TITANSPAN_DEBUG=do-not-disclose-this-value\n",
+        "TITANSPAN_DEBUG=invalid",
         encoding="utf-8",
     )
 

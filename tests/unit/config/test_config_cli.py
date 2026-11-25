@@ -37,7 +37,9 @@ def test_config_show_redacts_secret_values(
     """
     _write_application_config(
         tmp_path,
-        "config = {'name': 'Titanspan', 'api_key': 'private-value'}\n",
+        "config = {'name': 'Titanspan', '"
+        "api_key"  # pragma: allowlist secret
+        "': 'private-value'}\n",
     )
     monkeypatch.chdir(tmp_path)
 
