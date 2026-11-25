@@ -169,7 +169,7 @@ The inventory covers every namespace directory in the pinned source tree:
 ### `Illuminate\Contracts\Auth\PasswordBroker`
 
 - Parents: `none`.
-- Constants: `RESET_LINK_SENT = 'passwords.sent'`, `PASSWORD_RESET = 'passwords.reset'`, `INVALID_USER = 'passwords.user'`, `INVALID_TOKEN = 'passwords.token'`, `RESET_THROTTLED = 'passwords.throttled'`
+- Constants: `RESET_LINK_SENT = 'passwords.sent'`, `PASSWORD_RESET = 'passwords.reset'`, `INVALID_USER = 'passwords.user'`, `INVALID_TOKEN = 'passwords.token'`, `RESET_THROTTLED = 'passwords.throttled'` <!-- pragma: allowlist secret: public upstream status constants -->
 - Source: [pinned declaration](https://github.com/laravel/framework/blob/8a8c4a84852869e13190d89f9da873cd9a70f14c/src/Illuminate/Contracts/Auth/PasswordBroker.php).
 
 | Upstream interface/API | Parameters and return semantics | Titanspan equivalent and owner | Status | Evidence and differences | Source |
