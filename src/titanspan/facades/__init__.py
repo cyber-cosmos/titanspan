@@ -1,4 +1,9 @@
-"""Context-aware access to active container services.
+"""Expose explicitly context-bound facades for application services.
 
-This module is planned; it will not use global mutable instances.
+The logging facade uses execution-local bindings rather than global service
+instances. Other service facades will be added with their owning components.
 """
+
+from titanspan.facades.log import Log
+
+__all__ = ["Log"]

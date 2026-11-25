@@ -23,5 +23,6 @@ features:
 ---
 
 Titanspan is in early development. The current package implements the
-application and CLI foundation. AI workflows, persistence, distributed queues,
-and high-throughput processing remain planned work.
+application and CLI foundation, selected Support utilities, and an initial
+native logging component. AI workflows, persistence, distributed queues, and
+high-throughput processing remain planned work.

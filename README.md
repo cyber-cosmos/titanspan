@@ -9,11 +9,13 @@ developer experience and builds on established Python libraries.
 The project is at the beginning of **Phase 0: Engineering foundation**. The
 current implementation includes a FastAPI-backed application lifecycle, an
 async Dishka container integration, typed environment settings, a small CLI,
-and tested Support utilities for arrays, strings, URIs, timing, and numbers.
+tested Support utilities, and an initial native logging component with
+structured records, named channels, standard severity levels, context-local
+metadata, file and stream drivers, and bounded background dispatch.
 Numeric locale formatting and number spelling use the optional `numbers`
-extra. AI workflows, persistence, distributed execution, and other modules
-described in the architecture are planned, not implemented or production
-ready.
+extra. Laravel logging compatibility is incremental; deprecation routing
+and full context repository features remain planned.
+The project is not production-ready.
 
 ## Install
 
@@ -51,9 +53,10 @@ infrastructure section in the project documentation.
 
 The current runtime foundation uses FastAPI and Starlette for ASGI, Dishka for
 dependency resolution and resource cleanup, Pydantic Settings for typed
-configuration, and Typer with Rich for the CLI. SQLAlchemy, Alembic, LangGraph,
-AnyIO, and other integrations are architectural choices for future modules;
-they are not installed or exposed as Titanspan features yet.
+configuration, Typer with Rich for the CLI, and Structlog behind Titanspan's
+native logging API. SQLAlchemy, Alembic, LangGraph, and other integrations are
+architectural choices for future modules; they are not installed or exposed
+as Titanspan features yet.
 
 To start optional local services, copy `.env.example` to `.env` and run
 `make docker-up`. This starts PostgreSQL and Redis on loopback ports. The
@@ -64,7 +67,8 @@ Run `make docker-down` to stop services; named development data is retained.
 
 Titanspan owns its application APIs, lifecycle, integration conventions, and
 testing experience. It delegates web serving to FastAPI, dependency resolution
-to Dishka, and typed configuration to Pydantic Settings. See
+to Dishka, typed configuration to Pydantic Settings, and structured logging
+dispatch to a private adapter. See the [logging guide](docs/logging/),
 [ARCHITECTURE.md](ARCHITECTURE.md), the
 [architecture decision records](docs/architecture/decisions/), and the
 [roadmap](ROADMAP.md) for the intended module boundaries and future direction.

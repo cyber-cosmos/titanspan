@@ -46,6 +46,28 @@ export default defineConfig({
         ],
       },
       {
+        text: "Logging",
+        items: [
+          { text: "Overview", link: "/logging/" },
+          { text: "Configuration", link: "/logging/configuration" },
+          { text: "Channels", link: "/logging/channels" },
+          { text: "Drivers", link: "/logging/drivers" },
+          { text: "Context", link: "/logging/context" },
+          {
+            text: "Structured logging",
+            link: "/logging/structured-logging",
+          },
+          { text: "Async logging", link: "/logging/async-logging" },
+          { text: "Security", link: "/logging/security" },
+          { text: "Testing", link: "/logging/testing" },
+          { text: "Deployment", link: "/logging/deployment" },
+          {
+            text: "Laravel compatibility",
+            link: "/compatibility/laravel-logging",
+          },
+        ],
+      },
+      {
         text: "Support",
         items: [
           { text: "Overview", link: "/support/" },

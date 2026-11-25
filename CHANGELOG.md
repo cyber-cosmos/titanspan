@@ -5,6 +5,15 @@ public release.
 
 ## Unreleased
 
+- Added a native structured logging component with RFC severity levels,
+  context-local metadata, redaction, channel stacks, file and stream drivers,
+  standard-library logging interoperability, bounded background dispatch,
+  application lifecycle integration, and native logging fakes. Laravel
+  compatibility remains incremental; see `docs/compatibility/laravel-logging.md`.
+- Added UTC calendar-month log rotation with bounded archive retention through
+  Python's standard timed file handler.
+- Added registered, once-per-channel native logging customizers with cleanup
+  on initialization failure.
 - Established the installable package, CLI, FastAPI application lifecycle,
   Dishka dependency integration, and typed settings.
 - Added explicit synchronous and AnyIO-based asynchronous Support sleep

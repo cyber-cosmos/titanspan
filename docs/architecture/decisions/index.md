@@ -15,3 +15,4 @@ for compatibility, maintenance, licensing, and security before use.
 - [0009 — Contract-driven adapters](./0009-contract-driven-adapters)
 - [0010 — Optional dependencies](./0010-optional-dependencies)
 - [0011 — Testing and quality standards](./0011-testing-and-quality-standards)
+- [0012 — Native logging API and private backends](./0012-native-logging)

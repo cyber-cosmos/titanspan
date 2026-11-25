@@ -1,8 +1,9 @@
 # Roadmap
 
-Titanspan is in Phase 0. These phases are capability milestones, not calendar
-promises. Each phase should ship coherent vertical slices with tests and
-documentation before expanding its surface area.
+Titanspan is completing its engineering foundation while developing initial
+Support and logging vertical slices. These phases are capability milestones,
+not calendar promises. Each phase should ship coherent vertical slices with
+tests and documentation before expanding its surface area.
 
 ## Phase 0 — Engineering foundation
 
@@ -10,6 +11,7 @@ documentation before expanding its surface area.
 - Installable package, lockfile, CLI, and minimal application lifecycle.
 - CI, security automation, and documentation build.
 - Coding standards and working Hello World example.
+- Initial native logging component and its documented compatibility limits.
 
 ## Phase 1 — Application foundation
 
@@ -20,7 +22,7 @@ documentation before expanding its surface area.
 ## Phase 2 — Web and developer tooling
 
 - Routing, controllers, and middleware conventions.
-- HTTP client integration and structured logging.
+- HTTP client integration and continued logging compatibility work.
 - CLI generators and application test utilities.
 
 ## Phase 3 — AI orchestration

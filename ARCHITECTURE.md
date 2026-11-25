@@ -9,8 +9,9 @@ dependency resolution, persistence, and workflow execution.
 
 The current package is intentionally small. The implemented foundation is a
 FastAPI-backed ASGI application, a Dishka async container, Pydantic Settings,
-and a Typer CLI. Other modules below are planned boundaries, not supported
-features.
+a Typer CLI, selected Support utilities, and an initial native logging
+component. Other modules below remain planned boundaries unless marked as
+implemented in the table.
 
 ## Architectural principles
 
@@ -30,9 +31,9 @@ features.
 | `foundation` | Application lifecycle, bootstrapping, kernels, shutdown, and provider lifecycle. | Initial `Application` implemented. |
 | `container` | Dependency injection, bindings, autowiring, scopes, contextual bindings, and resource management. | Dishka adapter implemented. |
 | `contracts` | Typed service interfaces, protocols, and abstraction boundaries. | Planned. |
-| `support` | Shared utilities, managers, and lightweight helpers. | Planned. |
+| `support` | Shared utilities, managers, and lightweight helpers. | Selected Laravel-inspired utilities implemented; compatibility inventory is incremental. |
 | `config` | Typed configuration, environment variables, and configuration repositories. | Initial `Settings` implemented. |
-| `facades` | Context-aware access to container-managed services. | Planned. |
+| `facades` | Context-aware access to container-managed services. | Explicit execution-local `Log` facade implemented; other facades planned. |
 | `routing` | Fluent routing, route groups, controllers, and workflow endpoints. | Planned; FastAPI routers remain directly accessible. |
 | `http` | HTTP requests, responses, middleware, and fluent HTTP clients. | Planned. |
 | `auth` | Authentication, authorization, guards, gates, and policies. | Planned. |
@@ -47,7 +48,7 @@ features.
 | `mail` | Mailables, delivery, templates, and attachments. | Planned. |
 | `notifications` | Multi-channel application notifications. | Planned. |
 | `filesystem` | Local and cloud storage abstractions. | Planned. |
-| `logging` | Structured and contextual application logging. | Planned. |
+| `logging` | Native records, channels, drivers, redaction, context, async dispatch, and lifecycle. | Initial component implemented; see `docs/logging/` and the compatibility inventory for limits. |
 | `scheduling` | Recurring tasks, cron expressions, and coordination. | Planned. |
 | `console` | CLI commands, generators, and scaffolding. | Initial help and version options implemented. |
 | `ai` | Model providers, prompts, embeddings, and structured output. | Planned. |
@@ -144,6 +145,16 @@ accessible so users can opt out of a Titanspan convenience API when necessary.
 An adapter should not duplicate the library's engine, query compiler, worker
 system, or execution runtime. Add a contract only when it enables a real
 substitution, test seam, or lifecycle boundary.
+
+The logging component follows this rule explicitly. Public `Logger`,
+`LogManager`, `LogRecord`, `LogDriver`, formatter, processor, and event types
+belong to Titanspan. The private `logging._backends` package adapts Structlog
+and Python's standard logging handlers. Importing the component does not
+configure the root logger. `Application` owns its manager, binds it to HTTP
+request context, and closes it before the dependency container during
+shutdown. The implementation is synchronous by default; explicit async
+methods offload blocking sinks or await native async drivers. Configured
+background dispatch is bounded and process-local.
 
 ## Async-first behavior
 
