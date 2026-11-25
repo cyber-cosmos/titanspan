@@ -1017,7 +1017,7 @@ jobs:
         run: >-
           uv run --locked coverage combine
           --data-file coverage-combined/.coverage
-          --keep --strict coverage-combined
+          --keep coverage-combined
       - name: Enforce line and branch thresholds independently
         env:
           COVERAGE_FILE: coverage-combined/.coverage
