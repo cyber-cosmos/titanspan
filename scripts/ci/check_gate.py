@@ -223,3 +223,7 @@ def main() -> int:
 
     sys.stdout.write("All mandatory CI jobs succeeded.\n")
     return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

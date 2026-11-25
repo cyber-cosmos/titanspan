@@ -7,6 +7,9 @@ as unsatisfied mandatory checks.
 from __future__ import annotations
 
 import json
+import os
+import subprocess
+import sys
 
 import pytest
 from scripts.ci.check_gate import (
@@ -138,3 +141,52 @@ def test_gate_loads_github_needs_json() -> None:
     payload = json.dumps(_successful_results())
 
     assert load_needs(payload) == _successful_results()
+
+
+def test_gate_module_entry_point_rejects_failed_mandatory_job() -> None:
+    """Run the actual CI command and reject an unsuccessful required job.
+
+    The workflow invokes the validator as a module, so its executable entry
+    point must preserve the fail-closed result.
+    """
+    results = _successful_results()
+    failed_job = "coverage"
+    results[failed_job] = {"result": "failure"}
+    environment = os.environ.copy()
+    environment["CI_NEEDS_JSON"] = json.dumps(results)
+    environment.pop("GITHUB_STEP_SUMMARY", None)
+
+    # The executable and module arguments are fixed by the test.
+    completed = subprocess.run(  # noqa: S603
+        [sys.executable, "-m", "scripts.ci.check_gate"],
+        capture_output=True,
+        check=False,
+        env=environment,
+        text=True,
+    )
+
+    assert completed.returncode != 0
+    assert failed_job in completed.stderr
+
+
+def test_gate_module_entry_point_accepts_complete_successes() -> None:
+    """Return success from the workflow command when every job passed.
+
+    This verifies the command line reports the same result as its pure
+    validation functions.
+    """
+    environment = os.environ.copy()
+    environment["CI_NEEDS_JSON"] = json.dumps(_successful_results())
+    environment.pop("GITHUB_STEP_SUMMARY", None)
+
+    # The executable and module arguments are fixed by the test.
+    completed = subprocess.run(  # noqa: S603
+        [sys.executable, "-m", "scripts.ci.check_gate"],
+        capture_output=True,
+        check=False,
+        env=environment,
+        text=True,
+    )
+
+    assert completed.returncode == 0
+    assert "All mandatory CI jobs succeeded." in completed.stdout
