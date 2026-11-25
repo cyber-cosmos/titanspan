@@ -54,7 +54,7 @@ async def run() -> None:
             scope=Scope.WORKFLOW,
         )
         async with container.scope(Scope.WORKFLOW) as workflow:
-            await workflow.make(WorkflowClient)
+            await workflow.make_async(WorkflowClient)
 ```
 
 Application singletons are resolved through application-owned graph

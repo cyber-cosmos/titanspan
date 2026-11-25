@@ -4,11 +4,15 @@ The container can resolve an unregistered concrete class and recursively
 discover annotated concrete constructor dependencies:
 
 ```python
-service = await container.make(DocumentService)
+service = container.make(DocumentService)
 ```
 
 Graph discovery inspects constructor annotations without instantiating classes.
 The dependency engine validates the composed graph and constructs services.
+Synchronous factories and constructors resolve immediately. If any registered
+factory or resource requires asynchronous initialization, `make` raises
+`AsyncResolutionRequiredError` before invoking that async factory; use
+`await container.make_async(DocumentService)` instead.
 Abstract classes and protocols need explicit bindings. Required primitive or
 unannotated arguments are not guessed and produce a native resolution error.
 

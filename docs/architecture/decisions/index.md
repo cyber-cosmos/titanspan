@@ -18,3 +18,4 @@ for compatibility, maintenance, licensing, and security before use.
 - [0012 — Native logging API and private backends](./0012-native-logging)
 - [0013 — Native configuration repository and safe snapshots](./0013-native-configuration)
 - [0014 — Native service container API](./0014-native-container-api)
+- [0015 — Synchronous-first container resolution](./0015-sync-first-container-resolution)

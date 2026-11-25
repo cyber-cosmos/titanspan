@@ -332,7 +332,7 @@ class ResolverFixture:
     without introducing a second production dependency engine.
     """
 
-    async def get[ServiceT](self, service: type[ServiceT]) -> ServiceT:
+    async def get_async[ServiceT](self, service: type[ServiceT]) -> ServiceT:
         """Construct a no-argument service by its class key.
 
         Args:
@@ -373,7 +373,9 @@ async def test_async_service_container_preserves_requested_service_type() -> (
     container: AsyncServiceContainer = ResolverFixture()
 
     assert isinstance(container, AsyncServiceContainer)
-    assert isinstance(await container.get(ResolvedService), ResolvedService)
+    assert isinstance(
+        await container.get_async(ResolvedService), ResolvedService
+    )
     await container.close()
 
 

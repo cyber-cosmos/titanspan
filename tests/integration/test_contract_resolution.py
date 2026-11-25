@@ -190,7 +190,7 @@ async def test_native_container_adapts_config_registration() -> None:
     async with Container(providers=(ConfigServiceProvider(repository),)) as (
         container
     ):
-        resolved = await container.make(ConfigRepository)
+        resolved = await container.make_async(ConfigRepository)
 
     assert resolved is repository
     assert resolved.get("app.name") == "Titanspan"

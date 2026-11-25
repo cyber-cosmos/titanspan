@@ -21,8 +21,8 @@ The reference behavior is pinned to release `13.44.1` at commit
 ## Decision
 
 - Add `titanspan.container.Container`, native binding and lifetime metadata,
-  typed aliases, tags, declarative class lifetime decorators, and asynchronous
-  scope contexts.
+  typed aliases, tags, declarative class lifetime decorators, and owned
+  execution scopes.
 - Keep all direct resolver imports in `container._backends`.
 - Discover constructor type dependencies without creating service instances;
   pass the resulting class set to the resolver for graph construction.
@@ -73,3 +73,7 @@ application singleton identity, overlapping execution scopes, generator
 resource cleanup, concurrent discovery, and cleanup after cancellation. A
 future application integration must use one lifecycle owner for HTTP, direct
 resolution, configuration, and logging services.
+
+The synchronous-first execution model and explicit async alternatives were
+adopted after this decision. See [ADR 0015](0015-sync-first-container-resolution.md)
+for the resolution-mode contract and mixed-mode cache guarantees.

@@ -1,17 +1,31 @@
-"""Provide the native asynchronous service container.
+"""Provide Titanspan's native synchronous-first service container.
 
 Titanspan owns registration, aliases, lifetime metadata, and active execution
-scope handling. The private dependency adapter composes validated graphs and
-finalizes resources.
+scope handling. Sync-safe graphs resolve immediately; explicit async methods
+support asynchronous initialization and resource lifecycles. The private
+dependency adapter composes validated graphs and finalizes resources.
 """
 
 from __future__ import annotations
 
 import asyncio
-from contextlib import AsyncExitStack
+from collections.abc import Awaitable as AwaitableABC
+from collections.abc import Coroutine as CoroutineABC
+from contextlib import AsyncExitStack, ExitStack
 from contextvars import ContextVar, Token
 from dataclasses import dataclass
-from inspect import Parameter, Signature, isabstract, isawaitable, signature
+from inspect import (
+    Parameter,
+    Signature,
+    isabstract,
+    isasyncgenfunction,
+    isawaitable,
+    iscoroutine,
+    iscoroutinefunction,
+    signature,
+    unwrap,
+)
+from threading import RLock
 from typing import (
     TYPE_CHECKING,
     Annotated,
@@ -26,12 +40,16 @@ from titanspan.container._backends.dependency_engine import (
     DependencyGraph,
     EngineBinding,
     GraphRequest,
+    SyncDependencyGraph,
+    asynchronous_dependency_path,
     create_dependency_graph,
+    create_sync_dependency_graph,
     discover_dependency_types,
 )
 from titanspan.container.binding import Binding, Lifetime, ServiceFactory
 from titanspan.container.decorators import binding_declaration
 from titanspan.container.exceptions import (
+    AsyncResolutionRequiredError,
     BindingError,
     BindingResolutionError,
     ContainerClosedError,
@@ -39,7 +57,7 @@ from titanspan.container.exceptions import (
     ScopeError,
 )
 from titanspan.container.scope import Scope
-from titanspan.contracts import AsyncServiceContainer
+from titanspan.contracts import ServiceContainer
 
 if TYPE_CHECKING:
     from collections.abc import Awaitable, Callable, Iterable, Mapping
@@ -66,6 +84,34 @@ _MISSING_METHOD_BINDING_ERROR = "No callable is registered for this method."
 _CALL_SIGNATURE_ERROR = "Unable to inspect the callable signature."
 _CALL_PARAMETER_ERROR = "The callable received unknown explicit parameters."
 _CALL_ANNOTATION_ERROR = "A required callable parameter is not resolvable."
+_ASYNC_RESOLUTION_ERROR = (
+    "Synchronous resolution requires an asynchronous dependency path."
+)
+_SYNC_ASYNC_CALLBACK_ERROR = (
+    "Use call_async for asynchronous callbacks or dependencies."
+)
+_SYNC_AWAITABLE_RESULT_ERROR = (
+    "The callable returned an awaitable; use call_async."
+)
+_APPLICATION_GRAPH_ERROR = (
+    "The application graph must support async resolution."
+)
+_APPLICATION_DEPENDENCY_GRAPH_ERROR = (
+    "Application dependencies require an async graph."
+)
+_ASYNC_GRAPH_ERROR = "Async scopes require an async backend graph."
+_APPLICATION_RESOURCE_GRAPH_ERROR = (
+    "Application resource graphs must be asynchronous."
+)
+_APPLICATION_DEPENDENCY_MODE_ERROR = (
+    "Application dependencies require an async graph."
+)
+_ASYNC_SCOPE_SYNC_ERROR = (
+    "Use async resolution for a dependency not yet entered in this scope."
+)
+_SYNC_SCOPE_ASYNC_ERROR = (
+    "Async-only dependencies require an asynchronous execution scope."
+)
 _PRIMITIVE_TYPES = (str, int, float, bool, bytes, object)
 _DEFAULT_MAX_GRAPH_GENERATIONS = 128
 
@@ -93,14 +139,14 @@ class _Generation:
     Attributes:
         identifier: Stable identity used by active scope frames.
         root: Type that caused this graph to be composed.
-        graph: Private adapter that owns graph resolution and cleanup.
+        graph: Private adapter for the selected sync or async mode.
     """
 
     def __init__(
         self,
         identifier: int,
         root: type[object],
-        graph: DependencyGraph,
+        graph: DependencyGraph | SyncDependencyGraph,
     ) -> None:
         """Store one graph generation without exposing its backend.
 
@@ -115,12 +161,11 @@ class _Generation:
 
 
 class ContainerScope:
-    """Represent one task-local execution scope.
+    """Represent one task-local scope with explicit sync and async entry.
 
-    Use this object as an asynchronous context manager. It lazily enters the
-    matching backend scope for each graph generation used inside its lifetime.
-    Concurrent tasks may inherit the active scope context; callers should give
-    independently owned work its own scope when it needs isolated instances.
+    Synchronous entry uses a synchronous backend child and synchronous
+    finalizers. Asynchronous entry uses the owning async graph and preserves
+    async resource cleanup. A frame can be entered only once.
     """
 
     def __init__(
@@ -145,12 +190,55 @@ class ContainerScope:
         self._parent: ContainerScope | None = None
         self._token: Token[tuple[ContainerScope, ...]] | None = None
         self._exit_stack = AsyncExitStack()
+        self._sync_exit_stack = ExitStack()
         self._graphs: dict[int, DependencyGraph] = {}
-        self._generations: dict[type[object], _Generation] = {}
+        self._sync_graphs: dict[int, SyncDependencyGraph] = {}
+        self._generations: dict[tuple[type[object], bool], _Generation] = {}
         self._instances: dict[type[object], object] = {}
         self._lock = asyncio.Lock()
         self._active = False
         self._entered = False
+        self._synchronous = False
+
+    def __enter__(self) -> ContainerScope:
+        """Activate a scope whose resources support synchronous cleanup.
+
+        Returns:
+            This active scope.
+
+        Raises:
+            ContainerClosedError: If the owning container is closed.
+            ScopeError: If lifecycle ordering is invalid.
+        """
+        self._activate(synchronous=True)
+        return self
+
+    def __exit__(
+        self,
+        exception_type: type[BaseException] | None,
+        exception: BaseException | None,
+        traceback: TracebackType | None,
+    ) -> None:
+        """Restore the active context and finalize synchronous resources.
+
+        Args:
+            exception_type: Active exception class, if any.
+            exception: Active exception, if any.
+            traceback: Active traceback, if any.
+        """
+        self._deactivate()
+        try:
+            self._sync_exit_stack.__exit__(
+                exception_type,
+                exception,
+                traceback,
+            )
+        except BindingResolutionError:
+            raise
+        except Exception as error:
+            raise BindingResolutionError(_SCOPE_FINALIZATION_ERROR) from error
+        finally:
+            self._callbacks.exited(len(self._generations))
 
     async def __aenter__(self) -> ContainerScope:
         """Activate the scope in the current asynchronous context.
@@ -161,6 +249,19 @@ class ContainerScope:
         Raises:
             ContainerClosedError: If the owning container is closed.
             ScopeError: If nested scopes do not advance the scope hierarchy.
+        """
+        self._activate(synchronous=False)
+        return self
+
+    def _activate(self, *, synchronous: bool) -> None:
+        """Validate and install this scope in the execution-local stack.
+
+        Args:
+            synchronous: Whether the caller selected sync scope management.
+
+        Raises:
+            ContainerClosedError: If the owning container is closed.
+            ScopeError: If lifecycle ordering or reentry is invalid.
         """
         self._callbacks.ensure_open()
         parents = self._scope_context.get()
@@ -175,11 +276,21 @@ class ContainerScope:
 
         self._entered = True
         self._active = True
+        self._synchronous = synchronous
         self._token = self._scope_context.set(
             (*parents, self),
         )
         self._callbacks.entered()
-        return self
+
+    def _deactivate(self) -> None:
+        """Restore the prior execution-local scope stack exactly once.
+
+        Resetting the token prevents a closed scope from remaining visible
+        to later work in this execution context.
+        """
+        self._active = False
+        if self._token is not None:
+            self._scope_context.reset(self._token)
 
     async def __aexit__(
         self,
@@ -197,28 +308,21 @@ class ContainerScope:
         Side Effects:
             Closes every backend child entered by this frame in reverse order.
         """
-        self._active = False
+        self._deactivate()
         try:
-            if self._token is not None:
-                self._scope_context.reset(self._token)
+            await self._exit_stack.__aexit__(
+                exception_type,
+                exception,
+                traceback,
+            )
+        except BindingResolutionError:
+            raise
+        except Exception as error:
+            raise BindingResolutionError(_SCOPE_FINALIZATION_ERROR) from error
         finally:
-            try:
-                try:
-                    await self._exit_stack.__aexit__(
-                        exception_type,
-                        exception,
-                        traceback,
-                    )
-                except BindingResolutionError:
-                    raise
-                except Exception as error:
-                    raise BindingResolutionError(
-                        _SCOPE_FINALIZATION_ERROR
-                    ) from error
-            finally:
-                self._callbacks.exited(len(self._generations))
+            self._callbacks.exited(len(self._generations))
 
-    async def make[ServiceT](self, service: type[ServiceT]) -> ServiceT:
+    def make[ServiceT](self, service: type[ServiceT]) -> ServiceT:
         """Resolve a service within this active execution scope.
 
         Args:
@@ -232,10 +336,10 @@ class ContainerScope:
         """
         if not self._active:
             raise ScopeError(_INACTIVE_SCOPE_ERROR)
-        return await self._container.make(service)
+        return self._container.make(service)
 
-    async def get[ServiceT](self, service: type[ServiceT]) -> ServiceT:
-        """Resolve a service using the contract's concise method name.
+    async def make_async[ServiceT](self, service: type[ServiceT]) -> ServiceT:
+        """Resolve a service through its explicit async operation.
 
         Args:
             service: Registered or automatically constructible service type.
@@ -243,7 +347,31 @@ class ContainerScope:
         Returns:
             The service instance resolved within this scope.
         """
-        return await self.make(service)
+        if not self._active:
+            raise ScopeError(_INACTIVE_SCOPE_ERROR)
+        return await self._container.make_async(service)
+
+    def get[ServiceT](self, service: type[ServiceT]) -> ServiceT:
+        """Resolve a service using the concise synchronous method name.
+
+        Args:
+            service: Service key requested within the active scope.
+
+        Returns:
+            The resolved service instance.
+        """
+        return self.make(service)
+
+    async def get_async[ServiceT](self, service: type[ServiceT]) -> ServiceT:
+        """Resolve a service using the explicit asynchronous method name.
+
+        Args:
+            service: Service key requested within the active scope.
+
+        Returns:
+            The resolved service instance.
+        """
+        return await self.make_async(service)
 
     @property
     def is_active(self) -> bool:
@@ -253,6 +381,29 @@ class ContainerScope:
             ``True`` between successful entry and completed cleanup.
         """
         return self._active
+
+    @property
+    def is_synchronous(self) -> bool:
+        """Report whether synchronous scope cleanup owns this frame.
+
+        Returns:
+            ``True`` when the frame was entered with a ``with`` statement.
+        """
+        return self._synchronous
+
+    def entered_async_graph(
+        self,
+        identifier: int,
+    ) -> DependencyGraph | None:
+        """Return an already entered backend child without exposing storage.
+
+        Args:
+            identifier: Graph generation whose child may be active.
+
+        Returns:
+            The child graph for this frame, if one has been entered.
+        """
+        return self._graphs.get(identifier)
 
     def find_instance(
         self, service: type[object]
@@ -288,16 +439,22 @@ class ContainerScope:
         """
         self._instances[service] = instance
 
-    def generation_for(self, service: type[object]) -> _Generation | None:
-        """Return this frame's graph generation for a service root.
+    def generation_for(
+        self,
+        service: type[object],
+        *,
+        asynchronous: bool,
+    ) -> _Generation | None:
+        """Return a mode-specific graph generation for a service root.
 
         Args:
             service: Root type previously composed in this frame.
+            asynchronous: Whether the graph supports async resolution.
 
         Returns:
             The frame-owned generation, if present.
         """
-        return self._generations.get(service)
+        return self._generations.get((service, asynchronous))
 
     def own_generation(
         self,
@@ -313,8 +470,17 @@ class ContainerScope:
         Side Effects:
             Registers graph cleanup before child scope cleanup is added.
         """
-        self._generations[service] = generation
+        is_async_graph = isinstance(generation.graph, DependencyGraph)
+        self._generations[(service, is_async_graph)] = generation
         self._callbacks.generation_created()
+        if isinstance(generation.graph, SyncDependencyGraph):
+            if self._synchronous:
+                self._sync_exit_stack.callback(generation.graph.close)
+            else:
+                self._exit_stack.callback(generation.graph.close)
+            return
+        if self._synchronous:
+            raise ScopeError(_SYNC_SCOPE_ASYNC_ERROR)
         self._exit_stack.push_async_callback(generation.graph.close)
 
     async def graph_for(
@@ -340,16 +506,46 @@ class ContainerScope:
                 self._graphs[generation.identifier] = graph
             return graph
 
+    def graph_for_sync(
+        self,
+        generation: _Generation,
+    ) -> SyncDependencyGraph:
+        """Return a synchronous backend child owned by this scope frame.
 
-class Container(AsyncServiceContainer):
-    """Register and resolve application services asynchronously.
+        Args:
+            generation: Graph generation used for dependency discovery.
+
+        Returns:
+            A synchronous backend view entered for this scope.
+        """
+        if not self._active:
+            raise ScopeError(_ASYNC_SCOPE_SYNC_ERROR)
+        graph = self._sync_graphs.get(generation.identifier)
+        if graph is not None:
+            return graph
+        root_graph = generation.graph
+        if not isinstance(root_graph, SyncDependencyGraph):
+            raise ScopeError(_ASYNC_SCOPE_SYNC_ERROR)
+        if self._synchronous:
+            graph = self._sync_exit_stack.enter_context(
+                root_graph.scope(self.scope.value),
+            )
+        else:
+            graph = self._exit_stack.enter_context(
+                root_graph.scope(self.scope.value),
+            )
+        self._sync_graphs[generation.identifier] = graph
+        return graph
+
+
+class Container(ServiceContainer):
+    """Register services and resolve sync-safe graphs synchronously.
 
     Bindings are mutable until the first graph is requested. Concrete
     unregistered classes are discovered recursively by the private graph
-    adapter. Each newly discovered root creates one cached graph generation;
-    later resolutions reuse that generation. Existing application instances
-    are supplied to later generations so adding a graph does not invalidate
-    values previously resolved through this API.
+    adapter. Sync resolution uses the async backend's documented sync getter,
+    preserving its application cache. Async factories use the explicitly
+    asynchronous methods. Each discovered root has a bounded graph generation.
 
     Attributes:
         providers: Optional advanced interoperability registrations. Ordinary
@@ -391,13 +587,13 @@ class Container(AsyncServiceContainer):
         self._method_bindings: dict[str, Callable[..., object]] = {}
         self._shared_instances: dict[type[object], object] = {}
         self._shared_resolution_locks: dict[type[object], asyncio.Lock] = {}
-        self._generations: list[_Generation] = []
+        self._generations: list[DependencyGraph] = []
         self._generation_by_type: dict[type[object], _Generation] = {}
         self._next_generation_id = 0
         self._active_scopes: ContextVar[tuple[ContainerScope, ...]] = (
             ContextVar(f"titanspan_container_scopes_{id(self)}", default=())
         )
-        self._generation_lock = asyncio.Lock()
+        self._generation_lock = RLock()
         self._closed = False
         self._frozen = False
         self._active_scope_count = 0
@@ -614,20 +810,59 @@ class Container(AsyncServiceContainer):
             if service not in tagged:
                 tagged.append(service)
 
-    async def tagged(self, name: str) -> list[object]:
-        """Resolve tagged services in their registration order.
+    def tagged(self, name: str) -> list[object]:
+        """Resolve sync-safe tagged services in registration order.
 
         Args:
             name: Tag previously registered with ``tag``.
 
         Returns:
-            Resolved service values. An unknown tag returns an empty list.
+            Resolved values. Unknown tags return an empty list.
+        """
+        return [self.make(service) for service in self._tags.get(name, [])]
+
+    async def tagged_async(self, name: str) -> list[object]:
+        """Resolve tagged services through async-capable graphs.
+
+        Args:
+            name: Tag previously registered with ``tag``.
+
+        Returns:
+            Resolved values in registration order.
         """
         return [
-            await self.make(service) for service in self._tags.get(name, [])
+            await self.make_async(service)
+            for service in self._tags.get(name, [])
         ]
 
     def factory[ServiceT](
+        self,
+        service: type[ServiceT],
+    ) -> Callable[[], ServiceT]:
+        """Return a lazy synchronous resolver for a service type.
+
+        Args:
+            service: Service resolved each time the returned callable is used.
+
+        Returns:
+            A callable that delegates to synchronous container resolution.
+
+        Notes:
+            Transient bindings produce fresh values; cached lifetimes keep
+            their normal application or execution-scope semantics.
+        """
+
+        def resolve() -> ServiceT:
+            """Resolve the configured service when invoked.
+
+            Returns:
+                The service value from the active container context.
+            """
+            return self.make(service)
+
+        return resolve
+
+    def factory_async[ServiceT](
         self,
         service: type[ServiceT],
     ) -> Callable[[], Awaitable[ServiceT]]:
@@ -637,11 +872,7 @@ class Container(AsyncServiceContainer):
             service: Service resolved each time the returned callable is used.
 
         Returns:
-            A coroutine factory that delegates to the active container.
-
-        Notes:
-            Transient bindings produce fresh values; cached lifetimes keep
-            their normal application or execution-scope semantics.
+            A coroutine factory using the async resolution path.
         """
 
         async def resolve() -> ServiceT:
@@ -650,11 +881,11 @@ class Container(AsyncServiceContainer):
             Returns:
                 The service value from the active container context.
             """
-            return await self.make(service)
+            return await self.make_async(service)
 
         return resolve
 
-    async def call[**P, ReturnT](
+    async def call_async[**P, ReturnT](
         self,
         callback: Callable[P, ReturnT] | Callable[P, Awaitable[ReturnT]],
         parameters: Mapping[str, object] | None = None,
@@ -679,7 +910,7 @@ class Container(AsyncServiceContainer):
         call_signature, annotations = self._call_signature(
             cast("Callable[..., object]", callback)
         )
-        arguments, keywords = await self._resolve_call_arguments(
+        arguments, keywords = await self._resolve_call_arguments_async(
             call_signature,
             annotations,
             {} if parameters is None else dict(parameters),
@@ -718,7 +949,135 @@ class Container(AsyncServiceContainer):
             raise BindingResolutionError(_CALL_SIGNATURE_ERROR) from error
         return callback_signature, annotations
 
-    async def _resolve_call_arguments(
+    def call[**P, ReturnT](
+        self,
+        callback: Callable[P, ReturnT],
+        parameters: Mapping[str, object] | None = None,
+    ) -> ReturnT:
+        """Invoke a synchronous callable with resolved dependencies.
+
+        Args:
+            callback: Synchronous application callable.
+            parameters: Explicit values keyed by callable parameter name.
+
+        Returns:
+            The direct result returned by the callable.
+
+        Raises:
+            AsyncResolutionRequiredError: If resolution or callback execution
+                requires asynchronous work.
+            BindingError: If explicit values name unsupported parameters.
+            BindingResolutionError: If a required parameter cannot be resolved.
+        """
+        callable_callback = cast("Callable[..., object]", callback)
+        call_signature, annotations = self._call_signature(callable_callback)
+        return_hint = annotations.get(
+            "return",
+            call_signature.return_annotation,
+        )
+        if _is_async_callable(callable_callback) or _is_awaitable_hint(
+            return_hint,
+        ):
+            raise AsyncResolutionRequiredError(_SYNC_ASYNC_CALLBACK_ERROR)
+        arguments, keywords = self._resolve_call_arguments_sync(
+            call_signature,
+            annotations,
+            {} if parameters is None else dict(parameters),
+        )
+        result = callable_callback(*arguments, **keywords)
+        if isawaitable(result):
+            if iscoroutine(result):
+                result.close()
+            raise AsyncResolutionRequiredError(_SYNC_AWAITABLE_RESULT_ERROR)
+        return cast("ReturnT", result)
+
+    def _resolve_call_arguments_sync(
+        self,
+        callback_signature: Signature,
+        annotations: Mapping[str, object],
+        explicit: dict[str, object],
+    ) -> tuple[list[object], dict[str, object]]:
+        """Resolve synchronous callback arguments and validate overrides.
+
+        Args:
+            callback_signature: Parameters accepted by the callable.
+            annotations: Resolved callback parameter annotations.
+            explicit: Caller-supplied values keyed by parameter name.
+
+        Returns:
+            Positional and keyword arguments ready for invocation.
+        """
+        positional: list[object] = []
+        keywords: dict[str, object] = {}
+        accepts_keywords = any(
+            parameter.kind is Parameter.VAR_KEYWORD
+            for parameter in callback_signature.parameters.values()
+        )
+        named_parameters = {
+            name
+            for name, parameter in callback_signature.parameters.items()
+            if parameter.kind
+            not in {Parameter.VAR_POSITIONAL, Parameter.VAR_KEYWORD}
+        }
+        unknown = set(explicit).difference(named_parameters)
+        if unknown and not accepts_keywords:
+            names = ", ".join(sorted(unknown))
+            message = f"{_CALL_PARAMETER_ERROR} {names}."
+            raise BindingError(message)
+        keywords.update(
+            (name, value) for name, value in explicit.items() if name in unknown
+        )
+
+        for name, parameter in callback_signature.parameters.items():
+            if parameter.kind in {
+                Parameter.VAR_POSITIONAL,
+                Parameter.VAR_KEYWORD,
+            }:
+                continue
+            if name in explicit:
+                value = explicit[name]
+            elif parameter.default is not Parameter.empty:
+                if parameter.kind is Parameter.POSITIONAL_ONLY:
+                    positional.append(parameter.default)
+                continue
+            else:
+                value = self._resolve_call_parameter_sync(
+                    name,
+                    annotations.get(name, parameter.annotation),
+                )
+            if parameter.kind is Parameter.POSITIONAL_ONLY:
+                positional.append(value)
+            else:
+                keywords[name] = value
+        return positional, keywords
+
+    def _resolve_call_parameter_sync(
+        self,
+        name: str,
+        annotation: object,
+    ) -> object:
+        """Resolve one annotated callback service without guessing scalars.
+
+        Args:
+            name: Parameter name used in actionable resolution errors.
+            annotation: Evaluated or declared Python type annotation.
+
+        Returns:
+            A resolved service instance.
+        """
+        if get_origin(annotation) is Annotated:
+            arguments = get_args(annotation)
+            annotation = arguments[0] if arguments else annotation
+        if not isinstance(annotation, type) or annotation in _PRIMITIVE_TYPES:
+            message = f"{_CALL_ANNOTATION_ERROR} Parameter {name!r}."
+            raise BindingResolutionError(message)
+        try:
+            return self.make(cast("type[object]", annotation))
+        except BindingResolutionError as error:
+            message = f"Unable to resolve callable parameter {name!r}."
+            raise BindingResolutionError(message) from error
+
+    async def _resolve_call_arguments_async(
         self,
         callback_signature: Signature,
         annotations: Mapping[str, object],
@@ -772,7 +1131,7 @@ class Container(AsyncServiceContainer):
                     positional.append(parameter.default)
                 continue
             else:
-                value = await self._resolve_call_parameter(
+                value = await self._resolve_call_parameter_async(
                     name,
                     annotations.get(name, parameter.annotation),
                 )
@@ -782,7 +1141,7 @@ class Container(AsyncServiceContainer):
                 keywords[name] = value
         return positional, keywords
 
-    async def _resolve_call_parameter(
+    async def _resolve_call_parameter_async(
         self,
         name: str,
         annotation: object,
@@ -807,7 +1166,7 @@ class Container(AsyncServiceContainer):
             raise BindingResolutionError(message)
         try:
             service = cast("type[object]", annotation)
-            return await self.make(service)
+            return await self.make_async(service)
         except BindingResolutionError as error:
             message = f"Unable to resolve callable parameter {name!r}."
             raise BindingResolutionError(message) from error
@@ -842,7 +1201,7 @@ class Container(AsyncServiceContainer):
         """
         return method in self._method_bindings
 
-    async def call_method_binding(
+    def call_method_binding(
         self,
         method: str,
         parameters: Mapping[str, object] | None = None,
@@ -863,12 +1222,78 @@ class Container(AsyncServiceContainer):
             callback = self._method_bindings[method]
         except KeyError as error:
             raise BindingError(_MISSING_METHOD_BINDING_ERROR) from error
-        result: object = await self.call(callback, parameters)
+        result: object = self.call(callback, parameters)
         return result
 
+    async def call_method_binding_async(
+        self,
+        method: str,
+        parameters: Mapping[str, object] | None = None,
+    ) -> object:
+        """Invoke a registered callback through asynchronous injection.
+
+        Args:
+            method: Application-defined binding key.
+            parameters: Optional caller-supplied parameter values.
+
+        Returns:
+            The callback result after asynchronous dependency resolution.
+        """
+        try:
+            callback = self._method_bindings[method]
+        except KeyError as error:
+            raise BindingError(_MISSING_METHOD_BINDING_ERROR) from error
+        return await self.call_async(callback, parameters)
+
     @overload
-    async def make[ServiceT](self, service: type[ServiceT]) -> ServiceT:
-        """Resolve a class-keyed service while preserving its static type.
+    def make[ServiceT](self, service: type[ServiceT]) -> ServiceT:
+        """Synchronously resolve a class-keyed service.
+
+        Args:
+            service: Service key whose class determines the result type.
+
+        Returns:
+            The immediate service instance with its declared type.
+        """
+
+    @overload
+    def make(self, service: str) -> object:
+        """Synchronously resolve a named service.
+
+        Args:
+            service: Registered alias for a service contract.
+
+        Returns:
+            The service instance associated with that alias.
+        """
+
+    def make(
+        self,
+        service: type[object] | str,
+    ) -> object:
+        """Synchronously resolve a graph that requires no async resources.
+
+        Args:
+            service: Service type or registered string alias.
+
+        Returns:
+            The resolved service instance.
+
+        Raises:
+            BindingError: If a string alias is unknown.
+            AsyncResolutionRequiredError: If a factory requires awaiting.
+            BindingResolutionError: If graph construction or resolution fails.
+            ContainerClosedError: If the container has begun shutdown.
+            ScopeError: If an inherited execution scope has already closed.
+        """
+        return self._make_sync(service)
+
+    @overload
+    async def make_async[ServiceT](
+        self,
+        service: type[ServiceT],
+    ) -> ServiceT:
+        """Asynchronously resolve a class-keyed service.
 
         Args:
             service: Service key whose class determines the result type.
@@ -878,8 +1303,8 @@ class Container(AsyncServiceContainer):
         """
 
     @overload
-    async def make(self, service: str) -> object:
-        """Resolve a named service with a dynamic return type.
+    async def make_async(self, service: str) -> object:
+        """Asynchronously resolve a named service.
 
         Args:
             service: Registered alias for a service contract.
@@ -888,11 +1313,11 @@ class Container(AsyncServiceContainer):
             The service instance associated with that alias.
         """
 
-    async def make(
+    async def make_async(
         self,
         service: type[object] | str,
     ) -> object:
-        """Resolve a service through a cached, validated graph generation.
+        """Resolve a service through its explicitly asynchronous operation.
 
         Args:
             service: Service type or registered string alias.
@@ -909,6 +1334,11 @@ class Container(AsyncServiceContainer):
         self._ensure_open()
         key = self._resolve_key(service)
         frames = self._active_scopes.get()
+        if frames and frames[-1].is_synchronous:
+            path = self._async_path(key)
+            if path is not None:
+                raise ScopeError(_SYNC_SCOPE_ASYNC_ERROR)
+            return self._make_sync(key)
         is_cached, cached = self._cached_value(key, frames)
         if is_cached:
             return cached
@@ -918,6 +1348,228 @@ class Container(AsyncServiceContainer):
             if frames:
                 await self._prime_application_dependencies(key)
             return await self._resolve_locked(key, frames)
+
+    def resolve[ServiceT](self, service: type[ServiceT]) -> ServiceT:
+        """Resolve a service through the canonical sync-first operation.
+
+        Args:
+            service: Service key whose class determines the result type.
+
+        Returns:
+            The resolved instance with its declared service type.
+        """
+        return self.make(service)
+
+    async def resolve_async[ServiceT](
+        self,
+        service: type[ServiceT],
+    ) -> ServiceT:
+        """Resolve a service through the canonical async operation.
+
+        Args:
+            service: Service key whose class determines the result type.
+
+        Returns:
+            The resolved instance with its declared service type.
+        """
+        return await self.make_async(service)
+
+    def build[ServiceT](self, service: type[ServiceT]) -> ServiceT:
+        """Build a service through the configured resolution policy.
+
+        Args:
+            service: Service key whose class determines the result type.
+
+        Returns:
+            The resolved instance with its declared service type.
+
+        Notes:
+            This native API currently shares the caching semantics of
+            ``make``. It does not bypass singleton or scoped lifetimes.
+        """
+        return self.make(service)
+
+    async def build_async[ServiceT](
+        self,
+        service: type[ServiceT],
+    ) -> ServiceT:
+        """Build a service through the async resolution policy.
+
+        Args:
+            service: Service key whose class determines the result type.
+
+        Returns:
+            The resolved instance with its declared service type.
+        """
+        return await self.make_async(service)
+
+    def make_with[ServiceT](
+        self,
+        service: type[ServiceT],
+        parameters: Mapping[str, object],
+    ) -> ServiceT:
+        """Construct a service with explicit constructor values.
+
+        Args:
+            service: Concrete class to construct.
+            parameters: Explicit constructor values keyed by parameter name.
+
+        Returns:
+            A newly constructed instance of ``service``.
+
+        Notes:
+            This operation bypasses the root service's cached binding while
+            resolving omitted constructor dependencies through the container.
+        """
+        return cast("ServiceT", self.call(service, parameters))
+
+    async def make_with_async[ServiceT](
+        self,
+        service: type[ServiceT],
+        parameters: Mapping[str, object],
+    ) -> ServiceT:
+        """Construct a service with explicit values and async dependencies.
+
+        Args:
+            service: Concrete class to construct.
+            parameters: Explicit constructor values keyed by parameter name.
+
+        Returns:
+            A newly constructed instance of ``service``.
+        """
+        return cast(
+            "ServiceT",
+            await self.call_async(service, parameters),
+        )
+
+    def _make_sync(self, service: type[object] | str) -> object:
+        """Resolve one service synchronously through the shared graph cache.
+
+        Args:
+            service: Native service type or registered string alias.
+
+        Returns:
+            The resolved service instance.
+
+        Raises:
+            AsyncResolutionRequiredError: If the dependency path is async-only.
+            BindingResolutionError: If synchronous backend resolution fails.
+            ScopeError: If the active scope cannot use sync resolution.
+        """
+        self._ensure_open()
+        key = self._resolve_key(service)
+        frames = self._active_scopes.get()
+        is_cached, cached = self._cached_value(key, frames)
+        if is_cached:
+            return cached
+        path = self._async_path(key)
+        if path is not None:
+            dependency_path = " -> ".join(path)
+            message = (
+                f"{_ASYNC_RESOLUTION_ERROR} Dependency path: "
+                f"{dependency_path}. Use make_async()."
+            )
+            raise AsyncResolutionRequiredError(message)
+
+        if frames and not frames[-1].is_synchronous:
+            generation = frames[-1].generation_for(
+                key,
+                asynchronous=True,
+            )
+            graph = (
+                None
+                if generation is None
+                else self._entered_async_graph(generation, frames)
+            )
+            if generation is not None and graph is not None:
+                return self._resolve_from_graph_sync(
+                    key,
+                    graph,
+                    generation,
+                    frames,
+                )
+
+        if frames:
+            self._prime_application_dependencies_sync(key)
+        generation = self._generation_for_sync(key, frames)
+        if frames:
+            frame = frames[-1]
+            graph = frame.graph_for_sync(generation)
+            resolve = graph.get
+        else:
+            graph = generation.graph
+            if not isinstance(graph, DependencyGraph):
+                raise BindingResolutionError(_APPLICATION_GRAPH_ERROR)
+            resolve = graph.get_sync
+        try:
+            result = resolve(key)
+        except Exception as error:
+            raise self._translate_sync_error(key) from error
+        self._remember(key, result, frames)
+        self._remember_shared_dependencies_sync(
+            key,
+            generation,
+            graph,
+            frames,
+        )
+        return result
+
+    def _async_path(self, service: type[object]) -> tuple[str, ...] | None:
+        """Return a known async-only dependency chain without executing it.
+
+        Args:
+            service: Root type requested by synchronous resolution.
+
+        Returns:
+            A dependency path or ``None`` if its native graph is sync-safe.
+        """
+        bindings = tuple(
+            self._engine_binding(binding) for binding in self._bindings.values()
+        )
+        return asynchronous_dependency_path(service, bindings)
+
+    @staticmethod
+    def _entered_async_graph(
+        generation: _Generation,
+        frames: tuple[ContainerScope, ...],
+    ) -> DependencyGraph | None:
+        """Return the deepest already-entered async graph for sync access.
+
+        Args:
+            generation: Existing graph generation.
+            frames: Active async scope frames.
+
+        Returns:
+            The deepest entered graph, or ``None`` if one has not been entered.
+        """
+        graph = generation.graph
+        for frame in frames:
+            current = frame.entered_async_graph(generation.identifier)
+            if current is None:
+                return None
+            graph = current
+        if not isinstance(graph, DependencyGraph):
+            return None
+        return graph
+
+    def _translate_sync_error(
+        self,
+        service: type[object],
+    ) -> BindingResolutionError:
+        """Translate an unclassified backend sync failure to a native error.
+
+        Args:
+            service: Requested native service key.
+
+        Returns:
+            An actionable native error preserving the backend cause.
+        """
+        message = (
+            f"Unable to resolve {service.__qualname__} synchronously. "
+            "If its integration provider requires async resolution, "
+            "use make_async()."
+        )
+        return BindingResolutionError(message)
 
     async def _resolve_locked(
         self,
@@ -1039,9 +1691,59 @@ class Container(AsyncServiceContainer):
                 continue
             generation = await self._generation_for(dependency, ())
             graph = generation.graph
+            if not isinstance(graph, DependencyGraph):
+                raise BindingResolutionError(
+                    _APPLICATION_DEPENDENCY_GRAPH_ERROR
+                )
             value = await self._resolve_from_graph(dependency, graph)
             self._remember(dependency, value, ())
             await self._remember_shared_dependencies(
+                dependency,
+                generation,
+                graph,
+                (),
+            )
+
+    def _prime_application_dependencies_sync(
+        self,
+        root: type[object],
+    ) -> None:
+        """Resolve sync-safe app singletons before entering a sync scope.
+
+        Args:
+            root: Scoped root whose dependency closure is being prepared.
+
+        Raises:
+            AsyncResolutionRequiredError: If an app singleton is async-only.
+            BindingResolutionError: If synchronous singleton creation fails.
+        """
+        dependencies = sorted(
+            self._dependency_types_for(root),
+            key=lambda dependency: (
+                dependency.__module__,
+                dependency.__qualname__,
+            ),
+        )
+        for dependency in dependencies:
+            policy = self._binding_policy(dependency)
+            if (
+                policy is None
+                or policy[0] is not Lifetime.SINGLETON
+                or dependency in self._shared_instances
+            ):
+                continue
+            generation = self._generation_for_sync(dependency, ())
+            graph = generation.graph
+            if not isinstance(graph, DependencyGraph):
+                raise BindingResolutionError(
+                    _APPLICATION_DEPENDENCY_GRAPH_ERROR
+                )
+            try:
+                value = graph.get_sync(dependency)
+            except Exception as error:
+                raise self._translate_sync_error(dependency) from error
+            self._remember(dependency, value, ())
+            self._remember_shared_dependencies_sync(
                 dependency,
                 generation,
                 graph,
@@ -1090,6 +1792,8 @@ class Container(AsyncServiceContainer):
             The deepest backend graph corresponding to the active scopes.
         """
         graph = generation.graph
+        if not isinstance(graph, DependencyGraph):
+            raise BindingResolutionError(_ASYNC_GRAPH_ERROR)
         for frame in frames:
             graph = await frame.graph_for(generation, graph)
         return graph
@@ -1148,9 +1852,75 @@ class Container(AsyncServiceContainer):
             message = f"Unable to retain dependencies for {root.__qualname__}."
             raise BindingResolutionError(message) from error
 
+    def _resolve_from_graph_sync(
+        self,
+        service: type[object],
+        graph: DependencyGraph,
+        generation: _Generation,
+        frames: tuple[ContainerScope, ...],
+    ) -> object:
+        """Resolve synchronously from a child of an active async scope.
+
+        Args:
+            service: Canonical service key.
+            graph: Already entered async backend scope.
+            generation: Graph metadata for shared dependency tracking.
+            frames: Current task-local scope stack.
+
+        Returns:
+            The resolved instance, preserving the shared async graph cache.
+        """
+        try:
+            result = graph.get_sync(service)
+        except Exception as error:
+            raise self._translate_sync_error(service) from error
+        self._remember(service, result, frames)
+        self._remember_shared_dependencies_sync(
+            service,
+            generation,
+            graph,
+            frames,
+        )
+        return result
+
+    def _remember_shared_dependencies_sync(
+        self,
+        root: type[object],
+        generation: _Generation,
+        graph: DependencyGraph | SyncDependencyGraph,
+        frames: tuple[ContainerScope, ...],
+    ) -> None:
+        """Track non-transient dependencies constructed by a sync graph.
+
+        Args:
+            root: Requested root service.
+            generation: Graph containing inspected constructor types.
+            graph: Sync-capable backend graph view.
+            frames: Current execution-scope stack.
+
+        Raises:
+            BindingResolutionError: If a shared dependency cannot be retained.
+        """
+        try:
+            for dependency in generation.graph.known_types:
+                if dependency == root:
+                    continue
+                policy = self._binding_policy(dependency)
+                if policy is None or policy[0] is Lifetime.TRANSIENT:
+                    continue
+                value = (
+                    graph.get(dependency)
+                    if isinstance(graph, SyncDependencyGraph)
+                    else graph.get_sync(dependency)
+                )
+                self._remember(dependency, value, frames)
+        except Exception as error:
+            message = f"Unable to retain dependencies for {root.__qualname__}."
+            raise BindingResolutionError(message) from error
+
     @overload
-    async def get[ServiceT](self, service: type[ServiceT]) -> ServiceT:
-        """Resolve a class-keyed service through the shared contract.
+    def get[ServiceT](self, service: type[ServiceT]) -> ServiceT:
+        """Synchronously retrieve a class-keyed service.
 
         Args:
             service: Service key whose class determines the result type.
@@ -1160,8 +1930,8 @@ class Container(AsyncServiceContainer):
         """
 
     @overload
-    async def get(self, service: str) -> object:
-        """Resolve a named service through the shared contract.
+    def get(self, service: str) -> object:
+        """Synchronously retrieve a named service.
 
         Args:
             service: Registered alias for a service contract.
@@ -1170,8 +1940,8 @@ class Container(AsyncServiceContainer):
             The service instance associated with that alias.
         """
 
-    async def get(self, service: type[object] | str) -> object:
-        """Resolve a service using the concise contract method name.
+    def get(self, service: type[object] | str) -> object:
+        """Resolve a sync-safe service using the concise method name.
 
         Args:
             service: Service type or registered string alias.
@@ -1179,7 +1949,40 @@ class Container(AsyncServiceContainer):
         Returns:
             The resolved service instance.
         """
-        return await self.make(service)
+        return self.make(service)
+
+    @overload
+    async def get_async[ServiceT](self, service: type[ServiceT]) -> ServiceT:
+        """Asynchronously retrieve a class-keyed service.
+
+        Args:
+            service: Service key whose class determines the result type.
+
+        Returns:
+            The resolved instance with its declared service type.
+        """
+
+    @overload
+    async def get_async(self, service: str) -> object:
+        """Asynchronously retrieve a named service.
+
+        Args:
+            service: Registered alias for a service contract.
+
+        Returns:
+            The service instance associated with that alias.
+        """
+
+    async def get_async(self, service: type[object] | str) -> object:
+        """Resolve a service using the explicit async method name.
+
+        Args:
+            service: Service type or registered string alias.
+
+        Returns:
+            The resolved service instance.
+        """
+        return await self.make_async(service)
 
     def bound(self, service: type[object] | str) -> bool:
         """Return whether the service has an explicit registration.
@@ -1335,9 +2138,9 @@ class Container(AsyncServiceContainer):
             raise ScopeError(_ACTIVE_SCOPE_ERROR)
         self._closed = True
         failures: list[Exception] = []
-        for generation in reversed(self._generations):
+        for graph in reversed(self._generations):
             try:
-                await generation.graph.close()
+                await graph.close()
             except Exception as error:
                 failures.append(error)
         if failures:
@@ -1346,12 +2149,116 @@ class Container(AsyncServiceContainer):
             raise BindingResolutionError(message) from failures[0]
 
     async def close(self) -> None:
-        """Finalize resources through the shared async container contract.
+        """Finalize resources through the native async lifecycle contract.
 
-        This explicit method matches ``AsyncServiceContainer`` and is an alias
-        for ``aclose``.
+        This method matches the consumer-facing service-container protocols
+        and is an alias for ``aclose``.
         """
         await self.aclose()
+
+    async def makeAsync[ServiceT](  # noqa: N802
+        self,
+        service: type[ServiceT],
+    ) -> ServiceT:
+        """Expose asynchronous resolution with compatibility casing.
+
+        Args:
+            service: Service type to resolve.
+
+        Returns:
+            The resolved service instance.
+        """
+        return await self.make_async(service)
+
+    async def getAsync[ServiceT](  # noqa: N802
+        self,
+        service: type[ServiceT],
+    ) -> ServiceT:
+        """Expose asynchronous retrieval with compatibility casing.
+
+        Args:
+            service: Service type to retrieve.
+
+        Returns:
+            The resolved service instance.
+        """
+        return await self.get_async(service)
+
+    async def resolveAsync[ServiceT](  # noqa: N802
+        self,
+        service: type[ServiceT],
+    ) -> ServiceT:
+        """Expose asynchronous resolution under the alternate method name.
+
+        Args:
+            service: Service type to resolve.
+
+        Returns:
+            The resolved service instance.
+        """
+        return await self.resolve_async(service)
+
+    async def buildAsync[ServiceT](  # noqa: N802
+        self,
+        service: type[ServiceT],
+    ) -> ServiceT:
+        """Expose asynchronous building with compatibility casing.
+
+        Args:
+            service: Service type to build.
+
+        Returns:
+            The resolved service instance.
+        """
+        return await self.build_async(service)
+
+    def makeWith[ServiceT](  # noqa: N802
+        self,
+        service: type[ServiceT],
+        parameters: Mapping[str, object],
+    ) -> ServiceT:
+        """Construct with explicit values using compatibility casing.
+
+        Args:
+            service: Concrete type to construct.
+            parameters: Explicit constructor values by parameter name.
+
+        Returns:
+            A newly constructed service instance.
+        """
+        return self.make_with(service, parameters)
+
+    async def makeWithAsync[ServiceT](  # noqa: N802
+        self,
+        service: type[ServiceT],
+        parameters: Mapping[str, object],
+    ) -> ServiceT:
+        """Construct asynchronously with explicit values.
+
+        Args:
+            service: Concrete type to construct.
+            parameters: Explicit constructor values by parameter name.
+
+        Returns:
+            A newly constructed service instance.
+        """
+        return await self.make_with_async(service, parameters)
+
+    async def callAsync[**P, ReturnT](  # noqa: N802
+        self,
+        callback: Callable[P, ReturnT] | Callable[P, Awaitable[ReturnT]],
+        parameters: Mapping[str, object] | None = None,
+    ) -> ReturnT:
+        """Invoke through asynchronous dependency injection.
+
+        Args:
+            callback: Synchronous or asynchronous application callable.
+            parameters: Explicit values keyed by parameter name.
+
+        Returns:
+            The callback result after async work completes.
+        """
+        return await self.call_async(callback, parameters)
 
     def bindMethod(  # noqa: N802
         self,
@@ -1377,7 +2284,7 @@ class Container(AsyncServiceContainer):
         """
         return self.has_method_binding(method)
 
-    async def callMethodBinding(  # noqa: N802
+    def callMethodBinding(  # noqa: N802
         self,
         method: str,
         parameters: Mapping[str, object] | None = None,
@@ -1391,7 +2298,23 @@ class Container(AsyncServiceContainer):
         Returns:
             The callback result after dependency resolution.
         """
-        return await self.call_method_binding(method, parameters)
+        return self.call_method_binding(method, parameters)
+
+    async def callMethodBindingAsync(  # noqa: N802
+        self,
+        method: str,
+        parameters: Mapping[str, object] | None = None,
+    ) -> object:
+        """Invoke a method callback asynchronously using compatibility casing.
+
+        Args:
+            method: Application-defined binding key.
+            parameters: Optional explicit parameter values.
+
+        Returns:
+            The callback result after async resolution.
+        """
+        return await self.call_method_binding_async(method, parameters)
 
     def bindIf[ServiceT](  # noqa: N802
         self,
@@ -1553,6 +2476,26 @@ class Container(AsyncServiceContainer):
         service: type[object],
         frames: tuple[ContainerScope, ...],
     ) -> _Generation:
+        """Compose or reuse the graph selected for async resolution.
+
+        Args:
+            service: Requested service type.
+            frames: Active execution frames.
+
+        Returns:
+            The existing or newly composed graph generation.
+        """
+        return self._generation_for_mode(
+            service,
+            frames,
+            asynchronous=True,
+        )
+
+    def _generation_for_sync(
+        self,
+        service: type[object],
+        frames: tuple[ContainerScope, ...],
+    ) -> _Generation:
         """Compose one cached backend graph for a newly requested root.
 
         Args:
@@ -1562,65 +2505,180 @@ class Container(AsyncServiceContainer):
         Returns:
             The cached graph generation that contains this root.
         """
-        async with self._generation_lock:
-            existing = None
-            if frames:
-                for frame in reversed(frames):
-                    existing = frame.generation_for(service)
-                    if existing is not None:
-                        break
-            else:
-                existing = self._generation_by_type.get(service)
+        return self._generation_for_mode(
+            service,
+            frames,
+            asynchronous=False,
+        )
+
+    def _generation_for_mode(
+        self,
+        service: type[object],
+        frames: tuple[ContainerScope, ...],
+        *,
+        asynchronous: bool,
+    ) -> _Generation:
+        """Compose one graph for the requested execution mode.
+
+        Args:
+            service: Concrete type requested for the first time.
+            frames: Active scope frames that can own or reuse this graph.
+            asynchronous: Whether the graph must support async factories.
+
+        Returns:
+            The cached graph generation containing this root.
+
+        Raises:
+            GraphLimitError: If retaining the generation would exceed the cap.
+            BindingResolutionError: If backend graph validation fails.
+        """
+        # The application graph uses Dishka's async container for both public
+        # modes so get_sync and get share one backend cache. Scope-local sync
+        # graphs are separate because Dishka cannot synchronously enter an
+        # async child scope; outer-scope instances are supplied as context.
+        with self._generation_lock:
+            existing = self._find_generation(
+                service,
+                frames,
+                asynchronous=asynchronous,
+            )
             if existing is not None:
                 return existing
             self._ensure_open()
-            active_graph_count = (
-                len(self._generations) + self._scope_generation_count
-            )
-            if active_graph_count >= self.max_graph_generations:
+            if self._graph_limit_reached():
                 raise GraphLimitError(_GRAPH_LIMIT_ERROR)
             self._frozen = True
-            bindings = tuple(
-                self._engine_binding(item) for item in self._bindings.values()
-            )
-            instances = dict(self._shared_instances)
-            for frame in frames:
-                instances.update(frame.instance_snapshot())
-            scopes = self._instance_scopes(instances)
-            auto_resolve = None if service in self._bindings else service
-            try:
-                graph = create_dependency_graph(
-                    providers=self.providers,
-                    bindings=bindings,
-                    request=GraphRequest(
-                        service=service,
-                        auto_resolve=auto_resolve is not None,
-                    ),
-                    resolution_scope=(
-                        frames[-1].scope.value
-                        if frames
-                        else Scope.APPLICATION.value
-                    ),
-                    instances=instances,
-                    instance_scopes=scopes,
-                )
-            except Exception as error:
-                message = (
-                    f"Unable to compose a graph for {service.__qualname__}."
-                )
-                raise BindingResolutionError(message) from error
-            generation = _Generation(
-                self._next_generation_id,
+            generation = self._compose_generation(
                 service,
-                graph,
+                frames,
+                asynchronous=asynchronous,
             )
-            self._next_generation_id += 1
-            if frames:
-                frames[-1].own_generation(service, generation)
-            else:
-                self._generations.append(generation)
-                self._generation_by_type[service] = generation
+            self._store_generation(service, frames, generation)
             return generation
+
+    def _find_generation(
+        self,
+        service: type[object],
+        frames: tuple[ContainerScope, ...],
+        *,
+        asynchronous: bool,
+    ) -> _Generation | None:
+        """Find the closest reusable generation for one service.
+
+        Args:
+            service: Canonical root key.
+            frames: Active scope stack.
+            asynchronous: Whether an async scope graph is requested.
+
+        Returns:
+            The root generation or matching scope generation, if composed.
+        """
+        if not frames:
+            # Application roots always use the async graph adapter, whose
+            # public sync resolver shares the same cache with async access.
+            return self._generation_by_type.get(service)
+        for frame in reversed(frames):
+            existing = frame.generation_for(
+                service,
+                asynchronous=asynchronous,
+            )
+            if existing is not None:
+                return existing
+        return None
+
+    def _graph_limit_reached(self) -> bool:
+        """Check the bounded number of active and retained graph generations.
+
+        Returns:
+            Whether another graph would exceed the configured limit.
+        """
+        active_graph_count = (
+            len(self._generations) + self._scope_generation_count
+        )
+        return active_graph_count >= self.max_graph_generations
+
+    def _compose_generation(
+        self,
+        service: type[object],
+        frames: tuple[ContainerScope, ...],
+        *,
+        asynchronous: bool,
+    ) -> _Generation:
+        """Build a backend graph and assign it a native generation identity.
+
+        Args:
+            service: Concrete dependency requested by the caller.
+            frames: Active scope frames whose values seed the graph.
+            asynchronous: Whether the graph supports asynchronous resources.
+
+        Returns:
+            A native generation wrapping the private graph adapter.
+
+        Raises:
+            BindingResolutionError: If graph composition or validation fails.
+        """
+        bindings = tuple(
+            self._engine_binding(item) for item in self._bindings.values()
+        )
+        instances = dict(self._shared_instances)
+        for frame in frames:
+            instances.update(frame.instance_snapshot())
+        scopes = self._instance_scopes(instances)
+        request = GraphRequest(
+            service=service,
+            auto_resolve=service not in self._bindings,
+        )
+        resolution_scope = (
+            frames[-1].scope.value if frames else Scope.APPLICATION.value
+        )
+        try:
+            graph_factory = (
+                create_dependency_graph
+                if asynchronous or not frames
+                else create_sync_dependency_graph
+            )
+            graph = graph_factory(
+                providers=self.providers,
+                bindings=bindings,
+                request=request,
+                resolution_scope=resolution_scope,
+                instances=instances,
+                instance_scopes=scopes,
+            )
+        except Exception as error:
+            message = f"Unable to compose a graph for {service.__qualname__}."
+            raise BindingResolutionError(message) from error
+        generation = _Generation(
+            self._next_generation_id,
+            service,
+            graph,
+        )
+        self._next_generation_id += 1
+        return generation
+
+    def _store_generation(
+        self,
+        service: type[object],
+        frames: tuple[ContainerScope, ...],
+        generation: _Generation,
+    ) -> None:
+        """Attach a generation to its application or execution lifecycle.
+
+        Args:
+            service: Root key represented by the generation.
+            frames: Active scope stack.
+            generation: Backend graph that must be closed with its owner.
+
+        Raises:
+            BindingResolutionError: If an application graph is not async.
+        """
+        if frames:
+            frames[-1].own_generation(service, generation)
+            return
+        if not isinstance(generation.graph, DependencyGraph):
+            raise BindingResolutionError(_APPLICATION_GRAPH_ERROR)
+        self._generations.append(generation.graph)
+        self._generation_by_type[service] = generation
 
     def _instance_scopes(
         self,
@@ -1743,6 +2801,36 @@ def _scope_level(scope: Scope) -> int:
     if scope in {Scope.NODE, Scope.AGENT}:
         return 2
     return 3
+
+
+def _is_async_callable(callback: Callable[..., object]) -> bool:
+    """Identify coroutine and async-generator callables without invoking them.
+
+    Args:
+        callback: Function, bound method, or callable instance.
+
+    Returns:
+        Whether calling the callback requires an async execution context.
+    """
+    unwrapped = unwrap(callback)
+    if iscoroutinefunction(unwrapped) or isasyncgenfunction(unwrapped):
+        return True
+    return callable(unwrapped) and (
+        iscoroutinefunction(type(unwrapped).__call__)
+        or isasyncgenfunction(type(unwrapped).__call__)
+    )
+
+
+def _is_awaitable_hint(annotation: object) -> bool:
+    """Check whether a return annotation describes an async result.
+
+    Args:
+        annotation: Resolved or deferred callable return annotation.
+
+    Returns:
+        Whether its top-level generic origin is awaitable.
+    """
+    return get_origin(annotation) in {AwaitableABC, CoroutineABC}
 
 
 __all__ = ["Container", "ContainerScope", "Scope"]

@@ -6,8 +6,9 @@ nearest implemented module. This file governs runtime package code only.
 
 - Follow the module responsibilities and dependency direction in
   `ARCHITECTURE.md`; do not import optional integrations into core modules.
-- Keep public APIs typed, async where underlying I/O is async, explicit, and
-  interoperable with the selected mature library.
+- Keep public APIs typed and explicit. Use synchronous interfaces for pure
+  construction and in-memory work; use explicit async interfaces where
+  underlying I/O or resource initialization is asynchronous.
 - Use Titanspan domain-oriented filenames for public modules (for example,
   `container/container.py`). Document the delegated package honestly.
 - Use Red-Green-Refactor for behavior changes and add unit plus real

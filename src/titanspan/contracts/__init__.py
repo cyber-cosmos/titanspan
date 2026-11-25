@@ -7,6 +7,7 @@ from titanspan.contracts.config_repository import ConfigRepository
 from titanspan.contracts.container import (
     AsyncServiceContainer,
     InstanceRegistration,
+    ServiceContainer,
 )
 from titanspan.contracts.support import (
     Arrayable,
@@ -46,5 +47,6 @@ __all__ = [
     "MessageProvider",
     "Renderable",
     "Responsable",
+    "ServiceContainer",
     "ValidatedData",
 ]

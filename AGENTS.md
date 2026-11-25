@@ -79,6 +79,12 @@ The current technology foundation is recorded in
 
 ## Async, data, and resource safety
 
+- Titanspan is async-first, not async-only. Keep pure computation, object
+  construction, dependency registration and in-memory access synchronous when
+  the full operation is sync-safe. Expose explicit async alternatives when a
+  dependency graph requires async initialization, I/O, callbacks, or cleanup.
+  Never make a public operation return either a value or an awaitable based on
+  runtime dependencies.
 - Do not block the event loop. Offload blocking work appropriately.
 - Prefer structured concurrency; give tasks an owner and propagate
   cancellation and timeouts.

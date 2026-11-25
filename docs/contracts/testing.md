@@ -9,12 +9,14 @@ relationships, isolation, cancellation, or cleanup.
 `tests/unit/contracts/test_contracts.py` checks exported identity, generic
 typing surfaces, structural recognition, and the documented configuration
 repository shape. `tests/integration/test_contract_resolution.py` registers a
-real implementation under the `ConfigRepository` protocol key in Dishka and
-resolves it from the actual dependency graph.
+real implementation under the `ConfigRepository` protocol key in the actual
+dependency graph.
 
-The integration test verifies the contract as a dependency key. It does not
-claim that Dishka itself implements `AsyncServiceContainer`, or that the
-in-memory test adapter is a production configuration repository.
+The integration test verifies the contract as a dependency key. The container
+execution-mode tests verify that the native Container implements the
+sync-first contract. They do not claim that the private dependency engine
+implements a Titanspan protocol or that the in-memory test adapter is a
+production configuration repository.
 
 Run focused tests with:
 

@@ -55,12 +55,12 @@ async def test_singleton_decorator_preserves_class_and_identity() -> None:
     Separate containers must not share application-owned instances.
     """
     async with Container() as first_container:
-        first = await first_container.make(DeclaredSingleton)
-        second = await first_container.make(DeclaredSingleton)
+        first = await first_container.make_async(DeclaredSingleton)
+        second = await first_container.make_async(DeclaredSingleton)
         assert first is second
 
     async with Container() as second_container:
-        third = await second_container.make(DeclaredSingleton)
+        third = await second_container.make_async(DeclaredSingleton)
         assert third is not first
 
 
@@ -71,8 +71,8 @@ async def test_singleton_declaration_survives_graph_expansion() -> None:
     Resolving another root must not reset the decorated service cache.
     """
     async with Container() as container:
-        consumer = await container.make(SingletonConsumer)
-        service = await container.make(DeclaredSingleton)
+        consumer = await container.make_async(SingletonConsumer)
+        service = await container.make_async(DeclaredSingleton)
         assert consumer.service is service
 
 
@@ -84,12 +84,12 @@ async def test_scoped_decorator_uses_declared_execution_scope() -> None:
     """
     async with Container() as container, container.scope(Scope.WORKFLOW):
         async with container.scope(Scope.NODE) as node:
-            first = await node.make(DeclaredNodeService)
-            second = await node.make(DeclaredNodeService)
+            first = await node.make_async(DeclaredNodeService)
+            second = await node.make_async(DeclaredNodeService)
             assert first is second
 
         async with container.scope(Scope.NODE) as next_node:
-            third = await next_node.make(DeclaredNodeService)
+            third = await next_node.make_async(DeclaredNodeService)
             assert third is not first
 
 
@@ -120,6 +120,6 @@ async def test_explicit_binding_overrides_class_declaration() -> None:
     async with Container() as container:
         container.bind(DeclaredSingleton)
         assert not container.is_shared(DeclaredSingleton)
-        first = await container.make(DeclaredSingleton)
-        second = await container.make(DeclaredSingleton)
+        first = await container.make_async(DeclaredSingleton)
+        second = await container.make_async(DeclaredSingleton)
         assert first is not second

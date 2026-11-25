@@ -5,6 +5,11 @@ public release.
 
 ## Unreleased
 
+- Corrected the native container to resolve sync-safe graphs synchronously and
+  expose explicit async resolution methods for async factories and resources.
+  Application-level synchronous and asynchronous resolution share Dishka's
+  graph cache; sync and async scopes close their owned resources through their
+  matching lifecycle. See ADR 0015 and `docs/specifications/container.md`.
 - Added an incremental native asynchronous container API with typed bindings,
   application singletons, execution-scoped values, ordered tags, aliases,
   automatic concrete dependency discovery, bounded graph generations, and
@@ -21,12 +26,12 @@ public release.
 - Projected explicitly supplied custom settings fields into configuration
   paths, preserving nested sibling values and file precedence for unset
   defaults.
-- Added dependency-independent contracts for mutable configuration, typed
-  asynchronous service resolution, and generic Support data/presentation
-  interfaces. Existing HTML and message-bag contract identities remain
-  canonical. The configuration and async container contracts have no
-  production adapters yet; see `docs/contracts/` and the Laravel compatibility
-  inventory.
+- Added dependency-independent contracts for mutable configuration,
+  synchronous-first service resolution with explicit async alternatives, and
+  generic Support data/presentation interfaces. The native configuration
+  repository and service container implement their canonical contracts.
+  Existing HTML and message-bag contract identities remain canonical; see
+  `docs/contracts/` and the Laravel compatibility inventory.
 - Added a native structured logging component with RFC severity levels,
   context-local metadata, redaction, channel stacks, file and stream drivers,
   standard-library logging interoperability, bounded background dispatch,

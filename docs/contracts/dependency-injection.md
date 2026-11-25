@@ -1,11 +1,11 @@
 # Dependency injection contracts
 
-`AsyncServiceContainer` describes a narrow consumer-facing capability:
-resolve an instance by its class key and close the owned scope. The generic
-method preserves the requested concrete service type for static callers.
+`ServiceContainer` describes synchronous-first resolution for sync-safe graphs
+and explicit async resolution for graphs that require it. Its generic methods
+preserve the requested service type for static callers.
 
 ```python
-from titanspan.contracts import AsyncServiceContainer
+from titanspan.contracts import ServiceContainer
 
 
 class MyService:
@@ -15,9 +15,9 @@ class MyService:
     """
 
 
-async def load_service(
-    container: AsyncServiceContainer,
-) -> object:
+def load_sync_service(
+    container: ServiceContainer,
+) -> MyService:
     """Resolve an application service from the active scope.
 
     Args:
@@ -26,18 +26,30 @@ async def load_service(
     Returns:
         The resolved service.
     """
-    return await container.get(MyService)
+    return container.get(MyService)
+
+
+async def load_async_service(container: ServiceContainer) -> MyService:
+    """Resolve a service whose graph may include asynchronous resources.
+
+    Args:
+        container: The container owned by the current execution scope.
+
+    Returns:
+        The asynchronously initialized service.
+    """
+    return await container.get_async(MyService)
 ```
 
 Replace `MyService` with an application class. Consumers must keep each
 container within its application or execution lifecycle and close it after
 use. Implementations own resource finalization and cancellation behavior.
 
-The current `Application` composes Dishka directly. Dishka's overloaded
-resolution API does not structurally satisfy this narrower protocol, and
-Titanspan does not yet provide an adapter. The integration test verifies that
-a Titanspan contract can be used as a Dishka dependency key; it does not claim
-that Dishka implements `AsyncServiceContainer`.
+The native `Container` implements `ServiceContainer`. The ASGI `Application`
+still composes its web graph through the existing private adapter and does not
+yet expose the native `Container` as its single composition root. No
+module-level `app()` container helper is available yet; adding one before this
+composition boundary is unified would create a second service registry.
 
 Do not build another resolver, infer dependency graphs, or promise scopes that
 the selected adapter cannot enforce. Any adapter should be introduced with

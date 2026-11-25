@@ -9,10 +9,16 @@ Dishka.
 - Keep public names domain-oriented (currently `container/container.py`), not
   vendor-oriented. State clearly that graph resolution is delegated to Dishka.
 - Preserve native Dishka provider and container interoperability.
-- Keep the shared `AsyncServiceContainer` protocol in
-  `titanspan.contracts.container`. Dishka's native overloaded API does not
-  currently satisfy that narrower protocol; do not claim conformance or add
-  an adapter without real resolution and cleanup tests.
+- Keep the synchronous-first `ServiceContainer` and async-only
+  `AsyncServiceContainer` protocols canonical in
+  `titanspan.contracts.container`. Ordinary resolution uses `make`/`get` for
+  sync-safe graphs; `make_async`/`get_async` explicitly allow async resources.
+- At application scope, keep one Dishka async graph for both `get_sync` and
+  `get`, because those operations share its cache. Scope-local sync graphs
+  must register cleanup with their owning sync or async scope. Never block,
+  start an event loop, or return an awaitable from a sync method.
+- Do not claim cross-thread safety for mixed-mode access unless a separate
+  verified synchronization contract is implemented.
 - Validate registration graphs before serving. Freeze production
   registrations after boot; avoid shared mutable runtime mutation.
 - Model transient, application, request, job, workflow, and tool lifecycles

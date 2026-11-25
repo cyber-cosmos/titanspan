@@ -7,8 +7,13 @@ It owns the developer-facing APIs, lifecycle, integration conventions, and
 testing experience. Mature libraries provide the underlying web server,
 dependency resolution, persistence, and workflow execution.
 
+Async-first does not mean async-only: pure computation, object construction,
+dependency registration, and sync-safe in-memory resolution remain
+synchronous. Operations that require asynchronous I/O or lifecycle work have
+explicit async interfaces.
+
 The current package is intentionally small. The implemented foundation is a
-FastAPI-backed ASGI application, a Dishka async container, a native
+FastAPI-backed ASGI application, a Dishka-backed container, a native
 configuration repository with Pydantic Settings validation, a Typer CLI,
 selected Support utilities, and an initial native logging component. Other
 modules below remain planned boundaries unless marked as implemented in the
@@ -30,8 +35,8 @@ table.
 | Module | Responsibility | Status |
 | --- | --- | --- |
 | `foundation` | Application lifecycle, bootstrapping, kernels, shutdown, and provider lifecycle. | Initial `Application` implemented. |
-| `container` | Dependency injection, bindings, concrete graph discovery, scopes, and resource management. | Native asynchronous registry and private graph adapter implemented incrementally; see `docs/specifications/container.md`. |
-| `contracts` | Dependency-independent typed protocols and shared abstraction boundaries. | Initial configuration, async container, and Support contracts implemented; many component contracts remain pending. |
+| `container` | Dependency injection, bindings, concrete graph discovery, scopes, and resource management. | Native sync-first registry and private graph adapter implemented incrementally; see `docs/specifications/container.md`. |
+| `contracts` | Dependency-independent typed protocols and shared abstraction boundaries. | Initial configuration, sync-first and async container, and Support contracts implemented; many component contracts remain pending. |
 | `support` | Shared utilities, managers, and lightweight helpers. | Selected Laravel-inspired utilities implemented; compatibility inventory is incremental. |
 | `config` | Typed configuration, trusted sources, environment integration, and safe snapshots. | Native repository, settings, source loader, cache, commands, and application provider implemented; see `docs/config/`. |
 | `facades` | Context-aware access to application-owned services. | Execution-local `Config` and `Log` facades implemented. |
@@ -148,13 +153,13 @@ SQLAlchemy, Taskiq, Cashews, or LangGraph. Keep native library objects
 accessible so users can opt out of a Titanspan convenience API when necessary.
 
 The package-level contracts currently include `ConfigRepository`,
-`AsyncServiceContainer`, `InstanceRegistration`, and generic Support protocols
-for array conversion, JSON text, rendering, response conversion, and validated
-data. The native `config.Repository` implements the canonical configuration
-protocol and is registered through the private graph adapter. The native
-`container.Container` implements the async container protocol. Existing HTML
-and message-bag contracts retain their canonical identities and are re-exported
-there. Logging contracts remain owned by
+`ServiceContainer`, `AsyncServiceContainer`, `InstanceRegistration`, and
+generic Support protocols for array conversion, JSON text, rendering, response
+conversion, and validated data. The native `config.Repository` implements the
+canonical configuration protocol and is registered through the private graph
+adapter. The native `container.Container` implements the sync-first container
+protocol. Existing HTML and message-bag contracts retain their canonical
+identities and are re-exported here. Logging contracts remain owned by
 `titanspan.logging.contracts` to avoid duplicate types and dependency cycles.
 
 The package dependency order places `titanspan.contracts` below configuration

@@ -287,7 +287,7 @@ async def test_make_resolves_an_unregistered_concrete_graph() -> None:
     Verify the behavior through results visible from the container API.
     """
     async with Container() as container:
-        controller = await container.make(DocumentController)
+        controller = await container.make_async(DocumentController)
 
     assert isinstance(controller, DocumentController)
     assert isinstance(controller.service, DocumentService)
@@ -302,9 +302,9 @@ async def test_singleton_survives_automatic_graph_expansion() -> None:
     """
     async with Container() as container:
         container.singleton(SharedService)
-        consumer = await container.make(SingletonConsumer)
-        original = await container.make(SharedService)
-        resolved_again = await container.make(SharedService)
+        consumer = await container.make_async(SingletonConsumer)
+        original = await container.make_async(SharedService)
+        resolved_again = await container.make_async(SharedService)
 
     assert consumer.service is original
     assert resolved_again is original
@@ -333,7 +333,7 @@ async def test_unrelated_singleton_is_not_eagerly_initialized() -> None:
 
     async with Container() as container:
         container.singleton(UnrelatedService)
-        await container.make(Repository)
+        await container.make_async(Repository)
 
     assert creations == []
 
@@ -374,7 +374,7 @@ async def test_concurrent_graph_expansion_preserves_singleton_identity() -> (
         caller_count += 1
         if caller_count == _EXPECTED_SCOPE_PARTICIPANTS:
             both_callers_ready.set()
-        consumer = await container.make(service)
+        consumer = await container.make_async(service)
         resolved.append(consumer.service)
 
     async with Container() as container:
@@ -408,9 +408,9 @@ async def test_execution_scopes_isolate_concurrent_service_instances() -> None:
         """
         nonlocal arrived
         async with container.scope(Scope.WORKFLOW) as scope:
-            service = await scope.make(ScopedService)
-            assert await scope.make(ScopedService) is service
-            consumer = await scope.make(ScopedConsumer)
+            service = await scope.make_async(ScopedService)
+            assert await scope.make_async(ScopedService) is service
+            consumer = await scope.make_async(ScopedConsumer)
             assert consumer.service is service
             resolved.append(service)
             arrived += 1
@@ -439,7 +439,7 @@ async def test_scope_context_cannot_be_reentered_after_cleanup() -> None:
     async with Container() as container:
         scope = container.scope(Scope.WORKFLOW)
         async with scope:
-            await scope.make(ScopedService)
+            await scope.make_async(ScopedService)
 
         with pytest.raises(ScopeError):
             async with scope:
@@ -464,9 +464,11 @@ async def test_scope_validates_entry_and_exposes_get_alias() -> None:
                     pass
             async with container.scope(Scope.NODE) as node:
                 assert node.is_active
-                assert isinstance(await node.get(ScopedService), ScopedService)
-                first = await node.make(Repository)
-                second = await node.make(Repository)
+                assert isinstance(
+                    await node.get_async(ScopedService), ScopedService
+                )
+                first = await node.make_async(Repository)
+                second = await node.make_async(Repository)
                 assert first is not second
 
                 with pytest.raises(ScopeError):
@@ -477,7 +479,7 @@ async def test_scope_validates_entry_and_exposes_get_alias() -> None:
                     assert tool.is_active
 
         with pytest.raises(ScopeError):
-            await workflow.make(ScopedService)
+            await workflow.make_async(ScopedService)
 
 
 @pytest.mark.anyio
@@ -518,7 +520,7 @@ async def test_conditional_bindings_keep_the_first_registration() -> None:
         container.scoped_if(ScopedService)
         container.scopedIf(ScopedService, TaggedService)
 
-        transient = await container.make(FirstImplementation)
+        transient = await container.make_async(FirstImplementation)
         assert isinstance(transient, FirstImplementation)
         assert not isinstance(transient, SecondImplementation)
         assert container.get_bindings()[SharedService].implementation is (
@@ -545,7 +547,7 @@ async def test_alias_and_tag_names_must_be_non_empty_and_unambiguous() -> None:
     with pytest.raises(BindingError):
         container.tag(TaggedService, "")
     container.tag([TaggedService, TaggedService], "workers")
-    assert len(await container.tagged("workers")) == 1
+    assert len(await container.tagged_async("workers")) == 1
     await container.aclose()
 
 
@@ -563,9 +565,9 @@ async def test_instance_registration_is_external_and_resolved_immediately() -> (
         container.instance(SharedService, instance)
         assert container.resolved(SharedService)
         assert container.get_bindings()[SharedService].is_instance
-        assert (await container.make(SharedService)) is instance
+        assert (await container.make_async(SharedService)) is instance
         async with container.scope(Scope.REQUEST) as request:
-            assert await request.make(SharedService) is instance
+            assert await request.make_async(SharedService) is instance
 
 
 @pytest.mark.anyio
@@ -578,10 +580,10 @@ async def test_none_instance_is_a_valid_explicit_dependency() -> None:
     async with Container() as container:
         container.instance(NoneType, None)
         container.alias(NoneType, "null-value")
-        consumer = await container.make(NullValueConsumer)
+        consumer = await container.make_async(NullValueConsumer)
 
         assert consumer.value is None
-        assert await container.get("null-value") is None
+        assert await container.get_async("null-value") is None
         assert container.bound("null-value")
         assert container.resolved("null-value")
 
@@ -626,7 +628,7 @@ async def test_callable_injection_handles_typed_parameter_kinds() -> None:
         return attempts, dependency, values, details["label"]
 
     async with Container() as container:
-        attempts, dependency, values, label = await container.call(
+        attempts, dependency, values, label = await container.call_async(
             process,
             {"label": "ready"},
         )
@@ -668,11 +670,11 @@ async def test_callable_injection_translates_resolution_errors() -> None:
 
     async with Container() as container:
         with pytest.raises(BindingResolutionError) as signature_error:
-            await container.call(invalid_hint)
+            await container.call_async(invalid_hint)
         with pytest.raises(BindingResolutionError) as primitive_error:
-            await container.call(primitive)
+            await container.call_async(primitive)
         with pytest.raises(BindingResolutionError) as dependency_error:
-            await container.call(missing_contract)
+            await container.call_async(missing_contract)
 
     assert signature_error.value.__cause__ is not None
     assert primitive_error.value.__cause__ is None
@@ -690,9 +692,9 @@ async def test_missing_method_and_unknown_alias_raise_native_errors() -> None:
         assert not container.has("missing")
         assert not container.bound("missing")
         with pytest.raises(BindingError):
-            await container.call_method_binding("missing")
+            await container.call_method_binding_async("missing")
         with pytest.raises(BindingError):
-            await container.make("missing")
+            await container.make_async("missing")
         with pytest.raises(BindingError):
             container.bind_method("", lambda: None)
 
@@ -716,7 +718,7 @@ async def test_factory_failure_is_translated_and_chained() -> None:
     async with Container() as container:
         container.bind(FailingFactoryService, failing_factory)
         with pytest.raises(BindingResolutionError) as resolution_error:
-            await container.make(FailingFactoryService)
+            await container.make_async(FailingFactoryService)
 
     assert resolution_error.value.__cause__ is not None
 
@@ -736,7 +738,7 @@ async def test_container_rejects_shutdown_while_scopes_are_active() -> None:
     await container.close()
     await container.aclose()
     with pytest.raises(ContainerClosedError):
-        await container.make(Repository)
+        await container.make_async(Repository)
 
 
 @pytest.mark.anyio
@@ -770,8 +772,8 @@ async def test_container_translates_application_resource_cleanup_failures() -> (
     container = Container()
     container.singleton(ManagedService, broken_resource)
     container.singleton(AsyncManagedService, another_broken_resource)
-    await container.make(ManagedService)
-    await container.make(AsyncManagedService)
+    await container.make_async(ManagedService)
+    await container.make_async(AsyncManagedService)
 
     with pytest.raises(BindingResolutionError) as cleanup_error:
         await container.aclose()
@@ -799,7 +801,7 @@ async def test_closed_scope_context_is_rejected_in_inherited_tasks() -> None:
         child_started.set()
         await resume_child.wait()
         with pytest.raises(ScopeError):
-            await container.make(ScopedService)
+            await container.make_async(ScopedService)
 
     async with Container() as container:
         with anyio.fail_after(2):
@@ -838,7 +840,7 @@ async def test_scope_translates_resource_finalization_failures() -> None:
         )
         with pytest.raises(BindingResolutionError) as cleanup_error:
             async with container.scope(Scope.WORKFLOW) as workflow:
-                await workflow.make(ManagedService)
+                await workflow.make_async(ManagedService)
 
     assert cleanup_error.value.__cause__ is not None
 
@@ -868,8 +870,8 @@ async def test_scoped_generator_resource_is_finalized_on_scope_exit() -> None:
             scope=Scope.WORKFLOW,
         )
         async with container.scope(Scope.WORKFLOW) as scope:
-            first = await scope.make(ManagedService)
-            second = await scope.make(ManagedService)
+            first = await scope.make_async(ManagedService)
+            second = await scope.make_async(ManagedService)
             assert first is second
             assert lifecycle == ["started"]
 
@@ -898,9 +900,9 @@ async def test_application_resource_outlives_scopes_that_resolve_it() -> None:
     async with Container() as container:
         container.singleton(ApplicationResource, application_resource)
         async with container.scope(Scope.REQUEST) as first_scope:
-            first = await first_scope.make(ScopedResourceConsumer)
+            first = await first_scope.make_async(ScopedResourceConsumer)
         async with container.scope(Scope.REQUEST) as second_scope:
-            second = await second_scope.make(ScopedResourceConsumer)
+            second = await second_scope.make_async(ScopedResourceConsumer)
 
         assert first.resource is second.resource
         assert lifecycle == ["started"]
@@ -933,8 +935,8 @@ async def test_scoped_async_generator_is_finalized_on_scope_exit() -> None:
             scope=Scope.WORKFLOW,
         )
         async with container.scope(Scope.WORKFLOW) as scope:
-            first = await scope.make(AsyncManagedService)
-            second = await scope.make(AsyncManagedService)
+            first = await scope.make_async(AsyncManagedService)
+            second = await scope.make_async(AsyncManagedService)
             assert first is second
             assert lifecycle == ["started"]
 
@@ -968,7 +970,7 @@ async def test_scope_resource_is_finalized_when_work_is_cancelled() -> None:
         )
         async with container.scope(Scope.WORKFLOW) as scope:
             with anyio.CancelScope() as cancellation:
-                await scope.make(AsyncManagedService)
+                await scope.make_async(AsyncManagedService)
                 cancellation.cancel()
                 await anyio.Event().wait()
 
@@ -992,8 +994,8 @@ async def test_async_factory_can_create_a_singleton() -> None:
 
     async with Container() as container:
         container.singleton(AsyncFactoryService, create_service)
-        first = await container.make(AsyncFactoryService)
-        second = await container.make(AsyncFactoryService)
+        first = await container.make_async(AsyncFactoryService)
+        second = await container.make_async(AsyncFactoryService)
 
     assert first is second
 
@@ -1006,7 +1008,7 @@ async def test_factory_resolves_transient_values_when_invoked() -> None:
     """
     async with Container() as container:
         container.bind(TransientFactoryValue)
-        create_value = container.factory(TransientFactoryValue)
+        create_value = container.factory_async(TransientFactoryValue)
         first = await create_value()
         second = await create_value()
 
@@ -1038,7 +1040,7 @@ async def test_call_injects_dependencies_and_uses_explicit_parameters() -> None:
         return dependency, attempts
 
     async with Container() as container:
-        dependency, attempts = await container.call(
+        dependency, attempts = await container.call_async(
             process,
             {"attempts": _EXPECTED_ATTEMPTS},
         )
@@ -1066,7 +1068,7 @@ async def test_call_awaits_async_callbacks() -> None:
         return dependency
 
     async with Container() as container:
-        dependency = await container.call(process)
+        dependency = await container.call_async(process)
 
     assert isinstance(dependency, CallDependency)
 
@@ -1086,7 +1088,7 @@ async def test_call_rejects_unconsumed_explicit_parameters() -> None:
 
     async with Container() as container:
         with pytest.raises(BindingError):
-            await container.call(process, {"unknown": True})
+            await container.call_async(process, {"unknown": True})
 
 
 @pytest.mark.anyio
@@ -1112,7 +1114,7 @@ async def test_method_bindings_dispatch_through_callable_injection() -> None:
     async with Container() as container:
         container.bindMethod("worker.process", process)
         assert container.hasMethodBinding("worker.process")
-        result = await container.callMethodBinding(
+        result = await container.callMethodBindingAsync(
             "worker.process",
             {"label": "ready"},
         )
@@ -1128,7 +1130,7 @@ async def test_unbound_abstract_dependency_raises_native_error() -> None:
     """
     async with Container() as container:
         with pytest.raises(BindingResolutionError) as error:
-            await container.make(ServiceWithMissingContract)
+            await container.make_async(ServiceWithMissingContract)
 
     assert error.value.__cause__ is not None
 
@@ -1151,8 +1153,8 @@ async def test_compatibility_aliases_share_native_registration_state() -> None:
         assert container.getAlias(TaggedService) == "tagged"
         assert TaggedService in container.getBindings()
 
-        resolved = await container.make("tagged")
-        tagged = await container.tagged("workers")
+        resolved = await container.make_async("tagged")
+        tagged = await container.tagged_async("workers")
 
     assert isinstance(resolved, TaggedService)
     assert tagged == [resolved]
@@ -1165,7 +1167,7 @@ async def test_registration_freezes_after_first_graph_composition() -> None:
     Verify the behavior through results visible from the container API.
     """
     async with Container() as container:
-        await container.make(Repository)
+        await container.make_async(Repository)
         with pytest.raises(BindingError):
             container.singleton(SharedService)
 
@@ -1177,9 +1179,9 @@ async def test_dynamic_graph_generation_limit_is_enforced() -> None:
     Verify the behavior through results visible from the container API.
     """
     async with Container(max_graph_generations=1) as container:
-        await container.make(Repository)
+        await container.make_async(Repository)
         with pytest.raises(GraphLimitError):
-            await container.make(DocumentService)
+            await container.make_async(DocumentService)
 
 
 @pytest.mark.anyio
@@ -1198,7 +1200,7 @@ async def test_graph_limit_counts_generations_in_concurrent_scopes() -> None:
         Keep this helper local so captured test state stays isolated.
         """
         async with container.scope(Scope.WORKFLOW) as scope:
-            await scope.make(ScopedService)
+            await scope.make_async(ScopedService)
             first_scope_ready.set()
             await release_first_scope.wait()
 
@@ -1211,7 +1213,7 @@ async def test_graph_limit_counts_generations_in_concurrent_scopes() -> None:
         try:
             async with container.scope(Scope.WORKFLOW) as scope:
                 with pytest.raises(GraphLimitError):
-                    await scope.make(TaggedService)
+                    await scope.make_async(TaggedService)
         finally:
             release_first_scope.set()
 

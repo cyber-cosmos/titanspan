@@ -6,6 +6,7 @@ services or exposing the dependency engine through the public API.
 
 from __future__ import annotations
 
+from inspect import Parameter, Signature
 from typing import TYPE_CHECKING, Annotated, Protocol
 
 import pytest
@@ -15,14 +16,18 @@ import pytest
 from titanspan.container._backends.dependency_engine import (
     EngineBinding,
     _class_annotations,  # pyright: ignore[reportPrivateUsage]
+    _direct_constructor_types,  # pyright: ignore[reportPrivateUsage]
     _discover_factory_types,  # pyright: ignore[reportPrivateUsage]
     _discover_types,  # pyright: ignore[reportPrivateUsage]
+    _is_async_factory,  # pyright: ignore[reportPrivateUsage]
     _scope_for_name,  # pyright: ignore[reportPrivateUsage]
+    asynchronous_dependency_path,
     discover_dependency_types,
 )
 from titanspan.container.scope import Scope
 
 pytestmark = pytest.mark.unit
+_METADATA_TEST_ONLY = "metadata test only"
 
 if TYPE_CHECKING:
 
@@ -129,6 +134,49 @@ class UnresolvedConstructor:
         Args:
             dependency: A type that cannot be imported during discovery.
         """
+
+
+class CycleFirst:
+    """Represent the first side of a cyclic constructor annotation.
+
+    The cycle checks that metadata traversal terminates without construction.
+    """
+
+    def __init__(self, second: CycleSecond) -> None:
+        """Retain the other side of the constructor cycle.
+
+        Args:
+            second: The corresponding service in the cycle.
+        """
+
+
+class CycleSecond:
+    """Represent the second side of a cyclic constructor annotation.
+
+    The cycle checks that metadata traversal terminates without construction.
+    """
+
+    def __init__(self, first: CycleFirst) -> None:
+        """Retain the first side of the constructor cycle.
+
+        Args:
+            first: The corresponding service in the cycle.
+        """
+
+
+class AsyncCallableFactory:
+    """Provide an async callable object for factory classification tests.
+
+    Instances are inspected as metadata and are not invoked by the helper.
+    """
+
+    async def __call__(self) -> FactoryProduct:
+        """Return a product if the fixture is invoked.
+
+        Returns:
+            A new product value.
+        """
+        return FactoryProduct()
 
 
 def test_class_annotation_discovery_handles_supported_typing_forms() -> None:
@@ -256,6 +304,104 @@ def test_dependency_closure_follows_contracts_factories_and_instances() -> None:
         )
         == frozenset()
     )
+
+
+def test_async_path_discovery_stops_at_cycles_and_instances() -> None:
+    """Inspect async requirements without executing or looping on factories.
+
+    Registered instances are terminal values, and visited constructor cycles
+    do not produce a false async-only path.
+    """
+    instance_binding = EngineBinding(
+        Repository,
+        Repository(),
+        "singleton",
+        Scope.APPLICATION.value,
+        is_instance=True,
+    )
+    non_callable_binding = EngineBinding(
+        SearchDependency,
+        object(),
+        "transient",
+        Scope.APPLICATION.value,
+    )
+
+    assert (
+        asynchronous_dependency_path(
+            Repository,
+            [instance_binding],
+        )
+        is None
+    )
+    assert (
+        asynchronous_dependency_path(
+            SearchDependency,
+            [non_callable_binding],
+        )
+        is None
+    )
+    assert asynchronous_dependency_path(CycleFirst, []) is None
+
+
+def test_factory_classification_handles_callable_and_invalid_annotations() -> (
+    None
+):
+    """Detect awaitable factory forms without invoking user callbacks.
+
+    Callable objects and return annotations can require async resolution even
+    when ordinary function introspection does not show a coroutine function.
+    """
+
+    def unresolved_factory() -> UnavailableDependency:
+        """Declare an unavailable return annotation for metadata inspection.
+
+        Raises:
+            RuntimeError: The factory is not expected to be invoked.
+        """
+        raise RuntimeError(_METADATA_TEST_ONLY)
+
+    assert _is_async_factory(AsyncCallableFactory())
+    assert not _is_async_factory(unresolved_factory)
+    assert _direct_constructor_types(UnresolvedConstructor) == set()
+
+
+def test_direct_constructor_discovery_skips_a_custom_instance_parameter() -> (
+    None
+):
+    """Ignore a metaclass signature parameter that represents the instance.
+
+    Custom signatures can retain a constructor receiver that ordinary class
+    introspection removes; it must not be treated as an injected service.
+    """
+
+    class SignatureMeta(type):
+        """Expose a class signature with an explicit receiver parameter.
+
+        The synthetic signature exercises receiver filtering in the adapter.
+        """
+
+        @property
+        def __signature__(cls) -> Signature:
+            """Return the synthetic construction signature.
+
+            Args:
+                cls: The class whose signature is being inspected.
+
+            Returns:
+                A signature containing only the instance receiver.
+            """
+            _ = cls
+            return Signature(
+                [Parameter("self", Parameter.POSITIONAL_OR_KEYWORD)],
+            )
+
+    class CustomSignature(metaclass=SignatureMeta):
+        """Represent a class with a custom constructor signature.
+
+        The signature is supplied by its metaclass for this test only.
+        """
+
+    assert _direct_constructor_types(CustomSignature) == set()
 
 
 def test_scope_names_map_to_known_levels_and_reject_unknown_names() -> None:

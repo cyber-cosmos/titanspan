@@ -1,14 +1,30 @@
 """Adapt the dependency engine to the native container lifecycle.
 
 This module owns all direct dependency-engine imports. The adapter exposes
-only asynchronous resolution and scope context managers to its caller.
+typed sync and async resolution plus scope context managers to its caller.
 """
 
 from __future__ import annotations
 
-from contextlib import asynccontextmanager
+from collections.abc import (
+    AsyncGenerator,
+    AsyncIterator,
+    Awaitable,
+    Coroutine,
+)
+from contextlib import (
+    AbstractAsyncContextManager,
+    asynccontextmanager,
+    contextmanager,
+)
 from dataclasses import dataclass
-from inspect import isabstract, signature
+from inspect import (
+    isabstract,
+    isasyncgenfunction,
+    iscoroutinefunction,
+    signature,
+    unwrap,
+)
 from types import UnionType
 from typing import (
     TYPE_CHECKING,
@@ -20,7 +36,16 @@ from typing import (
     get_type_hints,
 )
 
-from dishka import AsyncContainer, Provider, Scope, make_async_container
+from dishka import (
+    AsyncContainer,
+    Provider,
+    Scope,
+    make_async_container,
+    make_container,
+)
+from dishka import (
+    Container as SyncContainer,
+)
 from dishka.integrations.fastapi import FastapiProvider
 
 from titanspan.container._backends.providers import adapt_providers
@@ -28,7 +53,12 @@ from titanspan.container.binding import Lifetime
 from titanspan.container.decorators import binding_declaration
 
 if TYPE_CHECKING:
-    from collections.abc import AsyncGenerator, Callable, Mapping, Sequence
+    from collections.abc import (
+        Callable,
+        Generator,
+        Mapping,
+        Sequence,
+    )
 
 
 class EngineBinding:
@@ -115,6 +145,20 @@ class DependencyGraph:
         """
         return await self._container.get(service)
 
+    def get_sync[ServiceT](self, service: type[ServiceT]) -> ServiceT:
+        """Resolve a synchronous dependency using the shared backend cache.
+
+        Args:
+            service: Native type used as the dependency key.
+
+        Returns:
+            The resolved service instance.
+
+        Raises:
+            Exception: If the dependency graph requires an async factory.
+        """
+        return self._container.get_sync(service)
+
     @asynccontextmanager
     async def scope(self, name: str) -> AsyncGenerator[DependencyGraph, None]:
         """Enter one backend scope and finalize it when the context exits.
@@ -148,6 +192,69 @@ class DependencyGraph:
         await self._container.close()
 
 
+class SyncDependencyGraph:
+    """Resolve a synchronous scope through the private graph boundary.
+
+    The application container remains the canonical owner of shared values;
+    those instances are passed into synchronous scopes as backend context.
+    """
+
+    def __init__(
+        self,
+        container: SyncContainer,
+        known_types: frozenset[type[object]],
+        context: Mapping[type[object], object],
+    ) -> None:
+        """Wrap a backend graph with synchronous ownership semantics.
+
+        Args:
+            container: Backend graph created by its public factory.
+            known_types: Constructor types inspected for this graph.
+            context: Application or parent-scope instances supplied as context.
+        """
+        self._container = container
+        self.known_types = known_types
+        self._context = dict(context)
+
+    def get[ServiceT](self, service: type[ServiceT]) -> ServiceT:
+        """Resolve one service without creating or blocking an event loop.
+
+        Args:
+            service: Native type used as the dependency key.
+
+        Returns:
+            The resolved service instance.
+        """
+        return self._container.get(service)
+
+    @contextmanager
+    def scope(self, name: str) -> Generator[SyncDependencyGraph, None, None]:
+        """Enter and deterministically close one synchronous backend scope.
+
+        Args:
+            name: Supported native lifecycle scope.
+
+        Yields:
+            A graph view that resolves within the entered scope.
+        """
+        with self._container(
+            scope=_scope_for_name(name),
+            context=dict(self._context),
+        ) as scoped_container:
+            yield SyncDependencyGraph(
+                scoped_container,
+                self.known_types,
+                self._context,
+            )
+
+    def close(self) -> None:
+        """Finalize all resources owned by this synchronous graph.
+
+        The backend closes its entered child scopes in reverse order.
+        """
+        self._container.close()
+
+
 def create_dependency_graph(
     *,
     providers: Sequence[object],
@@ -176,9 +283,88 @@ def create_dependency_graph(
         Exception: Backend graph validation errors are preserved as causes by
             the native container boundary.
     """
+    providers_for_graph = _compose_providers(
+        providers=providers,
+        bindings=bindings,
+        request=request,
+        resolution_scope=resolution_scope,
+        instances=instances,
+        instance_scopes=instance_scopes,
+    )
+
+    container = make_async_container(
+        *providers_for_graph,
+        context=dict(instances),
+    )
+    return DependencyGraph(
+        container,
+        discover_dependency_types(request.service, bindings),
+        instances,
+    )
+
+
+def create_sync_dependency_graph(
+    *,
+    providers: Sequence[object],
+    bindings: Sequence[EngineBinding],
+    request: GraphRequest,
+    resolution_scope: str,
+    instances: Mapping[type[object], object],
+    instance_scopes: Mapping[type[object], str],
+) -> SyncDependencyGraph:
+    """Compose a backend graph for synchronous scope entry and cleanup.
+
+    Args:
+        providers: Optional integration registrations.
+        bindings: Native service registrations.
+        request: Requested dependency and automatic-discovery policy.
+        resolution_scope: Lifecycle for auto-discovered classes.
+        instances: Previously resolved shared values supplied as context.
+        instance_scopes: Ownership scope for each supplied shared value.
+
+    Returns:
+        A private synchronous graph adapter.
+    """
+    providers_for_graph = _compose_providers(
+        providers=providers,
+        bindings=bindings,
+        request=request,
+        resolution_scope=resolution_scope,
+        instances=instances,
+        instance_scopes=instance_scopes,
+    )
+    container = make_container(*providers_for_graph, context=dict(instances))
+    return SyncDependencyGraph(
+        container,
+        discover_dependency_types(request.service, bindings),
+        instances,
+    )
+
+
+def _compose_providers(
+    *,
+    providers: Sequence[object],
+    bindings: Sequence[EngineBinding],
+    request: GraphRequest,
+    resolution_scope: str,
+    instances: Mapping[type[object], object],
+    instance_scopes: Mapping[type[object], str],
+) -> tuple[Provider, ...]:
+    """Build backend providers from the canonical graph description.
+
+    Args:
+        providers: Optional integration registrations.
+        bindings: Native service registrations.
+        request: Requested dependency and automatic-discovery policy.
+        resolution_scope: Lifecycle for auto-discovered classes.
+        instances: Cached values supplied by their native lifecycle owners.
+        instance_scopes: Scope names for each cached instance.
+
+    Returns:
+        Backend provider definitions shared by both container modes.
+    """
     provider_values = list(adapt_providers(providers))
     native_provider = Provider(scope=Scope.APP)
-
     for binding in bindings:
         engine_scope = _scope_for_name(binding.scope)
         if binding.is_instance:
@@ -188,7 +374,6 @@ def create_dependency_graph(
                 override=True,
             )
             continue
-
         implementation = cast(
             "type[object] | Callable[..., object]",
             binding.implementation,
@@ -232,8 +417,7 @@ def create_dependency_graph(
     automatic_types.difference_update(explicit_keys)
     automatic_types.difference_update(implementation_types)
 
-    # Class declarations are translated at graph composition time so their
-    # cache policy remains owned by the requesting application container.
+    # Translate class declarations into the same backend graph for both modes.
     declared_types = {
         service: declaration
         for service in known_types
@@ -279,17 +463,8 @@ def create_dependency_graph(
         )
     if instances:
         providers_for_graph.append(cached_provider)
-
-    container = make_async_container(
-        *providers_for_graph,
-        FastapiProvider(),
-        context=dict(instances),
-    )
-    return DependencyGraph(
-        container,
-        discover_dependency_types(request.service, bindings),
-        instances,
-    )
+    providers_for_graph.append(FastapiProvider())
+    return tuple(providers_for_graph)
 
 
 def discover_dependency_types(
@@ -339,6 +514,143 @@ def discover_dependency_types(
             if dependency in bindings_by_service
         )
     return frozenset(discovered)
+
+
+def asynchronous_dependency_path(
+    root: type[object],
+    bindings: Sequence[EngineBinding],
+) -> tuple[str, ...] | None:
+    """Find the first dependency path that requires asynchronous creation.
+
+    Args:
+        root: Service requested by synchronous resolution.
+        bindings: Native service-to-implementation registrations.
+
+    Returns:
+        A readable service path ending at an async factory, or ``None`` when
+        all inspectable factories are synchronous.
+    """
+    bindings_by_service = {binding.service: binding for binding in bindings}
+
+    def visit(
+        service: type[object],
+        path: tuple[str, ...],
+        visited: frozenset[type[object]],
+    ) -> tuple[str, ...] | None:
+        """Walk one constructor branch without executing application code.
+
+        Args:
+            service: Service key being inspected.
+            path: Human-readable dependency chain accumulated so far.
+            visited: Types already visited on this branch.
+
+        Returns:
+            The first async dependency path, if one exists.
+        """
+        if service in visited:
+            return None
+        binding = bindings_by_service.get(service)
+        if binding is not None and binding.is_instance:
+            return None
+        implementation = (
+            binding.implementation if binding is not None else service
+        )
+        service_name = service.__qualname__
+        current_path = (*path, service_name)
+        dependencies: set[type[object]]
+        if isinstance(implementation, type):
+            dependencies = _direct_constructor_types(implementation)
+        elif callable(implementation):
+            if _is_async_factory(implementation):
+                factory_name = getattr(
+                    implementation,
+                    "__qualname__",
+                    type(implementation).__qualname__,
+                )
+                return (*current_path, f"async factory {factory_name}")
+            dependencies = _discover_factory_types(implementation)
+        else:
+            dependencies = set()
+
+        for dependency in sorted(
+            dependencies,
+            key=lambda value: (
+                value.__module__,
+                value.__qualname__,
+            ),
+        ):
+            if isabstract(dependency) and dependency not in bindings_by_service:
+                continue
+            result = visit(
+                dependency,
+                current_path,
+                visited | {service},
+            )
+            if result is not None:
+                return result
+        return None
+
+    return visit(root, (), frozenset())
+
+
+def _direct_constructor_types(service: type[object]) -> set[type[object]]:
+    """Return immediate class dependencies declared by one constructor.
+
+    Args:
+        service: Class whose constructor signature is inspected.
+
+    Returns:
+        Directly annotated dependency types, excluding the instance parameter.
+    """
+    try:
+        parameters = signature(service).parameters
+        annotations = get_type_hints(
+            service.__init__,
+            include_extras=True,
+        )
+    except (AttributeError, NameError, TypeError, ValueError):
+        return set()
+    dependencies: set[type[object]] = set()
+    scalar_types = {str, int, float, bool, bytes, object}
+    for name, parameter in parameters.items():
+        if name in {"self", "cls"}:
+            continue
+        annotation = annotations.get(name, parameter.annotation)
+        dependencies.update(_class_annotations(annotation) - scalar_types)
+    return dependencies
+
+
+def _is_async_factory(factory: Callable[..., object]) -> bool:
+    """Detect async factories without invoking them.
+
+    Args:
+        factory: Registered factory or callable object.
+
+    Returns:
+        Whether the factory call or annotated result requires awaiting.
+    """
+    unwrapped = unwrap(factory)
+    if iscoroutinefunction(unwrapped) or isasyncgenfunction(unwrapped):
+        return True
+    if callable(unwrapped) and (
+        iscoroutinefunction(type(unwrapped).__call__)
+        or isasyncgenfunction(type(unwrapped).__call__)
+    ):
+        return True
+    try:
+        annotation = get_type_hints(factory, include_extras=True).get(
+            "return",
+        )
+    except (NameError, TypeError, ValueError):
+        return False
+    origin = get_origin(annotation)
+    return origin in {
+        AbstractAsyncContextManager,
+        AsyncGenerator,
+        AsyncIterator,
+        Awaitable,
+        Coroutine,
+    }
 
 
 def _discover_types(root: type[object]) -> set[type[object]]:

@@ -28,6 +28,14 @@ class BindingResolutionError(ContainerError):
     """
 
 
+class AsyncResolutionRequiredError(BindingResolutionError):
+    """Represent a graph that requires asynchronous initialization.
+
+    Callers should use the asynchronous resolution method when a factory,
+    resource lifecycle, or callback must be awaited.
+    """
+
+
 class ContainerClosedError(ContainerError):
     """Represent an operation attempted after container shutdown begins.
 

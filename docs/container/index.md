@@ -1,8 +1,9 @@
 # Service container
 
-Titanspan's container registers application services, resolves typed
-dependencies asynchronously, isolates execution scopes, and finalizes
-resources created by managed factories.
+Titanspan's container registers application services, resolves synchronous
+dependency graphs immediately, isolates execution scopes, and finalizes
+resources created by managed factories. Explicit async methods resolve graphs
+that require asynchronous initialization or cleanup.
 
 ```python
 from titanspan.container import Container
@@ -26,11 +27,23 @@ class DocumentService:
         self.repository = repository
 
 
+def synchronous_example(container: Container) -> DocumentService:
+    """Resolve a graph containing only synchronous dependencies.
+
+    Args:
+        container: The application-owned registry.
+
+    Returns:
+        A fully constructed document service.
+    """
+    return container.make(DocumentService)
+
+
 async def run() -> None:
-    """Resolve one application service and close owned resources.
+    """Close resources owned by the application container.
     """
     async with Container() as container:
-        service = await container.make(DocumentService)
+        service = container.make(DocumentService)
         assert isinstance(service.repository, Repository)
 ```
 
@@ -59,7 +72,8 @@ nested-scope limits.
 
 ## Callable injection and factories
 
-Use `Container.call` to inject class-typed callback parameters. See
+Use `Container.call` for synchronous callbacks and `call_async` for callbacks
+or dependencies that require asynchronous execution. See
 [callable injection](injection.md), [method bindings](method-bindings.md),
 and [lazy factories](factories.md) for current APIs and limits.
 

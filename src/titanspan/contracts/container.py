@@ -1,8 +1,7 @@
-"""Define backend-neutral contracts for asynchronous service resolution.
+"""Define dependency-container contracts independent of implementations.
 
-The protocol isolates dependency consumers from a particular container
-implementation while leaving registration and scope construction to the
-application's composition root.
+The sync-first protocol keeps ordinary construction synchronous while making
+asynchronous dependency acquisition an explicit operation.
 """
 
 from typing import Protocol, runtime_checkable
@@ -10,10 +9,10 @@ from typing import Protocol, runtime_checkable
 
 @runtime_checkable
 class InstanceRegistration(Protocol):
-    """Describe an externally constructed value registered by a provider.
+    """Describe an externally constructed value contributed by a provider.
 
-    Framework components can contribute application-owned instances without
-    importing a concrete container or dependency-engine provider class.
+    Framework components can provide application-owned instances without
+    importing a concrete service container or dependency engine.
     """
 
     @property
@@ -36,45 +35,101 @@ class InstanceRegistration(Protocol):
 
 
 @runtime_checkable
-class AsyncServiceContainer(Protocol):
-    """Resolve typed services and finalize owned asynchronous resources.
+class ServiceContainer(Protocol):
+    """Describe synchronous and explicit asynchronous service resolution.
 
-    Resolution uses the requested class as its service key and preserves its
-    concrete type for static callers. Implementations own scope-specific
-    resource finalization. A container must be closed after its owning
-    application or execution scope ends.
-
-    Runtime protocol checks verify required attribute presence only. They do
-    not validate generic signatures, scope isolation, or cleanup behavior.
+    Implementations resolve synchronous graphs without an event-loop bridge,
+    expose async-only graphs through ``get_async``, and own async shutdown.
+    Runtime protocol checks confirm member presence only, not lifecycle or
+    behavioral correctness.
     """
 
-    async def get[ServiceT](self, service: type[ServiceT]) -> ServiceT:
-        """Resolve a service from the active dependency scope.
+    def make[ServiceT](self, service: type[ServiceT]) -> ServiceT:
+        """Synchronously resolve a sync-safe dependency graph.
 
         Args:
-            service: The class used as the dependency key.
+            service: Class used as the dependency key.
 
         Returns:
             An instance compatible with the requested service type.
+        """
+        ...
 
-        Notes:
-            Adapters should translate backend resolution errors into
-            framework-owned errors before exposing a public implementation.
+    async def make_async[ServiceT](
+        self,
+        service: type[ServiceT],
+    ) -> ServiceT:
+        """Resolve a graph that may initialize asynchronous resources.
+
+        Args:
+            service: Class used as the dependency key.
+
+        Returns:
+            An instance compatible with the requested service type.
+        """
+        ...
+
+    def get[ServiceT](self, service: type[ServiceT]) -> ServiceT:
+        """Resolve a graph that is safe to construct synchronously.
+
+        Args:
+            service: Class used as the dependency key.
+
+        Returns:
+            An instance compatible with the requested service type.
+        """
+        ...
+
+    async def get_async[ServiceT](self, service: type[ServiceT]) -> ServiceT:
+        """Resolve a graph that may include asynchronous resources.
+
+        Args:
+            service: Class used as the dependency key.
+
+        Returns:
+            An instance compatible with the requested service type.
         """
         ...
 
     async def close(self) -> None:
-        """Finalize resources owned by this dependency scope.
+        """Finalize container-owned asynchronous resources.
 
-        Implementations should propagate cleanup failures and preserve
-        cancellation behavior. Callers must not assume that repeated close
-        operations are safe unless the concrete implementation documents it.
-
-        Notes:
-            Backends must not expose their exception classes as Titanspan
-            public contract types.
+        Implementations propagate cleanup failures and do not claim to clean
+        up after the method returns if active scopes remain open.
         """
         ...
 
 
-__all__ = ["AsyncServiceContainer", "InstanceRegistration"]
+@runtime_checkable
+class AsyncServiceContainer(Protocol):
+    """Describe asynchronous resolution for async-only consumers.
+
+    This narrow protocol is useful to operations that inherently await a
+    service. It does not imply that synchronous object construction must be
+    asynchronous.
+    """
+
+    async def get_async[ServiceT](self, service: type[ServiceT]) -> ServiceT:
+        """Resolve one service through an asynchronous execution boundary.
+
+        Args:
+            service: Class used as the dependency key.
+
+        Returns:
+            An instance compatible with the requested service type.
+        """
+        ...
+
+    async def close(self) -> None:
+        """Finalize resources owned by this container instance.
+
+        Implementations propagate cleanup failures and preserve cancellation.
+        """
+        ...
+
+
+__all__ = [
+    "AsyncServiceContainer",
+    "InstanceRegistration",
+    "ServiceContainer",
+]

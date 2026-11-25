@@ -13,6 +13,12 @@ The behavior audit is pinned to release `13.44.1`, commit
 operations using Titanspan terminology and records implementation status
 without copying upstream implementation code.
 
+The private resolution adapter is verified against Dishka `1.10.1`, the exact
+version in `uv.lock`. That release publicly exposes `AsyncContainer.get_sync`
+and `make_container`; Titanspan uses the former for sync-safe application
+graphs and the latter for sync-only scoped graphs. Backend-specific types stay
+inside `container._backends`.
+
 ## Implemented behavior
 
 The public API is defined in `src/titanspan/container/`. The private adapter
@@ -31,7 +37,11 @@ and generator cleanup to the selected dependency engine.
 | `@singleton` | Verified | Declares application-owned lifetime metadata on a class. |
 | `@scoped(scope)` | Verified | Declares execution-scope metadata on a class. |
 | `instance` | Verified | Registers an externally owned value. |
-| `make` / `get` | Verified | Resolves typed keys and named aliases. |
+| `make` / `get` | Verified | Synchronously resolves sync-safe graphs; an initialized cached service remains accessible. |
+| `make_async` / `get_async` | Verified | Explicitly resolves graphs with async factories or resources. |
+| `resolve` / `resolve_async` | Verified | Typed aliases for sync and async resolution. |
+| `build` / `build_async` | Adapted | Uses configured lifetime caching; it does not bypass shared bindings. |
+| `make_with` / `make_with_async` | Verified | Constructs a root with explicit values and resolves remaining dependencies through `call` or `call_async`. |
 | `bound` | Verified | Checks explicit registration without resolution. |
 | `has` | Adapted | Checks explicit keys, aliases, and non-abstract classes; it does not
   prove that a concrete graph can be constructed. |
@@ -42,8 +52,8 @@ and generator cleanup to the selected dependency engine.
 | `get_alias` / `getAlias` | Verified | Returns the first registered alias. |
 | `get_bindings` / `getBindings` | Verified | Returns a shallow registry snapshot. |
 | `tag` | Verified | Stores service keys in insertion order without instantiating them. |
-| `tagged` | Verified | Resolves tagged services in registration order. |
-| `scope` | Adapted | Enters an isolated task-local backend scope and finalizes it on exit. Scope context objects are one-shot. |
+| `tagged` / `tagged_async` | Verified | Resolves tagged services in registration order using the selected mode. |
+| `scope` | Adapted | Supports `with` for sync-only graphs and `async with` for async lifecycles. Scope context objects are one-shot. |
 | `close` / `aclose` | Verified | Closes owned graph generations in reverse creation order. |
 | Async context manager | Verified | Closes the container after the owning context exits. |
 | Automatic concrete resolution | Verified | Inspects annotations and composes a validated graph for an unknown root. |
@@ -53,9 +63,12 @@ and generator cleanup to the selected dependency engine.
 | Async generator resource cleanup | Verified | Real asynchronous generator resources close when the owning scope exits. |
 | Shared initialization | Verified | Concurrent graph roots coordinate registered and decorated shared values with per-service locks. |
 | Application resource ownership | Verified | Application singletons in a scoped graph are initialized through application-owned generations and remain open until container shutdown. |
-| Callable injection | Verified | `call` resolves required annotated service arguments and consumes explicit named values. |
+| Callable injection | Verified | `call` invokes sync callbacks immediately; `call_async` awaits async callbacks and dependencies. |
 | Method callback registration | Verified | `bind_method` and its camelCase alias dispatch through callable injection. |
-| Lazy resolver factory | Verified | `factory` returns an async callable that delegates to normal lifetime rules. |
+| Lazy resolver factory | Verified | `factory` returns a sync resolver; `factory_async` returns an async resolver. |
+| Shared root graph cache | Verified | Application-level sync and async operations use the same Dishka async graph and its shared cache. |
+| Async-only preflight | Verified | Sync resolution identifies native async factories from annotations before invocation and reports the dependency path. |
+| Sync scope graph | Adapted | Scope-local sync graphs are created through Dishka's supported sync container and closed by their owning sync or async scope. |
 | Unrelated service laziness | Verified | Only the requested graph's shared dependencies are retained. |
 | Registration after first graph | Adapted | Rejected. The registry freezes on first graph composition to avoid unsafe
   live reconfiguration. |
@@ -63,7 +76,8 @@ and generator cleanup to the selected dependency engine.
 | Backend provider interop | Advanced | `providers` accepts explicit integration objects. It is an escape hatch,
   not the ordinary registration API. |
 
-Focused evidence is in `tests/unit/container/test_container.py` and
+Focused evidence is in `tests/unit/container/test_container.py`,
+`tests/unit/container/test_execution_modes.py`, and
 `tests/unit/container/test_decorators.py`. Existing
 FastAPI lifecycle and request-scope evidence remains in
 `tests/integration/test_container_lifecycle.py` and
@@ -82,6 +96,12 @@ The current backend exposes one ordered scope chain. Titanspan therefore maps
 semantic lifetimes onto that chain rather than claiming independent sibling
 scope trees. Use separate application containers for lifecycles that must not
 share any application-owned state.
+
+Sync scopes use Dishka's synchronous container graph for sync-only services.
+Async scopes use the asynchronous graph for async operations. A sync graph
+created inside an async scope registers its synchronous close callback with
+that scope's async exit stack. This ensures cancellation and exceptions still
+close the sync resource before the scope completes.
 
 ## Resolution and mutation rules
 
@@ -105,6 +125,15 @@ share any application-owned state.
     generator resources alive until application shutdown.
 12. An individual `ContainerScope` context object can be entered only once.
     Create a fresh scope context for each independent lifecycle.
+13. Synchronous resolution preflights the known native constructor/factory
+    graph. If an async factory is required, it raises
+    `AsyncResolutionRequiredError` with a dependency path and recommends
+    `make_async`; it does not invoke the async factory.
+14. At application scope, `make` uses the async backend graph's documented
+    `get_sync`, and `make_async` uses `get`. Both operations share the same
+    backend cache. Scope-local sync graphs are tracked separately by execution
+    mode, while tracked singleton and scoped instances preserve identity across
+    newly composed roots.
 
 ## Public operation inventory
 
@@ -139,11 +168,17 @@ entry is not an advertised Titanspan capability.
 | `refresh` | Refresh dependent service | Pending |
 | `wrap` | Callable wrapper | Pending |
 | `call` | `call` | Verified |
+| `call` asynchronous counterpart | `call_async` | Verified |
 | `factory` | `factory` | Verified |
-| `makeWith` | `make_with` | Pending |
+| `factory` asynchronous counterpart | `factory_async` | Verified |
+| `makeWith` | `make_with`, `makeWith` | Verified |
+| `makeWith` asynchronous counterpart | `make_with_async`, `makeWithAsync` | Verified |
 | `make` | `make` | Verified |
+| `make` asynchronous counterpart | `make_async`, `makeAsync` | Verified |
 | `get` | `get` | Verified |
-| `build` | Direct construction operation | Pending |
+| `get` asynchronous counterpart | `get_async`, `getAsync` | Verified |
+| `resolve` | `resolve` / `resolve_async` | Adapted |
+| `build` | `build` / `build_async` | Adapted |
 | `resolveFromAttribute` | Native injection attributes | Pending |
 | `beforeResolving` | Resolution callbacks | Pending |
 | `resolving` | Resolution callbacks | Pending |
@@ -173,9 +208,10 @@ entry is not an advertised Titanspan capability.
 - `make_with`, primitive contextual bindings, configuration injection, and
   custom injection attributes are not implemented. `call` accepts explicit
   named values and resolves only class-typed service parameters.
-- The native `Application` composition root still uses the existing explicit
-  web integration provider boundary. It does not yet expose this registry as
-  its single application container.
+- The native ASGI `Application` composition root still uses the existing
+  explicit web integration provider boundary. It does not yet expose this
+  registry as its single application container, and no module-level `app()`
+  helper is available. `Container` APIs are usable directly.
 - Synchronous and asynchronous generator resource factories have lifecycle
   tests, including cleanup when the active task is cancelled. Direct
   context-manager factory forms are not implemented.
@@ -183,6 +219,14 @@ entry is not an advertised Titanspan capability.
   independent request, job, and workflow branches.
 - Container-level tests verify the native adapter behavior. They do not yet
   establish the full upstream API surface or the requested coverage target.
+- Task-group tests verify sync and async operations share one application
+  singleton cache and scope tests verify a scoped instance is shared across
+  both modes. Cross-thread access to one Dishka graph is not declared safe or
+  tested; integrations must not share a graph across worker threads unless
+  they provide their own documented synchronization boundary.
+- Async resolution inside a synchronous scope is supported only when the
+  dependency graph is sync-safe; it delegates to synchronous resolution.
+  Async-only resources require an asynchronous scope.
 
 ## Compatibility provenance
 

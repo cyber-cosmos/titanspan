@@ -9,7 +9,9 @@ delegate infrastructure to mature libraries.
 The package currently exports:
 
 - `ConfigRepository`, a structural interface for mutable configuration.
-- `AsyncServiceContainer`, a typed async resolution and cleanup interface.
+- `ServiceContainer`, a typed sync-first resolution and cleanup interface.
+- `AsyncServiceContainer`, an async-only resolution and cleanup interface for
+  consumers that inherently require asynchronous resolution.
 - `InstanceRegistration`, a native contract for supplying an existing service
   instance to the active container adapter.
 - Support data and presentation protocols such as `Arrayable`, `Jsonable`,
@@ -27,7 +29,9 @@ mean a production implementation or complete framework feature exists.
 The configuration component provides the native `Repository` implementation
 of `ConfigRepository`; application startup registers it through the private
 container adapter. `titanspan.container.Container` implements
-`AsyncServiceContainer` and keeps graph-engine types out of its public API.
+`ServiceContainer` and keeps graph-engine types out of its public API. The ASGI
+`Application` still owns a separate integration graph; it does not yet expose
+the native `Container` or a module-level `app()` helper.
 `ConfigRepository.get` accepts either one path or an ordered sequence of
 paths. The concrete Repository also exposes `get_many` and `getMany`, strict
 typed accessors, mapping behavior, and Support macros. Those additions are not

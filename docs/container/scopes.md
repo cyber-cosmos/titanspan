@@ -6,18 +6,34 @@ Create an isolated cache for an execution lifecycle:
 from titanspan.container import Container, Scope
 
 
+def run_sync_scope(container: Container) -> None:
+    """Resolve sync-safe resources inside a synchronous execution scope.
+
+    Args:
+        container: Registry that owns the scoped binding.
+    """
+    with container.scope(Scope.REQUEST) as request:
+        store = request.make(WorkflowStore)
+        assert request.make(WorkflowStore) is store
+
+
 async def run_workflow(container: Container) -> None:
-    """Resolve workflow-owned resources inside one execution scope.
+    """Resolve workflow-owned resources inside an async execution scope.
+
+    Args:
+        container: Registry that owns the scoped binding.
     """
     async with container.scope(Scope.WORKFLOW) as workflow:
-        store = await workflow.make(WorkflowStore)
-        assert await workflow.make(WorkflowStore) is store
+        store = await workflow.make_async(WorkflowStore)
+        assert await workflow.make_async(WorkflowStore) is store
 ```
 
-The application container owns application singletons. A scope owns resources
-constructed in its backend child and closes them when its async context exits,
-including when an exception propagates. Explicitly supplied instances remain
-externally owned.
+The application container owns application singletons. A synchronous scope
+accepts sync-only graphs and closes them on normal exit or exceptions. An async
+scope supports async resources and also closes sync-only graphs requested
+inside it. A synchronous scope rejects async-only dependencies rather than
+abandoning resources that need asynchronous finalization. Explicitly supplied
+instances remain externally owned.
 
 When a scoped graph depends on an uncached application singleton, the
 application container resolves that singleton through an application-owned
@@ -41,3 +57,6 @@ adaptation, not a claim that unrelated lifecycles have independent hierarchies.
 Each concurrent workflow entered from the application context receives an
 isolated child scope. Tasks spawned inside one scope inherit that context; use
 a deeper task scope when concurrent work requires separate scoped instances.
+The execution-mode tests verify mixed sync and async access to one scoped value
+and task-group access to one application singleton. Cross-thread access is not
+covered by that guarantee.

@@ -7,6 +7,7 @@ from titanspan.container.binding import Binding, Lifetime, ServiceFactory
 from titanspan.container.container import Container, ContainerScope
 from titanspan.container.decorators import scoped, singleton
 from titanspan.container.exceptions import (
+    AsyncResolutionRequiredError,
     BindingError,
     BindingResolutionError,
     ContainerClosedError,
@@ -17,6 +18,7 @@ from titanspan.container.exceptions import (
 from titanspan.container.scope import Scope
 
 __all__ = [
+    "AsyncResolutionRequiredError",
     "Binding",
     "BindingError",
     "BindingResolutionError",
