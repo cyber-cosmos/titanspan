@@ -8,6 +8,7 @@ The current implementation includes:
 - `Arr` helpers for Python mappings, sequences, and iterables.
 - Shared value, nested-data, escaping, and exception helpers.
 - `Fluent` for typed, mutable attribute data and nested path access.
+- `ForwardsCalls` for explicit delegation from wrappers to composed objects.
 - `Optional` for null-safe access and explicit method delegation.
 - `Env` and `env` for normalized process environment access, scoped adapters,
   and explicit dotenv file updates.
@@ -40,7 +41,7 @@ status, and documented differences.
 ## Imports
 
 ```python
-from titanspan.support import Arr, Conditionable, Macroable
+from titanspan.support import Arr, Conditionable, ForwardsCalls, Macroable
 ```
 
 Value helpers are available from the same package:
@@ -69,7 +70,8 @@ Laravel's dynamic calls. Conditionable supports direct callback forms;
 Laravel's higher-order proxy forms remain planned.
 
 See [arrays](./arrays), [environment utilities](./environment),
-[Fluent](./fluent), [helpers](./helpers),
+[Fluent](./fluent), [forwarded calls](./forwards-calls),
+[helpers](./helpers),
 [message bags](./message-bag),
 [optional values](./optional), [strings](./strings), and [extensions](./extensions)
 for the implemented surface. See [URI utilities](./uris) and

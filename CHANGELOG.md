@@ -21,5 +21,6 @@ public release.
 - Added configuration URL parsing for common database schemes, nested query
   options, driver aliases, and SQL Server DSN values.
 - Added namespaced item key parsing with an instance-local cache.
+- Added wrapper call delegation with fluent identity preservation.
 - Added initial tests, architecture decisions, contributor documentation, and
   repository automation.

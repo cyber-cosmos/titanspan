@@ -52,6 +52,10 @@ export default defineConfig({
           { text: "Arrays", link: "/support/arrays" },
           { text: "Environment", link: "/support/environment" },
           { text: "Fluent", link: "/support/fluent" },
+          {
+            text: "Forwarded calls",
+            link: "/support/forwards-calls",
+          },
           { text: "Helpers", link: "/support/helpers" },
           { text: "Message bags", link: "/support/message-bag" },
           { text: "Optional values", link: "/support/optional" },

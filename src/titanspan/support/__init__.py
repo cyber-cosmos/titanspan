@@ -1,7 +1,8 @@
 """Expose Titanspan's shared support utilities and compatibility helpers.
 
 The module exports array operations, nested-data helpers, null-safe optional
-values, macro and conditional mixins, and typed support exceptions.
+values, forwarding, macro, and conditional mixins, and typed support
+exceptions.
 """
 
 from titanspan.support.arr import Arr
@@ -34,6 +35,7 @@ from titanspan.support.exceptions import (
     RandomSelectionError,
 )
 from titanspan.support.fluent import Fluent
+from titanspan.support.forwards_calls import ForwardsCalls
 from titanspan.support.helpers import (
     HigherOrderTapProxy,
     blank,
@@ -86,6 +88,7 @@ __all__ = [
     "EncodedHtmlString",
     "Env",
     "Fluent",
+    "ForwardsCalls",
     "HigherOrderTapProxy",
     "HtmlString",
     "InvalidMacroCallbackError",

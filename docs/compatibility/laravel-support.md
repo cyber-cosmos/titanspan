@@ -12,7 +12,7 @@ The baseline is pinned to an immutable commit rather than the moving `13.x` bran
 
 ## Inventory scope and measurement
 
-The source scan accounts for **147 declared symbols** and **4050 member entries**: 4025 declared public methods, documented facade `@method` proxies, and namespace-level helper functions; 13 public constants; and 12 public properties. Each member is listed below. The scan covers Support, Collections, Macroable, Conditionable, Reflection, and Contracts/Support source trees so cross-package ownership remains visible.
+The source scan accounts for **147 declared symbols** and **4053 member entries**: 4025 public methods, facade `@method` proxies, and namespace-level helper functions; 13 public constants; 12 public properties; and 3 protected trait methods included in the trait inventory. Each member is listed below. The scan covers Support, Collections, Macroable, Conditionable, Reflection, and Contracts/Support source trees so cross-package ownership remains visible.
 
 This source scan is not a complete PHP reflection dump. Inherited methods not declared or documented on a symbol are not expanded into a separate row, and PHPDoc parameter and return signatures are not normalized yet. Those inherited surfaces and signatures remain audit work; the compatibility percentage below is a lower bound over listed entries, not a claim that the entire Illuminate ecosystem is covered.
 
@@ -30,12 +30,12 @@ A method is not counted as compatible because it has a similarly named Python me
 ## Measured status
 
 - Exact behavioural parity: 0.
-- Python-adapted parity: 442.
+- Python-adapted parity: 445.
 - Delegated: 0.
 - Blocked: 3141.
 - Not applicable: 32.
 - Pending: 435.
-- Verified compatibility: 442/4050 listed member entries (10.91%).
+- Verified compatibility: 445/4053 listed member entries (10.98%).
 
 For the timing utilities in this implementation slice, behavior was checked
 against the pinned upstream tests for [Benchmark](https://github.com/laravel/framework/blob/8a8c4a84852869e13190d89f9da873cd9a70f14c/tests/Support/SupportBenchmarkTest.php),
@@ -51,6 +51,12 @@ standard library and keeps the mutable alias registry behind a thread-safe
 registration method.
 Namespaced item parsing and cache behavior are traced to the pinned
 [NamespacedItemResolver tests](https://github.com/laravel/framework/blob/8a8c4a84852869e13190d89f9da873cd9a70f14c/tests/Support/SupportNamespacedItemResolverTest.php).
+Forwarding behavior follows the pinned
+[ForwardsCalls trait source](https://github.com/laravel/framework/blob/8a8c4a84852869e13190d89f9da873cd9a70f14c/src/Illuminate/Support/Traits/ForwardsCalls.php)
+and the translated cases in its
+[ForwardsCalls tests](https://github.com/laravel/framework/blob/8a8c4a84852869e13190d89f9da873cd9a70f14c/tests/Support/ForwardsCallsTest.php).
+The Python tests cover direct and nested forwarding, fluent target identity,
+missing method diagnostics, and preservation of errors from real target code.
 
 ## Method-level inventory
 
@@ -5000,11 +5006,13 @@ Namespaced item parsing and cache behavior are traced to the pinned
 </details>
 
 <details>
-<summary>Illuminate\Support\Traits\ForwardsCalls — 0 listed public members (trait)</summary>
+<summary>Illuminate\Support\Traits\ForwardsCalls — 3 listed protected members (trait)</summary>
 
 | Upstream class | Upstream API | Titanspan API | Implementation location | Compatibility status | Test evidence | Differences | Upstream reference |
 |---|---|---|---|---|---|---|---|
-| `Illuminate\Support\Traits\ForwardsCalls` | Public type declaration | — | Not implemented | | Pending | — | No public members were found by the source scan. | [source][source-131] |
+| `Illuminate\Support\Traits\ForwardsCalls` | `forwardCallTo()` | `ForwardsCalls.forward_call_to / ForwardsCalls.forwardCallTo` | `src/titanspan/support/forwards_calls.py` | **Python-adapted parity** | `tests/unit/support/test_forwards_calls.py` | Exposed as a mixin method; missing methods raise Python `AttributeError` instead of PHP `BadMethodCallException`, while errors from existing target methods propagate unchanged. | [source][source-131] |
+| `Illuminate\Support\Traits\ForwardsCalls` | `forwardDecoratedCallTo()` | `ForwardsCalls.forward_decorated_call_to / ForwardsCalls.forwardDecoratedCallTo` | `src/titanspan/support/forwards_calls.py` | **Python-adapted parity** | `tests/unit/support/test_forwards_calls.py` | Returns the wrapper when the delegated method returns its target, preserving fluent wrapper identity. | [source][source-131] |
+| `Illuminate\Support\Traits\ForwardsCalls` | `throwBadMethodCallException()` | `ForwardsCalls.throw_bad_method_call_exception / ForwardsCalls.throwBadMethodCallException` | `src/titanspan/support/forwards_calls.py` | **Python-adapted parity** | `tests/unit/support/test_forwards_calls.py` | Raises Python `AttributeError` with the consuming wrapper class and requested method. | [source][source-131] |
 
 </details>
 
