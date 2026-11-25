@@ -1,8 +1,8 @@
 # Message bags
 
 `MessageBag` stores ordered messages under string or integer keys. It supports
-Laravel-style `:message` and `:key` formatting, wildcard reads, duplicate
-prevention through `add`, and explicit merge behavior.
+`:message` and `:key` formatting, wildcard reads, duplicate prevention through
+`add`, and explicit merge behavior.
 
 ```python
 from titanspan.support import MessageBag
@@ -17,14 +17,13 @@ assert errors.get("email", "[ :key ] :message") == [
 
 ## Add and query messages
 
-`add` adds a message only once for its key. `merge` follows Laravel's
-recursive merge behavior and appends incoming messages, including duplicates.
-The `add_if`/`addIf`, `has_any`/`hasAny`, `is_empty`/`isEmpty`, and
-`is_not_empty`/`isNotEmpty` pairs share one implementation.
+`add` adds a message only once for its key. `merge` recursively adds incoming
+messages, including duplicates. `add_if`, `has_any`, `is_empty`, and
+`is_not_empty` each provide one native operation.
 
 ```python
 errors = MessageBag()
-errors.add("email", "invalid").addIf(True, "name", "required")
+errors.add("email", "invalid").add_if(True, "name", "required")
 
 assert errors.has(["email", "name"])
 assert errors.get("email.*") == {}
@@ -40,23 +39,21 @@ accept one key, an iterable of keys, or additional positional keys. Passing
 
 ## Mutation and serialization
 
-`get_messages`, `messages`, and `to_array` return defensive copies. Use
+`get_messages` and `all` return defensive copies. Use
 `add`, `merge`, and `forget` to update the bag. Python `str(bag)` and `to_json`
 serialize the raw messages as compact JSON; `to_pretty_json` provides
 indented output. The supported JSON option bits are pretty printing and
 unescaped Unicode.
 
-## Python adaptations
+## Python behavior
 
-- Integer keys are preserved to represent numeric PHP array keys. Boolean
-  keys are rejected because Python treats booleans as integers.
+- Integer keys are preserved. Boolean keys are rejected because Python treats
+  booleans as integers.
 - Message data accepts a mapping or iterable. Iterable entries receive
   integer keys in iteration order.
-- Message lists returned by public accessors are copies, consistent with
-  PHP array copy-on-write behavior.
+- Message lists returned by public accessors are copies.
 - Python JSON serialization supports the documented pretty-print and
-  Unicode options; Laravel's full `json_encode` option set is not mirrored.
+  Unicode options.
 
-This API is under development. See the
-[method-level compatibility inventory](/compatibility/laravel-support) for
-the pinned Laravel baseline and verified status.
+See the [Support specification](/specifications/support) for ownership and
+test evidence.

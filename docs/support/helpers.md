@@ -98,8 +98,7 @@ caller's local variable by reference. Deleting a list element shifts later
 indexes, following Python list semantics.
 
 `head` returns the first iterable item and `last` consumes an iterable while
-retaining only its most recent item. Both return `False` for an empty
-iterable, matching Laravel's helper result.
+retaining only its most recent item. Both return `None` for an empty iterable.
 
 ## Escaping and errors
 
@@ -115,5 +114,5 @@ Their return value is the original condition when no exception is raised.
 name when the enum value is not a scalar. For `None`, it resolves the
 provided default.
 
-See the [method-level compatibility inventory](/compatibility/laravel-support)
-for tested differences and upstream links.
+See the [Support specification](/specifications/support) for module ownership
+and test evidence.

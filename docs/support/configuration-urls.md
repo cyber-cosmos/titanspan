@@ -32,8 +32,7 @@ assert settings == {
 }
 ```
 
-The `parseConfiguration` spelling is available for source compatibility.
-Python applications should use `parse_configuration`.
+Use `parse_configuration` as the native Python entry point.
 
 ## Driver aliases
 
@@ -48,15 +47,14 @@ assert parser.parse_configuration("custom-postgres://db/catalog")[
 ] == "pgsql"
 ```
 
-Registration is process-wide and safe across threads. Both
-`get_driver_aliases()` and its `getDriverAliases()` compatibility spelling
-return a copy, so callers cannot mutate the shared registry through a
+Registration is process-wide and safe across threads. `get_driver_aliases()`
+returns a copy, so callers cannot mutate the shared registry through a
 retrieved mapping.
 
 ## Query options
 
 Query options are merged after the primary URL components. JSON scalar values
-are converted to native Python values. PHP-style bracket keys become nested
+are converted to native Python values. Bracketed query keys become nested
 mappings; contiguous append-only numeric keys become Python lists.
 
 ```python
@@ -70,8 +68,7 @@ assert settings["read"] == {"host": ["replica-a", "replica-b"]}
 ```
 
 An explicit `None` from a decoded query value is retained. A URL component
-that decodes to JSON `null` is omitted from primary options, matching the
-upstream merge behavior.
+that decodes to JSON `null` is omitted from primary options.
 
 ## SQL Server DSNs
 
@@ -97,18 +94,15 @@ converted to booleans. Unrecognized values remain strings. When an
 `ApplicationIntent` option is present, a supplied `readonly` value is
 discarded unless the DSN explicitly requests read-only access.
 
-## Errors and compatibility notes
+## Errors and edge cases
 
 - Empty URL values, including the string `"0"`, are removed and treated as
-  absent to preserve upstream truthiness behavior.
+  absent.
 - Non-string `url` values raise `TypeError`.
 - Malformed URL authorities and ports raise `ValueError`.
 - URL parsing does not establish or validate network connections.
 - Host names follow `urllib.parse` normalization, including lowercasing.
-- PHP query arrays are represented by Python mappings and lists; PHP-specific
-  loose coercion and reference semantics are not emulated.
+- Bracketed query values are represented by Python mappings and lists.
 
-The compatibility baseline is Laravel framework `v13.44.1`, pinned to commit
-[`8a8c4a84852869e13190d89f9da873cd9a70f14c`](https://github.com/laravel/framework/tree/8a8c4a84852869e13190d89f9da873cd9a70f14c).
-See the [method-level compatibility inventory](/compatibility/laravel-support)
-for status, tests, and documented adaptations.
+See the [Support specification](/specifications/support) for component
+ownership and verification boundaries.

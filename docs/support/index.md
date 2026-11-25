@@ -33,11 +33,11 @@ The current implementation includes:
 - `Conditionable` for synchronous and asynchronous conditional callbacks.
 - `Tappable` for callback observation while preserving instance identity.
 
-These APIs follow Laravel Support's developer experience where Python has a
-clear equivalent. Titanspan does not emulate PHP arrays, traits, or magic
-method dispatch. See the [compatibility inventory](
-/compatibility/laravel-support) for the pinned source baseline, method-level
-status, and documented differences.
+These APIs follow Titanspan's native Python specifications. They use Python
+collections, object protocols, and explicit method dispatch instead of
+emulating language-specific constructs from another ecosystem. The
+[Support specification](/specifications/support) records ownership and
+verification boundaries.
 
 ## Imports
 
@@ -62,13 +62,11 @@ dependencies. URI redirects reuse the Starlette version already installed
 through the web foundation; URI parsing and encoding otherwise use the Python
 standard library and Titanspan's `Arr` helpers.
 
-## Compatibility status
+## Implementation status
 
-Support is under active development. Arr methods are implemented and have
-initial unit coverage, but their complete Laravel behavioural parity has not
-been verified. Macroable has tested explicit invocation equivalents for
-Laravel's dynamic calls. Conditionable supports direct callback forms;
-Laravel's higher-order proxy forms remain planned.
+Support is under active development. The native specification and focused test
+suites describe implemented behavior. Do not infer availability from similar
+names in other libraries or from roadmap entries.
 
 See [arrays](./arrays), [environment utilities](./environment),
 [Fluent](./fluent), [forwarded calls](./forwards-calls),

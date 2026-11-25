@@ -19,3 +19,6 @@ for compatibility, maintenance, licensing, and security before use.
 - [0013 — Native configuration repository and safe snapshots](./0013-native-configuration)
 - [0014 — Native service container API](./0014-native-container-api)
 - [0015 — Synchronous-first container resolution](./0015-sync-first-container-resolution)
+- [0016 — Native Python API naming](./0016-native-python-api-naming)
+- [0017 — Domain-oriented shared contracts](./0017-domain-oriented-contracts)
+- [0018 — Native application service composition](./0018-application-service-composition)

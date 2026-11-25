@@ -9,7 +9,11 @@ to implementation and verified tests.
   public APIs.
 - Preserve a clear distinction between Titanspan-owned conventions and
   behavior delegated to third-party libraries.
-- Update navigation in `docs/.vitepress/config.mts` when adding a guide.
+- Update `docs/.vitepress/config.mts` whenever a published page is added,
+  renamed, or removed. Keep every published Markdown page in the sidebar,
+  verify all navigation links, and avoid duplicate sidebar destinations.
+- Run `npm --prefix docs run docs:check-navigation` when editing pages or
+  navigation. `docs:build` runs this check before VitePress.
 - Use official sources for version-sensitive library or harness behavior.
 - Keep examples tested against existing APIs, and make Python examples meet
   strict typing, 80-column, multiline-docstring, and comment standards.

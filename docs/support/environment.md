@@ -1,7 +1,7 @@
 # Environment utilities
 
-`Env` provides Laravel-inspired access to process values, fallback adapters,
-and explicit edits to existing dotenv files. Application configuration still
+`Env` provides access to process values, fallback adapters, and explicit edits
+to existing dotenv files. Application configuration still
 belongs to Pydantic Settings in `titanspan.config`; this utility does not
 replace typed settings or load `.env` files during import.
 
@@ -12,19 +12,19 @@ from titanspan.support import Env, env
 
 debug = Env.get("TITANSPAN_DEBUG", False)
 
-required_mode = Env.getOrFail("TITANSPAN_MODE")
+required_mode = Env.get_or_fail("TITANSPAN_MODE")
 same_mode = env("TITANSPAN_MODE")
 assert required_mode == same_mode
 ```
 
-The normalizer follows Laravel's dotenv tokens: `true` and `(true)` become
-`True`; `false` and `(false)` become `False`; `empty` becomes an empty string;
-and `null` becomes `None`. A matching pair of outer quotes is removed. A lazy
+The normalizer supports dotenv tokens: `true` and `(true)` become `True`;
+`false` and `(false)` become `False`; `empty` becomes an empty string; and
+`null` becomes `None`. A matching pair of outer quotes is removed. A lazy
 default callback runs only when the variable is missing or normalizes to
 `None`.
 
-`get_or_fail` and `getOrFail` raise `RuntimeError` when the value is absent or
-null. Empty strings, zero-like strings, and false remain present values.
+`get_or_fail` raises `RuntimeError` when the value is absent or null. Empty
+strings, zero-like strings, and false remain present values.
 
 ## Adapters
 
@@ -40,10 +40,11 @@ assert Env.get("SERVICE_REGION") == "local"
 
 The repository is cached in the active context. Adapter mappings are copied
 and made read-only when the repository is created; process environment values
-remain live. Re-registering a named adapter or toggling `enable_putenv` /
-`disable_putenv` invalidates the cached repository. Python has one standard
-process environment mapping, so those Laravel-compatible methods control
-whether `os.environ` is consulted. They do not mutate process variables.
+remain live. Re-registering a named adapter or toggling
+`enable_process_environment` / `disable_process_environment` invalidates the
+cached repository. Python has one standard
+process environment mapping, so the environment controls determine whether
+`os.environ` is consulted. They do not mutate process variables.
 
 ## Update a dotenv file
 
@@ -65,7 +66,7 @@ file permissions are retained. The write methods reject invalid variable
 names, non-scalar values, non-finite numbers, NUL bytes, and multiline values
 so values cannot inject additional assignments.
 
-The serializer follows PHP scalar string conversion for booleans and null:
+The serializer uses explicit scalar conversion for booleans and null:
 `True` becomes `1`, while `False` and `None` become empty assignments. Strings
 with special characters are quoted and escaped. File edits are explicit and
 should be treated as changes to configuration data that may contain secrets.
@@ -75,12 +76,11 @@ should be treated as changes to configuration data that may contain secrets.
 - `get_repository()` returns Titanspan's small read-only repository type, not
   `python-dotenv`'s repository protocol.
 - `extend()` factories return mappings of string keys to string or null values.
-- `enable_putenv()` and `disable_putenv()` only control reads from
+- `enable_process_environment()` and `disable_process_environment()` only
+  control reads from
   `os.environ`; Titanspan never writes environment variables through them.
 - `write_variable()` and `write_variables()` require existing files and safe
   single-line scalar assignments.
 
-See the [compatibility inventory](/compatibility/laravel-support) for the
-method-level status and pinned upstream references. Unit tests cover parsing,
-fallbacks, adapter replacement, safe file updates, and aliases; integration
-tests compare environment reads with Pydantic Settings.
+Unit tests cover parsing, fallbacks, adapter replacement, and safe file
+updates. Integration tests compare environment reads with Pydantic Settings.

@@ -2,27 +2,21 @@
 
 ## Laravel framework
 
-Titanspan's Support, Contracts, Logging, and Configuration API inventories
-and selected behavior are informed by Laravel framework `v13.44.1`, commit
+Titanspan's early API research and selected behavior were informed by Laravel
+framework `v13.44.1`, commit
 `8a8c4a84852869e13190d89f9da873cd9a70f14c`:
 
 <https://github.com/laravel/framework/tree/8a8c4a84852869e13190d89f9da873cd9a70f14c>
 
 Laravel framework is distributed under the MIT License. Titanspan is an
 independent project and is not affiliated with or endorsed by Laravel. The
-current Python Support implementation is written for Titanspan; this notice
-preserves attribution for the upstream API and behavior reference. Future
-adaptations of upstream source or tests must retain applicable notices.
-The Contracts compatibility inventory reads upstream interface declarations
-as an API reference. No Laravel Contracts implementation or test source was
-copied into the Titanspan Contracts package.
-
-Sleep compatibility tests translate behavior from Laravel's upstream test
-suite; the pinned source and test paths are listed in the compatibility
-inventory. Environment compatibility cases translate the environment helper
-and bootstrap expectations from Laravel's Support and Foundation test suites.
-Retry helper behavior follows the pinned Support helper implementation; its
-test evidence is listed in the compatibility inventory.
+current APIs follow the native Titanspan specifications; this notice records
+historical design provenance and preserves applicable attribution. The pinned
+source tree remains available at the link above. Tests under
+`tests/unit/support/` contain selected translated behavior cases for sleep,
+environment values, and retry helpers. No Laravel Contracts implementation
+or literal upstream test source was copied into the Titanspan Contracts
+package. These references do not establish API compatibility requirements.
 
 Copyright (c) Taylor Otwell
 

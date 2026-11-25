@@ -1,7 +1,7 @@
 # Contracts
 
 Titanspan contracts define framework-owned behavior at component boundaries.
-They let application code depend on stable Python protocols while adapters
+They let components depend on stable Python protocols while private adapters
 delegate infrastructure to mature libraries.
 
 ## Current public contracts
@@ -14,29 +14,33 @@ The package currently exports:
   consumers that inherently require asynchronous resolution.
 - `InstanceRegistration`, a native contract for supplying an existing service
   instance to the active container adapter.
-- Support data and presentation protocols such as `Arrayable`, `Jsonable`,
-  `Renderable`, `Responsable`, and `ValidatedData`.
-- Existing canonical Support protocols for HTML values and message bags.
+- Support display and message protocols for HTML values and message bags.
+- Logging protocols for drivers, formatters, processors, async delivery, and
+  logger customization, plus the shared `DeliveryStatus` enum.
 
-The logging contracts remain canonically owned by
-`titanspan.logging.contracts`; they are not duplicated in this package.
 Contracts for unimplemented cache, database, queue, workflow, and other
-components remain pending in the [Laravel compatibility inventory](
-/compatibility/laravel-contracts).
+components remain pending. The [native Contracts specification](
+/specifications/contracts) records established boundaries and deferred work.
 
 These interfaces describe substitution points. Defining a protocol does not
 mean a production implementation or complete framework feature exists.
+Generic conversion, HTTP response, and validation protocols remain unpublished
+until their owning components establish a real behavioral boundary.
 The configuration component provides the native `Repository` implementation
-of `ConfigRepository`; application startup registers it through the private
-container adapter. `titanspan.container.Container` implements
-`ServiceContainer` and keeps graph-engine types out of its public API. The ASGI
-`Application` still owns a separate integration graph; it does not yet expose
-the native `Container` or a module-level `app()` helper.
-`ConfigRepository.get` accepts either one path or an ordered sequence of
-paths. The concrete Repository also exposes `get_many` and `getMany`, strict
-typed accessors, mapping behavior, and Support macros. Those additions are not
-required of every structural implementation. Pydantic Settings remains the
-private validation backend for Titanspan's native `Settings` type.
+of `ConfigRepository`. Application startup registers it through the
+application-owned `titanspan.container.Container`. Framework service
+resolution, provider registration, facades, configuration, and logging share
+that native application container. The ASGI route integration remains a
+separate private graph adapter.
+Domain packages own each protocol: `config`, `container`, `logging`, and
+`support`. `titanspan.contracts` re-exports the same objects for convenience;
+component packages may also expose those objects without creating new
+identities. `ConfigRepository.get` accepts one path or an ordered sequence of
+paths. The concrete `Repository` also exposes `get_many`, strict typed
+accessors, mapping behavior, and Support macros. Those additions are not
+required of every structural implementation. Pydantic Settings supplies
+validation for Titanspan's typed `Settings` declaration through a private
+adapter; inherited backend methods are not part of the documented API.
 
 ## Structural typing
 
@@ -46,13 +50,13 @@ but does not verify signatures, return types, resource cleanup, cancellation,
 or other behavioral guarantees. Use static checking and behavior tests for
 those guarantees.
 
-Prefer Python snake_case APIs. Separate compatibility protocols accept
-Laravel's original camelCase spellings where useful; implementations do not
-need to implement both spellings unless their own public API promises both.
+Use one canonical Python `snake_case` spelling for each operation. Do not
+define compatibility protocols or duplicate method names solely to imitate an
+external framework's API.
 
 ## Guides
 
 - [Dependency injection](./dependency-injection)
 - [Implementing contracts](./implementing-contracts)
 - [Testing contracts](./testing)
-- [Laravel Contracts inventory](/compatibility/laravel-contracts)
+- [Native Contracts specification](/specifications/contracts)

@@ -27,9 +27,8 @@ async def wait_for_duration() -> None:
     await duration.sleep_async()
 ```
 
-`for_` is the Python spelling of Laravel's reserved-word method `for`.
-Likewise, use `and_` and `while_` for the upstream `and` and `while` names.
-Singular and plural unit methods are both available.
+`for_`, `and_`, and `while_` use trailing underscores because those names
+conflict with Python keywords. Singular and plural unit methods are available.
 
 `Sleep.sleep(seconds)` and `Sleep.usleep(microseconds)` create completed
 duration builders. `Sleep.until(timestamp, now=...)` accepts a Python
@@ -63,7 +62,7 @@ that receive the builder. `when_async` and `unless_async` explicitly await
 asynchronous conditions. `while_` accepts a synchronous zero-argument
 predicate; `while_async` accepts a predicate that may be asynchronous.
 Repetition applies to real waits. Fake sleeps record one operation and skip
-the repetition callback, matching Laravel's fake behavior.
+the repetition callback.
 
 ## Fake waits in tests
 
@@ -84,37 +83,29 @@ async def use_fake_sleep() -> None:
     Sleep.fake()
     await Sleep.for_(3).seconds().sleep_async()
 
-    Sleep.assertSleptTimes(1)
-    Sleep.assertSlept(timedelta(seconds=3))
+    Sleep.assert_slept_times(1)
+    Sleep.assert_slept(timedelta(seconds=3))
 ```
 
 `when_faking_sleep` registers callbacks that receive each recorded
 `timedelta`. `assert_sequence` compares an ordered list of durations or Sleep
 builders; `None` skips a comparison. `assert_never_slept` verifies an empty
-sequence, and `assert_insomniac` accepts only zero-duration entries. Laravel's
-camelCase assertion and callback aliases are available for compatibility.
+sequence, and `assert_insomniac` accepts only zero-duration entries.
 
 ## Python adaptations
 
-- A duration value is an immutable `datetime.timedelta`, not a mutable Carbon
-  interval. Assign a new `timedelta` to `Sleep.duration` to replace it.
+- A duration value is an immutable `datetime.timedelta`. Assign a new
+  `timedelta` to `Sleep.duration` to replace it.
 - Waiting is explicit. Python object finalization does not trigger a blocking
   sleep.
-- `sleep_async` and async callback variants are Titanspan additions.
+- Async waits and callback variants use explicit `_async` method names.
 - Fake state uses context-local storage instead of process-global static
   state, which isolates separate requests and tests.
-- Carbon clock synchronization is not available because Titanspan has no
-  Carbon-compatible clock service. `syncWithCarbon` is recorded as blocked in
-  the [compatibility inventory](/compatibility/laravel-support).
 - Durations are limited to the range Python's `datetime.timedelta` can
   represent. Fractional amounts truncate at microsecond precision.
 
-## References and tests
+## Tests
 
-The compatibility inventory pins the API to Laravel framework `v13.44.1` and
-records each member's status. Behavior is traced to the upstream
-[Sleep implementation](https://github.com/laravel/framework/blob/8a8c4a84852869e13190d89f9da873cd9a70f14c/src/Illuminate/Support/Sleep.php)
-and [Sleep tests](https://github.com/laravel/framework/blob/8a8c4a84852869e13190d89f9da873cd9a70f14c/tests/Support/SleepTest.php).
 Titanspan's deterministic unit tests are in
 `tests/unit/support/test_sleep.py`; AnyIO scheduling and cancellation tests
 are in `tests/integration/support/test_sleep_async.py`.

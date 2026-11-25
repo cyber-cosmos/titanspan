@@ -31,4 +31,4 @@ is not guaranteed to be thread-safe.
 - [Scoped overrides](./overrides)
 - [Testing](./testing)
 - [Security](./security)
-- [Laravel compatibility inventory](/compatibility/laravel-config)
+- [Native configuration specification](/specifications/config)

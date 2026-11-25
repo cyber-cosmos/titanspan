@@ -53,13 +53,12 @@ The configured severity uses RFC 5424 values. `LogLevel` defines `emergency`,
 - [Security](./security): redaction and payload limits.
 - [Testing](./testing): in-memory logging fakes and assertions.
 - [Deployment](./deployment): stdout collection and process boundaries.
-- [Laravel compatibility](../compatibility/laravel-logging): pinned API
-  inventory and documented differences.
+- [Native logging specification](/specifications/logging): implemented
+  boundaries and deferred work.
 
 ## Current limits
 
-This component is still early-stage. It does not yet provide Laravel's
-deprecation channel, full context repository,
-event-dispatcher integration, or Monolog extension surface. The
-compatibility inventory records each item and its status. Do not infer these
-features from similarly named APIs.
+This component is still early-stage. It does not yet provide a deprecation
+channel, the complete event-dispatcher integration, or every destination
+available from its implementation dependencies. The native specification
+records current boundaries. Do not infer features from similarly named APIs.

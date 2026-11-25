@@ -1,0 +1,177 @@
+# Contract integration audit
+
+This audit describes the current working implementation, not the roadmap.
+The inventory was checked against `src/titanspan`, service providers,
+container registrations, facade consumers, tests, and public exports.
+
+Runtime-checkable protocols only establish attribute presence. The evidence
+column distinguishes static assignments and behavioral tests from real
+application integration. The cross-component test target runs tests marked
+`architecture` and is a required job in the CI gate.
+
+The shared Contracts package currently defines 26 public protocols across
+configuration, container, foundation, logging, and Support. Domain value
+types are identified separately. One public abstract facade base and one
+private production protocol are also inventoried below.
+Every public contract in the domain tables is exported from its canonical
+domain package and re-exported as the same object from `titanspan.contracts`;
+private implementation and test-only protocols are not exported.
+
+## Configuration contracts
+
+| Contract | Definition | Implementation and consumers | Registration and evidence | Status |
+| --- | --- | --- | --- | --- |
+| `ConfigReader` | `contracts/config/repository.py` | `config.Repository`; narrow read-only injection capability | Registered by `ConfigServiceProvider`; alternate repository and production conformance assignments in `tests/unit/contracts/test_contract_organization.py`; app resolution in `tests/integration/test_framework_cohesion.py` | Implemented, registered, no distinct built-in consumer |
+| `ConfigWriter` | `contracts/config/repository.py` | `config.Repository`; narrow mutation capability | Registered by `ConfigServiceProvider` to the same selected repository instance; static and app integration evidence as `ConfigReader` | Implemented, registered, no distinct built-in consumer |
+| `ConfigRepository` | `contracts/config/repository.py` | `config.Repository`; `Config` facade; config helper; logging provider; application | `ConfigServiceProvider` registers the selected object; alternate mapping implementation is injected through the real app lifecycle and shared by app, facade, and helper | Implemented and consumed |
+| `TypedConfigReader` | `contracts/config/capabilities.py` | `config.Repository`; `Config` typed getters | Registered conditionally by `ConfigServiceProvider`; unsupported implementations remain valid base repositories and produce `ConfigCapabilityError` for typed reads | Optional capability implemented and consumed |
+| `ScopedConfigOverrides` | `contracts/config/capabilities.py` | `config.Repository`; `Config.override` | Registered conditionally; unit tests cover nested scopes, mutation isolation, tasks, failure, and cancellation | Optional capability implemented and consumed |
+| `ConfigDiagnostics` | `contracts/config/capabilities.py` | `config.Repository`; safe config CLI output | Registered conditionally; CLI depends on the protocol; redaction and CLI tests verify behavior | Optional capability implemented and consumed |
+| `ConfigMacroRegistry` | `contracts/config/capabilities.py` | `config.Repository`; `Config` macro methods | Registered conditionally; Support macro tests cover registration and invocation | Optional capability implemented and consumed |
+
+`ConfigRepository` is the ordinary application boundary. Optional
+capabilities are separate, conditionally registered, and checked by the
+facade only for the operation that needs them. A basic alternative does not
+need to implement typed reads, overrides, redacted diagnostics, or macros.
+
+## Container contracts
+
+| Contract | Definition | Implementation and consumers | Registration and evidence | Status |
+| --- | --- | --- | --- | --- |
+| `InstanceRegistration` | `contracts/container/__init__.py` | `ConfigServiceProvider`; private ASGI provider adapter | Static conformance in `test_contract_organization.py`; actual configuration transfer is exercised by application and ASGI lifecycle tests | Implemented adapter capability |
+| `ServiceRegistry` | `contracts/container/__init__.py` | `container.Container`; config and logging providers; application providers | Provider methods accept the protocol; static assignments and `test_provider_boot_runs_after_registration_with_injection` verify registration through the real application | Implemented registration boundary |
+| `ServiceContainer` | `contracts/container/__init__.py` | `container.Container`; `Facade`; `Application` | Bound to the owning application container; identity, contract resolution, provider injection, scopes, and resource behavior are exercised across container and application integration tests | Implemented, registered, and consumed |
+| `AsyncServiceContainer` | `contracts/container/__init__.py` | `container.Container`; async-only consumers may depend on this smaller surface | Bound to the same application container as `ServiceContainer`; static and runtime contract checks plus execution-mode tests | Implemented capability; no separate built-in consumer |
+
+`ServiceRegistry` is a registration-time protocol, not a runtime service for
+mutating a frozen application. `InstanceRegistration` is consumed only by the
+private web graph adapter. `ServiceContainer` and `AsyncServiceContainer`
+resolve to the exact `Application.container` instance; they do not create
+parallel registries.
+
+The container adapter discovers concrete dependency closures from annotated
+implementations before composing backend factories. It disables duplicate
+backend recursion so Protocol contracts remain registered dependencies rather
+than being mistaken for constructible classes. The registered `Greeter`
+example covers this case with configuration and logging constructor
+injection.
+
+## Foundation contracts
+
+| Contract | Definition | Implementation and consumers | Registration and evidence | Status |
+| --- | --- | --- | --- | --- |
+| `ServiceProvider` | `contracts/foundation/service_provider.py` | `ConfigServiceProvider`, `LoggingServiceProvider`, and application-defined providers; `foundation.Application` invokes `register` | Static assignments and real ordered registration / boot injection in `tests/integration/test_framework_cohesion.py` | Implemented and consumed |
+| `BootableServiceProvider` | `contracts/foundation/service_provider.py` | Optional application provider capability; `foundation.Application` invokes `boot` after registration | Application checks the optional protocol and injects boot parameters; integration tests cover order, configuration injection, failed startup cleanup, and context restoration | Implemented lifecycle capability; no built-in provider currently requires boot |
+
+Providers are structurally typed. Application construction is the only
+registration owner; providers do not create another container. Provider boot
+runs under the active application context. The same context remains bound
+through the complete ASGI lifespan and its cleanup; regression tests verify
+facade access and context restoration after shutdown and failed startup.
+
+## Logging contracts
+
+| Contract or type | Definition | Implementation and consumers | Registration and evidence | Status |
+| --- | --- | --- | --- | --- |
+| `LogDriver` | `contracts/logging/driver.py` | Native drivers; `LogChannel` and `LogManager` consume it | Static factory types; driver, stack, file, webhook, and lifecycle tests | Implemented and consumed |
+| `AsyncLogDriver` | `contracts/logging/async_driver.py` | Optional custom async destination capability; `LogChannel` consumes it | Async delivery and cancellation tests; no bundled driver currently implements this optional extension | Implemented extension point |
+| `LogFormatter` | `contracts/logging/formatter.py` | Native text, JSON, and console formatters; standard driver consumes it | Formatter and real file logging tests; custom formatter factories are typed against the protocol | Implemented and consumed |
+| `LogProcessor` | `contracts/logging/processor.py` | Redaction and context processors; `LogChannel` consumes it | Processor ordering, redaction, and channel tests | Implemented and consumed |
+| `LogCustomizer` | `contracts/logging/customizer.py` | Application customizers; `LogManager` and `LoggingServiceProvider` consume it | Provider static assignment and request logging lifecycle integration | Implemented and consumed |
+| `LogWriter` | `contracts/logging/logger.py` | Native `logging.Logger`; application services and `Log` facade consume it | Default logger bound by `LoggingServiceProvider`; constructor injection and identity checked in application integration | Implemented, registered, and consumed |
+| `LoggingManager` | `contracts/logging/manager.py` | `logging.LogManager`; application and `Log` facade consume it | Singleton factory registered by `LoggingServiceProvider`; configuration-driven construction, identity, and shutdown are integration-tested | Implemented, registered, and consumed |
+| `LogBridge` | `contracts/logging/bridge.py` | `StandardLogBridge`; manager returns and owns it | Real standard-library logging bridge tests verify propagation and cleanup | Implemented and consumed |
+| `DeliveryStatus` | `contracts/logging/delivery.py` | Native delivery result used by drivers and channels | Driver, background queue, stack delivery, and logger tests | Implemented shared domain type |
+
+Logging extension contracts describe behavior, not backend types. Only
+`LoggingManager` and the default `LogWriter` are application container
+services; drivers, formatters, processors, bridges, and customizers are owned
+by the logging component's own manager and channel lifecycles.
+
+## Support contracts
+
+| Contract or type | Definition | Implementation and consumers | Registration and evidence | Status |
+| --- | --- | --- | --- | --- |
+| `HtmlRenderable` | `contracts/support/html_renderable.py` | `support.HtmlString` and `support.Uri`; encoded HTML utilities and helpers consume it | Static inheritance for `HtmlString`; URI, escaping, and HTML string behavior tests | Implemented and consumed |
+| `DeferredDisplayValue` | `contracts/support/deferred_display_value.py` | Application-defined display values; `EncodedHtmlString` consumes it before escaping | Unit fixtures cover deferred trusted markup and plain-text escaping | Implemented extension point |
+| `MessageBagProtocol` | `contracts/support/message_bag.py` | `support.MessageBag` structurally implements it; message consumers may depend on the read/write surface | Strict assignment in `test_contract_organization.py`; MessageBag behavior tests | Implemented and statically verified |
+| `MessageProvider` | `contracts/support/message_bag.py` | `support.MessageBag.merge` consumes application-defined message providers | Structural fixture and merge behavior tests in `tests/unit/support/test_message_bag.py`; no built-in provider class | Implemented extension point |
+| `UriUrlGenerator` | `support/uri.py` | `support.Uri` route and URL factories consume an application router adapter | Alternate generator fixtures exercise route, origin, and signature behavior in `tests/unit/support/test_uri.py` | Implemented public integration extension point |
+
+`MessageKey` is a public shared type alias. Configuration key aliases,
+`ConfigArray`, and logging `DeliveryStatus` are domain values rather than
+additional protocols.
+
+## Private and test-only protocols
+
+| Protocol | Owner | Consumer | Status |
+| --- | --- | --- | --- |
+| `_ByteConvertible` | `support.binary_codec` | Binary codec input normalization | Private implementation seam; tested by codec behavior and property tests |
+| `_SharedConsumer` | Container unit tests | Test-only Dishka graph fixture | Test fixture, not a framework contract |
+| `RepositoryContract` | Container dependency engine tests | Test-only contract binding fixture | Test fixture, not a framework contract |
+
+## Abstract base classes
+
+| Base class | Responsibility | Concrete subclasses | Evidence |
+| --- | --- | --- | --- |
+| `facades.Facade` | Share typed active-application container lookup without dynamic forwarding | `facades.Config`, `facades.Log` | `tests/integration/test_framework_cohesion.py` verifies both subclass the base and resolve their declared service contracts |
+
+`Facade` is public reusable infrastructure, not a service contract. The
+`ABC` in `tests/unit/container/test_container.py` is a test fixture for
+abstract dependency-key resolution.
+
+## Removed unowned public protocols
+
+The first native API pass exported `MappingConvertible`, `JsonTextProvider`,
+`Renderable`, `ResponseConvertible`, and `ValidatedData`. Repository audit
+found that they had fixture-only implementations, no production consumers,
+and no implemented HTTP, validation, JSON, or generic rendering owner. They
+have been removed from public exports. Their tests now assert that future
+domain boundaries are not advertised prematurely. The existing Support
+methods and Python special methods remain available where useful.
+
+## Application integration and remaining limits
+
+`Application` creates one native `Container`, registers the built-in
+configuration and logging providers followed by application providers, and
+resolves framework services through it. Config and Log facades share a typed
+`Facade` base and resolve their declared contracts from one context-local
+application binding. ASGI route injection remains a separate private adapter
+with the deliberate `Application.providers` interoperability input. This is
+the remaining dependency graph split; it does not split configuration,
+logging, facade, or native application service identity.
+
+`ConfigServiceProvider` registers `ConfigRepository`, `ConfigReader`, and
+`ConfigWriter` to the same instance. It conditionally registers typed access,
+scoped overrides, diagnostics, and macros only when the selected repository
+implements those capabilities. `LoggingServiceProvider` resolves that
+contract, reads `logging` configuration, applies explicit bootstrap
+configuration last, and registers the resulting manager and logger.
+
+`Repository.override()` snapshots effective values and keeps scoped writes
+in the current context layer; base values remain unchanged after exit. The
+configuration repository does not promise concurrent mutation of base values.
+
+The application validates core metadata and resolves configuration and the
+logging manager during composition, but it does not preflight every arbitrary
+user service graph. The current container has no non-instantiating whole-graph
+validation API. Resource finalization is coordinated by ASGI lifespan; a
+standalone non-ASGI owner must close the exposed native container and logging
+manager until Foundation provides a separate application shutdown interface.
+
+`Application.asgi` and the explicit route `providers` input are documented
+FastAPI interoperability boundaries. The public `Settings` class still
+inherits methods from its private Pydantic-backed implementation. Those
+backend surfaces are not required by configuration repository consumers, but
+they remain visible limitations of the current public objects.
+
+`examples/hello-world/app.py` is also exercised through a real ASGI test. It
+uses a native service provider, a contract binding, auto-injected config and
+logging services, both facades, request-local identifiers, and lifespan
+cleanup; the route itself remains FastAPI-owned.
+
+The installed distribution, ordinary public signatures, and private adapter
+boundaries are checked by `make public-api-check`, `make architecture-check`,
+and `make architecture-integration-test`. This audit does not claim that
+unimplemented routing, database, cache, queue, HTTP, validation, or workflow
+components have contracts or application integrations.

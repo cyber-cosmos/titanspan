@@ -106,6 +106,6 @@ keeps configuration explicit and avoids resolving arbitrary code from a
 string. Async customizers are unsupported because channel resolution is
 synchronous.
 
-Deprecation routing and Monolog-specific handlers are not currently
-supported. See the
-[compatibility matrix](../compatibility/laravel-logging) for exact status.
+Deprecation routing and backend-specific handler configuration are not
+currently supported. See the
+[component specification](../specifications/logging) for current status.

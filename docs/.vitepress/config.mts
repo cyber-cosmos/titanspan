@@ -12,6 +12,33 @@ export default defineConfig({
       { text: "Guide", link: "/getting-started/installation" },
       { text: "Architecture", link: "/architecture/" },
       {
+        text: "Components",
+        items: [
+          { text: "Configuration", link: "/config/" },
+          { text: "Service Container", link: "/container/" },
+          { text: "Contracts", link: "/contracts/" },
+          { text: "Logging", link: "/logging/" },
+          { text: "Support", link: "/support/" },
+        ],
+      },
+      {
+        text: "Development",
+        items: [
+          {
+            text: "Architecture decisions",
+            link: "/architecture/decisions/",
+          },
+          {
+            text: "Development guides",
+            link: "/development/agent-workflow",
+          },
+          {
+            text: "Continuous integration",
+            link: "/development/continuous-integration",
+          },
+        ],
+      },
+      {
         text: "Roadmap",
         link: "https://github.com/titanspan/titanspan/blob/main/ROADMAP.md",
       },
@@ -33,6 +60,88 @@ export default defineConfig({
         items: [
           { text: "Overview", link: "/architecture/" },
           { text: "Basics", link: "/basics/" },
+          {
+            text: "Contract integration audit",
+            link: "/architecture/contract-integration",
+          },
+          {
+            text: "Architecture Decision Records",
+            items: [
+              { text: "Index", link: "/architecture/decisions/" },
+              {
+                text: "0001 — Modular monolith",
+                link: "/architecture/decisions/0001-modular-monolith",
+              },
+              {
+                text: "0002 — Async-first architecture",
+                link: "/architecture/decisions/0002-async-first-architecture",
+              },
+              {
+                text: "0003 — uv package management",
+                link: "/architecture/decisions/0003-uv-package-management",
+              },
+              {
+                text: "0004 — FastAPI web foundation",
+                link: "/architecture/decisions/0004-fastapi-web-foundation",
+              },
+              {
+                text: "0005 — Service container backend",
+                link: "/architecture/decisions/0005-dishka-service-container",
+              },
+              {
+                text: "0006 — SQLAlchemy persistence",
+                link: "/architecture/decisions/0006-sqlalchemy-persistence",
+              },
+              {
+                text: "0007 — LangGraph orchestration",
+                link: "/architecture/decisions/0007-langgraph-orchestration",
+              },
+              {
+                text: "0008 — Structured concurrency",
+                link: "/architecture/decisions/0008-structured-concurrency",
+              },
+              {
+                text: "0009 — Contract-driven adapters",
+                link: "/architecture/decisions/0009-contract-driven-adapters",
+              },
+              {
+                text: "0010 — Optional dependencies",
+                link: "/architecture/decisions/0010-optional-dependencies",
+              },
+              {
+                text: "0011 — Testing and quality standards",
+                link: "/architecture/decisions/0011-testing-and-quality-standards",
+              },
+              {
+                text: "0012 — Native logging",
+                link: "/architecture/decisions/0012-native-logging",
+              },
+              {
+                text: "0013 — Native configuration",
+                link: "/architecture/decisions/0013-native-configuration",
+              },
+              {
+                text: "0014 — Native service container API",
+                link: "/architecture/decisions/0014-native-container-api",
+              },
+              {
+                text: "0015 — Synchronous-first resolution",
+                link: "/architecture/decisions/0015-sync-first-container-resolution",
+              },
+              {
+                text: "0016 — Native Python API naming",
+                link: "/architecture/decisions/0016-native-python-api-naming",
+              },
+              {
+                text: "0017 — Domain-oriented contracts",
+                link: "/architecture/decisions/0017-domain-oriented-contracts",
+              },
+              {
+                text: "0018 — Application service composition",
+                link: "/architecture/decisions/0018-application-service-composition",
+              },
+            ],
+          },
         ],
       },
       {
@@ -43,6 +152,32 @@ export default defineConfig({
           { text: "Data processing", link: "/data-processing/" },
           { text: "AI", link: "/ai/" },
           { text: "Workflows", link: "/workflows/" },
+        ],
+      },
+      {
+        text: "Service Container",
+        items: [
+          { text: "Overview", link: "/container/" },
+          {
+            text: "Automatic resolution",
+            link: "/container/automatic-resolution",
+          },
+          { text: "Class declarations", link: "/container/decorators" },
+          { text: "Factories", link: "/container/factories" },
+          { text: "Injection", link: "/container/injection" },
+          {
+            text: "Method bindings",
+            link: "/container/method-bindings",
+          },
+          {
+            text: "Resource management",
+            link: "/container/resource-management",
+          },
+          { text: "Scopes", link: "/container/scopes" },
+          {
+            text: "Native specification",
+            link: "/specifications/container",
+          },
         ],
       },
       {
@@ -63,8 +198,8 @@ export default defineConfig({
           { text: "Testing", link: "/config/testing" },
           { text: "Security", link: "/config/security" },
           {
-            text: "Laravel compatibility",
-            link: "/compatibility/laravel-config",
+            text: "Native specification",
+            link: "/specifications/config",
           },
         ],
       },
@@ -85,8 +220,8 @@ export default defineConfig({
           { text: "Testing", link: "/logging/testing" },
           { text: "Deployment", link: "/logging/deployment" },
           {
-            text: "Laravel compatibility",
-            link: "/compatibility/laravel-logging",
+            text: "Native specification",
+            link: "/specifications/logging",
           },
         ],
       },
@@ -122,8 +257,8 @@ export default defineConfig({
           { text: "HTML values", link: "/support/html" },
           { text: "Extensions", link: "/support/extensions" },
           {
-            text: "Laravel compatibility",
-            link: "/compatibility/laravel-support",
+            text: "Native specification",
+            link: "/specifications/support",
           },
         ],
       },
@@ -141,8 +276,8 @@ export default defineConfig({
           },
           { text: "Testing contracts", link: "/contracts/testing" },
           {
-            text: "Laravel compatibility",
-            link: "/compatibility/laravel-contracts",
+            text: "Native specification",
+            link: "/specifications/contracts",
           },
         ],
       },
@@ -151,6 +286,10 @@ export default defineConfig({
         items: [
           { text: "Testing", link: "/testing/" },
           { text: "Deployment", link: "/deployment/" },
+          {
+            text: "Agent workflow",
+            link: "/development/agent-workflow",
+          },
           { text: "Development standards", link: "/development/standards" },
           {
             text: "Continuous integration",
@@ -159,6 +298,10 @@ export default defineConfig({
           {
             text: "AI agent compatibility",
             link: "/development/agent-compatibility",
+          },
+          {
+            text: "Public backend boundaries",
+            link: "/specifications/backend-boundaries",
           },
         ],
       },

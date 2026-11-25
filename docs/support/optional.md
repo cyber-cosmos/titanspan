@@ -33,10 +33,9 @@ result = wrapped.call("get", "name")
 awaits a callback only when its candidate is not `None`; the synchronous
 `optional` helper rejects async callbacks and directs callers to that API.
 
-Dynamic attribute access is provided for Laravel-style convenience, but
-Python type checkers cannot infer attributes on arbitrary wrapped values.
-Use typed wrapper protocols in application code when static guarantees are
-required.
+Attribute access is provided for convenience, but Python type checkers cannot
+infer attributes on arbitrary wrapped values. Use typed wrapper protocols in
+application code when static guarantees are required.
 
-See the [Laravel compatibility inventory](/compatibility/laravel-support)
-for method-level behavior and documented Python adaptations.
+See the [Support specification](/specifications/support) for ownership and
+verification boundaries.

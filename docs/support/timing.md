@@ -33,14 +33,13 @@ assert clock.seconds_until(deadline) == 60
 
 Naive datetimes are rejected to avoid host-local timezone assumptions.
 Python's `timedelta` has no calendar months; human-readable formatting uses
-the Carbon default cascade of four weeks per month and twelve months per
-year. The compatibility methods `secondsUntil`, `availableAt`,
-`parseDateInterval`, `currentTime`, and `runTimeForHumans` are also available.
-Boolean delays normalize to integer seconds for compatibility.
+a documented cascade of four weeks per month and twelve months per year.
+`seconds_until`, `available_at`, `parse_date_interval`, `current_time`, and
+`run_time_for_humans` are the available deadline and clock operations.
+Boolean delays normalize to integer seconds.
 
-`run_time_for_humans` follows the upstream wall-clock timestamp contract.
-For new duration measurements, prefer a monotonic clock such as
-`time.perf_counter`.
+`run_time_for_humans` accepts wall-clock timestamps. For elapsed duration
+measurements, prefer a monotonic clock such as `time.perf_counter`.
 
 ## Benchmark
 
@@ -80,8 +79,7 @@ elapsed_ms = await Benchmark.measure_async(load_record, iterations=3)
 ```
 
 `Benchmark.dd` writes the measurement to standard output and raises
-`SystemExit`, following the dump-and-stop intent of Laravel's method. Use it
-only in interactive debugging code.
+`SystemExit`. Use it only in interactive debugging code.
 
 These measurements are diagnostic observations. They do not replace
 reproducible benchmarks, workload controls, or comparisons against native
@@ -108,8 +106,8 @@ result = (
 
 The default source uses `secrets` for unpredictable draws. Tests and local
 deterministic runs can set outcomes with `Lottery.fix` or
-`Lottery.forceResultWithSequence`. `Lottery.alwaysWin` and
-`Lottery.alwaysLose` can set an outcome for the active execution context;
+`Lottery.force_result_with_sequence`. `Lottery.always_win` and
+`Lottery.always_lose` can set an outcome for the active execution context;
 when passed a callback, the override is restored after that callback even
 if it raises.
 
@@ -120,8 +118,7 @@ callbacks explicitly. Synchronous methods reject awaitable callback results.
 
 For a sparse sequence mapping, the default random fallback advances beyond
 the missing index. A caller-supplied `when_missing` callback leaves the
-cursor on that missing index, matching Laravel's callback-controlled
-fallback behavior.
+cursor on that missing index, so later choices can retry that position.
 
 ## Timebox
 
@@ -137,8 +134,8 @@ result = Timebox().call(lambda _box: "complete", 10_000)
 ```
 
 `return_early` allows a callback to skip the remaining wait;
-`dont_return_early` restores the minimum wait. The Laravel-compatible
-`returnEarly`, `dontReturnEarly`, and `earlyReturn` spellings are available.
+`dont_return_early` restores the minimum wait. The `early_return` property
+exposes and updates that choice.
 
 Use `call_async` in asynchronous execution paths. It awaits the remaining
 duration with [AnyIO sleep](https://anyio.readthedocs.io/en/stable/api.html#anyio.sleep)
@@ -157,9 +154,9 @@ Durations and iteration counts must be integer values; booleans and
 fractional values are rejected. Durations may be zero or positive, while
 iteration counts must be positive.
 
-## Compatibility and tests
+## Tests
 
-The class and method mapping, behavior differences, pinned Laravel source,
-and test evidence are recorded in the [compatibility inventory](/compatibility/laravel-support).
+The [Support specification](/specifications/support) records module ownership
+and test evidence.
 Focused tests are in `tests/unit/support/test_benchmark.py`,
 `test_interacts_with_time.py`, `test_lottery.py`, and `test_timebox.py`.

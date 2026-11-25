@@ -1,9 +1,8 @@
 # Binary codecs
 
 `BinaryCodec` encodes and decodes UUID and ULID identifiers using the
-`uuid.UUID` type and Python byte values. It follows Laravel Support's
-`Illuminate\Support\BinaryCodec` API, including the original `isBinary`
-spelling and Titanspan's `is_binary` alias.
+`uuid.UUID` type and Python byte values. Its API uses native Python names and
+accepts standard UUID values alongside text and bytes.
 
 ```python
 from uuid import UUID
@@ -65,5 +64,5 @@ Unsupported formats and malformed identifiers raise `ValueError`. For
 those bytes also happen to be valid UTF-8. This explicit type distinction
 avoids ambiguity present in byte-bearing string APIs.
 
-See the [method-level compatibility inventory](/compatibility/laravel-support)
-for the pinned upstream source, test evidence, and Python-specific differences.
+See the [Support specification](/specifications/support) for module ownership
+and implementation boundaries.

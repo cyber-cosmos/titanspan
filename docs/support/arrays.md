@@ -22,14 +22,13 @@ missing paths. Mutable helpers such as `set`, `forget`, `pull`, and `push`
 mutate the supplied mutable object and return values according to their
 individual contracts.
 
-## Names
+## Python naming
 
-Laravel camelCase method names are available as explicit aliases for methods
-that Python can name directly:
+Public operations use snake_case. Python keywords use legal names with a
+trailing underscore:
 
 ```python
 assert Arr.has_all(profile, ["user.name"])
-assert Arr.hasAll(profile, ["user.name"])
 ```
 
 Python keywords use legal names with a trailing underscore:
@@ -39,8 +38,8 @@ remaining = Arr.except_(profile, "user.active")
 converted = Arr.from_(("first", "second"))
 ```
 
-`Arr.except` and `Arr.from` are not exposed as dynamic attributes. The
-explicit aliases remain discoverable by IDEs and static type checkers.
+`except` and `from` are Python keywords, so their APIs are named `except_` and
+`from_` and remain discoverable by IDEs and static type checkers.
 
 ## Input and output behavior
 
@@ -51,10 +50,8 @@ explicit aliases remain discoverable by IDEs and static type checkers.
 - Mapping mutation requires a `MutableMapping`; positional mutation requires
   a mutable sequence.
 - Mixed incomparable Python values use deterministic categories in sorting.
-  This is not PHP's loose comparison behavior.
 - Iterables are consumed only where the operation needs to produce a result.
   Helpers that return a complete list or mapping necessarily materialize it.
 
-The method-level matrix links each API to the exact Laravel source file and
-records parity status and tests: [Laravel Support compatibility](
-/compatibility/laravel-support).
+The [Support specification](/specifications/support) records module
+ownership, implementation boundaries, and test evidence.

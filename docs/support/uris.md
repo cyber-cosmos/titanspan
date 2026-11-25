@@ -1,14 +1,8 @@
 # URI utilities
 
-`Uri` provides an immutable, Laravel-inspired interface over Python's
-`urllib.parse`. It exposes URI components, fluent component changes, nested
-query data, and Starlette redirect responses.
-
-The API follows Laravel 13.44.1 at commit
-[`8a8c4a84852869e13190d89f9da873cd9a70f14c`](https://github.com/laravel/framework/blob/8a8c4a84852869e13190d89f9da873cd9a70f14c/src/Illuminate/Support/Uri.php).
-Laravel's [fluent URI documentation](https://laravel.com/framework/docs/13.x/urls#fluent-uri-objects)
-describes the upstream behavior. Titanspan uses Python method names and also
-exposes the upstream camelCase spellings for compatibility.
+`Uri` provides an immutable interface over Python's `urllib.parse`. It
+exposes URI components, fluent component changes, nested query data, and
+Starlette redirect responses.
 
 ## Construct and inspect
 
@@ -44,15 +38,12 @@ changed = (
 )
 ```
 
-Laravel spellings are available as well: `withScheme`, `withHost`,
-`withPath`, `withQuery`, `withQueryIfMissing`, `pushOntoQuery`,
-`withoutQuery`, `replaceQuery`, `withFragment`, and `withoutFragment`.
-Both spellings call the same implementation.
+Component changes return new `Uri` values; the original remains unchanged.
 
 ## Query data
 
 `query()` returns a `UriQueryString` view. It supports `all`, `get`, `decode`,
-`value`, `to_array`, and `toArray`.
+and `value`.
 
 ```python
 uri = Uri.of(
@@ -69,12 +60,11 @@ updated = uri.with_query({"filter.role": "researcher"})
 updated = updated.push_onto_query("tags", "workflows")
 ```
 
-Query keys support PHP-style bracket notation when parsed. Repeated scalar
-keys become Python lists. Contiguous numeric indexes starting at zero become
-lists inside nested bracket values; sparse indexes remain integer-keyed
-dictionaries, and root numeric keys remain integer-keyed mappings. Query
-values remain strings after parsing; Titanspan does not apply PHP scalar
-coercion.
+Query keys support bracket notation when parsed. Repeated scalar keys become
+Python lists. Contiguous numeric indexes starting at zero become lists inside
+nested bracket values; sparse indexes remain integer-keyed dictionaries, and
+root numeric keys remain integer-keyed mappings. Query values remain strings
+after parsing.
 
 The decoder uses RFC 3986 behavior: percent escapes are decoded and `+`
 remains a literal plus. `decode()` decodes the query component while keeping
@@ -106,35 +96,31 @@ do not share a mutable process-global generator.
 
 ## Web interoperability
 
-`redirect()` returns Starlette's `RedirectResponse`; `to_response()` is an
-adapter with the Laravel-compatible name. `to_stringable()` returns
-Titanspan's fluent `Stringable`. `to_html()` and `toHtml()` return the raw URI
-string to satisfy the HTML display protocol. That return value is not escaped
-for an HTML attribute or validated as a safe redirect destination. Escape it
-for the destination context and apply an application allowlist when URI input
-is untrusted.
+`redirect()` returns Starlette's `RedirectResponse`, and `to_stringable()`
+returns Titanspan's fluent `Stringable`. `to_html()` returns the raw URI
+string. That value is not escaped for an HTML attribute or validated as a
+safe redirect destination.
+Escape it for the destination context and apply an application allowlist when
+URI input is untrusted.
 
-`value()`, `to_string()`, and `toString()` preserve user information in the
-URI string. `repr(uri)` omits credentials to reduce accidental disclosure in
-diagnostics, but callers should avoid logging `value()` when it may contain
-secrets.
+`value()` and `to_string()` preserve user information in the URI string.
+`repr(uri)` omits credentials to reduce accidental disclosure in diagnostics,
+but callers should avoid logging `value()` when it may contain secrets.
 
-## Compatibility notes
+## Python behavior and boundaries
 
-- Component parsing and composition use `urllib.parse`, not League URI.
-- `get_uri()` returns `SplitResult`; Python's parsed URL is the native escape
-  hatch.
-- `path_segments()` returns `tuple[str, ...]`, not Laravel `Collection`.
-- Parsed query scalars remain strings. Python list and mapping semantics
-  replace PHP array coercion.
+- Component parsing and composition use `urllib.parse`.
+- `get_uri()` returns the standard-library `SplitResult`.
+- `path_segments()` returns `tuple[str, ...]`.
+- Parsed query values remain strings; nested values use Python lists and
+  mappings.
 - Route methods require an injected URL generator; a routing integration is
   not implemented yet.
-- `to_response()` returns Starlette's redirect response rather than
-  Symfony's response class.
+- `redirect()` returns Starlette's redirect response.
 - URI parsing does not validate an address for SSRF or open redirect safety.
 
-See the [method-level compatibility inventory](../compatibility/laravel-support)
-for per-method status and test evidence.
+See the [Support specification](/specifications/support) for component
+ownership and test evidence.
 
 ## Tests
 

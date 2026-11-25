@@ -4,7 +4,8 @@
   "type": "module",
   "scripts": {
     "docs:dev": "vitepress dev .",
-    "docs:build": "vitepress build .",
+    "docs:check-navigation": "node --test scripts/check-navigation.test.mjs",
+    "docs:build": "npm run docs:check-navigation && vitepress build .",
     "docs:preview": "vitepress preview ."
   },
   "devDependencies": {
