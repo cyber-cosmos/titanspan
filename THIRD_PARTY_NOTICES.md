@@ -13,6 +13,10 @@ independent project and is not affiliated with or endorsed by Laravel. The
 current Python Support implementation is written for Titanspan; this notice
 preserves attribution for the upstream API and behavior reference. Future
 adaptations of upstream source or tests must retain applicable notices.
+The Contracts compatibility inventory reads upstream interface declarations
+as an API reference. No Laravel Contracts implementation or test source was
+copied into the Titanspan Contracts package.
+
 Sleep compatibility tests translate behavior from Laravel's upstream test
 suite; the pinned source and test paths are listed in the compatibility
 inventory. Environment compatibility cases translate the environment helper

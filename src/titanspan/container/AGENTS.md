@@ -9,6 +9,10 @@ Dishka.
 - Keep public names domain-oriented (currently `container/container.py`), not
   vendor-oriented. State clearly that graph resolution is delegated to Dishka.
 - Preserve native Dishka provider and container interoperability.
+- Keep the shared `AsyncServiceContainer` protocol in
+  `titanspan.contracts.container`. Dishka's native overloaded API does not
+  currently satisfy that narrower protocol; do not claim conformance or add
+  an adapter without real resolution and cleanup tests.
 - Validate registration graphs before serving. Freeze production
   registrations after boot; avoid shared mutable runtime mutation.
 - Model transient, application, request, job, workflow, and tool lifecycles

@@ -30,7 +30,7 @@ implemented in the table.
 | --- | --- | --- |
 | `foundation` | Application lifecycle, bootstrapping, kernels, shutdown, and provider lifecycle. | Initial `Application` implemented. |
 | `container` | Dependency injection, bindings, autowiring, scopes, contextual bindings, and resource management. | Dishka adapter implemented. |
-| `contracts` | Typed service interfaces, protocols, and abstraction boundaries. | Planned. |
+| `contracts` | Dependency-independent typed protocols and shared abstraction boundaries. | Initial configuration, async container, and Support contracts implemented; many component contracts remain pending. |
 | `support` | Shared utilities, managers, and lightweight helpers. | Selected Laravel-inspired utilities implemented; compatibility inventory is incremental. |
 | `config` | Typed configuration, environment variables, and configuration repositories. | Initial `Settings` implemented. |
 | `facades` | Context-aware access to container-managed services. | Explicit execution-local `Log` facade implemented; other facades planned. |
@@ -141,6 +141,23 @@ Contracts describe framework-owned behavior with typed protocols or small
 abstract interfaces. Adapters translate those contracts to libraries such as
 SQLAlchemy, Taskiq, Cashews, or LangGraph. Keep native library objects
 accessible so users can opt out of a Titanspan convenience API when necessary.
+
+The package-level contracts currently include `ConfigRepository`,
+`AsyncServiceContainer`, and generic Support protocols for array conversion,
+JSON text, rendering, response conversion, and validated data. Existing HTML
+and message-bag contracts retain their canonical identities and are re-exported
+there. These protocols are not implementations: current settings remain
+Pydantic Settings values and `Application` still uses Dishka directly. In
+particular, no production config repository or `AsyncServiceContainer` adapter
+is currently provided. Logging contracts remain owned by
+`titanspan.logging.contracts` to avoid duplicate types and dependency cycles.
+
+The package dependency order places `titanspan.contracts` below configuration
+and the core service modules. Contracts use Python's standard typing
+facilities and do not import optional database, AI, queue, or storage adapters.
+The full pinned Laravel namespace and method inventory, including inherited
+surfaces and intentionally deferred APIs, is in
+[`docs/compatibility/laravel-contracts.md`](docs/compatibility/laravel-contracts.md).
 
 An adapter should not duplicate the library's engine, query compiler, worker
 system, or execution runtime. Add a contract only when it enables a real

@@ -1,25 +1,46 @@
-"""Typed service protocols and abstraction boundaries.
+"""Expose dependency-independent Titanspan protocols and interfaces.
 
-Contracts remain independent of concrete infrastructure implementations.
+The package re-exports canonical contracts without adding implementations.
 """
 
-from titanspan.contracts.deferring_displayable_value import (
+from titanspan.contracts.config_repository import ConfigRepository
+from titanspan.contracts.container import AsyncServiceContainer
+from titanspan.contracts.support import (
+    Arrayable,
+    ArrayKey,
     DeferringDisplayableValue,
+    Htmlable,
+    Jsonable,
+    LaravelArrayable,
     LaravelDeferringDisplayableValue,
-)
-from titanspan.contracts.htmlable import Htmlable, LaravelHtmlable
-from titanspan.contracts.message_bag import (
+    LaravelHtmlable,
+    LaravelJsonable,
+    LaravelResponsable,
     MessageBagData,
     MessageKey,
     MessageProvider,
+    Renderable,
+    Responsable,
+    ValidatedData,
 )
 
 __all__ = [
+    "ArrayKey",
+    "Arrayable",
+    "AsyncServiceContainer",
+    "ConfigRepository",
     "DeferringDisplayableValue",
     "Htmlable",
+    "Jsonable",
+    "LaravelArrayable",
     "LaravelDeferringDisplayableValue",
     "LaravelHtmlable",
+    "LaravelJsonable",
+    "LaravelResponsable",
     "MessageBagData",
     "MessageKey",
     "MessageProvider",
+    "Renderable",
+    "Responsable",
+    "ValidatedData",
 ]

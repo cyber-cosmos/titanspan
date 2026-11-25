@@ -105,6 +105,25 @@ export default defineConfig({
         ],
       },
       {
+        text: "Contracts",
+        items: [
+          { text: "Overview", link: "/contracts/" },
+          {
+            text: "Dependency injection",
+            link: "/contracts/dependency-injection",
+          },
+          {
+            text: "Implementing contracts",
+            link: "/contracts/implementing-contracts",
+          },
+          { text: "Testing contracts", link: "/contracts/testing" },
+          {
+            text: "Laravel compatibility",
+            link: "/compatibility/laravel-contracts",
+          },
+        ],
+      },
+      {
         text: "Project",
         items: [
           { text: "Testing", link: "/testing/" },

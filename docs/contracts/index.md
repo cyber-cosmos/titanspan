@@ -1,0 +1,51 @@
+# Contracts
+
+Titanspan contracts define framework-owned behavior at component boundaries.
+They let application code depend on stable Python protocols while adapters
+delegate infrastructure to mature libraries.
+
+## Current public contracts
+
+The package currently exports:
+
+- `ConfigRepository`, a structural interface for mutable configuration.
+- `AsyncServiceContainer`, a typed async resolution and cleanup interface.
+- Support data and presentation protocols such as `Arrayable`, `Jsonable`,
+  `Renderable`, `Responsable`, and `ValidatedData`.
+- Existing canonical Support protocols for HTML values and message bags.
+
+The logging contracts remain canonically owned by
+`titanspan.logging.contracts`; they are not duplicated in this package.
+Contracts for unimplemented cache, database, queue, workflow, and other
+components remain pending in the [Laravel compatibility inventory](
+/compatibility/laravel-contracts).
+
+These interfaces describe substitution points. Defining a protocol does not
+mean a production implementation or complete framework feature exists.
+Current settings use Pydantic Settings directly, and the application currently
+uses Dishka's native container directly. There is not yet a production
+`ConfigRepository` implementation or `AsyncServiceContainer` adapter.
+`ConfigRepository.get` accepts either one path or an ordered sequence of
+paths, matching the upstream repository's single `get` operation for a
+single key or array of keys. It does not add a separate `getMany` method.
+Typed application settings remain the responsibility of Pydantic Settings;
+no extra typed getter API is promised by the repository contract.
+
+## Structural typing
+
+Protocols are structural: an implementation can satisfy one without
+inheriting from it. `@runtime_checkable` allows basic attribute-presence checks,
+but does not verify signatures, return types, resource cleanup, cancellation,
+or other behavioral guarantees. Use static checking and behavior tests for
+those guarantees.
+
+Prefer Python snake_case APIs. Separate compatibility protocols accept
+Laravel's original camelCase spellings where useful; implementations do not
+need to implement both spellings unless their own public API promises both.
+
+## Guides
+
+- [Dependency injection](./dependency-injection)
+- [Implementing contracts](./implementing-contracts)
+- [Testing contracts](./testing)
+- [Laravel Contracts inventory](/compatibility/laravel-contracts)

@@ -209,6 +209,14 @@ ignore = [
     "N802", # Preserve Laravel's public resolveDisplayableValue alias.
     "N815", # Preserve the Laravel-compatible protocol alias.
 ]
+"src/titanspan/contracts/support.py" = [
+    "N802", # Preserve Laravel-compatible method spellings in protocols.
+    "N815", # Preserve Laravel-compatible camelCase protocol aliases.
+]
+"tests/unit/contracts/test_contracts.py" = [
+    "N802", # Exercise Laravel-compatible method spellings.
+    "N815", # Exercise Laravel-compatible camelCase protocol aliases.
+]
 "tests/unit/support/test_html_strings.py" = [
     "N802", # Exercise the original Illuminate protocol method spelling.
     "N815", # Exercise the Laravel-compatible deferred-value protocol alias.
@@ -314,4 +322,5 @@ layers = [
     "titanspan.foundation",
     "titanspan.container",
     "titanspan.config",
+    "titanspan.contracts",
 ]

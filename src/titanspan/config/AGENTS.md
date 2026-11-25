@@ -3,6 +3,10 @@
 Follow root `AGENTS.md` and `src/titanspan/AGENTS.md`. This module owns typed
 application settings and configuration conventions using Pydantic Settings.
 
+- `titanspan.contracts.ConfigRepository` describes a future mutable repository;
+  it has no production implementation yet. Keep `Settings` as the current
+  validated configuration boundary and do not imply repository conformance.
+
 - Validate environment and file input at configuration boundaries.
 - Keep secrets out of defaults, logs, exceptions, and examples. Never commit
   real credentials.

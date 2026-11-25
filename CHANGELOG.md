@@ -5,6 +5,12 @@ public release.
 
 ## Unreleased
 
+- Added dependency-independent contracts for mutable configuration, typed
+  asynchronous service resolution, and generic Support data/presentation
+  interfaces. Existing HTML and message-bag contract identities remain
+  canonical. The configuration and async container contracts have no
+  production adapters yet; see `docs/contracts/` and the Laravel compatibility
+  inventory.
 - Added a native structured logging component with RFC severity levels,
   context-local metadata, redaction, channel stacks, file and stream drivers,
   standard-library logging interoperability, bounded background dispatch,

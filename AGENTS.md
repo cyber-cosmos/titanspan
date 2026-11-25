@@ -60,6 +60,10 @@ an ADR when the change is significant.
   seam. Avoid speculative abstractions, deep inheritance, and metaprogramming.
 - Keep core modules independent of optional AI, database, queue, and
   infrastructure adapters. Prevent circular dependencies.
+- Put shared, dependency-independent protocols in `titanspan.contracts` only
+  when they establish a real boundary. Preserve existing module-owned contract
+  identities, especially `titanspan.logging.contracts`; re-export canonical
+  types instead of redeclaring them. Contracts do not imply implementations.
 - Keep APIs idiomatic Python while using Laravel as a reference for
   conventions, lifecycle, and developer experience. Never translate PHP
   syntax mechanically.
