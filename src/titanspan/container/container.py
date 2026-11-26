@@ -2406,7 +2406,7 @@ class Container(ServiceContainer):
                 or policy[1] is not Scope.APPLICATION
             ):
                 continue
-            self._ensure_singleton_override_safe(dependency)
+            self._ensure_singleton_override_safe(dependency, owner)
             await Container._make_async_core(owner, dependency)
 
     def _prime_override_dependencies_sync(
@@ -2434,7 +2434,7 @@ class Container(ServiceContainer):
                 or policy[1] is not Scope.APPLICATION
             ):
                 continue
-            self._ensure_singleton_override_safe(dependency)
+            self._ensure_singleton_override_safe(dependency, owner)
             Container._make_sync(owner, dependency)
 
     def _shared_singleton_owner(
@@ -2460,25 +2460,27 @@ class Container(ServiceContainer):
             or policy[1] is not Scope.APPLICATION
         ):
             return None
-        self._ensure_singleton_override_safe(service)
+        self._ensure_singleton_override_safe(service, owner)
         return owner
 
     def _ensure_singleton_override_safe(
         self,
         service: type[object],
+        owner: Container,
     ) -> None:
-        """Reject overrides that would be hidden by singleton caching.
+        """Reject child replacements hidden by an owner-cached singleton.
 
         Args:
             service: Inherited application singleton being resolved.
+            owner: Overlay whose graph owns the singleton's cached value.
 
         Raises:
-            ScopeError: If an active replacement is in its dependency graph.
+            ScopeError: If this overlay replaces one of its dependencies.
         """
-        if service in self._override_services:
-            return
-        dependencies = self._dependency_types_for(service)
-        if dependencies.intersection(self._override_services):
+        # Check the graph that owns the value against replacements added here.
+        # Earlier overlays are checked as resolution delegates through them.
+        dependencies = owner._dependency_types_for(service)
+        if dependencies.intersection(self._local_override_services):
             raise ScopeError(_OVERRIDE_SINGLETON_ERROR)
 
     async def _remember_shared_dependencies(

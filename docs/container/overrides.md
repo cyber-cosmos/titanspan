@@ -27,11 +27,17 @@ belong to the temporary graph.
 Unaffected application singletons share the same canonical cache and
 initialization locks as the application graph. Replacing an application
 service uses an overlay-specific value and does not overwrite the application's
-base binding or cache. Overrides cannot change dependencies already captured
-by an application singleton. If a requested singleton transitively depends on
-a replaced service, resolution raises `ScopeError` instead of silently
-returning an instance built with the original service. Override the singleton
-itself or use a separate container when a fresh dependency graph is needed.
+base binding or cache. Before borrowing a singleton, each overlay checks the
+dependency graph composed by the singleton's immediate owner against
+replacements introduced in that overlay. If a requested singleton
+transitively depends on a service replaced by the child overlay, resolution
+raises `ScopeError` instead of returning or creating an owner-cached instance
+that hides the replacement. Nested overlays repeat this check at each owner
+boundary, including when an outer overlay already replaced the singleton.
+Replacing the singleton in the active overlay creates a value against that
+overlay's own dependencies. Unaffected singletons keep their owner, identity,
+and cleanup lifecycle. Use a separate container when a fresh graph must cross
+multiple existing singleton boundaries.
 
 The synchronous form rejects async-only dependencies before initializing them;
 use `async with` for those replacements. Both forms reject entry while an

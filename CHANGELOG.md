@@ -5,11 +5,13 @@ public release.
 
 ## Unreleased
 
-- Reject temporary overrides that would be hidden by application singletons,
-  and keep application shutdown retryable while scopes or overrides are
-  active. Configuration injection now reports missing and incompatible values
-  through the existing typed configuration accessors. See
-  `docs/specifications/container.md` for scope and override boundaries.
+- Reject nested overrides that would be hidden by an inherited singleton,
+  while preserving unaffected singleton identity and resource ownership.
+  Configuration injection checks collection values against bare or
+  parameterized `list`, `dict`, and `Mapping` annotations through the existing
+  typed accessor. Application shutdown can be retried after active scopes or
+  overrides exit. See `docs/specifications/container.md` for behavior and
+  limits.
 - Standardized pre-release public APIs on one Python `snake_case` spelling.
   Removed duplicate aliases, vendor-named protocol exports, and ignored
   string encoding and locale parameters. Empty iterable endpoints now return

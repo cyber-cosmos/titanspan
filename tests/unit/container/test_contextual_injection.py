@@ -27,6 +27,7 @@ from titanspan.container import (
     Tagged,
     singleton,
 )
+from titanspan.container._internal.injection import read_config_value
 from titanspan.container.exceptions import (
     AsyncResolutionRequiredError,
     BindingError,
@@ -472,6 +473,24 @@ class MultiTypedConfigService:
     options: dict[str, object]
     metadata: Mapping[str, object]
     steps: list[object]
+
+
+class ReplacementSingletonDocumentService:
+    """Represent a singleton replacement owned by an outer overlay.
+
+    Attributes:
+        repository: Dependency captured by the owning overlay.
+    """
+
+    def __init__(self, repository: DataRepository) -> None:
+        """Retain the repository selected by the overlay that owns the value.
+
+        Args:
+            repository: Repository resolved in the singleton's owner graph.
+        """
+        self.repository = repository
+
+    repository: DataRepository
 
 
 class UnsupportedConfigService:
@@ -1053,6 +1072,110 @@ async def test_from_config_uses_existing_typed_accessors() -> None:
     assert service.options == {"retries": 2}
     assert service.metadata == {"source": "config"}
     assert service.steps == ["read", "write"]
+
+
+@pytest.mark.anyio
+@pytest.mark.parametrize(
+    ("key", "replacement"),
+    [
+        ("options", ["read"]),
+        ("meta", ["read"]),
+        ("steps", {"read": True}),
+    ],
+)
+async def test_from_config_rejects_incompatible_collection_shapes(
+    key: str,
+    replacement: object,
+) -> None:
+    """Reject collection values that disagree with parameter annotations.
+
+    The typed config capability accepts lists and mappings broadly, while
+    injection also enforces the outer shape requested by the annotation.
+    """
+    collections: dict[str, object] = {
+        "options": {"retries": 2},
+        "meta": {"source": "config"},
+        "steps": ["read", "write"],
+    }
+    collections[key] = replacement
+    configuration = ConfigStore(
+        {
+            "values": {
+                "label": "worker",
+                "ratio": _CONFIG_RATIO,
+                "enabled": True,
+                **collections,
+            },
+        },
+    )
+
+    async with Container() as container:
+        container.instance(ConfigReader, configuration)
+
+        with pytest.raises(BindingResolutionError) as error:
+            await container.make_async(MultiTypedConfigService)
+
+    cause = error.value.__cause__
+    while cause is not None and not isinstance(cause, TypeError):
+        cause = cause.__cause__
+    assert isinstance(cause, TypeError)
+
+
+@pytest.mark.parametrize(
+    ("annotation", "value", "expected"),
+    [
+        (list, ["read"], ["read"]),
+        (dict, {"source": "config"}, {"source": "config"}),
+        (Mapping, {"source": "config"}, {"source": "config"}),
+    ],
+)
+def test_config_injection_accepts_unsubscripted_collection_annotations(
+    annotation: object,
+    value: object,
+    expected: object,
+) -> None:
+    """Resolve bare collection classes through the existing array accessor.
+
+    Built-in list and dict annotations have no generic origin at runtime, so
+    the adapter must recognize their class objects directly.
+    """
+    configuration = ConfigStore({"values": {"collection": value}})
+
+    assert (
+        read_config_value(
+            configuration,
+            "values.collection",
+            annotation,
+        )
+        == expected
+    )
+
+
+@pytest.mark.parametrize(
+    ("annotation", "value"),
+    [
+        (list, {"source": "config"}),
+        (dict, ["read"]),
+        (Mapping, ["read"]),
+    ],
+)
+def test_config_injection_rejects_bare_collection_shape_mismatches(
+    annotation: object,
+    value: object,
+) -> None:
+    """Reject broad array values that do not satisfy a bare collection type.
+
+    This checks the same adapter path used after ``FromConfig`` selects its
+    typed configuration accessor.
+    """
+    configuration = ConfigStore({"values": {"collection": value}})
+
+    with pytest.raises(TypeError):
+        read_config_value(
+            configuration,
+            "values.collection",
+            annotation,
+        )
 
 
 @pytest.mark.anyio
@@ -2082,6 +2205,91 @@ async def test_override_rejects_cached_singleton_dependency_substitution() -> (
                 await container.make_async(SingletonDocumentService)
 
         assert await container.make_async(SingletonDocumentService) is original
+
+
+@pytest.mark.anyio
+@pytest.mark.parametrize("asynchronous", [False, True])
+@pytest.mark.parametrize("initialized", [False, True])
+async def test_nested_override_checks_inherited_singleton_dependencies(
+    asynchronous: bool,
+    initialized: bool,
+) -> None:
+    """Reject inner replacements hidden by an outer-owned singleton.
+
+    Both sync and async nested overlays must compare changes against the
+    singleton's owner graph without closing borrowed singleton resources.
+    """
+    lifecycle: list[str] = []
+
+    def create_shared_service() -> Iterator[SharedService]:
+        """Yield a shared application resource with visible finalization.
+
+        Yields:
+            The application-owned service.
+        """
+        try:
+            yield SharedService()
+        finally:
+            lifecycle.append("closed")
+
+    replacement: type[object] = ReplacementSingletonDocumentService
+    override_bindings: dict[type[object], object] = {
+        SingletonDocumentService: replacement,
+    }
+
+    async with Container() as container:
+        container.bind(DataRepository, SqlRepository)
+        container.singleton(SingletonDocumentService)
+        container.singleton(SharedService, create_shared_service)
+        shared = container.make(SharedService)
+
+        if asynchronous:
+            async with container.override(override_bindings):
+                initialized_value = (
+                    await container.make_async(SingletonDocumentService)
+                    if initialized
+                    else None
+                )
+                async with container.override(
+                    {DataRepository: AnalyticsRepository},
+                ):
+                    assert container.make(SharedService) is shared
+                    with pytest.raises(
+                        ScopeError,
+                        match="application singleton",
+                    ):
+                        await container.make_async(SingletonDocumentService)
+                resolved = await container.make_async(
+                    SingletonDocumentService,
+                )
+                assert lifecycle == []
+        else:
+            with container.override(override_bindings):
+                initialized_value = (
+                    container.make(SingletonDocumentService)
+                    if initialized
+                    else None
+                )
+                with container.override(
+                    {DataRepository: AnalyticsRepository},
+                ):
+                    assert container.make(SharedService) is shared
+                    with pytest.raises(
+                        ScopeError,
+                        match="application singleton",
+                    ):
+                        container.make(SingletonDocumentService)
+                resolved = container.make(SingletonDocumentService)
+                assert lifecycle == []
+
+        assert isinstance(resolved, ReplacementSingletonDocumentService)
+        assert isinstance(resolved.repository, SqlRepository)
+        if initialized:
+            assert resolved is initialized_value
+        assert container.make(SharedService) is shared
+        assert lifecycle == []
+
+    assert lifecycle == ["closed"]
 
 
 @pytest.mark.anyio

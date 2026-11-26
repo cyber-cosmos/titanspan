@@ -6,7 +6,7 @@ The helpers centralize precedence across native resolution entry points.
 from __future__ import annotations
 
 from collections.abc import Hashable, Mapping
-from typing import TYPE_CHECKING, Annotated, get_args, get_origin
+from typing import TYPE_CHECKING, Annotated, Literal, get_args, get_origin
 
 from titanspan.container.contextual_binding import (
     ContextualBinding,
@@ -18,6 +18,9 @@ from titanspan.contracts.config import ConfigReader, TypedConfigReader
 
 _INJECTION_MARKER_CONFLICT_ERROR = (
     "A dependency annotation may contain only one injection marker."
+)
+_CONFIG_COLLECTION_ERROR = (
+    "Configuration value for key [{key}] must be {expected}; {actual} found."
 )
 
 if TYPE_CHECKING:
@@ -77,13 +80,57 @@ def read_config_value(
         return repository.float(key)
     if base is bool:
         return repository.boolean(key)
-    if get_origin(base) in {dict, list, Mapping}:
-        return repository.array(key)
+    origin = get_origin(base)
+    if base is list or origin is list:
+        return _read_config_collection(repository, key, "list")
+    if base is dict or origin is dict:
+        return _read_config_collection(repository, key, "dictionary")
+    if base is Mapping or origin is Mapping:
+        return _read_config_collection(repository, key, "mapping")
     message = (
         "FromConfig requires str, int, float, bool, dict, list, or "
         "Mapping annotations."
     )
     raise BindingError(message)
+
+
+def _read_config_collection(
+    repository: TypedConfigReader,
+    key: str,
+    expected: Literal["list", "dictionary", "mapping"],
+) -> object:
+    """Narrow the config array capability to the requested outer type.
+
+    Args:
+        repository: Typed configuration reader selected by the container.
+        key: Dotted configuration path selected by injection metadata.
+        expected: Collection shape required by the parameter annotation.
+
+    Returns:
+        The array value after its outer type matches the annotation.
+
+    Raises:
+        TypeError: If the array value has another outer collection type.
+    """
+    value = repository.array(key)
+    if expected == "list" and isinstance(value, list):
+        return value
+    if expected == "dictionary" and isinstance(value, dict):
+        return value
+    if expected == "mapping" and isinstance(value, Mapping):
+        return value
+
+    expected_name = {
+        "list": "a list",
+        "dictionary": "a dictionary",
+        "mapping": "a mapping",
+    }[expected]
+    message = _CONFIG_COLLECTION_ERROR.format(
+        key=key,
+        expected=expected_name,
+        actual=type(value).__name__,
+    )
+    raise TypeError(message)
 
 
 def select_dependency_source(

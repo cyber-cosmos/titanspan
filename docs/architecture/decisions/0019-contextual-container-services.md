@@ -42,11 +42,13 @@ scoped resources and shared instance identity.
   async entry supports async factories and finalizers. Nested overrides
   restore in LIFO order. Replacement values belong to the overlay; unaffected
   application singletons and their per-service locks are shared with the
-  canonical cache. If a requested singleton depends on an overridden service,
-  reject resolution rather than return or retain a singleton built from the
-  original dependency. Finalize resources before restoring the prior context,
-  shield async cleanup from cancellation, and prevent shutdown while an
-  override remains active.
+  canonical cache. At each overlay boundary, compare child replacements with
+  the dependency closure composed by the immediate owner of an inherited
+  singleton. Reject resolution if the child would receive an owner-cached
+  singleton that hides one of its replacements, including when an outer
+  overlay already replaced that singleton. Finalize resources before restoring
+  the prior context, shield async cleanup from cancellation, and prevent
+  shutdown while an override remains active.
 - Require overrides to begin before execution scopes. The existing scope
   hierarchy and scope ownership model remain unchanged.
 
@@ -89,8 +91,10 @@ unsupported.
 
 `tests/unit/container/test_contextual_injection.py` verifies consumer
 isolation, metadata sources, precedence, `make_with`, async extension and
-callback preflight, callback ordering, nested overrides, cancellation-safe
-cleanup, shared singleton identity, and concurrent task-local overrides.
+callback preflight, callback ordering, nested sync and async overrides,
+owner-aware singleton rejection, collection outer-type checks,
+cancellation-safe cleanup, shared singleton identity, and concurrent
+task-local overrides.
 Container integration tests exercise real Dishka graph composition and
 resource lifecycle. The sync override regression exercises a synchronous
 resource factory, shared application identity, and exception restoration.

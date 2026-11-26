@@ -72,6 +72,10 @@ Supported metadata includes `Inject(Implementation)`,
 tagged selection
 preserves registration order.
 Arbitrary union inference and custom metadata handlers are not implemented.
+Configuration annotations support scalar accessors plus bare and
+parameterized `dict`, `list`, and `Mapping` forms. Collection values are read
+through `TypedConfigReader.array` and checked against the requested outer
+type; nested generic arguments are not recursively validated.
 Before synchronous resolution, the container inspects the same selected
 contextual, metadata, alias, and tag sources and rejects known async-only
 factories before they initialize. Opaque external provider behavior may still

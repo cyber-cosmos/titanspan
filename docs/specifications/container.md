@@ -184,9 +184,14 @@ empty collection. Conflicting supported injection markers raise
 must provide the optional `TypedConfigReader` capability. Missing and
 incompatible values use the configuration component's existing typed
 accessors. Supported annotations are `str`, `int`, `float`, `bool`, `dict`,
-`list`, and `Mapping`; other annotations fail during resolution before the
-consumer is constructed. The application provider registers the optional
-capability when its repository implements it.
+`list`, and `Mapping`. Both bare `dict` and `list` annotations and their
+parameterized forms are supported. The selected collection annotation must
+match the outer value returned by `TypedConfigReader.array`: list annotations
+require a list, dict annotations require a dictionary, and Mapping
+annotations require a mapping. Element and key/value types are not checked
+recursively. Other annotations fail during resolution before the consumer is
+constructed. The application provider registers the optional capability
+when its repository implements it.
 
 `extend` decorates a service in registration order through the backend's
 supported graph pipeline. The final value is cached according to the binding
@@ -224,15 +229,17 @@ async with container.override({Repository: FakeRepository}):
 Overrides are context-local and nest in LIFO order. Replacement values and
 their resources belong to the temporary graph. Unaffected application
 singletons share the canonical application cache and per-service locks,
-including when first initialized concurrently from an overlay. An override
-cannot rewrite dependencies already captured by an application singleton.
-Resolution raises `ScopeError` if a requested singleton's dependency graph
-contains a service replaced by the active override; this applies whether the
-singleton was already initialized or would be initialized during the
-override. Override the singleton itself or use an isolated container when a
-fresh singleton graph is required. Closing an overlay does not close borrowed
-application singletons. Cleanup is shielded from cancellation before the
-previous context is restored.
+including when first initialized concurrently from an overlay. Before an
+overlay borrows an application singleton, it compares that singleton's
+owner-composed dependency graph with replacements introduced by the overlay.
+Resolution raises `ScopeError` if a replacement would be hidden by the
+owner's cached graph, whether the singleton was already initialized or not.
+Each nested overlay is checked against its immediate owner's graph as
+resolution delegates outward. Replacing the singleton in the active overlay
+creates a value in that overlay's graph and lets it use that overlay's
+dependencies. Closing an overlay does not close borrowed application
+singletons. Cleanup is shielded from cancellation before the previous context
+is restored.
 
 The synchronous context composes through the supported synchronous backend
 and closes its resources immediately. Async resolution inside that context is
@@ -255,8 +262,9 @@ that point. Arbitrary live rebinding is not supported.
   Arbitrary union inference and custom metadata handlers are not implemented.
 - Contextual rules have no runtime removal or mutation operation.
   `ConfigReader` must be registered for `FromConfig` or `give_config`, and its
-  implementation must provide `TypedConfigReader`; list and mapping access
-  checks only the outer container shape.
+  implementation must provide `TypedConfigReader`; collection injection
+  checks only the requested outer shape, not nested element or key/value
+  types.
 - Service extensions must preserve the selected contract and forward cleanup
   when wrapping owned resources. Ownership of arbitrary user wrappers cannot
   be inferred.

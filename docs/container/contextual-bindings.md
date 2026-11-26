@@ -64,9 +64,14 @@ The supported markers are `Inject`, `FromConfig`, `Named`, and `Tagged`.
 Configuration metadata resolves through `ConfigReader`. Its implementation
 must provide the optional `TypedConfigReader` capability. Typed values are
 validated by the existing accessors; supported annotations are `str`, `int`,
-`float`, `bool`, `dict`, `list`, and `Mapping`. Other annotations fail during
-resolution before the consumer is constructed. More than one supported marker
-on a parameter raises `BindingError` instead of guessing.
+`float`, `bool`, `dict`, `list`, and `Mapping`. Bare `dict` and `list`
+annotations work alongside parameterized forms. The declared outer type must
+match the value returned by `array`: list annotations require a list, dict
+annotations require a dictionary, and Mapping annotations require a mapping.
+Generic element and key/value types are not checked recursively. Other
+annotations fail during resolution before the consumer is constructed. More
+than one supported marker on a parameter raises `BindingError` instead of
+guessing.
 
 ## Precedence
 
