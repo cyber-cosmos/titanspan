@@ -30,13 +30,20 @@ def endpoint() -> str:
 def test_url_and_route_helpers_require_an_active_application_when_needed() -> (
     None
 ):
-    """Keep relative path validation synchronous and context independent.
+    """Resolve local and absolute paths through the app-owned URL service.
 
-    Route lookup and trusted-origin expansion require application services.
+    Both URL modes require the application's replaceable generator contract.
     """
-    assert url("/local") == "/local"
-    with pytest.raises(RouteUrlError, match="local absolute paths"):
+    application = Application()
+    with (
+        application.context(),
+        pytest.raises(RouteUrlError, match="local absolute paths"),
+    ):
         url("//external.example.test")
+    with pytest.raises(RoutingContextError, match="active application"):
+        url("/local")
+    with pytest.raises(RoutingContextError, match="active application"):
+        url("/local", absolute=False)
     with pytest.raises(RoutingContextError, match="active application"):
         url("/local", absolute=True)
     with pytest.raises(RoutingContextError, match="active application"):
@@ -76,6 +83,8 @@ def test_helpers_translate_missing_application_services(
     with bind_application_context(object(), container):
         with pytest.raises(RoutingContextError, match="active application"):
             url("/local", absolute=True)
+        with pytest.raises(RoutingContextError, match="active application"):
+            url("/local")
         with pytest.raises(RoutingContextError, match="active application"):
             redirect()
         with pytest.raises(RoutingContextError, match="active matched"):

@@ -28,7 +28,9 @@ if TYPE_CHECKING:
         RouteInfo,
     )
 
-_PATH_PARAMETER = re.compile(r"\{([A-Za-z_][A-Za-z0-9_]*)(?::([^{}]+))?\}")
+_PATH_PARAMETER = re.compile(
+    r"\{([A-Za-z_][A-Za-z0-9_]*)(?::([^{}?]+))?(\?)?\}",
+)
 _MISSING_PARAMETER = "Missing required route parameter."
 _UNTRUSTED_ORIGIN = "Absolute route URLs require a configured trusted origin."
 _LOCAL_PATH_ERROR = "URL paths must be local absolute paths."
@@ -118,9 +120,24 @@ class UrlGenerator(UriUrlGenerator):
         Raises:
             RouteUrlError: If the path is not local or no origin is configured.
         """
+        return self.url(path, absolute=True)
+
+    def url(self, path: str, absolute: bool) -> str:
+        """Build a local URL with optional configured-origin expansion.
+
+        Args:
+            path: Local absolute path beginning with one slash.
+            absolute: Whether to add the configured application origin.
+
+        Returns:
+            A local path or trusted-origin absolute URL.
+
+        Raises:
+            RouteUrlError: If the path is unsafe or the origin is missing.
+        """
         if not path.startswith("/") or path.startswith("//"):
             raise RouteUrlError(_LOCAL_PATH_ERROR)
-        return self._absolute(path)
+        return self._absolute(path) if absolute else path
 
     def route(
         self,
@@ -217,40 +234,50 @@ class UrlGenerator(UriUrlGenerator):
         remaining = dict(parameters)
         path_values: dict[str, str] = {}
         path = route.path
+        supports_backend_reverse = True
         for match in _PATH_PARAMETER.finditer(route.path):
-            key, converter = match.groups()
+            key, converter, optional = match.groups()
             value = remaining.pop(key, route.default_values.get(key))
             if value is None:
-                message = f"{_MISSING_PARAMETER} {key!r}."
-                raise RouteUrlError(message)
+                path = _omit_optional_parameter(
+                    path,
+                    match.group(0),
+                    key,
+                    optional,
+                )
+                supports_backend_reverse = False
+                continue
+            converter_name = "str" if converter is None else converter
+            path_value = _convert_path_value(converter_name, value)
             constraint = route.constraints.get(key)
             if (
                 constraint is not None
                 and re.fullmatch(
                     constraint,
-                    str(value),
+                    path_value,
                 )
                 is None
             ):
                 raise RouteUrlError(_ROUTE_CONSTRAINT_ERROR)
-            converter_name = "str" if converter is None else converter
-            path_values[key] = _convert_path_value(
-                converter_name,
-                value,
-            )
             safe = "/" if converter_name == "path" else ""
-            encoded_value = quote(path_values[key], safe=safe)
+            encoded_value = quote(path_value, safe=safe)
             path_values[key] = encoded_value
             path = path.replace(
                 match.group(0),
                 encoded_value,
                 1,
             )
+            if optional is not None:
+                supports_backend_reverse = False
 
-        if self._path_reverser is not None and route.route_name is not None:
+        if (
+            self._path_reverser is not None
+            and route.route_name is not None
+            and supports_backend_reverse
+        ):
             try:
                 path = self._path_reverser(route.route_name, path_values)
-            except (AssertionError, KeyError, ValueError) as error:
+            except (AssertionError, KeyError, TypeError, ValueError) as error:
                 raise RouteUrlError(_REVERSER_FAILURE) from error
 
         if remaining:
@@ -297,6 +324,33 @@ class UrlGenerator(UriUrlGenerator):
                 target.fragment,
             )
         )
+
+
+def _omit_optional_parameter(
+    path: str,
+    placeholder: str,
+    name: str,
+    optional: str | None,
+) -> str:
+    """Remove a missing final optional segment or report a required value.
+
+    Args:
+        path: Native path template currently being substituted.
+        placeholder: Full placeholder token selected from the template.
+        name: Parameter name selected from the route template.
+        optional: Optional marker captured from the route template.
+
+    Returns:
+        Path without the optional trailing segment.
+
+    Raises:
+        RouteUrlError: If the placeholder is required.
+    """
+    if optional != "?":
+        message = f"{_MISSING_PARAMETER} {name!r}."
+        raise RouteUrlError(message, parameter=name)
+    path = path.replace(f"/{placeholder}", "", 1)
+    return path or "/"
 
 
 def _validate_origin(origin: str | None) -> str | None:

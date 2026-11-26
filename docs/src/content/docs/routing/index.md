@@ -4,59 +4,147 @@ title: "Routing"
 
 <span id="routing"></span>
 
-The Routing component owns route definitions, route metadata, controller
-dispatch, and URL generation for one Titanspan Application. Foundation
-compiles those definitions into its existing ASGI host. The same native
-route catalog serves dispatch, inspection, URI factories, helpers, and named
-redirects.
+Routing owns one route catalog for registration, dispatch metadata,
+inspection, URL generation, and redirects. FastAPI and Starlette provide
+matching, method handling, WebSocket dispatch, OpenAPI, and supported path
+reversal through the application's existing ASGI host.
+
+## Register routes
+
+Register routes on `application.router` during application composition.
+Methods support direct and decorator registration:
 
 ```python
-application.router.get(
+@application.router.get("/documents/{document_id}")
+async def show_document(document_id: int) -> dict[str, int]:
+    return {"document_id": document_id}
+
+application.router.match(
+    ("PUT", "PATCH"),
     "/documents/{document_id}",
-    (DocumentController, "show"),
-).name("documents.show")
+    (DocumentController, "update"),
+).name("documents.update")
 ```
 
-Routes are registered before application startup. Startup freezes route
-metadata and installs the compiled matcher. Controllers and middleware are
-resolved per request through the canonical Container, and request scope plus
-application context remain active through streamed response transmission.
+Use `get`, `post`, `put`, `patch`, `delete`, `head`, `options`, `connect`,
+and `trace` for individual methods. `match` accepts one or more explicit
+methods. `any` registers GET, POST, PUT, PATCH, DELETE, HEAD, and OPTIONS;
+it does not register CONNECT or TRACE. A path may be named through
+`.name("documents.show")` or the `name` argument to `route`.
 
-## Implemented
+Actions can be functions, callable instances, controller classes, or
+`(Controller, "method")` pairs. The canonical Container constructs
+controllers and resolves constructor and method dependencies. Explicit path
+values are passed by name and converted according to handler annotations.
+Enums and native FastAPI and Pydantic input declarations are supported.
 
-- Explicit GET, POST, PUT, PATCH, DELETE, HEAD, and OPTIONS registration.
-- Method matching, fallback, redirect, and bounded common-method routes.
-- Nested registration groups with prefixes, middleware, defaults, constraints,
-  domains, and name prefixes.
-- Resource and API resource registration.
-- Controller and callable dispatch with native Container injection.
-- Middleware aliases and groups through the HTTP middleware contract.
-- Route names, metadata, parameter constraints, and OpenAPI metadata.
-- Application-scoped URL generation and context-aware route helpers.
+## Groups and constraints
 
-See [URL generation](./url-generation) for `Uri`, route helpers, trusted
-origins, and safe redirects.
+Group attributes inherit through nested context managers. Child prefixes are
+joined, name prefixes concatenate, middleware preserves declaration order,
+and child constraints and defaults replace matching parent values.
 
-## Lifecycle
+```python
+with application.router.prefix("/admin").name("admin.").group():
+    with application.router.prefix("/documents").middleware("staff").group():
+        application.router.get(
+            "/{document_id}",
+            (DocumentController, "show"),
+        ).where_number("document_id")
+```
 
-Register routes on `application.router` before `await application.startup()`
-or before the ASGI lifespan starts. The route collection is frozen during
-startup. The Application owns startup, request scope, active context, and
-resource cleanup. Routing does not create another service registry or
-dependency graph.
+Route definitions support `where`, `where_number`, `where_alpha`,
+`where_alpha_numeric`, `where_uuid`, and `where_in`. Constraints apply to
+dispatch and URL generation. `domain` restricts the incoming host. Defaults
+fill omitted handler arguments and must satisfy the path annotation and
+declared constraint. A final optional segment such as `/{locale?}` produces
+routes with and without that segment; only one optional final segment is
+supported.
 
-The native request context encloses the complete ASGI call. A streaming
-generator can therefore continue using request-scoped dependencies until its
-body has been sent or cancelled.
+## Resources
 
-## Current boundaries
+`resource` registers the seven REST actions. `api_resource` omits browser
+`create` and `edit` actions. Nested names use dot or slash separators and
+produce parent parameters. Registrars support `only`, `except_`, `parameters`,
+`names`, and `middleware`. `shallow()` shortens nested item paths and names.
+`singleton` registers one address without an item key; `creatable()` and
+`destroyable()` opt into its additional actions. `api_singleton` provides the
+API action set.
 
-The ASGI adapter uses FastAPI and Starlette for matching, method handling,
-route reversal after compilation, OpenAPI wiring, and protocol dispatch.
-Route definitions remain Titanspan-owned. Secure signed URLs are unavailable
-until framework key management supports signing and verification. Route-file
-discovery, persistent route caching, WebSockets, and database-backed model
-binding are also pending.
+Resource routes are ordinary definitions in the canonical catalog, so their
+matching, metadata, middleware, inspection, and named URLs use the same path.
+View routes are unavailable because Titanspan does not yet have a View
+component.
 
-See the [routing specification](/titanspan/specifications/routing/) for capability
-status and integration evidence.
+## Binding and middleware
+
+Register `router.bind("document_id", callback)` to replace one raw path value
+with a resolved application value. Callbacks can be synchronous or
+asynchronous. Returning `None` raises `RouteBindingNotFoundError` and produces
+a native 404 response. A database-backed binder should use the future
+Database component; Routing does not provide an ORM or model lookup service.
+
+Middleware uses the existing HTTP middleware contract. Register aliases with
+`alias_middleware` and reusable ordered groups with `middleware_group`.
+Groups, route declarations, and a controller's `route_middleware` class
+attribute contribute middleware in order. `without_middleware` removes
+selected aliases or classes for a route. Current-route helpers are available
+while route middleware and the action execute. Parameterized middleware is
+not supported by the current HTTP contract.
+
+## Discovery and inspection
+
+At application startup, Routing loads configured `routing.modules` in their
+listed order, then `routes/web.py` and `routes/api.py` from `routing.path`.
+Each module defines `register_routes(router)`; synchronous and asynchronous
+hooks are supported. Set `routing.discover` to `False` to disable conventional
+files while retaining explicit modules. Imports occur within the trusted
+application startup lifecycle, not at module import time.
+
+Foundation currently does not pass `Application.base_path` to the routing
+provider. Until that integration is added, set `routing.path` to the
+application's route root; otherwise discovery uses the current working
+directory.
+
+`application.router.inspect(RouteFilter(...))` returns original route
+definitions in declaration order. Filters select exact methods, paths, names,
+protocols, domains, or middleware. `RouteCache` writes JSON metadata without
+serializing live callables or containers. Reading validates the snapshot
+against routes that the application has already discovered and registered;
+it does not skip startup or claim faster startup.
+
+The Console component currently lacks application-aware command registration.
+Routing provides inspection and cache APIs, but a `route:list` command needs
+Console to expose an application command lifecycle and registered command
+extension point.
+
+## WebSockets and OpenAPI
+
+Register an asynchronous WebSocket handler with `router.websocket`. Its
+signature includes one Starlette `WebSocket` connection plus typed path
+parameters. Starlette owns acceptance, message exchange, and disconnect
+handling. Routing opens the existing Container `CONNECTION` scope around the
+handler and closes it on return, failure, or cancellation.
+
+FastAPI generates OpenAPI for HTTP routes. Route names supply operation IDs;
+route metadata supports tags, summaries, descriptions, deprecation, status
+codes, response models, and response declarations. FastAPI and Pydantic
+provide supported path, query, and request-body schemas. Container-injected
+services are excluded from client input schemas. A future Validation
+integration needs a narrow supported schema contract; Routing does not
+implement another validation engine.
+
+## Lifecycle and pending integrations
+
+Application startup freezes route registration before requests are served.
+The same Router and URL generator are application-owned Container services.
+Request context remains active through complete ASGI response transmission,
+including streaming cleanup.
+
+Signed URLs remain unsupported until framework key management can generate,
+verify, and rotate application signatures. Database-backed model binding,
+View routes, parameterized middleware, and Console route listing also need the
+owning components described above. See the
+[routing specification](/titanspan/specifications/routing/) for evidence and
+integration requirements, and [URL generation](./url-generation) for helper
+semantics.

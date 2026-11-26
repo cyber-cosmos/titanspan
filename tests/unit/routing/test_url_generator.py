@@ -155,6 +155,24 @@ def test_absolute_route_uses_only_the_configured_origin() -> None:
     assert generated == "https://app.example.test/documents/42"
 
 
+def test_url_uses_relative_path_or_configured_trusted_origin() -> None:
+    """Generate path URLs through the same application-owned service.
+
+    Relative values stay local while absolute values use the trusted origin.
+    """
+    generator = UrlGenerator(
+        named_router().routes,
+        origin="https://app.example.test",
+    )
+
+    assert generator.url("/docs?lang=en#start", absolute=False) == (
+        "/docs?lang=en#start"
+    )
+    assert generator.url("/docs?lang=en#start", absolute=True) == (
+        "https://app.example.test/docs?lang=en#start"
+    )
+
+
 def test_missing_path_value_is_rejected() -> None:
     """Require every non-defaulted path parameter.
 

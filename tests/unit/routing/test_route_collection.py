@@ -8,6 +8,7 @@ import pytest
 from titanspan.routing import (
     DuplicateRouteError,
     InvalidRouteError,
+    RouteFilter,
     Router,
     RouterFrozenError,
 )
@@ -55,6 +56,24 @@ def test_duplicate_method_and_path_registration_fails() -> None:
 
     with pytest.raises(DuplicateRouteError):
         router.get("/health", endpoint)
+
+
+@pytest.mark.parametrize(
+    "expanded_path",
+    ["/items", "/items/{item}"],
+)
+def test_optional_path_expansions_cannot_shadow_registered_routes(
+    expanded_path: str,
+) -> None:
+    """Reject collisions with paths emitted for an optional final segment.
+
+    A generated optional URL must always dispatch to its own route identity.
+    """
+    router = Router()
+    router.get("/items/{item?}", endpoint).name("items.optional")
+
+    with pytest.raises(DuplicateRouteError):
+        router.get(expanded_path, endpoint)
 
 
 def test_different_methods_can_share_a_path() -> None:
@@ -200,6 +219,60 @@ def test_freeze_rejects_an_unapplied_route_decorator() -> None:
 
     with pytest.raises(InvalidRouteError):
         router.freeze()
+
+
+@pytest.mark.parametrize(
+    ("filters", "message"),
+    [
+        ({"method": "GET/POST"}, "inspection method"),
+        ({"protocol": "tcp"}, "inspection protocol"),
+    ],
+)
+def test_route_inspection_rejects_invalid_selectors(
+    filters: dict[str, str],
+    message: str,
+) -> None:
+    """Reject method and protocol filters that cannot match route metadata.
+
+    Invalid inspection requests fail before scanning the catalog.
+    """
+    with pytest.raises(InvalidRouteError, match=message):
+        RouteFilter(**filters)
+
+
+def test_route_collection_rebind_rejects_unowned_and_duplicate_paths() -> None:
+    """Protect route identity when resource parameter metadata changes.
+
+    Rebinding rejects foreign definitions and paths already owned by a method.
+    """
+    router = Router()
+    first = router.get("/first/{item}", endpoint)
+    router.get("/second", endpoint)
+    foreign = Router().get("/foreign", endpoint)
+
+    with pytest.raises(InvalidRouteError, match="not in this collection"):
+        router.routes.replace_path(foreign, "/replacement", {})
+    with pytest.raises(DuplicateRouteError, match="methods and paths"):
+        router.routes.replace_path(first, "/second", {})
+
+
+def test_route_collection_rebind_validates_constraints_and_defaults() -> None:
+    """Revalidate path-dependent metadata after a resource path replacement.
+
+    Constraints and defaults cannot refer to parameters removed by a remap.
+    """
+    router = Router()
+    constrained = router.get("/items/{item}", endpoint)
+    constrained.where_number("item")
+    with pytest.raises(InvalidRouteError, match="constraint"):
+        router.routes.replace_path(constrained, "/items", {})
+
+    default_router = Router()
+    defaulted = default_router.get("/items/{item}", endpoint).defaults(
+        {"item": "x"},
+    )
+    with pytest.raises(InvalidRouteError, match="defaults must name"):
+        default_router.routes.replace_path(defaulted, "/items/{other}", {})
 
 
 def test_any_uses_explicit_common_methods() -> None:

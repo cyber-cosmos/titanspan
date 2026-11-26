@@ -66,6 +66,20 @@ class _AlternativeUrlGenerator(UriUrlGenerator):
         """
         return f"https://replacement.example.test{path}"
 
+    def url(self, path: str, absolute: bool) -> str:
+        """Build a URL through the substituted application contract.
+
+        Args:
+            path: Local path supplied by the top-level ``url`` helper.
+            absolute: Whether the replacement origin should be included.
+
+        Returns:
+            A replacement URL that identifies this contract call.
+        """
+        if absolute:
+            return self.to(path)
+        return f"/replacement/url/{path.lstrip('/')}"
+
     def route(
         self,
         name: str,
@@ -230,6 +244,9 @@ def test_uri_factories_helpers_and_facades_share_url_generator() -> None:
         assert url("/docs", absolute=True) == (
             "https://first.example.test/docs"
         )
+        assert url("/docs?tag=a&tag=b#card", absolute=True) == (
+            "https://first.example.test/docs?tag=a&tag=b#card"
+        )
         named_redirect = redirect().route(
             "articles.show",
             {"article_id": 9},
@@ -256,6 +273,7 @@ def test_url_entry_points_resolve_the_substituted_contract() -> None:
             assert url("/docs", absolute=True) == (
                 "https://replacement.example.test/docs"
             )
+            assert url("/docs") == "/replacement/url/docs"
             assert Uri.to("/docs").value() == (
                 "https://replacement.example.test/docs"
             )

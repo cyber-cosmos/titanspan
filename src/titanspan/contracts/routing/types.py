@@ -8,5 +8,13 @@ from collections.abc import Awaitable, Callable
 type RouteEndpoint = Callable[..., object] | Callable[..., Awaitable[object]]
 type ControllerAction = tuple[type[object], str]
 type RouteAction = RouteEndpoint | type[object] | ControllerAction
+type RouteBindingCallback = (
+    Callable[[str], object] | Callable[[str], Awaitable[object]]
+)
 
-__all__ = ["ControllerAction", "RouteAction", "RouteEndpoint"]
+__all__ = [
+    "ControllerAction",
+    "RouteAction",
+    "RouteBindingCallback",
+    "RouteEndpoint",
+]

@@ -30,6 +30,18 @@ class UriUrlGenerator(Protocol):
         """
         ...
 
+    def url(self, path: str, absolute: bool) -> str:
+        """Build a local application URL through the owning generator.
+
+        Args:
+            path: Local absolute path with optional query and fragment.
+            absolute: Whether to add the configured trusted application origin.
+
+        Returns:
+            A local path or trusted-origin absolute URL.
+        """
+        ...
+
     def route(
         self,
         name: str,

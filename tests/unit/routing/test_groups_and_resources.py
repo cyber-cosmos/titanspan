@@ -10,7 +10,12 @@ from titanspan.contracts.http import (
     HttpResponse,
     RequestHandler,
 )
-from titanspan.routing import DuplicateRouteError, InvalidRouteError, Router
+from titanspan.routing import (
+    DuplicateRouteError,
+    InvalidRouteError,
+    RouteFilter,
+    Router,
+)
 
 pytestmark = pytest.mark.unit
 
@@ -114,6 +119,42 @@ class ResourceController:
 
         The registrar maps this method to DELETE.
         """
+
+
+class ControllerWithMiddleware(ResourceController):
+    """Declare controller middleware through native class metadata.
+
+    The router appends these values after inherited group middleware.
+    """
+
+    route_middleware = ("auth", SecondMiddleware)
+
+
+class SingleMiddlewareController(ResourceController):
+    """Declare one controller middleware alias without a sequence.
+
+    The Router normalizes a single declaration into its ordered metadata.
+    """
+
+    route_middleware = "auth"
+
+
+class InvalidControllerMiddleware(ResourceController):
+    """Declare malformed controller middleware for validation coverage.
+
+    Invalid declarations are rejected before route metadata is stored.
+    """
+
+    route_middleware = 7
+
+
+class InvalidSequenceMiddleware(ResourceController):
+    """Declare a sequence containing an unsupported middleware value.
+
+    The Router validates every member of controller middleware sequences.
+    """
+
+    route_middleware = ("auth", 7)
 
 
 def endpoint() -> str:
@@ -353,6 +394,211 @@ def test_resource_registration_rejects_absolute_or_query_paths() -> None:
         router.resource("/documents", ResourceController)
     with pytest.raises(InvalidRouteError):
         router.resource("documents?active=true", ResourceController)
+
+
+def test_resource_configuration_validates_metadata() -> None:
+    """Validate custom metadata and middleware on generated resource routes.
+
+    Empty shallow updates remain neutral and valid declarations are inherited.
+    """
+    router = Router()
+
+    with pytest.raises(InvalidRouteError):
+        router.resource("widgets", ResourceController, parameter="widget-id")
+
+    registrar = router.resource("documents", ResourceController)
+    assert registrar.shallow(False) is registrar
+    with pytest.raises(InvalidRouteError):
+        registrar.parameters({"missing": "identifier"})
+    with pytest.raises(InvalidRouteError):
+        registrar.names({"show": "   "})
+    with pytest.raises(InvalidRouteError):
+        registrar.creatable()
+    with pytest.raises(InvalidRouteError):
+        registrar.destroyable()
+
+    configured = router.api_resource("labels", ResourceController).middleware(
+        [FirstMiddleware, "auth"],
+    )
+    assert configured is not None
+    assert all(
+        route.middleware_types == (FirstMiddleware, "auth")
+        for route in router.routes.all()
+        if route.path.startswith("/labels")
+    )
+
+
+def test_resource_reparameterization_keeps_constraints() -> None:
+    """Remap constrained route parameters without replacing catalog entries.
+
+    The old definition remains the exact route object after parameter changes.
+    """
+    router = Router()
+    registrar = router.resource("documents", ResourceController).only(["show"])
+    route = router.routes.named("documents.show")
+    route.where("document", "[0-9]+")
+
+    registrar.parameters({"documents": "document_id"})
+
+    assert router.routes.named("documents.show") is route
+    assert route.path == "/documents/{document_id}"
+    assert route.constraints == {"document_id": "[0-9]+"}
+
+
+def test_nested_resource_routes_support_shallow_paths_and_custom_names() -> (
+    None
+):
+    """Build nested REST paths while shortening item routes when requested.
+
+    Collection operations keep the parent key; item operations use shallow
+    paths and configurable route names.
+    """
+    router = Router()
+    router.resource(
+        "photos.comments",
+        ResourceController,
+    ).shallow().names({"show": "comments.view"}).parameters(
+        {"photos": "photo_key", "comments": "comment_key"},
+    )
+
+    routes = {route.route_name: route.path for route in router.routes.all()}
+
+    assert routes["photos.comments.index"] == ("/photos/{photo_key}/comments")
+    assert routes["photos.comments.store"] == ("/photos/{photo_key}/comments")
+    assert routes["comments.view"] == "/comments/{comment_key}"
+    assert routes["comments.update"] == "/comments/{comment_key}"
+
+
+def test_singleton_resources_register_only_existing_instance_actions() -> None:
+    """Register singleton action paths without item parameters.
+
+    API singleton and creatable singleton routes retain native metadata.
+    """
+    router = Router()
+    router.singleton("profile", ResourceController)
+    router.api_singleton("preferences", ResourceController)
+
+    profile = {
+        route.route_name: (route.methods, route.path)
+        for route in router.routes.all()
+        if route.route_name is not None
+    }
+
+    assert profile["profile.show"] == (("GET",), "/profile")
+    assert profile["profile.edit"] == (("GET",), "/profile/edit")
+    assert profile["profile.update"] == (
+        ("PUT", "PATCH"),
+        "/profile",
+    )
+    assert "profile.create" not in profile
+    assert "preferences.edit" not in profile
+    assert "preferences.update" in profile
+
+    router.singleton("avatar", ResourceController).creatable()
+    assert router.has("avatar.store")
+    assert router.has("avatar.create")
+    assert not router.has("avatar.destroy")
+
+    router.singleton("badge", ResourceController).destroyable()
+    assert router.has("badge.destroy")
+    assert not router.has("badge.create")
+
+
+def test_nested_middleware_groups_flatten_in_registration_order() -> None:
+    """Expand groups that reference other groups without reordering items.
+
+    Duplicate classes keep their first position in the effective chain.
+    """
+    router = Router()
+    router.alias_middleware("first", FirstMiddleware)
+    router.alias_middleware("second", SecondMiddleware)
+    router.middleware_group("inner", ["first", "second"])
+    router.middleware_group("outer", ["inner", "first"])
+    route = router.get("/health", endpoint).middleware("outer")
+
+    assert router.resolve_middleware(route) == (
+        FirstMiddleware,
+        SecondMiddleware,
+    )
+
+
+def test_route_inspection_filters_stably_and_preserves_identity() -> None:
+    """Filter the authoritative catalog in declaration order.
+
+    Every inspection result is the exact route object used for dispatch.
+    """
+    router = Router()
+    router.alias_middleware("auth", FirstMiddleware)
+    with router.prefix("/api").name("api.").domain("api.example.test").group():
+        first = (
+            router.get("/documents", endpoint)
+            .name(
+                "documents.index",
+            )
+            .middleware("auth")
+        )
+        router.post("/documents", endpoint).name("documents.create")
+    router.websocket("/events", _websocket_endpoint).name("events")
+
+    matches = router.inspect(
+        RouteFilter(
+            method="GET",
+            path="/api/documents",
+            name="api.documents.index",
+            domain="api.example.test",
+            middleware="auth",
+        )
+    )
+
+    assert matches == (first,)
+    assert router.inspect(RouteFilter(protocol="websocket")) == (
+        router.routes.named("events"),
+    )
+
+
+def test_controller_middleware_is_inherited_into_route_metadata() -> None:
+    """Append controller middleware after group middleware declarations.
+
+    Aliases remain route metadata until the Router expands the execution list.
+    """
+    router = Router()
+    router.alias_middleware("auth", FirstMiddleware)
+    route = router.get(
+        "/documents/{document}",
+        (ControllerWithMiddleware, "show"),
+    )
+
+    assert route.middleware_types == ("auth", SecondMiddleware)
+    assert router.resolve_middleware(route) == (
+        FirstMiddleware,
+        SecondMiddleware,
+    )
+
+
+def test_controller_middleware_rejects_bad_values() -> None:
+    """Normalize one middleware value and reject malformed declarations.
+
+    Both direct classes and aliases use the existing HTTP middleware contract.
+    """
+    router = Router()
+    router.alias_middleware("auth", FirstMiddleware)
+    single = router.get("/single", (SingleMiddlewareController, "show"))
+
+    assert single.middleware_types == ("auth",)
+
+    with pytest.raises(InvalidRouteError):
+        router.get("/invalid", (InvalidControllerMiddleware, "show"))
+    with pytest.raises(InvalidRouteError):
+        router.get("/invalid-sequence", (InvalidSequenceMiddleware, "show"))
+
+
+async def _websocket_endpoint(websocket: object) -> None:
+    """Provide an async endpoint declaration for protocol inspection.
+
+    Args:
+        websocket: Untouched connection value; inspection does not dispatch it.
+    """
+    _ = websocket
 
 
 @pytest.mark.parametrize(

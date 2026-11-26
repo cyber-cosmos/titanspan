@@ -33,6 +33,14 @@ class RouteInfo(Protocol):
         ...
 
     @property
+    def protocol(self) -> str:
+        """Return whether this entry handles HTTP or WebSocket traffic.
+
+        The native route catalog stores both protocols in declaration order.
+        """
+        ...
+
+    @property
     def route_name(self) -> str | None:
         """Return the unique route name when one was assigned.
 
@@ -53,6 +61,14 @@ class RouteInfo(Protocol):
         """Return parameter patterns that constrain matched path values.
 
         URL generation uses these patterns to reject invalid substitutions.
+        """
+        ...
+
+    @property
+    def middleware_types(self) -> tuple[str | type[object], ...]:
+        """Return route middleware declarations in registration order.
+
+        Alias names remain unresolved until the Router compiles the route.
         """
         ...
 

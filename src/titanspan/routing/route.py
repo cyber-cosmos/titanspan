@@ -18,17 +18,27 @@ if TYPE_CHECKING:
     from titanspan.contracts.http import HttpMiddleware
     from titanspan.contracts.routing import RouteAction
 
-_PARAMETER_PATTERN = re.compile(r"\{([A-Za-z_][A-Za-z0-9_]*)(?::[^{}]+)?\}")
+_PARAMETER_PATTERN = re.compile(
+    r"\{([A-Za-z_][A-Za-z0-9_]*)(?::([^{}?]+))?(\?)?\}",
+)
 _INVALID_ROUTE_PATH = (
     "Route paths must be absolute and contain valid parameters."
+)
+_INVALID_OPTIONAL_PARAMETER = (
+    "Only one optional parameter is supported as the final path segment."
 )
 _INVALID_CONSTRAINT = "Route constraints must be valid regular expressions."
 _INVALID_METHOD_ERROR = "At least one valid HTTP method is required."
 _INVALID_ROUTE_NAME_ERROR = "Route names must be non-empty tokens."
 _INVALID_FINITE_CONSTRAINT_ERROR = "A finite route constraint needs values."
 _INVALID_DEFAULT_PARAMETER_ERROR = "Route defaults must name path parameters."
+_INVALID_DEFAULT_CONSTRAINT_ERROR = (
+    "Route defaults must satisfy their parameter constraints."
+)
 _INVALID_DOMAIN_ERROR = "Route domains must be host names only."
 _INVALID_STATUS_ERROR = "HTTP response status must be 100-599."
+_INVALID_PROTOCOL_ERROR = "Route protocol must be HTTP or WebSocket."
+_INVALID_RESPONSES_ERROR = "OpenAPI responses must use HTTP status codes."
 _MIN_HTTP_STATUS = 100
 _MAX_HTTP_STATUS = 599
 _MAX_CONSTRAINT_LENGTH = 256
@@ -55,6 +65,7 @@ class RouteMetadata:
     description: str | None = None
     deprecated: bool = False
     status_code: int | None = None
+    protocol: str = "http"
 
 
 class RouteDefinition:
@@ -96,6 +107,10 @@ class RouteDefinition:
         ):
             raise InvalidRouteError(_INVALID_METHOD_ERROR)
         self._action = action
+        protocol = metadata.protocol
+        if protocol not in {"http", "websocket"}:
+            raise InvalidRouteError(_INVALID_PROTOCOL_ERROR)
+        self._protocol = protocol
         self._ensure_mutable = ensure_mutable
         self._validate_name = validate_name
         self._metadata = metadata
@@ -111,8 +126,15 @@ class RouteDefinition:
         self._description = metadata.description
         self._deprecated = metadata.deprecated
         self._status_code = metadata.status_code
+        self._response_model: object | None = None
+        self._responses: dict[int, Mapping[str, object]] = {}
         for parameter, pattern in self._constraints.items():
             _validate_constraint(self._path, parameter, pattern)
+        _validate_default_values(
+            self._path,
+            self._defaults,
+            self._constraints,
+        )
 
     @property
     def path(self) -> str:
@@ -131,6 +153,15 @@ class RouteDefinition:
             The uppercase HTTP methods registered for this path.
         """
         return self._methods
+
+    @property
+    def protocol(self) -> str:
+        """Return the transport protocol used by this route.
+
+        Returns:
+            ``http`` or ``websocket`` according to the registration method.
+        """
+        return self._protocol
 
     @property
     def action(self) -> RouteAction | None:
@@ -240,6 +271,24 @@ class RouteDefinition:
         """
         return self._status_code
 
+    @property
+    def response_model_type(self) -> object | None:
+        """Return the optional FastAPI response schema declaration.
+
+        Returns:
+            The response model passed to the native ASGI adapter.
+        """
+        return self._response_model
+
+    @property
+    def response_metadata(self) -> Mapping[int, Mapping[str, object]]:
+        """Return HTTP response metadata for generated OpenAPI operations.
+
+        Returns:
+            A read-only mapping copied from route registration.
+        """
+        return MappingProxyType(self._responses)
+
     def name(self, value: str) -> Self:
         """Assign a unique name, applying any inherited group prefix.
 
@@ -317,6 +366,9 @@ class RouteDefinition:
         """
         self._ensure_mutable()
         _validate_constraint(self._path, parameter, pattern)
+        candidate = dict(self._constraints)
+        candidate[parameter] = pattern
+        _validate_default_values(self._path, self._defaults, candidate)
         self._constraints[parameter] = pattern
         return self
 
@@ -405,7 +457,10 @@ class RouteDefinition:
         unknown = set(values).difference(_path_parameters(self._path))
         if unknown:
             raise InvalidRouteError(_INVALID_DEFAULT_PARAMETER_ERROR)
-        self._defaults.update(values)
+        candidate = dict(self._defaults)
+        candidate.update(values)
+        _validate_default_values(self._path, candidate, self._constraints)
+        self._defaults = candidate
         return self
 
     def domain(self, value: str) -> Self:
@@ -502,6 +557,46 @@ class RouteDefinition:
         self._status_code = value
         return self
 
+    def response_model(self, value: object) -> Self:
+        """Declare a response schema delegated to FastAPI and Pydantic.
+
+        Args:
+            value: Pydantic model or another supported FastAPI response type.
+
+        Returns:
+            This definition for further fluent configuration.
+        """
+        self._ensure_mutable()
+        self._response_model = value
+        return self
+
+    def responses(
+        self,
+        values: Mapping[int, Mapping[str, object]],
+    ) -> Self:
+        """Add response descriptions and schemas to generated OpenAPI.
+
+        Args:
+            values: HTTP status codes mapped to FastAPI response metadata.
+
+        Returns:
+            This definition for further fluent configuration.
+
+        Raises:
+            InvalidRouteError: If a status code is outside the HTTP range.
+        """
+        self._ensure_mutable()
+        if any(
+            not _MIN_HTTP_STATUS <= status <= _MAX_HTTP_STATUS
+            for status in values
+        ):
+            raise InvalidRouteError(_INVALID_RESPONSES_ERROR)
+        self._responses = {
+            status: MappingProxyType(dict(metadata))
+            for status, metadata in values.items()
+        }
+        return self
+
     def set_action(self, action: RouteAction) -> Self:
         """Attach the callable supplied by a decorator registration.
 
@@ -511,6 +606,43 @@ class RouteDefinition:
         self._ensure_mutable()
         self._action = action
         return self
+
+    def _set_path(
+        self,
+        path: str,
+        parameter_names: Mapping[str, str | None],
+    ) -> None:
+        """Replace a resource path and remap its parameter metadata.
+
+        Args:
+            path: New path template produced by the resource registrar.
+            parameter_names: Previous names mapped to their replacements.
+
+        Raises:
+            InvalidRouteError: If the new path invalidates route metadata.
+        """
+        self._ensure_mutable()
+        normalized_path = _validate_path(path)
+        constraints = {
+            replacement: pattern
+            for name, pattern in self._constraints.items()
+            if (replacement := parameter_names.get(name, name)) is not None
+        }
+        defaults = {
+            replacement: value
+            for name, value in self._defaults.items()
+            if (replacement := parameter_names.get(name, name)) is not None
+        }
+        for parameter, pattern in constraints.items():
+            _validate_constraint(normalized_path, parameter, pattern)
+        _validate_default_values(
+            normalized_path,
+            defaults,
+            constraints,
+        )
+        self._path = normalized_path
+        self._constraints = constraints
+        self._defaults = defaults
 
 
 def _validate_path(path: str) -> str:
@@ -525,16 +657,25 @@ def _validate_path(path: str) -> str:
     Raises:
         InvalidRouteError: If braces are unbalanced or path is not absolute.
     """
-    if not path.startswith("/") or "//" in path or "?" in path or "#" in path:
+    if not path.startswith("/") or "//" in path or "#" in path:
         raise InvalidRouteError(_INVALID_ROUTE_PATH)
     if path.count("{") != path.count("}"):
         raise InvalidRouteError(_INVALID_ROUTE_PATH)
+    matches = tuple(_PARAMETER_PATTERN.finditer(path))
+    optional = tuple(match for match in matches if match.group(3) == "?")
+    if optional and (
+        len(optional) != 1
+        or optional[0].end() != len(path)
+        or optional[0].start() == 0
+        or path[optional[0].start() - 1] != "/"
+    ):
+        raise InvalidRouteError(_INVALID_OPTIONAL_PARAMETER)
     for segment in re.findall(r"\{([^{}]*)\}", path):
-        name = segment.split(":", maxsplit=1)[0]
+        name = segment.removesuffix("?").split(":", maxsplit=1)[0]
         if not name.isidentifier():
             raise InvalidRouteError(_INVALID_ROUTE_PATH)
     remainder = _PARAMETER_PATTERN.sub("", path)
-    if "{" in remainder or "}" in remainder:
+    if "{" in remainder or "}" in remainder or "?" in remainder:
         raise InvalidRouteError(_INVALID_ROUTE_PATH)
     return path if path == "/" else path.rstrip("/")
 
@@ -559,6 +700,33 @@ def _validate_constraint(path: str, parameter: str, pattern: str) -> None:
         re.compile(pattern)
     except re.error as error:
         raise InvalidRouteError(_INVALID_CONSTRAINT) from error
+
+
+def _validate_default_values(
+    path: str,
+    defaults: Mapping[str, object],
+    constraints: Mapping[str, str],
+) -> None:
+    """Check route defaults against existing path names and constraints.
+
+    Args:
+        path: Validated native route template.
+        defaults: Parameter values inherited or declared by the route.
+        constraints: Parameter expressions applied during matching.
+
+    Raises:
+        InvalidRouteError: If a default names no parameter or violates a rule.
+    """
+    if set(defaults).difference(_path_parameters(path)):
+        raise InvalidRouteError(_INVALID_DEFAULT_PARAMETER_ERROR)
+    for parameter, value in defaults.items():
+        pattern = constraints.get(parameter)
+        if (
+            pattern is not None
+            and value is not None
+            and re.fullmatch(pattern, str(value)) is None
+        ):
+            raise InvalidRouteError(_INVALID_DEFAULT_CONSTRAINT_ERROR)
 
 
 def _path_parameters(path: str) -> tuple[str, ...]:

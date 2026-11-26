@@ -16,9 +16,14 @@ if TYPE_CHECKING:
 
     from titanspan.contracts.container import ServiceContainer
     from titanspan.contracts.http import HttpMiddleware
-    from titanspan.contracts.routing import RouteAction, RouteEndpoint
+    from titanspan.contracts.routing import (
+        RouteAction,
+        RouteBindingCallback,
+        RouteEndpoint,
+    )
     from titanspan.routing.resource_registrar import ResourceRegistrar
     from titanspan.routing.route import RouteDefinition
+    from titanspan.routing.route_collection import RouteFilter
     from titanspan.routing.route_group import RouteGroupBuilder
 
 
@@ -362,18 +367,44 @@ class Route(Facade[Router]):
         return cls.router().route(path, action, methods=("OPTIONS",))
 
     @classmethod
+    @overload
     def match(
         cls,
         methods: Sequence[str],
         path: str,
         action: RouteAction,
     ) -> RouteDefinition:
+        """Register an endpoint for an explicit method sequence.
+
+        The returned route definition supports metadata configuration.
+        """
+
+    @classmethod
+    @overload
+    def match(
+        cls,
+        methods: Sequence[str],
+        path: str,
+        action: None = None,
+    ) -> Callable[[RouteEndpoint], RouteEndpoint]:
+        """Return a decorator for an explicit method sequence.
+
+        The decorated callable is registered without wrapping it.
+        """
+
+    @classmethod
+    def match(
+        cls,
+        methods: Sequence[str],
+        path: str,
+        action: RouteAction | None = None,
+    ) -> RouteDefinition | Callable[[RouteEndpoint], RouteEndpoint]:
         """Register a route for an explicit method sequence.
 
         Args:
             methods: HTTP methods accepted by the route.
             path: Absolute path template.
-            action: Callable or controller action.
+            action: Optional callable or controller action.
 
         Returns:
             Fluent route definition.
@@ -381,16 +412,185 @@ class Route(Facade[Router]):
         return cls.router().match(methods, path, action)
 
     @classmethod
-    def any(cls, path: str, action: RouteAction) -> RouteDefinition:
-        """Register a route for the common supported HTTP methods.
+    @overload
+    def connect(
+        cls,
+        path: str,
+    ) -> Callable[[RouteEndpoint], RouteEndpoint]:
+        """Return a CONNECT endpoint decorator.
+
+        The endpoint retains its original callable identity.
+        """
+
+    @classmethod
+    @overload
+    def connect(
+        cls,
+        path: str,
+        action: RouteAction,
+    ) -> RouteDefinition:
+        """Register one CONNECT endpoint.
+
+        Direct registration returns the mutable route definition.
+        """
+
+    @classmethod
+    def connect(
+        cls,
+        path: str,
+        action: RouteAction | None = None,
+    ) -> RouteDefinition | Callable[[RouteEndpoint], RouteEndpoint]:
+        """Register CONNECT directly or return a decorator.
+
+        Args:
+            path: Absolute route path.
+            action: Optional callable or controller action.
+
+        Returns:
+            A route definition or endpoint decorator.
+        """
+        if action is None:
+            return cls.router().connect(path)
+        return cls.router().connect(path, action)
+
+    @classmethod
+    @overload
+    def trace(
+        cls,
+        path: str,
+    ) -> Callable[[RouteEndpoint], RouteEndpoint]:
+        """Return a TRACE endpoint decorator.
+
+        The endpoint retains its original callable identity.
+        """
+
+    @classmethod
+    @overload
+    def trace(
+        cls,
+        path: str,
+        action: RouteAction,
+    ) -> RouteDefinition:
+        """Register one TRACE endpoint.
+
+        Direct registration returns the mutable route definition.
+        """
+
+    @classmethod
+    def trace(
+        cls,
+        path: str,
+        action: RouteAction | None = None,
+    ) -> RouteDefinition | Callable[[RouteEndpoint], RouteEndpoint]:
+        """Register TRACE directly or return a decorator.
+
+        Args:
+            path: Absolute route path.
+            action: Optional callable or controller action.
+
+        Returns:
+            A route definition or endpoint decorator.
+        """
+        if action is None:
+            return cls.router().trace(path)
+        return cls.router().trace(path, action)
+
+    @classmethod
+    @overload
+    def websocket(
+        cls,
+        path: str,
+    ) -> Callable[[RouteEndpoint], RouteEndpoint]:
+        """Return a WebSocket endpoint decorator.
+
+        The endpoint retains its original callable identity.
+        """
+
+    @classmethod
+    @overload
+    def websocket(
+        cls,
+        path: str,
+        action: RouteAction,
+    ) -> RouteDefinition:
+        """Register one WebSocket endpoint.
+
+        Direct registration returns the mutable route definition.
+        """
+
+    @classmethod
+    def websocket(
+        cls,
+        path: str,
+        action: RouteAction | None = None,
+    ) -> RouteDefinition | Callable[[RouteEndpoint], RouteEndpoint]:
+        """Register a WebSocket handler directly or as a decorator.
+
+        Args:
+            path: Absolute WebSocket route path.
+            action: Optional async callable or controller action.
+
+        Returns:
+            A route definition or endpoint decorator.
+        """
+        if action is None:
+            return cls.router().websocket(path)
+        return cls.router().websocket(path, action)
+
+    @classmethod
+    def bind(
+        cls,
+        parameter: str,
+        callback: RouteBindingCallback,
+    ) -> None:
+        """Register a path parameter binding callback.
+
+        Args:
+            parameter: Native route parameter name.
+            callback: Synchronous or asynchronous value resolver.
+        """
+        cls.router().bind(parameter, callback)
+
+    @classmethod
+    @overload
+    def any(
+        cls,
+        path: str,
+    ) -> Callable[[RouteEndpoint], RouteEndpoint]:
+        """Return a decorator for common HTTP methods.
+
+        The supported method set excludes CONNECT and TRACE.
+        """
+
+    @classmethod
+    @overload
+    def any(
+        cls,
+        path: str,
+        action: RouteAction,
+    ) -> RouteDefinition:
+        """Register common HTTP methods for one endpoint.
+
+        Direct registration returns the mutable route definition.
+        """
+
+    @classmethod
+    def any(
+        cls,
+        path: str,
+        action: RouteAction | None = None,
+    ) -> RouteDefinition | Callable[[RouteEndpoint], RouteEndpoint]:
+        """Register common HTTP methods directly or as a decorator.
 
         Args:
             path: Absolute path template.
-            action: Callable or controller action.
+            action: Optional callable or controller action.
 
         Returns:
-            Fluent route definition.
+            A route definition or endpoint decorator.
         """
+        if action is None:
+            return cls.router().any(path)
         return cls.router().any(path, action)
 
     @classmethod
@@ -484,6 +684,55 @@ class Route(Facade[Router]):
             controller,
             parameter=parameter,
         )
+
+    @classmethod
+    def singleton(
+        cls,
+        name: str,
+        controller: type[object],
+    ) -> ResourceRegistrar:
+        """Register a singleton resource controller.
+
+        Args:
+            name: Relative resource name or nested path.
+            controller: Controller type resolved for each request.
+
+        Returns:
+            A registrar for singleton inclusion and exclusion.
+        """
+        return cls.router().singleton(name, controller)
+
+    @classmethod
+    def api_singleton(
+        cls,
+        name: str,
+        controller: type[object],
+    ) -> ResourceRegistrar:
+        """Register an API singleton resource controller.
+
+        Args:
+            name: Relative resource name or nested path.
+            controller: Controller type resolved for each request.
+
+        Returns:
+            A registrar for singleton inclusion and exclusion.
+        """
+        return cls.router().api_singleton(name, controller)
+
+    @classmethod
+    def inspect(
+        cls,
+        filters: RouteFilter | None = None,
+    ) -> tuple[RouteDefinition, ...]:
+        """Return matching route definitions in registration order.
+
+        Args:
+            filters: Exact metadata selectors, or an empty selector.
+
+        Returns:
+            Original route definitions from the canonical application catalog.
+        """
+        return cls.router().inspect(filters)
 
     @classmethod
     def alias_middleware(

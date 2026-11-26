@@ -12,8 +12,10 @@ Python APIs on top of established libraries.
 
 The project is in early development. The implemented foundation includes
 native configuration, logging, Support utilities, Collections, a synchronous-
-first service container, HTTP, and initial Routing on a FastAPI-backed ASGI
-host. These components have unit and integration coverage, but lifecycle,
+first service container, HTTP, and Routing on a FastAPI-backed ASGI host.
+Routing provides native registration, dispatch, discovery, inspection, URL
+generation, WebSockets, and OpenAPI integration. These components have unit
+and integration coverage, but lifecycle,
 concurrency, security, and operational limits remain. Titanspan is not yet
 production-ready. See the architecture, roadmap, and component specifications
 for current capability status.

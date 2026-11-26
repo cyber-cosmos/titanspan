@@ -26,9 +26,10 @@ also exposes supported named path reversal after route compilation.
   exact same protocol object.
 - Register one application-owned `UrlGenerator` under its concrete class and
   contract, backed by the Router's canonical `RouteCatalog`.
-- Resolve the `UriUrlGenerator` contract from URI factories, Routing helpers,
-  dependency injection, and named redirects. A contract substitution must be
-  visible through every public URL-generation entry point.
+- Resolve the `UriUrlGenerator` contract from URI factories, `route()` and
+  `url()` helpers, dependency injection, and named redirects. A contract
+  substitution must be visible through every public URL-generation entry
+  point.
 - Return relative URLs by default from named route factories and helpers.
   Callers request the configured trusted origin with `absolute=True`.
 - Bind lazy URI URL and response-factory resolvers together with Foundation's
@@ -60,7 +61,6 @@ should generate a relative named route when redirecting. Signed URLs,
 verification, and key lifecycle remain pending.
 
 The relative default aligns `Uri.route()` and `Uri.action()` with the Routing
-`route()` helper. Callers that relied on an absolute URI must pass
-`absolute=True`. Custom Starlette converters remain unsupported by the native
-Router; URL generation rejects them instead of returning a path that may not
-match.
+helpers. Callers that relied on an absolute URI must pass `absolute=True`.
+Custom Starlette converters remain unsupported by the native Router; URL
+generation rejects them instead of returning a path that may not match.

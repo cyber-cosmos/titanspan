@@ -75,6 +75,8 @@ def test_route_rejects_empty_or_malformed_method_sets(
         "/items/{item",
         "/items/{1item}",
         "/items/{item}}",
+        "/items/{item?}/edit",
+        "/items/{item?}/{child?}",
     ],
 )
 def test_route_rejects_malformed_path_templates(path: str) -> None:
@@ -103,10 +105,15 @@ def test_route_rejects_invalid_metadata_values() -> None:
         route.where("item_id", "x" * 257)
     with pytest.raises(InvalidRouteError):
         route.defaults({"other": 1})
+    route.where_number("item_id")
+    with pytest.raises(InvalidRouteError, match="constraint"):
+        route.defaults({"item_id": "not-a-number"})
     with pytest.raises(InvalidRouteError):
         route.domain("https://example.test")
     with pytest.raises(InvalidRouteError):
         route.status_code(99)
+    with pytest.raises(InvalidRouteError, match="HTTP status"):
+        route.responses({99: {"description": "invalid"}})
 
 
 def test_route_mutations_fail_after_router_freeze() -> None:

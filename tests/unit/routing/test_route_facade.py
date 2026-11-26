@@ -5,6 +5,7 @@ compiles for incoming requests.
 """
 
 import pytest
+from starlette.websockets import WebSocket
 
 from titanspan.contracts.http import HttpRequest, HttpResponse, RequestHandler
 from titanspan.facades import Route
@@ -114,6 +115,27 @@ def endpoint() -> str:
     return "ok"
 
 
+def binding(value: str) -> str:
+    """Preserve the route value for facade binding registration.
+
+    Args:
+        value: Raw route parameter supplied to the callback.
+
+    Returns:
+        The same value for route argument injection.
+    """
+    return value
+
+
+async def websocket_endpoint(websocket: WebSocket) -> None:
+    """Provide a typed endpoint for WebSocket facade registration.
+
+    Args:
+        websocket: Starlette connection supplied during actual dispatch.
+    """
+    _ = websocket
+
+
 def test_route_facade_delegates_registration_to_active_router() -> None:
     """Exercise direct, fluent, decorator, and resource facade APIs.
 
@@ -206,3 +228,35 @@ def test_route_facade_reuses_registered_router_instance() -> None:
         second = Route.router()
 
     assert first is second is application.router
+
+
+def test_route_facade_decorators_inspection_and_singleton_resources() -> None:
+    """Expose native decorators, bindings, filters, and singleton resources.
+
+    Every facade method delegates into one application-owned route catalog.
+    """
+    application = Application()
+
+    with application.context():
+        connect = Route.connect("/connect", endpoint)
+        trace = Route.trace("/trace", endpoint)
+        Route.connect("/connect-decorated")(endpoint)
+        Route.trace("/trace-decorated")(endpoint)
+        any_decorator = Route.any("/any-decorated")
+        any_decorator(endpoint)
+        websocket = Route.websocket("/socket", websocket_endpoint)
+        websocket_decorator = Route.websocket("/socket-decorated")
+        websocket_decorator(websocket_endpoint)
+        Route.bind("facade_id", binding)
+        singleton = Route.singleton("profile", ItemController)
+        api_singleton = Route.api_singleton("settings", ItemController)
+        singleton.only(["show"])
+        api_singleton.only(["show"])
+        singleton_routes = Route.inspect()
+
+    assert connect.methods == ("CONNECT",)
+    assert trace.methods == ("TRACE",)
+    assert websocket.protocol == "websocket"
+    assert any(route.path == "/profile" for route in singleton_routes)
+    assert any(route.path == "/settings" for route in singleton_routes)
+    assert any(route.path == "/socket-decorated" for route in singleton_routes)

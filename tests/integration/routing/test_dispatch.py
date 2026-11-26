@@ -27,6 +27,7 @@ from titanspan.routing import EndpointResponseError
 pytestmark = pytest.mark.integration
 
 _TRACE: list[str] = []
+_ROUTE_MIDDLEWARE_NAMES: list[str] = []
 _EXPECTED_PATH = "/documents/create"
 _MIDDLEWARE_THREAD_IDS: list[int] = []
 
@@ -143,6 +144,9 @@ class TraceMiddleware:
         Returns:
             Response returned by the downstream route chain.
         """
+        route_name = Route.current_route_name()
+        if route_name is not None:
+            _ROUTE_MIDDLEWARE_NAMES.append(route_name)
         _TRACE.append("before")
         response = await next_handler(request)
         _TRACE.append("after")
@@ -494,6 +498,7 @@ def test_controller_facade_and_route_middleware_share_application_state() -> (
     Controller construction stays request-time and middleware is ordered.
     """
     _TRACE.clear()
+    _ROUTE_MIDDLEWARE_NAMES.clear()
     application = Application(service_providers=(CatalogProvider(),))
     application.router.alias_middleware("trace", TraceMiddleware)
     application.router.get(
@@ -516,6 +521,7 @@ def test_controller_facade_and_route_middleware_share_application_state() -> (
         "route_name": "documents.show",
     }
     assert _TRACE == ["before", "after"]
+    assert _ROUTE_MIDDLEWARE_NAMES == ["documents.show"]
 
 
 def test_global_and_route_middleware_wrap_endpoint_in_order() -> None:

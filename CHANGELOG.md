@@ -13,16 +13,15 @@ public release.
   use shared retry helpers. Routing validates URL constraints and trusted
   domains. Collection intersection checks every iterable. Pytest collection
   rejects tests without category markers.
-- Added native route registration, controller dispatch, request scopes,
-  helpers, and URL generation. URI factories and redirects share the active
-  application context and route catalog. Titanspan validates redirect
-  responses. Signed URLs remain unavailable until secure signing and
-  verification exist.
-- Unified named route generation through `UriUrlGenerator`, aligned relative
-  defaults across URI factories and Routing helpers, and reused Support's
-  query encoder. Call `absolute=True` to preserve prior absolute `Uri.route()`
-  and `Uri.action()` output. Built-in route converters now reject values that
-  cannot match; custom Starlette converters remain unsupported.
+- Completed native route registration, resource APIs, controller and
+  parameter binding, middleware conventions, discovery, inspection, safe JSON
+  route metadata caching, WebSocket dispatch, and FastAPI OpenAPI integration.
+- Unified URI factories, route helpers, dependency injection, and named
+  redirects through the application-owned `UriUrlGenerator`. Named route
+  helpers default to relative URLs; `Uri.to()` remains absolute. Support's
+  `Arr.query` owns query encoding. Built-in converters reject values that
+  cannot match; custom Starlette converters remain unsupported. Signed URLs
+  remain pending secure application key management.
 - Added ordered event dispatch through Blinker 1.9.0. It supports sync and
   async listeners, Container injection, wildcards, subscribers, discovery,
   context-local fakes, deferral, and bounded event pushes.

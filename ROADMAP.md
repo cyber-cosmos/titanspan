@@ -2,8 +2,10 @@
 
 Titanspan is consolidating its engineering foundation and implementing the
 application and web composition lifecycle in tested vertical slices. Native
-configuration, logging, Support, the sync-first container, HTTP, and initial
-Routing have application integration. Explicit third-party FastAPI providers
+configuration, logging, Support, the sync-first container, HTTP, and Routing
+have application integration. Routing covers registration, dispatch,
+discovery, inspection, safe metadata snapshots, WebSockets, and OpenAPI
+through the established ASGI host. Explicit third-party FastAPI providers
 remain an interoperability boundary; ordinary Titanspan route dispatch uses
 the native container. These phases are capability milestones, not calendar
 promises.
@@ -37,13 +39,14 @@ queue, transaction, broadcasting, and Console integrations remain planned.
 
 ## Phase 2 — Web and developer tooling
 
-- The initial HTTP component provides ASGI request scopes, responses,
-  middleware, streaming, and pooled clients. Routing provides native
-  registration, controller dispatch, and URL generation. See the HTTP and
-  Routing documentation for verified and pending behavior.
-- Route discovery, route caching, WebSockets, secure signed URLs, HTTP fake
-  transports, bounded concurrent HTTP pools, and structured observability
-  improvements remain.
+- The HTTP component provides ASGI request scopes, responses, middleware,
+  streaming, and pooled clients. Routing provides native registration,
+  controller dispatch, URL generation, discovery, inspection, WebSockets,
+  and OpenAPI. See the component specifications for verified behavior.
+- Routing integrations remain for Database-backed model binding, key-managed
+  signed URLs, View routes, parameterized middleware, Console route listing,
+  and Foundation base-path discovery. HTTP fake transports, bounded
+  concurrent HTTP pools, and structured observability improvements remain.
 - CLI generators and application test utilities.
 
 ## Phase 3 — AI orchestration

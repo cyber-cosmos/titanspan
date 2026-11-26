@@ -116,14 +116,16 @@ with application.context():
 ```
 
 The same route catalog powers `Uri.route`, `Uri.action`, the Routing helpers,
-and named redirects. Named routes are relative by default; pass
-`absolute=True` to include the trusted origin. Path values are percent-encoded
-and checked against route converters. Remaining values use Support's RFC 3986
-query encoder. Lists use indexed bracket keys, nested mappings use bracket
-notation, `None` values are omitted, and booleans use `1` or `0`. After
-startup, named paths use the supported ASGI router reversal operation. Custom
-Starlette converters are not exposed by the native Router. The request Host
-and forwarded headers never set the origin.
+and named redirects. The top-level `route()` and `url()` helpers also use the
+application's `UriUrlGenerator` contract, including when callers replace it.
+Named routes are relative by default; pass `absolute=True` to include the
+trusted origin. `Uri.to()` remains absolute. Path values are percent-encoded
+and checked against supported route converters. Remaining values use
+Support's `Arr.query` encoder: lists use indexed bracket keys, nested mappings
+use bracket notation, `None` values are omitted, and booleans use `1` or `0`.
+After startup, named paths use supported ASGI router reversal. Custom Starlette
+converters are not exposed by the native Router. Request Host and forwarded
+headers never set the origin.
 
 Action lookup accepts a dotted callable identity such as
 `"ProfileController.show"`. It fails if no registered route matches or if

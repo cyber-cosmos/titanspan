@@ -5,6 +5,8 @@ Helpers never create a process-global router or response service.
 
 from __future__ import annotations
 
+from contextlib import contextmanager
+from contextvars import ContextVar, Token
 from typing import TYPE_CHECKING
 
 from titanspan._application_context import (
@@ -14,11 +16,11 @@ from titanspan.container import BindingResolutionError
 from titanspan.contracts.http import HttpResponse, ResponseFactory
 from titanspan.contracts.routing import UriUrlGenerator
 from titanspan.http.request import Request
-from titanspan.routing.exceptions import RouteUrlError, RoutingContextError
+from titanspan.routing.exceptions import RoutingContextError
 from titanspan.routing.route import RouteDefinition
 
 if TYPE_CHECKING:
-    from collections.abc import Mapping
+    from collections.abc import Generator, Mapping
 
 _ROUTE_ATTRIBUTE = "titanspan.route"
 _ROUTE_CONTEXT_ERROR = (
@@ -28,7 +30,29 @@ _URL_CONTEXT_ERROR = "Route URL helpers require an active application."
 _REDIRECT_CONTEXT_ERROR = (
     "Redirect helpers require an active application context."
 )
-_LOCAL_PATH_ERROR = "URL paths must be local absolute paths."
+_CURRENT_ROUTE: ContextVar[RouteDefinition | None] = ContextVar(
+    "titanspan_current_route",
+    default=None,
+)
+
+
+@contextmanager
+def bind_current_route(
+    route_definition: RouteDefinition,
+) -> Generator[None, None, None]:
+    """Bind route metadata for one handler and middleware call chain.
+
+    Args:
+        route_definition: Route selected by the native ASGI matcher.
+
+    Yields:
+        Control while current-route helpers can inspect the matched route.
+    """
+    token: Token[RouteDefinition | None] = _CURRENT_ROUTE.set(route_definition)
+    try:
+        yield
+    finally:
+        _CURRENT_ROUTE.reset(token)
 
 
 class Redirector:
@@ -132,11 +156,7 @@ def url(path: str, *, absolute: bool = False) -> str:
         RoutingContextError: If absolute generation lacks app context.
         RouteUrlError: If the path is unsafe or origin is missing.
     """
-    if absolute:
-        return _url_generator().to(path)
-    if not path.startswith("/") or path.startswith("//"):
-        raise RouteUrlError(_LOCAL_PATH_ERROR)
-    return path
+    return _url_generator().url(path, absolute)
 
 
 def redirect() -> Redirector:
@@ -170,6 +190,9 @@ def current_route() -> RouteDefinition | None:
     Raises:
         RoutingContextError: If there is no active application/request.
     """
+    current = _CURRENT_ROUTE.get()
+    if current is not None:
+        return current
     active = active_application_context()
     if active is None:
         raise RoutingContextError(_ROUTE_CONTEXT_ERROR)

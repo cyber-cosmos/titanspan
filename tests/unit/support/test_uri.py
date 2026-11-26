@@ -292,6 +292,19 @@ def test_uri_resolver_supports_url_generation_helpers() -> None:
             self.calls.append(("to", path))
             return "https://example.test/to"
 
+        def url(self, path: str, absolute: bool) -> str:
+            """Build a helper URL through the shared routing contract.
+
+            Args:
+                path: Local application path selected by the caller.
+                absolute: Whether to include the trusted application origin.
+
+            Returns:
+                A test URL whose arguments remain observable.
+            """
+            self.calls.append(("url", path, absolute))
+            return f"https://example.test/url/{absolute}{path}"
+
         def route(
             self,
             name: str,
