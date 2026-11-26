@@ -29,6 +29,7 @@ dependencies = [
     "anyio>=4.16,<5",
     "blinker>=1.9,<2",
     "dishka>=1.6,<2",
+    "email-validator>=2.2,<3",
     "fastapi>=0.115,<1",
     "httpx2>=2,<3",
     "pydantic-settings>=2.7,<3",
@@ -38,6 +39,7 @@ dependencies = [
     "structlog>=26.1,<27",
     "tenacity>=9.1,<10",
     "typer>=0.15,<1",
+    "typing-extensions>=4.16,<5",
 ]
 
 [project.urls]
@@ -182,6 +184,9 @@ ignore = [
 "src/titanspan/logging/drivers/standard.py" = [
     "N802", # Match TimedRotatingFileHandler.computeRollover.
     "N803", # Match the computeRollover parameter required by the base hook.
+]
+"src/titanspan/validation/exceptions.py" = [
+    "N818", # Keep the task-required native ValidationException spelling.
 ]
 "tests/integration/logging/test_webhook.py" = [
     "A002", # Match BaseHTTPRequestHandler.log_message's format parameter.

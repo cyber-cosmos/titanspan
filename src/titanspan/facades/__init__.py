@@ -10,5 +10,14 @@ from titanspan.facades.event import Event
 from titanspan.facades.http import Http
 from titanspan.facades.log import Log
 from titanspan.facades.route import Route
+from titanspan.facades.validation import Validation
 
-__all__ = ["Config", "Event", "Facade", "Http", "Log", "Route"]
+__all__ = [
+    "Config",
+    "Event",
+    "Facade",
+    "Http",
+    "Log",
+    "Route",
+    "Validation",
+]

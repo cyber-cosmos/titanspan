@@ -5,6 +5,10 @@ public release.
 
 ## Unreleased
 
+- Added Pydantic-backed Validation with typed schemas, coercion policy, safe
+  field issues, sync and async application rules, result helpers, and
+  authoritative HTTP request input. Foundation 422 rendering and Routing
+  schema integration remain owner changes.
 - Added an ordered sync and async Pipeline for transforms, continuation
   middleware, class stages, conditional inclusion, and native Container
   resolution. Pipeline owns no task scheduler or workflow state.

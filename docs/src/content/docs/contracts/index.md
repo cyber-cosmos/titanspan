@@ -22,6 +22,8 @@ The package currently exports:
   response construction.
 - Routing protocols for route catalogs, route metadata, and URL generation.
 - Support display and message protocols for HTML values and message bags.
+- Validation protocols for sync and async rules, safe issues, typed results,
+  and the application Validation service.
 - Logging protocols for drivers, formatters, processors, async delivery, and
   logger customization, plus the shared `DeliveryStatus` enum.
 
@@ -31,8 +33,9 @@ components remain pending. The [native Contracts specification](
 
 These interfaces describe substitution points. Defining a protocol does not
 mean a production implementation or complete framework feature exists.
-Validation and persistence contracts remain pending until their owners
-establish real behavioral boundaries.
+Validation has a Pydantic-backed implementation and a real application
+integration test. Persistence contracts remain pending until the Database
+owner establishes those boundaries.
 The configuration component provides the native `Repository` implementation
 of `ConfigRepository`. Application startup registers it through the
 application-owned `titanspan.container.Container`. Framework service
@@ -41,10 +44,13 @@ and native Routing share that application container. Native routes resolve
 services through the Container. External FastAPI routers can use
 `Application.dependency`; explicit external Dishka providers remain behind a
 separate private graph adapter. Domain packages own each protocol: `config`,
-`container`, `foundation`, `http`, `logging`, `routing`, and `support`.
+`container`, `foundation`, `http`, `logging`, `routing`, `support`, and
+`validation`.
 `titanspan.contracts` re-exports the same objects for convenience;
 component packages may also expose those objects without creating new
-identities. `ConfigRepository.get` accepts one path or an ordered sequence of
+identities. Validation contracts live under
+`titanspan.contracts.validation`; the top-level package re-exports those same
+objects. `ConfigRepository.get` accepts one path or an ordered sequence of
 paths. The concrete `Repository` also exposes `get_many`, strict typed
 accessors, mapping behavior, and Support macros. Those additions are not
 required of every structural implementation. Pydantic Settings supplies

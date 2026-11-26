@@ -20,7 +20,8 @@ contracts/
 ├── logging/
 ├── pipeline/
 ├── routing/
-└── support/
+├── support/
+└── validation/
 ```
 
 Add a domain package only when its first shared contract is established.
@@ -44,6 +45,7 @@ Component-private protocols remain in their owning component.
 | `EventDispatcher` | Register, inspect, defer, fake, and dispatch application events | `NativeEventDispatcher`; service-provider and application integration tests |
 | `RouteCatalog`, `RouteInfo`, `UriUrlGenerator` | Share route inspection and URL generation | `titanspan.routing`; route and URI integration tests |
 | `PipelineContinuation`, `PipelineMiddlewareHandler` | Type sequential continuation callbacks | `titanspan.pipeline`; Pipeline unit tests |
+| `ValidationService`, `ValidationRule`, `AsyncValidationRule` | Validate typed values and apply ordered application rules | `titanspan.validation`; `tests/integration/validation/test_validation_application.py` |
 
 `Scope` and `ServiceFactory` are container domain values in Contracts and are
 re-exported by `titanspan.container` with canonical object identity.
@@ -53,11 +55,10 @@ type. The shared package therefore does not import concrete records, loggers,
 or backend types. `titanspan.logging` re-exports the same contract objects
 for application convenience.
 
-Response conversion, validated-data, generic mapping conversion, JSON-text,
-and general rendering protocols are not public contracts. They had no
-production owner or consumer; their fixture-only declarations were removed.
-Validation contracts remain pending until that component has a production
-implementation and a tested application boundary.
+Response conversion, generic mapping conversion, JSON-text, and general
+rendering protocols are not public contracts. They had no production owner or
+consumer; their fixture-only declarations were removed. Validation owns the
+validated-data boundary through `ValidationService` and its typed result.
 
 ## Typing and semantics
 

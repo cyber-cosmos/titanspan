@@ -35,6 +35,7 @@ PROTECTED_NAMING_RULES = frozenset(
         "N802",
         "N803",
         "N806",
+        "N818",
         "N815",
         "N816",
         "A001",
@@ -45,6 +46,7 @@ PROTECTED_NAMING_RULES = frozenset(
 _EXPECTED_NAMING_EXCEPTIONS = {
     "src/titanspan/logging/drivers/standard.py": frozenset({"N802", "N803"}),
     "tests/integration/logging/test_webhook.py": frozenset({"A002"}),
+    "src/titanspan/validation/exceptions.py": frozenset({"N818"}),
 }
 
 

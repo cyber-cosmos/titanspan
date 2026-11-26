@@ -77,12 +77,23 @@ from titanspan.contracts.support import (
     MessageKey,
     MessageProvider,
 )
+from titanspan.contracts.validation import (
+    AsyncValidationRule,
+    AsyncValidationRuleCheck,
+    ValidationIssue,
+    ValidationResult,
+    ValidationRule,
+    ValidationRuleCheck,
+    ValidationService,
+)
 
 __all__ = [
     "AsyncLogDriver",
     "AsyncPipelineContinuation",
     "AsyncPipelineMiddlewareHandler",
     "AsyncServiceContainer",
+    "AsyncValidationRule",
+    "AsyncValidationRuleCheck",
     "BootableServiceProvider",
     "ConfigArray",
     "ConfigDiagnostics",
@@ -136,4 +147,9 @@ __all__ = [
     "ServiceRegistry",
     "TypedConfigReader",
     "UriUrlGenerator",
+    "ValidationIssue",
+    "ValidationResult",
+    "ValidationRule",
+    "ValidationRuleCheck",
+    "ValidationService",
 ]

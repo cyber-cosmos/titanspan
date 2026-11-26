@@ -12,8 +12,10 @@ promises.
 
 The standalone Collections component now provides eager and lazy operations
 for ordinary Python iterables. Pipeline provides ordered synchronous and
-asynchronous value transformations. Streaming data pipelines and large-scale
-processing remain planned.
+asynchronous value transformations. Validation provides Pydantic-backed
+schemas, native field errors, application rules, and HTTP request input.
+Foundation rendering and Routing schema integration remain with their owners.
+Streaming data pipelines and large-scale processing remain planned.
 
 The Events component now provides ordered in-process dispatch, Container-backed
 listeners, scoped fakes, deferred dispatch, and trusted discovery. Durable
@@ -46,8 +48,9 @@ queue, transaction, broadcasting, and Console integrations remain planned.
   and OpenAPI. See the component specifications for verified behavior.
 - Routing integrations remain for Database-backed model binding, key-managed
   signed URLs, View routes, parameterized middleware, Console route listing,
-  and Foundation base-path discovery. HTTP fake transports, bounded
-  concurrent HTTP pools, and structured observability improvements remain.
+  and Foundation base-path discovery. HTTP fake transports and bounded
+  concurrent HTTP pools are implemented; structured observability improvements
+  remain with Telemetry.
 - CLI generators and application test utilities.
 
 ## Phase 3 — AI orchestration

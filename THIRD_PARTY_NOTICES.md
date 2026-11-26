@@ -83,6 +83,27 @@ transport, connection pooling, and response streaming. No HTTPX2 source code
 is copied into Titanspan. HTTPX2 is distributed under the BSD 3-Clause
 License; see the [official HTTPX2 license](https://github.com/pydantic/httpx2/blob/main/LICENSE).
 
+## email-validator
+
+Titanspan installs email-validator 2.4.0 for Pydantic's `EmailStr` schema
+support. No email-validator source is copied into Titanspan. The package is
+distributed under The Unlicense; see the
+[2.4.0 source license](https://github.com/JoshData/python-email-validator/blob/v2.4.0/LICENSE).
+
+## dnspython
+
+email-validator depends on dnspython 2.9.2. Titanspan does not use DNS
+deliverability checks for Pydantic `EmailStr` values. dnspython is distributed
+under the ISC License; see the
+[2.9.2 license](https://github.com/rthalley/dnspython/blob/v2.9.2/LICENSE).
+
+## typing-extensions
+
+Titanspan uses typing-extensions 4.16.0's public `TypeForm` type to express
+Pydantic-compatible schemas on supported Python versions. The package is
+distributed under the PSF License; see the
+[upstream project](https://github.com/python/typing_extensions).
+
 ## python-multipart
 
 Titanspan uses python-multipart 0.0.34 through Starlette's bounded multipart

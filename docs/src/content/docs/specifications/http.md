@@ -4,15 +4,17 @@ title: "HTTP behavioral specification"
 
 <span id="http-behavioral-specification"></span>
 
-This specification records the implemented Titanspan HTTP boundary. It does
-not imply capabilities in Authentication, Filesystem, Validation,
-Concurrency, or Telemetry components.
+This specification records the implemented Titanspan HTTP boundary. HTTP
+request validation delegates to the Validation component and does not add a
+second schema engine. It does not imply capabilities in Authentication,
+Filesystem, Concurrency, or Telemetry components.
 
 ## Implemented and verified
 
 | Capability | Public boundary | Evidence |
 | --- | --- | --- |
 | Incoming metadata and typed input | `HttpRequest`, `Request` | `tests/unit/http/test_request.py` |
+| Application schema validation of request input | `Validation.validate_request` | `tests/integration/validation/test_validation_application.py` |
 | Bounded body and multipart parsing | `ServerConfiguration`, `Request` | Request unit and ASGI tests |
 | Request-owned upload lifecycle | `UploadedFile` | `tests/unit/http/test_uploaded_file.py` |
 | Route metadata and request/correlation identifiers | `Request` | Request and dispatch integration tests |
