@@ -85,12 +85,15 @@ def test_response_rejects_unsafe_headers_at_construction() -> None:
         Response(headers={"X-Trace": "safe\nInjected: yes"})
 
 
-def test_response_never_sends_content_for_bodyless_status() -> None:
+@pytest.mark.parametrize("status", [204, 205, 304])
+def test_response_never_sends_content_for_bodyless_status(
+    status: int,
+) -> None:
     """Discard supplied bytes for status codes that cannot carry a body.
 
     The assertions verify the public result and its error paths.
     """
-    response = Response("discarded", status=204)
+    response = Response("discarded", status=status)
 
     assert response.body == b""
 
@@ -101,7 +104,9 @@ def test_json_response_rejects_bodyless_status() -> None:
     The assertions verify the public result and its error paths.
     """
     with pytest.raises(ValueError, match="cannot carry a response body"):
-        JsonResponse({"ready": True}, status=204)
+        JsonResponse({"ready": True}, status=205)
+    with pytest.raises(ValueError, match="cannot carry a response body"):
+        HtmlResponse("<p>ready</p>", status=205)
 
 
 def test_cookie_defaults_and_cache_policy_are_explicit() -> None:
@@ -295,9 +300,12 @@ def test_response_factory_produces_empty_bodyless_responses() -> None:
     The assertions verify the public result and its error paths.
     """
     response = NativeResponseFactory().no_content()
+    reset = NativeResponseFactory().no_content(status=HTTPStatus.RESET_CONTENT)
 
     assert response.status_code == HTTPStatus.NO_CONTENT
     assert response.body == b""
+    assert reset.status_code == HTTPStatus.RESET_CONTENT
+    assert reset.body == b""
 
 
 def test_factory_builds_specialized_responses_and_validates_empty_status() -> (
@@ -318,7 +326,7 @@ def test_factory_builds_specialized_responses_and_validates_empty_status() -> (
     assert html_response.headers["content-type"].startswith("text/html")
     assert redirect_response.headers["location"] == "/ready"
 
-    with pytest.raises(ValueError, match="status 204 or 304"):
+    with pytest.raises(ValueError, match="status 204, 205, or 304"):
         factory.no_content(status=HTTPStatus.OK)
 
     file_response = factory.download(__file__, filename="report.py")

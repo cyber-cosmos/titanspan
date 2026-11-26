@@ -103,6 +103,8 @@ class ResponseFactory(Protocol):
     def no_content(self, *, status: int = 204) -> HttpResponse:
         """Construct an empty response for a bodyless status.
 
+        Supported statuses are 204, 205, and 304.
+
         Callers rely on native contracts, not concrete backend types.
         """
         ...

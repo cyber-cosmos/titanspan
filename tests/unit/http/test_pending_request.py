@@ -497,6 +497,20 @@ async def test_builder_rejects_invalid_options_and_arbitrary_json_objects() -> (
 
 
 @pytest.mark.anyio
+async def test_base_url_does_not_hide_protocol_relative_destinations() -> None:
+    """Reject protocol-relative input before applying the configured base.
+
+    A base URL must not turn an external authority into an approved URL.
+    """
+    request = PendingRequest(ClientFake()).base_url(
+        "https://api.example.test/v1"
+    )
+
+    with pytest.raises(HttpClientError, match="destinations"):
+        await request.get_async("//attacker.example/path")
+
+
+@pytest.mark.anyio
 async def test_builder_rejects_multipart_json_and_invalid_fields() -> None:
     """Reject mixed JSON uploads and malformed multipart fields.
 

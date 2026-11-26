@@ -54,6 +54,7 @@ _COOKIE_VALUE_CHARS = frozenset(
 _NEGATIVE_COOKIE_AGE_ERROR = "Cookie max_age must be non-negative."
 _ASCII_CONTROL_MAX = 31
 _ASCII_DELETE = 127
+_BODYLESS_STATUSES = frozenset({204, 205, 304})
 
 
 @dataclass(frozen=True, slots=True)
@@ -178,7 +179,7 @@ class Response(ResponseBackend, _ResponseCookieMethods):
         if content_type is not None:
             validate_header("Content-Type", content_type)
         super().__init__(
-            content=None if status in {204, 304} else content,
+            content=None if status in _BODYLESS_STATUSES else content,
             status_code=status,
             headers=_validated_headers(headers),
             media_type=content_type,
@@ -293,6 +294,7 @@ class HtmlResponse(HtmlResponseBackend, _ResponseCookieMethods):
             status: HTTP status code.
             headers: Additional response headers.
         """
+        _require_body_status(status)
         super().__init__(
             content=content,
             status_code=status,
@@ -557,7 +559,7 @@ def _require_body_status(status: int) -> None:
     Raises:
         ValueError: If the status forbids a representation body.
     """
-    if status in {204, 304}:
+    if status in _BODYLESS_STATUSES:
         raise ValueError(_BODYLESS_STATUS_ERROR)
 
 

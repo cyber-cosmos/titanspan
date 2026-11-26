@@ -5,6 +5,9 @@ public release.
 
 ## Unreleased
 
+- Validate outbound URLs before base resolution and again after joining.
+  Fail-fast request pools stop accepting callbacks after a failure. Responses
+  suppress bodies for `HEAD` and statuses 204, 205, and 304.
 - Isolated pooled HTTP cookie state and shared ASGI body limits. Streams now
   close on disconnect or cancellation. Request builders snapshot inputs and
   use shared retry helpers. Routing validates URL constraints and trusted

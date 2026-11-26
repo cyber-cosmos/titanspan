@@ -30,6 +30,7 @@ remain invalid. File downloads require a trusted application-selected path.
 The supplied filename is reduced to a basename and never selects the source
 path.
 
-Responses with bodyless status codes do not send a body. Use `no_content`
-for 204 and 304 responses. JSON serialization accepts the supported JSON
-value model and rejects arbitrary application objects.
+Responses with status 204, 205, or 304 do not send a body. Use `no_content`
+for those statuses. Responses to `HEAD` send headers without body bytes while
+preserving the selected response metadata. JSON serialization accepts the
+supported JSON value model and rejects arbitrary application objects.

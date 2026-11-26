@@ -45,6 +45,7 @@ if TYPE_CHECKING:
     from titanspan.http.request import RequestBackend
 
 _BODY_LIMIT_MESSAGE = "The request body exceeds the configured size limit."
+_BODYLESS_STATUSES = frozenset({204, 205, 304})
 
 
 class RequestBoundary(NamedTuple):
@@ -58,35 +59,108 @@ class RequestBoundary(NamedTuple):
     receive: Receive
 
 
-class ResponseBackend(StarletteResponse):
+def _bodyless_send(
+    scope: Scope,
+    status_code: int,
+    send: Send,
+) -> Send:
+    """Wrap the sender when the request or status forbids response bytes.
+
+    Args:
+        scope: ASGI connection scope supplied by the server.
+        status_code: Status code selected by the response.
+        send: Original ASGI sender.
+
+    Returns:
+        The original sender or a wrapper that sends empty body messages.
+    """
+    is_head = (
+        scope["type"] == "http" and scope.get("method", "").upper() == "HEAD"
+    )
+    if not is_head and status_code not in _BODYLESS_STATUSES:
+        return send
+
+    async def send_without_body(message: Message) -> None:
+        """Forward response messages without representation bytes.
+
+        Args:
+            message: ASGI message produced by Starlette.
+        """
+        if message["type"] == "http.response.body":
+            message = {**message, "body": b""}
+        await send(message)
+
+    return send_without_body
+
+
+class _BodylessResponseBackend(StarletteResponse):
+    """Apply HTTP body rules before Starlette sends response messages.
+
+    HEAD semantics are enforced at the ASGI boundary because Starlette's
+    general response classes do not suppress bodies for these requests.
+    """
+
+    async def __call__(
+        self,
+        scope: Scope,
+        receive: Receive,
+        send: Send,
+    ) -> None:
+        """Suppress body messages for HEAD and bodyless status responses.
+
+        Args:
+            scope: ASGI connection scope supplied by the server.
+            receive: ASGI receiver supplied by the server.
+            send: ASGI sender supplied by the server.
+        """
+        await super().__call__(
+            scope,
+            receive,
+            _bodyless_send(scope, self.status_code, send),
+        )
+
+
+class ResponseBackend(_BodylessResponseBackend):
     """Provide a native subclass accepted by ASGI response integrations.
 
     Transport details stay behind this private adapter.
     """
 
 
-class JsonResponseBackend(StarletteJSONResponse):
+class JsonResponseBackend(
+    _BodylessResponseBackend,
+    StarletteJSONResponse,
+):
     """Provide a JSON response implementation for native wrappers.
 
     Transport details stay behind this private adapter.
     """
 
 
-class HtmlResponseBackend(StarletteHTMLResponse):
+class HtmlResponseBackend(
+    _BodylessResponseBackend,
+    StarletteHTMLResponse,
+):
     """Provide an HTML response implementation for native wrappers.
 
     Transport details stay behind this private adapter.
     """
 
 
-class RedirectResponseBackend(StarletteRedirectResponse):
+class RedirectResponseBackend(
+    _BodylessResponseBackend,
+    StarletteRedirectResponse,
+):
     """Provide a redirect response implementation for native wrappers.
 
     Transport details stay behind this private adapter.
     """
 
 
-class StreamingResponseBackend(StarletteStreamingResponse):
+class StreamingResponseBackend(
+    _BodylessResponseBackend,
+    StarletteStreamingResponse,
+):
     """Stream async chunks through the server's ASGI send channel.
 
     Close the iterator before the owning ASGI request scope exits.
@@ -117,7 +191,7 @@ class StreamingResponseBackend(StarletteStreamingResponse):
                     await iterator.aclose()
 
 
-class FileResponseBackend(StarletteFileResponse):
+class FileResponseBackend(_BodylessResponseBackend, StarletteFileResponse):
     """Stream a trusted application file through the ASGI response path.
 
     Transport details stay behind this private adapter.

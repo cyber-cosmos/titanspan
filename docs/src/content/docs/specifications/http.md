@@ -16,7 +16,7 @@ Concurrency, or Telemetry components.
 | Bounded body and multipart parsing | `ServerConfiguration`, `Request` | Request unit and ASGI tests |
 | Request-owned upload lifecycle | `UploadedFile` | `tests/unit/http/test_uploaded_file.py` |
 | Route metadata and request/correlation identifiers | `Request` | Request and dispatch integration tests |
-| Native response construction | `ResponseFactory`, response classes | `tests/unit/http/test_response.py` |
+| Native response construction, bodyless status and HEAD semantics | `ResponseFactory`, response classes | `tests/unit/http/test_response.py`, `tests/integration/http/test_asgi_backend.py` |
 | Response cookies and removal | Native response classes | `tests/unit/http/test_response.py` |
 | Streaming and SSE response encoding | `StreamResponse`, `ServerSentEvent` | Response unit and ASGI lifecycle tests |
 | Ordered dependency-injected middleware | `HttpMiddleware` | `tests/integration/http/test_middleware.py` |
@@ -64,9 +64,10 @@ identifier, and route name and parameters through the request attributes set
 by Routing.
 
 Response fluent header methods mutate the response and return it. JSON values
-are validated against the supported JSON model. Bodyless statuses do not
-transmit a body. Redirects reject protocol-relative and unsupported schemes;
-external HTTP(S) targets need explicit permission.
+are validated against the supported JSON model. Statuses 204, 205, and 304,
+and every `HEAD` response, transmit no body. Redirects reject
+protocol-relative and unsupported schemes; external HTTP(S) targets need
+explicit permission.
 
 `Uri.redirect()` and named Routing redirects delegate to the application-owned
 `ResponseFactory`. Named destinations use the canonical `UriUrlGenerator` and

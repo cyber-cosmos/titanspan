@@ -18,7 +18,7 @@ from titanspan.http.response import (
 )
 
 _INVALID_NO_CONTENT_STATUS_ERROR = (
-    "No-content responses require status 204 or 304."
+    "No-content responses require status 204, 205, or 304."
 )
 
 
@@ -120,9 +120,9 @@ class NativeResponseFactory(ResponseFactory):
             An empty response.
 
         Raises:
-            ValueError: If a status other than 204 or 304 is selected.
+            ValueError: If a status other than 204, 205, or 304 is selected.
         """
-        if status not in {204, 304}:
+        if status not in {204, 205, 304}:
             raise ValueError(_INVALID_NO_CONTENT_STATUS_ERROR)
         return Response(status=status)
 

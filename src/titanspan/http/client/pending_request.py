@@ -834,7 +834,8 @@ class PendingRequest:
         Fluent updates isolate request options until execution.
         """
         base_url = self._options.base_url
-        resolved = urljoin(base_url, url) if base_url else url
+        candidate = validate_outbound_url(url, allow_relative=True)
+        resolved = urljoin(base_url, candidate) if base_url else candidate
         return validate_outbound_url(
             resolved,
             allow_relative=base_url is None,

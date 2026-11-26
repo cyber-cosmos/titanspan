@@ -3,8 +3,11 @@
 The integration uses real components and local test services.
 """
 
+from collections.abc import AsyncIterator
+from pathlib import Path
 from typing import TYPE_CHECKING, cast
 
+import anyio
 import pytest
 from starlette.types import Message, Scope
 
@@ -12,6 +15,14 @@ from titanspan.http._backends.asgi import create_request
 from titanspan.http.configuration import ServerConfiguration
 from titanspan.http.exceptions import RequestBodyTooLargeError
 from titanspan.http.request import Request
+from titanspan.http.response import (
+    FileResponse,
+    HtmlResponse,
+    JsonResponse,
+    RedirectResponse,
+    Response,
+    StreamResponse,
+)
 from titanspan.http.uploaded_file import UploadedFile
 
 if TYPE_CHECKING:
@@ -245,3 +256,109 @@ async def test_asgi_receive_wrapper_rejects_oversized_multichunk_bodies() -> (
     with pytest.raises(RequestBodyTooLargeError):
         await request.body()
     await request.aclose()
+
+
+@pytest.mark.anyio
+@pytest.mark.parametrize(
+    ("method", "status"),
+    [("HEAD", 200), ("GET", 205)],
+)
+async def test_asgi_responses_suppress_body_for_head_and_reset_content(
+    method: str,
+    status: int,
+) -> None:
+    """Transmit no response body for HEAD and 205 responses.
+
+    The captured ASGI messages verify the response at the server boundary.
+    """
+    response = Response("discarded", status=status)
+    scope = _scope(headers=())
+    scope["method"] = method
+    messages: list[Message] = []
+
+    async def receive() -> Message:
+        """Return one completed empty request body.
+
+        The response under test does not need request input.
+        """
+        return {"type": "http.request", "body": b"", "more_body": False}
+
+    async def send(message: Message) -> None:
+        """Capture each real response ASGI message for inspection.
+
+        The test checks the body emitted by the native response object.
+        """
+        messages.append(message)
+
+    await response(scope, receive, send)
+
+    body_messages = [
+        message
+        for message in messages
+        if message["type"] == "http.response.body"
+    ]
+    assert len(body_messages) == 1
+    assert body_messages[0]["body"] == b""
+
+
+@pytest.mark.anyio
+@pytest.mark.parametrize(
+    "response_kind",
+    ["plain", "json", "html", "redirect", "stream", "file"],
+)
+async def test_asgi_head_suppresses_all_native_response_bodies(
+    response_kind: str,
+    tmp_path: Path,
+) -> None:
+    """Suppress body bytes for each native response type on HEAD requests.
+
+    The captured ASGI messages verify the server-facing response behavior.
+    """
+    file_path = tmp_path / "report.txt"
+    file_path.write_text("file body", encoding="utf-8")
+
+    async def chunks() -> AsyncIterator[bytes]:
+        """Yield one body chunk for the native stream response.
+
+        The HEAD adapter must suppress it at the ASGI boundary.
+        """
+        yield b"stream body"
+
+    responses = {
+        "plain": Response("plain body"),
+        "json": JsonResponse({"ready": True}),
+        "html": HtmlResponse("<p>ready</p>"),
+        "redirect": RedirectResponse("/ready"),
+        "stream": StreamResponse(chunks()),
+        "file": FileResponse(file_path),
+    }
+    response = responses[response_kind]
+    scope = _scope(headers=())
+    scope["method"] = "HEAD"
+    messages: list[Message] = []
+    disconnect = anyio.Event()
+
+    async def receive() -> Message:
+        """Wait until the response completes or cancels its listener.
+
+        StreamingResponse uses this receiver only for disconnect detection.
+        """
+        await disconnect.wait()
+        return {"type": "http.disconnect"}
+
+    async def send(message: Message) -> None:
+        """Capture each real response ASGI message for inspection.
+
+        The assertion examines only the representation body messages.
+        """
+        messages.append(message)
+
+    await response(scope, receive, send)
+
+    body_messages = [
+        message
+        for message in messages
+        if message["type"] == "http.response.body"
+    ]
+    assert body_messages
+    assert all(message["body"] == b"" for message in body_messages)

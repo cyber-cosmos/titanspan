@@ -631,6 +631,41 @@ async def test_request_pool_closes_completed_responses_on_fail_fast() -> None:
 
 
 @pytest.mark.anyio
+async def test_fail_fast_pool_stops_callbacks_without_checkpoints() -> None:
+    """Do not start new callbacks after a fail-fast worker reports failure.
+
+    Async callbacks that do not suspend cannot observe task cancellation.
+    """
+    accepted: list[int] = []
+
+    async def fail() -> HttpClientResponse:
+        """Raise before yielding control to another worker.
+
+        The immediate exception exposes cancellation checkpoint gaps.
+        """
+        raise ValueError(_LOCAL_REQUEST_FAILURE)
+
+    async def callback(index: int) -> HttpClientResponse:
+        """Record whether the pool started this callback.
+
+        No await occurs, so cancellation alone cannot stop this function.
+        """
+        accepted.append(index)
+        return _ClosingResponse()
+
+    with pytest.raises(ValueError, match=_LOCAL_REQUEST_FAILURE):
+        await HttpRequestPool(1).run(
+            [
+                HttpPoolRequest(fail),
+                HttpPoolRequest(lambda: callback(1)),
+                HttpPoolRequest(lambda: callback(2)),
+            ],
+        )
+
+    assert accepted == []
+
+
+@pytest.mark.anyio
 async def test_request_pool_applies_timeouts_and_propagates_cancellation() -> (
     None
 ):

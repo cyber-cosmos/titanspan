@@ -223,7 +223,14 @@ async def _pool_worker(
         cancel_scope: Task-group scope cancelled after a failure when enabled.
         fail_fast: Whether the first request exception cancels sibling work.
     """
-    while (index := next(indexes, None)) is not None:
+    while True:
+        # Cancellation is cooperative; this guard prevents no-checkpoint
+        # callbacks from accepting more work after a sibling fails.
+        if fail_fast and cancel_scope.cancel_called:
+            return
+        index = next(indexes, None)
+        if index is None:
+            return
         task = requests[index]
         try:
             result = await _run_one(task)
