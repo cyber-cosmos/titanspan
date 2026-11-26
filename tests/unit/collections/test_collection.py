@@ -15,6 +15,8 @@ from hypothesis import strategies as st
 
 from titanspan.collections import Collection, collect
 
+pytestmark = pytest.mark.unit
+
 if TYPE_CHECKING:
     from collections.abc import Iterable
 

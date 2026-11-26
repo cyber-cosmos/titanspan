@@ -5,8 +5,12 @@ The tests use no Application or Container because collections are plain values.
 
 from __future__ import annotations
 
+import pytest
+
 from titanspan.collections import collect
 from titanspan.support import Fluent
+
+pytestmark = pytest.mark.integration
 
 
 def test_collection_map_reads_real_fluent_nested_attributes() -> None:
