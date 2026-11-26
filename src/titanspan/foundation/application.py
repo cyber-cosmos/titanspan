@@ -55,6 +55,7 @@ from titanspan.contracts.http import (
 )
 from titanspan.contracts.logging import LoggingManager
 from titanspan.contracts.routing import UriUrlGenerator
+from titanspan.events import EventServiceProvider
 from titanspan.http import HttpServiceProvider, JsonResponse, Request
 from titanspan.http._backends.asgi import create_request
 from titanspan.http.configuration import HttpConfiguration
@@ -410,11 +411,13 @@ class Application:
             customizers=logging_customizers,
         )
         routing_provider = RoutingServiceProvider(repository)
+        events_provider = EventServiceProvider(native_container, repository)
         native_providers: tuple[ServiceProvider, ...] = (
             config_provider,
             logging_provider,
             HttpServiceProvider(http_configuration),
             routing_provider,
+            events_provider,
             *service_providers,
         )
         for provider in native_providers:

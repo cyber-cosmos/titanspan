@@ -24,6 +24,7 @@ from titanspan.contracts.container import (
     ServiceOverride,
     ServiceRegistry,
 )
+from titanspan.contracts.events import EventDispatcher
 from titanspan.contracts.foundation import (
     BootableServiceProvider,
     ServiceProvider,
@@ -84,6 +85,7 @@ __all__ = [
     "ControllerAction",
     "DeferredDisplayValue",
     "DeliveryStatus",
+    "EventDispatcher",
     "HtmlRenderable",
     "HttpClient",
     "HttpClientResponse",

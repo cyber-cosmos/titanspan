@@ -52,6 +52,10 @@ export const documentationSidebar = [
         items: [{ autogenerate: { directory: "routing" } }],
       },
       {
+        label: "Events",
+        items: [{ autogenerate: { directory: "events" } }],
+      },
+      {
         label: "Logging",
         items: [{ autogenerate: { directory: "logging" } }],
       },

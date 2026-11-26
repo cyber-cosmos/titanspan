@@ -81,7 +81,7 @@ tracked in [`docs/src/content/docs/specifications/backend-boundaries.md`](docs/s
 | `concurrency` | Structured asynchronous concurrency, bounded pools, and cancellation. | Planned. |
 | `parallel` | CPU-bound multiprocessing and parallel computation. | Planned. |
 | `pipeline` | Composable streaming and concurrent transformations. | Planned. |
-| `events` | Event dispatching, listeners, and subscribers. | Planned. |
+| `events` | Event dispatching, listeners, subscribers, and application event lifecycle integration. | Native Blinker-backed dispatch, listener injection, scoped fakes, deferred and pushed events, and trusted discovery are implemented. Queue, Database, Broadcasting, and Console integrations remain pending. See `docs/src/content/docs/specifications/events.md`. |
 | `queue` | Distributed jobs, workers, retries, chains, and batches. | Planned. |
 | `mail` | Mailables, delivery, templates, and attachments. | Planned. |
 | `notifications` | Multi-channel application notifications. | Planned. |

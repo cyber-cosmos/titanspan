@@ -11,6 +11,12 @@ public release.
   application context and use the same route catalog and native response
   validation. Signed URLs remain explicitly unavailable until secure key
   management and verification are implemented.
+- Added native event dispatch through Blinker 1.9.0, with ordered sync and
+  async listeners, Container injection, named wildcards, subscribers,
+  explicit discovery, context-local fakes, deferred dispatch, and bounded
+  pushed events. Queue, Database, Broadcasting, and Console integrations
+  remain pending; see `docs/src/content/docs/events/` and
+  `docs/src/content/docs/specifications/events.md`.
 - Added the initial native HTTP component: scoped ASGI requests, bounded body
   and multipart parsing, native responses, SSE and streaming, ordered
   dependency-injected middleware, and pooled synchronous/asynchronous outgoing

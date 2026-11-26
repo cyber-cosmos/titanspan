@@ -12,6 +12,10 @@ The standalone Collections component now provides eager and lazy operations
 for ordinary Python iterables. Data pipelines, async streams, and large-scale
 processing remain planned.
 
+The Events component now provides ordered in-process dispatch, Container-backed
+listeners, scoped fakes, deferred dispatch, and trusted discovery. Durable
+queue, transaction, broadcasting, and Console integrations remain planned.
+
 ## Phase 0 — Engineering foundation
 
 - Repository configuration and community health files.
@@ -57,7 +61,7 @@ processing remain planned.
 
 ## Phase 5 — Production infrastructure
 
-- Authentication, authorization, cache, queues, and events.
+- Authentication, authorization, cache, and queue infrastructure.
 - Scheduling, notifications, and mail.
 - Telemetry, resource quotas, and operational resilience.
 
