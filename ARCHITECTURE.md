@@ -15,9 +15,9 @@ explicit async interfaces.
 The current package is intentionally small. The implemented foundation is a
 FastAPI-backed ASGI application, a Dishka-backed container, a native
 configuration repository with Pydantic Settings validation, a Typer CLI,
-selected Support utilities, native logging, and an initial native HTTP
-component. Other modules below remain planned boundaries unless marked as
-implemented in the table.
+selected Support utilities, standalone eager and lazy Collections, native
+logging, and an initial native HTTP component. Other modules below remain
+planned boundaries unless marked as implemented in the table.
 
 ## Architectural principles
 
@@ -76,7 +76,7 @@ tracked in [`docs/specifications/backend-boundaries.md`](docs/specifications/bac
 | `http` | Incoming ASGI requests, native responses, middleware, streaming, and pooled outgoing clients. | Initial component implemented and application-integrated; pending behavior is listed in `docs/specifications/http.md`. |
 | `auth` | Authentication, authorization, guards, gates, and policies. | Planned. |
 | `database` | SQLAlchemy-backed models, queries, transactions, migrations, and persistence. | Planned. |
-| `collections` | Eager, lazy, and asynchronous fluent collections. | Planned. |
+| `collections` | Typed eager and lazy APIs over ordinary Python iterables. | Eager and lazy value APIs are implemented. The component depends on Support and does not require Application or Container. Async iteration remains planned elsewhere. |
 | `cache` | Caching, locks, expiration, and backend adapters. | Planned. |
 | `concurrency` | Structured asynchronous concurrency, bounded pools, and cancellation. | Planned. |
 | `parallel` | CPU-bound multiprocessing and parallel computation. | Planned. |
@@ -111,6 +111,8 @@ flowchart TD
     Foundation[Foundation]
     Container[Container adapter]
     Config[Configuration]
+    Collections[Collections]
+    Support[Support]
     Contracts[Contracts]
     Web[FastAPI integration]
     Optional[Optional adapters]
@@ -122,6 +124,7 @@ flowchart TD
     Foundation --> Container
     Foundation --> Config
     Foundation --> Web
+    Collections --> Support
     Optional --> Contracts
     Optional --> Libraries
     App --> Optional

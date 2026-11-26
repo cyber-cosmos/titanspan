@@ -31,6 +31,17 @@ no-op.
 `to_json` uses Python's standard `json` module and its documented Titanspan
 options.
 
-Collection conversion is not provided until the canonical
-`titanspan.collections` component owns that behavior. See the
-[Support specification](/specifications/support) for current boundaries.
+`Fluent` does not define an implicit collection conversion. `Fluent` iterates
+over its keys, so choose the contents before creating a collection:
+
+```python
+from titanspan.collections import collect
+from titanspan.support import Fluent
+
+user = Fluent({"name": "Ada", "role": "maintainer"})
+names = collect([user]).map(lambda item: item.get("name"))
+assert names.all() == ["Ada"]
+```
+
+See the [Support specification](/specifications/support) for current
+boundaries.

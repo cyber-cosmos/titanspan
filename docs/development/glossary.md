@@ -13,7 +13,7 @@ not promote roadmap work to an available capability.
 | Binding | A container registration that associates a service key with its provider and lifetime. Implemented in Container. |
 | Cancellation | A request to stop asynchronous work before it finishes. APIs must propagate cancellation. |
 | Checkpoint | Saved workflow state that can support later resumption. Workflow checkpointing is planned. |
-| Collection | A value-oriented API for transforming and selecting items. The component is planned. |
+| Collection | An ordered, value-oriented API for transforming and selecting items. Titanspan provides eager and lazy collections for ordinary Python iterables. |
 | Container | The application service registry and dependency-resolution API. Titanspan delegates object construction to Dishka. |
 | Contract | A typed boundary that defines behavior shared by a producer and its consumers. |
 | Coroutine | A Python object created by calling an `async def` function. |

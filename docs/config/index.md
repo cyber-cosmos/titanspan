@@ -14,10 +14,11 @@ assert config.string("app.name") == "Titanspan"
 assert config.boolean("app.debug") is False
 ```
 
-The current component is early-stage. `collection()` is not available because
-the canonical Collections component has not been implemented. Configuration
-mutation is intended for bootstrap; simultaneous mutation of one repository
-is not guaranteed to be thread-safe.
+The current component is early-stage. `Repository.collection()` is not
+available. The standalone Collections API does not define how a configuration
+repository should convert stored values. Configuration mutation is intended
+for bootstrap; simultaneous mutation of one repository is not guaranteed to
+be thread-safe.
 
 ## Guides
 

@@ -16,6 +16,12 @@ public release.
   maintained Markdown, Python comments, and docstrings with pinned rules and
   regression cases. Objective terminology errors block CI; other writing
   findings remain advisory. See `docs/development/writing-standards.md`.
+- Added typed eager and lazy collection APIs over Python iterables. Eager
+  collections provide stable transformations and grouping; lazy pipelines use
+  iterator factories and preserve one-shot sources without caching. Support
+  integration reuses `Arr` and `Tappable`; the component has no runtime
+  dependencies. See `docs/collections/` and
+  `docs/specifications/collections.md`.
 - Reject nested overrides that would be hidden by an inherited singleton,
   while preserving unaffected singleton identity and resource ownership.
   Configuration injection checks collection values against bare or

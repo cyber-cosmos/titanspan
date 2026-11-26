@@ -22,8 +22,9 @@ assert uri.fragment() == "overview"
 
 `Uri` accepts a string, Titanspan `Stringable`, or `urllib.parse.SplitResult`.
 `get_uri()` returns that standard-library parsed representation. It does not
-expose League URI objects. `path_segments()` returns an immutable tuple
-because Titanspan's canonical Collections module is not implemented yet.
+expose League URI objects. `path_segments()` returns a native tuple that
+preserves the ordered path segments without coupling URI parsing to the
+Collections component.
 
 Values are immutable: component methods return a new `Uri` and leave the
 original unchanged.

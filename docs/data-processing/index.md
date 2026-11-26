@@ -1,9 +1,12 @@
 # Data processing
 
-Streaming pipelines, lazy collections, and large dataset processing are
-planned. The architecture prioritizes bounded memory use, chunking,
-backpressure, and incremental output.
+Data processing pipelines and large dataset processing are planned. The
+Collections component supports lazy iteration over ordinary Python iterables.
+It does not provide dataframe operations, async streams, or distributed
+processing.
 
-No Titanspan pipeline or collection API is currently available. See the
+The current component uses standard-library iterators and documents its
+materialization boundaries in [Collections](/collections/). See the
 [architecture guide](https://github.com/titanspan/titanspan/blob/main/ARCHITECTURE.md#async-first-behavior)
-and [roadmap](https://github.com/titanspan/titanspan/blob/main/ROADMAP.md).
+and [roadmap](https://github.com/titanspan/titanspan/blob/main/ROADMAP.md)
+for planned data and streaming capabilities.

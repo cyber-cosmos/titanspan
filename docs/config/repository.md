@@ -31,9 +31,10 @@ checks reject integers. `array()` accepts a mapping or list. Type failures
 raise `ConfigValueError` with the key and type names but never the rejected
 value.
 
-`collection()` remains unavailable until Titanspan's canonical Collections
-component exists. The repository does not provide a substitute collection
-type.
+`Repository.collection()` remains unavailable. Titanspan now provides a
+standalone Collections component, but the repository has no conversion method.
+Callers can pass retrieved values to `collect()` when they need an eager
+collection.
 
 ## Writes and mapping syntax
 

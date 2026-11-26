@@ -39,6 +39,7 @@ export default defineConfig({
         text: "Components",
         items: [
           { text: "Configuration", link: "/config/" },
+          { text: "Collections", link: "/collections/" },
           { text: "Service Container", link: "/container/" },
           { text: "Contracts", link: "/contracts/" },
           { text: "HTTP", link: "/http/" },
@@ -229,6 +230,22 @@ export default defineConfig({
           {
             text: "Native specification",
             link: "/specifications/container",
+          },
+        ],
+      },
+      {
+        text: "Collections",
+        items: [
+          { text: "Overview", link: "/collections/" },
+          { text: "Eager collections", link: "/collections/eager" },
+          {
+            text: "Grouping and aggregation",
+            link: "/collections/operations",
+          },
+          { text: "Lazy collections", link: "/collections/lazy" },
+          {
+            text: "Behavioral specification",
+            link: "/specifications/collections",
           },
         ],
       },

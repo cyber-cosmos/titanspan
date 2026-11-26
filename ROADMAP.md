@@ -8,6 +8,10 @@ uses a separate private graph. These phases are capability milestones, not
 calendar promises. Each phase should ship coherent vertical slices with tests
 and documentation before expanding its surface area.
 
+The standalone Collections component now provides eager and lazy operations
+for ordinary Python iterables. Data pipelines, async streams, and large-scale
+processing remain planned.
+
 ## Phase 0 — Engineering foundation
 
 - Repository configuration and community health files.
@@ -45,7 +49,6 @@ and documentation before expanding its surface area.
 ## Phase 4 — Data and concurrency
 
 - SQLAlchemy-backed persistence, migrations, and query conventions.
-- Eager, lazy, and async collections.
 - Structured concurrency, CPU parallelism, and bounded streaming pipelines.
 - Filesystem integrations.
 

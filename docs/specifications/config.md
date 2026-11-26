@@ -41,9 +41,9 @@ Configuration code does not maintain a second environment parser.
 
 ## Deferred behavior
 
-Features owned by unimplemented modules, including a Collections integration,
-remain unavailable until their canonical owner exists. Do not add duplicate
-engines or placeholder facade behavior.
+`Repository.collection()` remains deferred. The standalone Collections API
+does not add conversion behavior to the configuration repository. Do not add
+duplicate engines or placeholder facade behavior.
 
 ## Verification
 

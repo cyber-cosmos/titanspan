@@ -55,7 +55,9 @@ objects. Cache files remain sensitive, unencrypted artifacts.
   trusted.
 - Source precedence is explicit and tested. Unmapped process variables do not
   silently change configuration.
-- `collection()` awaits the canonical Collections module.
+- `Repository.collection()` remains deferred. A standalone Collections API is
+  available, but the configuration repository does not provide implicit
+  conversion.
 - Runtime base-repository mutation is not guaranteed to be thread-safe;
   context-local overrides do not mutate the base repository.
 - Cache changes require explicit rebuild or clear; source file changes are
