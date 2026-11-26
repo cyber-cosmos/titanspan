@@ -13,7 +13,7 @@ from scripts.ci.check_licenses import (
 )
 
 pytestmark = pytest.mark.unit
-EXPECTED_LICENSE_RECORDS = 2
+EXPECTED_LICENSE_RECORDS = 4
 
 
 def test_runtime_requirement_export_yields_normalized_package_names() -> None:
@@ -37,7 +37,7 @@ def test_runtime_requirement_export_yields_normalized_package_names() -> None:
 def test_license_inventory_accepts_reviewed_runtime_licenses() -> None:
     """Accept known runtime package licenses and return report rows.
 
-    The optional ``numbers`` dependency uses the separately disclosed LGPL.
+    The runtime email-validation dependencies use reviewed licenses.
     """
     payload = json.dumps(
         [
@@ -48,12 +48,22 @@ def test_license_inventory_accepts_reviewed_runtime_licenses() -> None:
                     "GNU Library or Lesser General Public License (LGPL)"
                 ),
             },
+            {"Name": "dnspython", "License": "ISC"},
+            {
+                "Name": "email-validator",
+                "License": "The Unlicense (Unlicense)",
+            },
         ]
     )
 
     rows, errors = validate_license_inventory(
         payload,
-        expected_packages={"anyio", "num2words"},
+        expected_packages={
+            "anyio",
+            "num2words",
+            "dnspython",
+            "email-validator",
+        },
     )
 
     assert len(rows) == EXPECTED_LICENSE_RECORDS

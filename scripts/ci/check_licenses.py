@@ -25,6 +25,7 @@ ALLOWED_LICENSES = {
     "BSD-2-Clause",
     "BSD-3-Clause",
     "GNU Library or Lesser General Public License (LGPL)",
+    "ISC",
     "ISC License (ISCL)",
     "MIT",
     "MIT License",
@@ -32,6 +33,7 @@ ALLOWED_LICENSES = {
     "MPL-2.0",
     "PSF-2.0",
     "Python Software Foundation License",
+    "The Unlicense (Unlicense)",
 }
 
 __all__ = [
