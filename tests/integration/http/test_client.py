@@ -19,6 +19,8 @@ from titanspan.http.client.pending_request import PendingRequest
 from titanspan.http.configuration import ClientConfiguration
 from titanspan.http.exceptions import HttpStatusError
 
+pytestmark = pytest.mark.integration
+
 _SERVER_JOIN_TIMEOUT_SECONDS = 2
 
 
@@ -152,6 +154,29 @@ def test_sync_client_uses_isolated_builder_options(
             '{"title":"Guide"}',
             "Bearer local-test",
         )
+        assert received.get(timeout=_SERVER_JOIN_TIMEOUT_SECONDS) == (
+            "GET",
+            None,
+        )
+    finally:
+        asyncio.run(client.aclose())
+
+
+def test_sync_client_streams_with_bounded_connection_ownership(
+    http_server: tuple[str, Queue[tuple[str, str | None]]],
+) -> None:
+    """Stream through the synchronous pool until its context closes.
+
+    Args:
+        http_server: Local URL and queue of observed request metadata.
+    """
+    url, received = http_server
+    client = HttpxClientAdapter(ClientConfiguration())
+    try:
+        with PendingRequest(client).stream("GET", f"{url}/stream") as result:
+            chunks = list(result.iter_bytes())
+
+        assert b"".join(chunks) == b"first\nsecond\n"
         assert received.get(timeout=_SERVER_JOIN_TIMEOUT_SECONDS) == (
             "GET",
             None,

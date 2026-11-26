@@ -5,6 +5,7 @@ The integration uses real components and local test services.
 
 from http import HTTPStatus
 
+import pytest
 from fastapi.testclient import TestClient
 
 from titanspan.contracts.container import ServiceRegistry
@@ -12,6 +13,8 @@ from titanspan.contracts.foundation import ServiceProvider
 from titanspan.contracts.http import HttpRequest, HttpResponse, RequestHandler
 from titanspan.foundation import Application
 from titanspan.http import Response
+
+pytestmark = pytest.mark.integration
 
 
 class TraceRecorder:

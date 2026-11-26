@@ -11,6 +11,8 @@ from titanspan.foundation import Application
 from titanspan.http import HttpConfiguration
 from titanspan.support import config
 
+pytestmark = pytest.mark.integration
+
 
 class HttpClientConsumer:
     """Capture the client injected from the application service registry.

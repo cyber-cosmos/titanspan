@@ -344,6 +344,26 @@ async def test_event_stream_encodes_metadata_and_json_values() -> None:
     assert response.headers["content-type"].startswith("text/event-stream")
 
 
+@pytest.mark.parametrize(
+    ("event", "message"),
+    [
+        (ServerSentEvent("data", identifier="invalid\x00id"), "NUL"),
+        (ServerSentEvent("data", retry=-1), "non-negative"),
+        (ServerSentEvent("data", event="invalid\rfield"), "carriage"),
+    ],
+)
+def test_server_sent_event_rejects_unsafe_metadata(
+    event: ServerSentEvent,
+    message: str,
+) -> None:
+    """Reject control characters and invalid retry values before encoding.
+
+    SSE metadata is line-oriented and must not permit field injection.
+    """
+    with pytest.raises(ValueError, match=message):
+        event.encode()
+
+
 @pytest.mark.anyio
 async def test_event_stream_encodes_json_values_and_closes_source() -> None:
     """Encode plain data and finalize an async source on early close.

@@ -8,6 +8,7 @@ from collections.abc import AsyncIterator
 from http import HTTPStatus
 from typing import Annotated
 
+import pytest
 from fastapi import Depends
 from fastapi.testclient import TestClient
 
@@ -16,6 +17,8 @@ from titanspan.foundation import Application
 from titanspan.http import Request
 from titanspan.http.helpers import request as active_request
 from titanspan.http.helpers import response
+
+pytestmark = pytest.mark.integration
 
 
 def test_native_request_is_injected_and_resolved_from_one_scope() -> None:
