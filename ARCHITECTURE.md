@@ -13,9 +13,10 @@ synchronous. Operations that require asynchronous I/O or lifecycle work have
 explicit async interfaces.
 
 Implemented components include Foundation, Container, Config, Contracts,
-Events, HTTP, Routing, Logging, Support, Collections, and Console. FastAPI and
-Starlette provide ASGI hosting. Dishka resolves dependencies. Other
-infrastructure remains planned unless the table below marks it implemented.
+Events, Filesystem, Hashing, HTTP, Routing, Logging, Support, Collections,
+and Console. FastAPI and Starlette provide ASGI hosting. Dishka resolves
+dependencies. Other infrastructure remains planned unless the table below
+marks it implemented.
 
 ## Architectural principles
 
@@ -67,13 +68,14 @@ tracked in [`docs/src/content/docs/specifications/backend-boundaries.md`](docs/s
 | --- | --- | --- |
 | `foundation` | Application composition, bootstrap, provider lifecycle, and shutdown. | `Application` and its typed builder own native startup, callbacks, paths, exception rendering, and shutdown independently of ASGI hosting. See `docs/src/content/docs/specifications/foundation.md`. |
 | `container` | Dependency injection, bindings, concrete graph discovery, scopes, and resource management. | Native sync-first container composes framework services and supplies request-scoped HTTP dependencies; a private adapter remains for explicit external route providers. See `docs/src/content/docs/specifications/container.md`. |
-| `contracts` | Dependency-independent typed protocols and shared abstraction boundaries. | Configuration, container, foundation, HTTP, logging, pipeline, routing, Support, and Validation domains are implemented; other component contracts remain pending. See `docs/src/content/docs/specifications/contracts.md`. |
+| `contracts` | Dependency-independent typed protocols and shared abstraction boundaries. | Configuration, container, foundation, hashing, HTTP, logging, pipeline, routing, Support, and Validation domains are implemented; other component contracts remain pending. See `docs/src/content/docs/specifications/contracts.md`. |
 | `support` | Shared utilities, managers, and lightweight helpers. | Selected native utilities implemented; see `docs/src/content/docs/specifications/support.md`. |
 | `config` | Typed configuration, trusted sources, environment integration, and safe snapshots. | Native repository, settings, source loader, cache, commands, and application provider implemented; see `docs/src/content/docs/config/`. |
-| `facades` | Typed access to application-owned services through the active application context. | Shared typed base and `Config`, `Log`, `Http`, `Route`, `Event`, and `Validation` facades implemented. Temporary replacements delegate to Container overrides. |
+| `facades` | Typed access to application-owned services through the active application context. | Shared typed base and `Config`, `Event`, `Hash`, `Log`, `Http`, `Route`, `Storage`, and `Validation` facades implemented. Temporary replacements delegate to Container overrides. |
 | `routing` | Application-owned route registration, groups, matching, controller dispatch, URL generation, and HTTP integration. | Initial component implemented against one route catalog; see `docs/src/content/docs/specifications/routing.md` for verified and pending capabilities. |
 | `http` | Incoming ASGI requests, native responses, middleware, streaming, and pooled outgoing clients. | Initial component implemented and application-integrated; pending behavior is listed in `docs/src/content/docs/specifications/http.md`. |
 | `auth` | Authentication, authorization, guards, gates, and policies. | Planned. |
+| `hashing` | Password hashing, verification, inspection, and hash upgrades. | Argon2-CFFI and PyCA Bcrypt services integrate through Config, Container, and the `Hash` facade. Authentication remains planned. See `docs/src/content/docs/specifications/hashing.md`. |
 | `database` | SQLAlchemy-backed models, queries, transactions, migrations, and persistence. | Planned. |
 | `collections` | Typed eager and lazy APIs over ordinary Python iterables. | Eager and lazy value APIs are implemented. The component depends on Support and does not require Application or Container. Async iteration remains planned elsewhere. |
 | `cache` | Caching, locks, expiration, and backend adapters. | Planned. |
@@ -85,7 +87,7 @@ tracked in [`docs/src/content/docs/specifications/backend-boundaries.md`](docs/s
 | `queue` | Distributed jobs, workers, retries, chains, and batches. | Planned. |
 | `mail` | Email messages, delivery, templates, and attachments. | Planned. |
 | `notifications` | Multi-channel application notifications. | Planned. |
-| `filesystem` | Local and cloud storage abstractions. | Planned. |
+| `filesystem` | Local and remote storage abstractions. | Application-owned local and memory disks delegate to fsspec. Remote drivers are registered by optional integrations. See `docs/src/content/docs/specifications/filesystem.md`. |
 | `logging` | Native records, channels, drivers, redaction, context, async dispatch, and lifecycle. | Initial component implemented; see `docs/src/content/docs/logging/` and its specification for limits. |
 | `scheduling` | Recurring tasks, cron expressions, and coordination. | Planned. |
 | `console` | Native commands, terminal output, and application-aware execution. | Typed registration, groups, trusted entry-point discovery, Container injection, per-command Foundation lifecycle, output, and parser-backed testing are implemented. Generators and component-owned inspection commands remain pending. See `docs/src/content/docs/specifications/console.md`. |

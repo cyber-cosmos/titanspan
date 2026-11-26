@@ -2,8 +2,8 @@
 
 Titanspan is consolidating its engineering foundation and implementing the
 application and web composition lifecycle in tested vertical slices. Native
-configuration, logging, Support, the sync-first container, HTTP, Routing, and
-Filesystem integrate with the application lifecycle. Routing covers
+configuration, logging, Support, the sync-first container, HTTP, Routing,
+Filesystem, and Hashing integrate with the application lifecycle. Routing covers
 registration, dispatch, discovery, inspection, safe metadata snapshots,
 WebSockets, and OpenAPI through the established ASGI host. Filesystem provides
 application-owned local and memory disks over fsspec. Explicit third-party
@@ -17,6 +17,9 @@ asynchronous value transformations. Validation provides Pydantic-backed
 schemas, native field errors, application rules, and HTTP request input.
 Foundation rendering and Routing schema integration remain with their owners.
 Streaming data pipelines and large-scale processing remain planned.
+
+Hashing provides Argon2id password hashes, Bcrypt verification, safe hash
+upgrades, and explicit async access independently of Authentication.
 
 The Events component now provides ordered in-process dispatch, Container-backed
 listeners, scoped fakes, deferred dispatch, and trusted discovery. Durable
@@ -70,7 +73,8 @@ execution.
 
 ## Phase 5 — Production infrastructure
 
-- Authentication, authorization, cache, and queue infrastructure.
+- Authentication and authorization remain planned; Hashing supplies their
+  password service foundation. Cache and queue infrastructure remain planned.
 - Scheduling, notifications, and mail.
 - Telemetry, resource quotas, and operational resilience.
 

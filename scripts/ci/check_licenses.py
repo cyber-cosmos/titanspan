@@ -31,6 +31,7 @@ ALLOWED_LICENSES = {
     "MIT License",
     "MIT OR Apache-2.0",
     "MPL-2.0",
+    "MIT-0",
     "PSF-2.0",
     "Python Software Foundation License",
     "The Unlicense (Unlicense)",

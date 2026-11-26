@@ -18,6 +18,7 @@ contracts/
 ├── events/
 ├── filesystem/
 ├── foundation/
+├── hashing/
 ├── http/
 ├── logging/
 ├── pipeline/
@@ -46,6 +47,7 @@ Component-private protocols remain in their owning component.
 | `HttpClient`, `HttpClientResponse` | Share pooled outgoing request behavior | HTTPX adapter; loopback integration tests |
 | `EventDispatcher` | Register, inspect, defer, fake, and dispatch application events | `NativeEventDispatcher`; service-provider and application integration tests |
 | `FileMetadata`, `StorageDisk`, `StorageManager` | Describe named disks and backend-independent file metadata | `titanspan.filesystem`; real fsspec and application integration tests |
+| `Hasher`, `HashMetadata`, `HashVerification` | Hash creation, verification results, and encoding metadata | `HashingManager` over `argon2-cffi` and `bcrypt`; real Argon2, Bcrypt, and application integration tests <!-- pragma: allowlist secret -->
 | `RouteCatalog`, `RouteInfo`, `UriUrlGenerator` | Share route inspection and URL generation | `titanspan.routing`; route and URI integration tests |
 | `PipelineContinuation`, `PipelineMiddlewareHandler` | Type sequential continuation callbacks | `titanspan.pipeline`; Pipeline unit tests |
 | `ValidationService`, `ValidationRule`, `AsyncValidationRule` | Validate typed values and apply ordered application rules | `titanspan.validation`; `tests/integration/validation/test_validation_application.py` |

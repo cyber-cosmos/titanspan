@@ -7,6 +7,7 @@ component facades retain explicit, statically discoverable methods.
 from titanspan.facades.base import Facade
 from titanspan.facades.config import Config
 from titanspan.facades.event import Event
+from titanspan.facades.hash import Hash
 from titanspan.facades.http import Http
 from titanspan.facades.log import Log
 from titanspan.facades.route import Route
@@ -17,6 +18,7 @@ __all__ = [
     "Config",
     "Event",
     "Facade",
+    "Hash",
     "Http",
     "Log",
     "Route",

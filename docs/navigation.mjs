@@ -72,6 +72,10 @@ export const documentationSidebar = [
         items: [{ autogenerate: { directory: "filesystem" } }],
       },
       {
+        label: "Hashing",
+        items: [{ autogenerate: { directory: "hashing" } }],
+      },
+      {
         label: "Logging",
         items: [{ autogenerate: { directory: "logging" } }],
       },

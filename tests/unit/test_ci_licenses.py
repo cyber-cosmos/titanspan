@@ -70,6 +70,22 @@ def test_license_inventory_accepts_reviewed_runtime_licenses() -> None:
     assert errors == []
 
 
+def test_license_inventory_accepts_official_cffi_mit_zero_license() -> None:
+    """Accept CFFI's reviewed MIT No Attribution SPDX identifier.
+
+    CFFI reports this official permissive license in the locked runtime set.
+    """
+    payload = json.dumps([{"Name": "cffi", "License": "MIT-0"}])
+
+    rows, errors = validate_license_inventory(
+        payload,
+        expected_packages={"cffi"},
+    )
+
+    assert rows == [("cffi", "MIT-0")]
+    assert errors == []
+
+
 def test_license_inventory_rejects_unreviewed_and_missing_data() -> None:
     """Report metadata gaps and licenses outside the reviewed policy.
 

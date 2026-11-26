@@ -50,6 +50,13 @@ public release.
   Remote backends require an application-provided fsspec factory and optional
   integration package. See `docs/src/content/docs/filesystem/` and
   `docs/src/content/docs/specifications/filesystem.md`.
+- Added configuration-driven password hashing over `argon2-cffi` and `bcrypt`
+  with Argon2id, Bcrypt verification and upgrades, hash metadata, and bounded
+  async methods.
+  `HashingServiceProvider` is opt-in through Foundation's provider extension.
+  Authentication and password persistence remain separate component work.
+  See `docs/src/content/docs/hashing/` and
+  `docs/src/content/docs/specifications/hashing.md`.
 - Added ordered event dispatch through Blinker 1.9.0. It supports sync and
   async listeners, Container injection, wildcards, subscribers, discovery,
   context-local fakes, deferral, and bounded event pushes.

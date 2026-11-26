@@ -41,6 +41,11 @@ from titanspan.contracts.foundation import (
     BootableServiceProvider,
     ServiceProvider,
 )
+from titanspan.contracts.hashing import (
+    Hasher,
+    HashMetadata,
+    HashVerification,
+)
 from titanspan.contracts.http import (
     HttpClient,
     HttpClientResponse,
@@ -123,6 +128,9 @@ __all__ = [
     "DeliveryStatus",
     "EventDispatcher",
     "FileMetadata",
+    "HashMetadata",
+    "HashVerification",
+    "Hasher",
     "HtmlRenderable",
     "HttpClient",
     "HttpClientResponse",
