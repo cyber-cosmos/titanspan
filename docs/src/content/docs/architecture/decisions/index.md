@@ -27,3 +27,4 @@ for compatibility, maintenance, licensing, and security before use.
 - [0017 — Domain-oriented shared contracts](/titanspan/architecture/decisions/0017-domain-oriented-contracts/)
 - [0018 — Native application service composition](/titanspan/architecture/decisions/0018-application-service-composition/)
 - [0019 — Contextual container services and temporary overrides](/titanspan/architecture/decisions/0019-contextual-container-services/)
+- [0022 — Native application bootstrap and lifecycle hooks](/titanspan/architecture/decisions/0022-native-foundation-bootstrap/)

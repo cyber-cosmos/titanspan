@@ -12,8 +12,9 @@ from contextlib import (
     asynccontextmanager,
     contextmanager,
 )
+from inspect import isawaitable
 from pathlib import Path
-from typing import TYPE_CHECKING, Self
+from typing import TYPE_CHECKING, Self, cast
 from uuid import uuid4
 
 import anyio
@@ -45,6 +46,8 @@ from titanspan.contracts.container import (
     ServiceContainer,
 )
 from titanspan.contracts.foundation import (
+    ApplicationExceptionHandler,
+    ApplicationLifecycleCallback,
     BootableServiceProvider,
     ServiceProvider,
 )
@@ -56,6 +59,8 @@ from titanspan.contracts.http import (
 from titanspan.contracts.logging import LoggingManager
 from titanspan.contracts.routing import UriUrlGenerator
 from titanspan.events import EventServiceProvider
+from titanspan.foundation.builder import ApplicationBuilder
+from titanspan.foundation.exceptions import ApplicationLifecycleError
 from titanspan.http import HttpServiceProvider, JsonResponse, Request
 from titanspan.http._backends.asgi import create_request_boundary
 from titanspan.http.configuration import HttpConfiguration
@@ -92,6 +97,7 @@ if TYPE_CHECKING:
 _REQUEST_ID_MAX_LENGTH = 128
 _APP_NAME_KEY = "app.name"
 _APP_DEBUG_KEY = "app.debug"
+_APP_ENVIRONMENT_KEY = "app.env"
 _CONFIGURATION_SOURCE_CONFLICT = (
     "Pass either config overrides or config_repository, not both."
 )
@@ -112,6 +118,14 @@ _ACTIVE_APPLICATION_SCOPE_ERROR = (
 )
 _INVALID_MIDDLEWARE_RESPONSE_ERROR = (
     "Native HTTP middleware must return an ASGI-compatible response."
+)
+_INVALID_EXCEPTION_RESPONSE_ERROR = (
+    "Native exception handlers must return a Titanspan ASGI response."
+)
+_DEFAULT_SERVER_ERROR = "Internal server error."
+_INVALID_ENVIRONMENT_ERROR = "Application environment must not be empty."
+_LIFECYCLE_REGISTRATION_ERROR = (
+    "Lifecycle hooks and exception handlers must be registered before startup."
 )
 
 
@@ -367,6 +381,11 @@ class Application:
             Mapping[str, LogCustomizer[Logger]] | None
         ) = None,
         http_middleware: Sequence[type[HttpMiddleware]] = (),
+        startup_callbacks: Sequence[ApplicationLifecycleCallback] = (),
+        shutdown_callbacks: Sequence[ApplicationLifecycleCallback] = (),
+        exception_handlers: (
+            Mapping[type[Exception], ApplicationExceptionHandler] | None
+        ) = None,
     ) -> None:
         """Build the native service graph and the FastAPI integration.
 
@@ -380,6 +399,9 @@ class Application:
             logging: Final explicit logging configuration override.
             logging_customizers: Native logger setup hooks keyed by name.
             http_middleware: Native middleware in outer-to-inner order.
+            startup_callbacks: Callbacks run after provider boot.
+            shutdown_callbacks: Callbacks run before owned resources close.
+            exception_handlers: Native request and response exception handlers.
 
         Raises:
             ValueError: If both configuration source override forms are used.
@@ -431,7 +453,9 @@ class Application:
         self._config_repository = active_repository
         self._logging_manager = log_manager
         self._config_manager = config_manager
+        self._base_path = config_manager.base_path
         self._http_configuration = http_configuration
+        self._environment = _application_environment(active_repository)
         self._router = routing_provider.router
         self._url_generator = routing_provider.url_generator
         self._started = False
@@ -441,6 +465,11 @@ class Application:
         self._standalone_context: (
             AbstractContextManager[ActiveApplicationContext] | None
         ) = None
+        self._startup_callbacks = list(startup_callbacks)
+        self._shutdown_callbacks = list(shutdown_callbacks)
+        self._exception_handlers = dict(
+            {} if exception_handlers is None else exception_handlers
+        )
 
         integration_container = (
             create_fastapi_container([*providers, config_provider])
@@ -499,6 +528,12 @@ class Application:
             RequestBodyTooLargeError,
             _request_too_large,
         )
+        asgi.add_exception_handler(Exception, self._unhandled_exception)
+        for exception_type, handler in self._exception_handlers.items():
+            asgi.add_exception_handler(
+                exception_type,
+                self._exception_handler_adapter(handler),
+            )
 
         if http_middleware:
             asgi.add_middleware(
@@ -543,18 +578,14 @@ class Application:
 
         self._starting = True
         try:
+            for callback in self._shutdown_callbacks:
+                self._lifecycle_stack.push_async_callback(
+                    self._run_lifecycle_callback,
+                    callback,
+                )
             await self.container.start()
             with self._bind_context():
-                for provider in self._service_providers:
-                    if isinstance(provider, BootableServiceProvider):
-                        await self.container.call_async(provider.boot)
-                install_routes(
-                    self.asgi,
-                    self._router,
-                    self.container,
-                    self._url_generator,
-                )
-                self._routes_installed = True
+                await self._complete_startup()
         except BaseException as startup_error:
             self._closed = True
             try:
@@ -572,6 +603,25 @@ class Application:
             self._started = True
         finally:
             self._starting = False
+
+    async def _complete_startup(self) -> None:
+        """Boot providers and finalize application startup in order.
+
+        Provider hooks run before application startup hooks. Cleanup callbacks
+        were armed before container startup so partial startup can roll back.
+        """
+        for provider in self._service_providers:
+            if isinstance(provider, BootableServiceProvider):
+                await self.container.call_async(provider.boot)
+        for callback in self._startup_callbacks:
+            await self._run_lifecycle_callback(callback)
+        install_routes(
+            self.asgi,
+            self._router,
+            self.container,
+            self._url_generator,
+        )
+        self._routes_installed = True
 
     async def shutdown(self) -> None:
         """Finalize application-owned resources without an ASGI host.
@@ -640,6 +690,117 @@ class Application:
             if binding is not None:
                 binding.__exit__(exception_type, exception, traceback)
 
+    @classmethod
+    def builder(cls) -> ApplicationBuilder:
+        """Return a typed builder that creates this application class.
+
+        Returns:
+            A builder that collects options for the canonical composition
+            root.
+        """
+        return ApplicationBuilder(cls)
+
+    async def run[ResultT](
+        self,
+        operation: Callable[..., ResultT] | Callable[..., Awaitable[ResultT]],
+        parameters: Mapping[str, object] | None = None,
+    ) -> ResultT:
+        """Run one standalone operation inside the application lifecycle.
+
+        Args:
+            operation: Sync or async callable invoked through the native
+                container.
+            parameters: Explicit callable values keyed by parameter name.
+
+        Returns:
+            The operation result after application shutdown completes.
+
+        Raises:
+            Exception: If startup, operation, or cleanup fails.
+        """
+        async with self:
+            return await self.container.call_async(operation, parameters)
+
+    def on_startup(
+        self,
+        callback: ApplicationLifecycleCallback,
+    ) -> None:
+        """Register a synchronous or asynchronous startup callback.
+
+        Callbacks run after provider boot and before native route installation.
+        They use captured application services rather than dependency
+        injection; providers own injected initialization.
+
+        Args:
+            callback: Zero-argument startup callable.
+
+        Raises:
+            ApplicationLifecycleError: If startup has begun or ended.
+        """
+        self._ensure_lifecycle_registration("startup callback")
+        self._startup_callbacks.append(callback)
+
+    def on_shutdown(
+        self,
+        callback: ApplicationLifecycleCallback,
+    ) -> None:
+        """Register a zero-argument cleanup callback.
+
+        Callbacks run in reverse registration order before owned resources
+        close. They must use captured references because the container has
+        stopped accepting new resolutions.
+
+        Args:
+            callback: Synchronous or asynchronous cleanup callable.
+
+        Raises:
+            ApplicationLifecycleError: If startup has begun or ended.
+        """
+        self._ensure_lifecycle_registration("shutdown callback")
+        self._shutdown_callbacks.append(callback)
+
+    def add_exception_handler[ExceptionT: Exception](
+        self,
+        exception_type: type[ExceptionT],
+        handler: ApplicationExceptionHandler,
+    ) -> None:
+        """Register a native exception renderer before startup.
+
+        The handler receives injected services and explicit ``request`` and
+        ``exception`` parameters. It must return a Titanspan ASGI response.
+
+        Args:
+            exception_type: Exception class selected by the ASGI adapter.
+            handler: Sync or async callback using native HTTP contracts.
+
+        Raises:
+            ApplicationLifecycleError: If startup has begun or ended.
+        """
+        self._ensure_lifecycle_registration("exception handler")
+        self._exception_handlers[exception_type] = handler
+        self.asgi.add_exception_handler(
+            exception_type,
+            self._exception_handler_adapter(handler),
+        )
+
+    def report_exception(
+        self,
+        error: Exception,
+        *,
+        context: Mapping[str, object] | None = None,
+    ) -> None:
+        """Report one application failure through the shared logger.
+
+        Args:
+            error: Exception to report.
+            context: Safe structured context that excludes request secrets.
+        """
+        self._logging_manager.channel().exception(
+            "Application operation failed",
+            context,
+            exception=error,
+        )
+
     def dependency[ServiceT](
         self,
         service: type[ServiceT],
@@ -689,6 +850,100 @@ class Application:
             The exact implementation resolved through the service container.
         """
         return self._config_repository
+
+    @property
+    def base_path(self) -> Path:
+        """Return the resolved root used by application configuration.
+
+        Returns:
+            The application base directory.
+        """
+        return self._base_path
+
+    @property
+    def config_path(self) -> Path:
+        """Return the conventional application configuration directory.
+
+        Returns:
+            The path under ``base_path`` reserved for configuration files.
+        """
+        return self.path("config")
+
+    @property
+    def bootstrap_path(self) -> Path:
+        """Return the conventional application bootstrap directory.
+
+        Returns:
+            The path under ``base_path`` reserved for bootstrap artifacts.
+        """
+        return self.path("bootstrap")
+
+    @property
+    def storage_path(self) -> Path:
+        """Return the conventional application storage directory.
+
+        Returns:
+            The path under ``base_path`` reserved for runtime storage.
+        """
+        return self.path("storage")
+
+    @property
+    def environment(self) -> str:
+        """Return the configured application environment name.
+
+        Returns:
+            The non-empty ``app.env`` setting or ``production`` by default.
+        """
+        return self._environment
+
+    @property
+    def debug(self) -> bool:
+        """Return the validated application debug setting.
+
+        Returns:
+            Whether debug mode is enabled.
+        """
+        return _application_metadata(self._config_repository)[1]
+
+    @property
+    def is_started(self) -> bool:
+        """Report whether provider boot completed successfully.
+
+        Returns:
+            Whether this application completed startup and remains open.
+        """
+        return self._started and not self._closed
+
+    def is_environment(self, *environments: str) -> bool:
+        """Check whether the active environment matches a supplied name.
+
+        Matching is case-insensitive. An empty argument list returns false.
+
+        Args:
+            *environments: Environment names to compare.
+
+        Returns:
+            Whether the configured environment matches a supplied name.
+
+        Raises:
+            ValueError: If an environment name is empty.
+        """
+        if any(not environment.strip() for environment in environments):
+            raise ValueError(_INVALID_ENVIRONMENT_ERROR)
+        selected = {environment.casefold() for environment in environments}
+        return self._environment.casefold() in selected
+
+    def path(self, *parts: str) -> Path:
+        """Join path segments to the resolved application base directory.
+
+        Args:
+            *parts: Path components accepted by :meth:`Path.joinpath`.
+
+        Returns:
+            The composed path. This helper does not create directories or
+            enforce filesystem containment for untrusted values.
+        """
+        return self._base_path.joinpath(*parts)
 
     @property
     def logging(self) -> LoggingManager:
@@ -748,6 +1003,97 @@ class Application:
             The instance resolved through the async lifecycle.
         """
         return await self.container.make_async(service)
+
+    async def _run_lifecycle_callback(
+        self,
+        callback: ApplicationLifecycleCallback,
+    ) -> None:
+        """Invoke one zero-argument lifecycle callback.
+
+        Args:
+            callback: Synchronous or asynchronous application callback.
+        """
+        result = callback()
+        if isawaitable(result):
+            await cast("Awaitable[object]", result)
+
+    def _exception_handler_adapter(
+        self,
+        handler: ApplicationExceptionHandler,
+    ) -> Callable[[StarletteRequest, Exception], Awaitable[StarletteResponse]]:
+        """Create an ASGI handler that invokes a native callback.
+
+        Args:
+            handler: Registered renderer for the selected exception class.
+
+        Returns:
+            An async ASGI adapter that uses the native request scope.
+        """
+
+        async def render(
+            request: StarletteRequest,
+            error: Exception,
+        ) -> StarletteResponse:
+            """Resolve the native request and render one exception.
+
+            Args:
+                request: Backend request represented in the native scope.
+                error: Exception selected by the ASGI handler registry.
+
+            Returns:
+                The native response accepted by the ASGI host.
+
+            Raises:
+                TypeError: If the callback returns a non-ASGI response.
+            """
+            _ = request
+            native_request = await self.container.make_async(HttpRequest)
+            response = await self.container.call_async(
+                handler,
+                {"request": native_request, "exception": error},
+            )
+            if isawaitable(response):
+                response = await response
+            return _require_asgi_response(response)
+
+        return render
+
+    async def _unhandled_exception(
+        self,
+        request: StarletteRequest,
+        error: Exception,
+    ) -> StarletteResponse:
+        """Report an unhandled request failure without exposing its details.
+
+        Args:
+            request: Backend request associated with the failure.
+            error: Exception raised by route or middleware execution.
+
+        Returns:
+            A generic JSON response with HTTP status 500.
+        """
+        _ = request
+        self.report_exception(error)
+        response = self.container.make(ResponseFactory).json(
+            {"detail": _DEFAULT_SERVER_ERROR},
+            status=500,
+        )
+        return _require_asgi_response(response)
+
+    def _ensure_lifecycle_registration(self, operation: str) -> None:
+        """Reject callback or handler changes after startup begins.
+
+        Args:
+            operation: Registration operation attempted by the caller.
+
+        Raises:
+            ApplicationLifecycleError: If application state is not mutable.
+        """
+        if self._starting or self._started or self._closed:
+            raise ApplicationLifecycleError(
+                operation,
+                _LIFECYCLE_REGISTRATION_ERROR,
+            )
 
     @contextmanager
     def context(self) -> Generator[None, None, None]:
@@ -826,6 +1172,8 @@ class Application:
     _router: Router
     _url_generator: UrlGenerator
     _config_manager: ConfigManager
+    _base_path: Path
+    _environment: str
     _service_providers: tuple[ServiceProvider, ...]
     _lifecycle_stack: AsyncExitStack
     _started: bool
@@ -833,6 +1181,9 @@ class Application:
     _closed: bool
     _routes_installed: bool
     _standalone_context: AbstractContextManager[ActiveApplicationContext] | None
+    _startup_callbacks: list[ApplicationLifecycleCallback]
+    _shutdown_callbacks: list[ApplicationLifecycleCallback]
+    _exception_handlers: dict[type[Exception], ApplicationExceptionHandler]
 
 
 def _application_metadata(
@@ -857,6 +1208,44 @@ def _application_metadata(
     if type(debug_value) is not bool:
         raise ConfigValueError(_APP_DEBUG_KEY, "a boolean", debug_value)
     return name, debug_value
+
+
+def _application_environment(repository: ConfigRepository) -> str:
+    """Read and validate the configured application environment.
+
+    Args:
+        repository: Application configuration selected at composition.
+
+    Returns:
+        A non-empty environment name.
+
+    Raises:
+        ConfigValueError: If the value is not a string.
+        ValueError: If the value is empty or contains only whitespace.
+    """
+    value = repository.get(_APP_ENVIRONMENT_KEY, "production")
+    if not isinstance(value, str):
+        raise ConfigValueError(_APP_ENVIRONMENT_KEY, "a string", value)
+    if not value.strip():
+        raise ValueError(_INVALID_ENVIRONMENT_ERROR)
+    return value
+
+
+def _require_asgi_response(response: HttpResponse) -> StarletteResponse:
+    """Validate a native response at the private ASGI adapter boundary.
+
+    Args:
+        response: Response returned by a native response contract.
+
+    Returns:
+        A response accepted by FastAPI and Starlette.
+
+    Raises:
+        TypeError: If the value is not an ASGI response.
+    """
+    if not isinstance(response, StarletteResponse):
+        raise TypeError(_INVALID_EXCEPTION_RESPONSE_ERROR)
+    return response
 
 
 def _request_id(request: StarletteRequest) -> str:

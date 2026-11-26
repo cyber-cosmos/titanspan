@@ -9,9 +9,11 @@ from __future__ import annotations
 import asyncio
 from collections.abc import AsyncIterator, Mapping, Sequence
 from types import MappingProxyType
-from typing import TYPE_CHECKING, Annotated, cast, overload
+from typing import TYPE_CHECKING, Annotated, Self, cast, overload
 
 import pytest
+from dishka import Provider
+from fastapi.testclient import TestClient
 
 from titanspan import Application, app
 from titanspan._application_context import (
@@ -38,14 +40,87 @@ from titanspan.contracts.container import (
     AsyncServiceContainer,
     ServiceContainer,
 )
+
+# Exception dispatch resolves these postponed annotations through Container.
+from titanspan.contracts.http import (
+    HttpRequest,  # noqa: TC001
+    HttpResponse,  # noqa: TC001
+    ResponseFactory,  # noqa: TC001
+)
 from titanspan.contracts.logging import LoggingManager, LogWriter
 from titanspan.facades import Config, Facade, Log
+from titanspan.foundation.exceptions import ApplicationLifecycleError
 from titanspan.logging import LogLifecycleError
 from titanspan.support import config
 from titanspan.support.arr import Arr
 
 _PROVIDER_FAILURE_MESSAGE = "provider startup failed"
 _RESOURCE_CLEANUP_FAILURE_MESSAGE = "resource cleanup failed"
+_PRIVATE_ROUTE_FAILURE = "private exception detail"
+_UNPROCESSABLE_ENTITY = 422
+
+
+class _BuilderHeaderMiddleware:
+    """Add a response marker through the native middleware contract.
+
+    The marker proves builder middleware participates in real ASGI dispatch.
+    """
+
+    async def handle(
+        self,
+        request: HttpRequest,
+        next_handler: RequestHandler,
+    ) -> HttpResponse:
+        """Add one safe response header after downstream execution.
+
+        Args:
+            request: Request scoped to the active application.
+            next_handler: Native middleware continuation.
+
+        Returns:
+            The downstream response with a builder marker header.
+        """
+        response = await next_handler(request)
+        return response.with_header("X-Builder", "enabled")
+
+
+class _NonAsgiResponse:
+    """Satisfy the native response contract without an ASGI implementation.
+
+    Foundation must reject this value at its explicit interoperability edge.
+    """
+
+    @property
+    def status_code(self) -> int:
+        """Return the contract-required status value.
+
+        Returns:
+            An ordinary success status for the test response.
+        """
+        return 200
+
+    @property
+    def headers(self) -> Mapping[str, str]:
+        """Return empty response metadata.
+
+        Returns:
+            No response headers.
+        """
+        return {}
+
+    def with_header(self, name: str, value: str) -> Self:
+        """Retain the fluent contract without producing an ASGI response.
+
+        Args:
+            name: Header name supplied by the caller.
+            value: Header value supplied by the caller.
+
+        Returns:
+            This response object.
+        """
+        _ = name, value
+        return self
+
 
 if TYPE_CHECKING:
     from titanspan.contracts.container import ServiceRegistry
@@ -53,6 +128,7 @@ if TYPE_CHECKING:
         BootableServiceProvider,
         ServiceProvider,
     )
+    from titanspan.contracts.http import RequestHandler
 
 pytestmark = [pytest.mark.integration, pytest.mark.architecture]
 
@@ -945,6 +1021,233 @@ async def test_application_async_context_manages_native_lifecycle() -> None:
 
 
 @pytest.mark.anyio
+@pytest.mark.feature
+async def test_application_callbacks_and_run_share_native_lifecycle() -> None:
+    """Run standalone work between injected startup and shutdown callbacks.
+
+    Callback dependencies resolve through the same application container as
+    the operation and run in deterministic ownership order.
+    """
+    events: list[str] = []
+    application = Application()
+
+    async def start() -> None:
+        """Record startup after application providers have booted.
+
+        The event sequence verifies provider and callback ordering.
+        """
+        events.append("started")
+
+    def stop() -> None:
+        """Record shutdown before application resources are finalized.
+
+        The event sequence verifies callback ownership order.
+        """
+        events.append("stopped")
+
+    def stop_first() -> None:
+        """Record reverse-order cleanup after the second callback.
+
+        The event sequence verifies last-in, first-out behavior.
+        """
+        events.append("stopped-first")
+
+    def operation(repository: ConfigRepository) -> str:
+        """Return configured state from the active application.
+
+        Args:
+            repository: Application-owned configuration repository.
+
+        Returns:
+            Configured application name.
+        """
+        events.append("operation")
+        value = repository.get("app.name")
+        assert isinstance(value, str)
+        return value
+
+    application.on_startup(start)
+    application.on_shutdown(stop)
+    application.on_shutdown(stop_first)
+    result = await application.run(operation)
+
+    assert result == "Titanspan"
+    assert events == [
+        "started",
+        "operation",
+        "stopped-first",
+        "stopped",
+    ]
+    assert active_application_context() is None
+    assert not application.is_started
+
+
+@pytest.mark.anyio
+@pytest.mark.regression
+async def test_application_startup_callback_failure_runs_cleanup_hooks() -> (
+    None
+):
+    """Run registered cleanup after an application hook fails.
+
+    Startup rollback must restore the active context and finalize the
+    container even when a callback raises before route installation.
+    """
+    events: list[str] = []
+    application = Application()
+
+    def fail_startup() -> None:
+        """Raise a stable error after recording startup entry.
+
+        The failure exercises application startup rollback.
+        """
+        events.append("startup")
+        raise RuntimeError(_PROVIDER_FAILURE_MESSAGE)
+
+    async def cleanup() -> None:
+        """Record shielded cleanup after partial startup.
+
+        The callback must run even when startup raises.
+        """
+        events.append("cleanup")
+
+    application.on_startup(fail_startup)
+    application.on_shutdown(cleanup)
+
+    with pytest.raises(RuntimeError, match=_PROVIDER_FAILURE_MESSAGE):
+        await application.startup()
+
+    assert events == ["startup", "cleanup"]
+    assert active_application_context() is None
+    assert not application.is_started
+
+
+@pytest.mark.anyio
+async def test_application_rejects_lifecycle_registration_after_startup() -> (
+    None
+):
+    """Freeze application callbacks when startup begins.
+
+    A serving application cannot mutate its registered lifecycle policy.
+    """
+    application = Application()
+    await application.startup()
+
+    def late_callback() -> None:
+        """Represent a lifecycle callback added after startup.
+
+        Startup freezes the callback registry before serving work.
+        """
+
+    with pytest.raises(ApplicationLifecycleError, match="before startup"):
+        application.on_startup(late_callback)
+
+    await application.shutdown()
+
+
+@pytest.mark.feature
+def test_application_exception_handlers_use_native_contracts() -> None:
+    """Resolve exception rendering through native request and response APIs.
+
+    The request context remains active when the registered handler receives
+    an application exception.
+    """
+
+    def fail() -> None:
+        """Raise an application exception for the adapter boundary.
+
+        Raises:
+            ValueError: A deterministic route failure.
+        """
+        raise ValueError(_PRIVATE_ROUTE_FAILURE)
+
+    async def render_error(
+        request: HttpRequest,
+        exception: ValueError,
+        factory: ResponseFactory,
+    ) -> HttpResponse:
+        """Render only a safe, structured exception classification.
+
+        Args:
+            request: Active native request associated with the exception.
+            exception: Exception selected by the native handler registry.
+            factory: Application-owned response factory.
+
+        Returns:
+            A response without private exception details.
+        """
+        assert request.method == "GET"
+        _ = exception
+        return factory.json({"detail": "Invalid operation"}, status=422)
+
+    application = (
+        Application.builder()
+        .with_fastapi_provider(Provider())
+        .with_http_middleware(_BuilderHeaderMiddleware)
+        .with_exception_handler(ValueError, render_error)
+        .build()
+    )
+    application.add_exception_handler(ValueError, render_error)
+    application.router.get("/fail", fail)
+
+    with TestClient(
+        application.asgi,
+        raise_server_exceptions=False,
+    ) as client:
+        response = client.get("/fail")
+
+    assert response.status_code == _UNPROCESSABLE_ENTITY
+    assert response.headers["X-Builder"] == "enabled"
+    assert response.json() == {"detail": "Invalid operation"}
+    assert _PRIVATE_ROUTE_FAILURE not in response.text
+
+
+@pytest.mark.feature
+def test_application_rejects_non_asgi_exception_responses() -> None:
+    """Reject response contract values unsupported by the ASGI host.
+
+    A structural HTTP response is not sufficient at the transport boundary;
+    the framework adapter must receive a response the host can transmit.
+    """
+    application = Application()
+
+    def fail() -> None:
+        """Raise an error handled by the invalid response callback.
+
+        Raises:
+            ValueError: A deterministic renderer invocation signal.
+        """
+        raise ValueError(_PRIVATE_ROUTE_FAILURE)
+
+    def render_error(
+        request: HttpRequest,
+        exception: ValueError,
+    ) -> HttpResponse:
+        """Return a contract implementation without ASGI transport support.
+
+        Args:
+            request: Active native request.
+            exception: Exception selected for rendering.
+
+        Returns:
+            A structural response rejected by the Foundation adapter.
+        """
+        _ = request, exception
+        return _NonAsgiResponse()
+
+    application.add_exception_handler(ValueError, render_error)
+    application.router.get("/fail", fail)
+
+    with (
+        TestClient(application.asgi) as client,
+        pytest.raises(
+            TypeError,
+            match="ASGI response",
+        ),
+    ):
+        client.get("/fail")
+
+
+@pytest.mark.anyio
 async def test_application_context_covers_the_full_asgi_lifespan() -> None:
     """Keep shared facade resolution active through startup and shutdown.
 
@@ -992,10 +1295,26 @@ async def test_provider_boot_failure_closes_services_and_restores_context() -> (
         ],
     )
 
+    async def stop() -> None:
+        """Record rollback callback execution in the active app context.
+
+        The callback verifies that partial startup cleanup keeps its owning
+        application context active.
+        """
+        active = active_application_context()
+        assert active is not None
+        assert active.application is application
+        events.append("application-shutdown")
+
+    application.on_shutdown(stop)
+
     with pytest.raises(RuntimeError, match=_PROVIDER_FAILURE_MESSAGE):
         await application.startup()
 
     assert "application-context-active-during-close" in events
+    assert events.index("application-shutdown") < events.index(
+        "resource-closed"
+    )
     assert events[-1] == "resource-closed"
     assert active_application_context() is None
     with pytest.raises(LogLifecycleError):

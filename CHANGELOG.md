@@ -5,6 +5,11 @@ public release.
 
 ## Unreleased
 
+- Added a typed Application builder, trusted provider entry points, path and
+  environment helpers, and standalone execution. Lifecycle callbacks and
+  native exception rendering use the application Container. Unhandled request
+  failures return a generic JSON response. See the Foundation guide and
+  specification.
 - Validate outbound URLs before base resolution and again after joining.
   Fail-fast request pools stop accepting callbacks after a failure. Responses
   suppress bodies for `HEAD` and statuses 204, 205, and 304.

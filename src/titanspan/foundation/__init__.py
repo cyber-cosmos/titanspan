@@ -1,9 +1,20 @@
-"""Expose Titanspan application lifecycle primitives.
+"""Expose native application construction and lifecycle primitives.
 
-The initial implementation coordinates FastAPI startup and Dishka cleanup.
+Foundation owns composition, provider boot, and application shutdown.
 """
 
 from titanspan.foundation.application import Application
+from titanspan.foundation.builder import ApplicationBuilder
+from titanspan.foundation.exceptions import (
+    ApplicationLifecycleError,
+    ProviderDiscoveryError,
+)
 from titanspan.foundation.helpers import app
 
-__all__ = ["Application", "app"]
+__all__ = [
+    "Application",
+    "ApplicationBuilder",
+    "ApplicationLifecycleError",
+    "ProviderDiscoveryError",
+    "app",
+]

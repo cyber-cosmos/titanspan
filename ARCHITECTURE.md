@@ -63,7 +63,7 @@ tracked in [`docs/src/content/docs/specifications/backend-boundaries.md`](docs/s
 
 | Module | Responsibility | Status |
 | --- | --- | --- |
-| `foundation` | Application lifecycle, bootstrapping, kernels, shutdown, and provider lifecycle. | `Application` owns native startup and shutdown independently of its ASGI adapter. |
+| `foundation` | Application composition, bootstrap, provider lifecycle, and shutdown. | `Application` and its typed builder own native startup, callbacks, paths, exception rendering, and shutdown independently of ASGI hosting. See `docs/src/content/docs/specifications/foundation.md`. |
 | `container` | Dependency injection, bindings, concrete graph discovery, scopes, and resource management. | Native sync-first container composes framework services and supplies request-scoped HTTP dependencies; a private adapter remains for explicit external route providers. See `docs/src/content/docs/specifications/container.md`. |
 | `contracts` | Dependency-independent typed protocols and shared abstraction boundaries. | Configuration, container, foundation, HTTP, logging, routing, and Support domains are implemented; some component contracts remain pending. See `docs/src/content/docs/specifications/contracts.md`. |
 | `support` | Shared utilities, managers, and lightweight helpers. | Selected native utilities implemented; see `docs/src/content/docs/specifications/support.md`. |
@@ -85,7 +85,7 @@ tracked in [`docs/src/content/docs/specifications/backend-boundaries.md`](docs/s
 | `filesystem` | Local and cloud storage abstractions. | Planned. |
 | `logging` | Native records, channels, drivers, redaction, context, async dispatch, and lifecycle. | Initial component implemented; see `docs/src/content/docs/logging/` and its specification for limits. |
 | `scheduling` | Recurring tasks, cron expressions, and coordination. | Planned. |
-| `console` | CLI commands, generators, and scaffolding. | Initial help and version options implemented. |
+| `console` | CLI commands, generators, and scaffolding. | Initial help and version options implemented; the command system remains in progress. |
 | `ai` | Model providers, prompts, embeddings, and structured output. | Planned. |
 | `agents` | Agent definitions, execution policies, and lifecycle. | Planned. |
 | `workflows` | Typed stateful orchestration over LangGraph. | Planned. |
@@ -129,23 +129,29 @@ flowchart TD
 
 Avoid circular imports. Shared types belong in narrow contract modules; do not
 solve cycles with broad imports from the package root. The package root exports
-only `Application` and `__version__` today.
+`Application`, `ApplicationBuilder`, `app`, `__version__`, and native URL
+helpers.
 
 ## Application lifecycle
 
 `Application` is the composition root for framework-owned services. It loads
-trusted configuration, creates the native `Container`, registers the
-configuration and logging providers followed by application providers, then
-resolves the configured `LoggingManager` from that same container. Direct
-application resolution, Config and Log facades, helper access, and provider
-boot dependencies therefore share service identities.
+trusted configuration, creates the native `Container`, registers ordered
+framework providers followed by application providers, then resolves the
+configured `LoggingManager` from that same container. Direct application
+resolution, facades, helper access, and provider boot dependencies therefore
+share service identities. `ApplicationBuilder` collects options for the same
+composition root. Optional provider discovery loads trusted installed Python
+entry points from an explicitly selected group.
 
 The caller can include FastAPI routers through the deliberate
 `application.asgi` integration boundary. `Application.dependency` resolves
 native services through the active application container. An optional private
 graph remains for explicitly supplied external route providers. Native
 `Application.startup` and `Application.shutdown` work without HTTP hosting;
-the ASGI lifespan delegates to them. Pure ASGI request middleware keeps
+`Application.run` and the async context manager pair operation execution with
+those methods. Startup and shutdown callbacks run around owned resource
+lifecycles. Native exception handlers use HTTP contracts and the application
+Container. The ASGI lifespan delegates to startup and shutdown. Pure ASGI request middleware keeps
 application context, request scope, and logging context active through the
 complete response send, including streaming bodies. See the [backend boundary
 audit](docs/src/content/docs/specifications/backend-boundaries.md) for the remaining raw
@@ -175,8 +181,8 @@ sequenceDiagram
 ```
 
 Construct and validate production registrations before serving traffic. Do not
-mutate shared registrations after boot. The current integration does not add a
-builder DSL, service-provider discovery, or implicit module scanning.
+mutate shared registrations after boot. Provider discovery is explicit and
+uses installed entry points; Foundation does not scan application modules.
 
 ## Service container and execution scopes
 
@@ -191,10 +197,9 @@ dependencies use the application container. Explicit external route
 providers may still use a separate interoperability graph.
 
 Application-scoped objects may be shared only when they are safe for concurrent
-use. Mutable sessions and request data belong to narrower scopes. Facades, if
-added, must resolve through the active execution context rather than global
-mutable state. Shutdown must cancel or drain owned work before closing shared
-resources.
+use. Mutable sessions and request data belong to narrower scopes. Facades
+resolve through the active execution context rather than global mutable state.
+Shutdown rejects active work before closing shared resources.
 
 ## Adapters and contracts
 

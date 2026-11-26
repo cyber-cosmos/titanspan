@@ -15,6 +15,10 @@ export const documentationSidebar = [
     label: "Application development",
     items: [
       {
+        label: "Application foundation",
+        items: [{ autogenerate: { directory: "foundation" } }],
+      },
+      {
         label: "Core concepts",
         items: [{ autogenerate: { directory: "basics" } }],
       },
