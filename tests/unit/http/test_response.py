@@ -24,6 +24,7 @@ from titanspan.http.response import (
 from titanspan.http.response_factory import NativeResponseFactory
 
 pytestmark = pytest.mark.unit
+_EXPECTED_RESPONSE_COOKIES = 2
 
 
 def test_text_and_json_responses_keep_status_and_media_type() -> None:
@@ -118,6 +119,46 @@ def test_cookie_defaults_and_cache_policy_are_explicit() -> None:
     assert response.headers["cache-control"] == ("private, no-store, max-age=0")
     assert response.cache_control() is response
     assert response.headers["cache-control"] == "private"
+
+
+def test_response_variants_create_and_remove_cookies(
+    tmp_path: Path,
+) -> None:
+    """Expose fluent cookie operations across native response types.
+
+    Removal appends an expiry header with the configured cookie scope.
+    """
+
+    async def chunks() -> AsyncIterator[bytes]:
+        """Yield one body chunk for the streaming response case.
+
+        The generator backs the response cookie behavior test.
+        """
+        yield b"stream"
+
+    path = tmp_path / "download.txt"
+    path.write_text("download", encoding="utf-8")
+    responses = (
+        Response(),
+        JsonResponse({"ok": True}),
+        HtmlResponse("<p>ok</p>"),
+        RedirectResponse("/next"),
+        StreamResponse(chunks()),
+        FileResponse(path),
+    )
+
+    for response in responses:
+        assert response.with_cookie("session", "opaque") is response
+        assert response.without_cookie("session") is response
+        cookies = [
+            value.decode("latin-1")
+            for name, value in response.raw_headers
+            if name.lower() == b"set-cookie"
+        ]
+        assert len(cookies) == _EXPECTED_RESPONSE_COOKIES
+        assert "session=opaque" in cookies[0]
+        assert 'session="";' in cookies[1]
+        assert "max-age=0" in cookies[1].lower()
 
 
 def test_cookie_and_cache_validation_rejects_unsafe_values() -> None:

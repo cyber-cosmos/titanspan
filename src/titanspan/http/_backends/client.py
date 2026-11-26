@@ -8,6 +8,7 @@ private boundary.
 from __future__ import annotations
 
 from contextlib import asynccontextmanager, contextmanager
+from dataclasses import replace
 from http.cookiejar import Cookie, CookieJar
 from typing import TYPE_CHECKING, TypedDict, cast
 
@@ -18,8 +19,17 @@ from titanspan.contracts.http import (
     HttpClient,
     HttpClientResponse,
     JsonValue,
+    MultipartFile,
     OutgoingRequest,
     QueryParameters,
+)
+from titanspan.http._backends.fake import (
+    async_fake_transport,
+    sync_fake_transport,
+)
+from titanspan.http._urls import (
+    validate_base_url,
+    validate_outbound_url,
 )
 from titanspan.http.client.response import ClientResponse
 from titanspan.http.exceptions import (
@@ -27,6 +37,7 @@ from titanspan.http.exceptions import (
     HttpTransportError,
     SynchronousHttpInAsyncContextError,
 )
+from titanspan.http.testing import HttpFake, current_http_fake
 
 if TYPE_CHECKING:
     from collections.abc import (
@@ -78,6 +89,7 @@ class _RequestOptions(TypedDict, total=False):
     json: JsonValue | None
     content: str | bytes
     data: dict[str, str | Sequence[str]]
+    files: Sequence[tuple[str, tuple[str, bytes, str]]]
     timeout: float
     follow_redirects: bool
 
@@ -141,14 +153,20 @@ class HttpxClientAdapter(HttpClient):
             configuration.timeout,
             connect=configuration.connect_timeout,
         )
+        base_url = (
+            validate_base_url(configuration.base_url)
+            if configuration.base_url
+            else ""
+        )
         common: _ClientOptions = {
             "timeout": timeout,
             "limits": limits,
             "verify": configuration.verify_tls,
             "follow_redirects": configuration.follow_redirects,
-            "base_url": configuration.base_url,
+            "base_url": base_url,
             "http2": configuration.http2,
         }
+        self._client_options = common
         self._sync_client = httpx2.Client(
             **common,
             cookies=_RequestIsolatedCookieJar(),
@@ -182,12 +200,25 @@ class HttpxClientAdapter(HttpClient):
         """
         _require_sync_context()
         self._ensure_open()
+        request = _validate_request_destination(
+            request,
+            self._client_options["base_url"],
+        )
         try:
-            response = self._sync_client.request(
-                request.method,
-                request.url,
-                **_request_options(request),
-            )
+            fake = current_http_fake()
+            if fake is None:
+                response = self._sync_client.request(
+                    request.method,
+                    request.url,
+                    **_request_options(request),
+                )
+            else:
+                with self._sync_fake_client(fake) as client:
+                    response = client.request(
+                        request.method,
+                        request.url,
+                        **_request_options(request),
+                    )
         except httpx2.TimeoutException as error:
             raise HttpTimeoutError(_OUTGOING_TIMEOUT_MESSAGE) from error
         except httpx2.HTTPError as error:
@@ -215,12 +246,25 @@ class HttpxClientAdapter(HttpClient):
             HttpTransportError: If a transport or protocol error occurred.
         """
         self._ensure_open()
+        request = _validate_request_destination(
+            request,
+            self._client_options["base_url"],
+        )
         try:
-            response = await self._async_client.request(
-                request.method,
-                request.url,
-                **_request_options(request),
-            )
+            fake = current_http_fake()
+            if fake is None:
+                response = await self._async_client.request(
+                    request.method,
+                    request.url,
+                    **_request_options(request),
+                )
+            else:
+                async with self._async_fake_client(fake) as client:
+                    response = await client.request(
+                        request.method,
+                        request.url,
+                        **_request_options(request),
+                    )
         except httpx2.TimeoutException as error:
             raise HttpTimeoutError(_OUTGOING_TIMEOUT_MESSAGE) from error
         except httpx2.HTTPError as error:
@@ -246,16 +290,35 @@ class HttpxClientAdapter(HttpClient):
         """
         _require_sync_context()
         self._ensure_open()
+        request = _validate_request_destination(
+            request,
+            self._client_options["base_url"],
+        )
         try:
-            with self._sync_client.stream(
-                request.method,
-                request.url,
-                **_request_options(request),
-            ) as response:
-                yield ClientResponse(
-                    _HttpxResponseAccess(response),
-                    asynchronous=False,
-                )
+            fake = current_http_fake()
+            if fake is None:
+                with self._sync_client.stream(
+                    request.method,
+                    request.url,
+                    **_request_options(request),
+                ) as response:
+                    yield ClientResponse(
+                        _HttpxResponseAccess(response),
+                        asynchronous=False,
+                    )
+            else:
+                with (
+                    self._sync_fake_client(fake) as client,
+                    client.stream(
+                        request.method,
+                        request.url,
+                        **_request_options(request),
+                    ) as response,
+                ):
+                    yield ClientResponse(
+                        _HttpxResponseAccess(response),
+                        asynchronous=False,
+                    )
         except httpx2.TimeoutException as error:
             raise HttpTimeoutError(_OUTGOING_TIMEOUT_MESSAGE) from error
         except httpx2.HTTPError as error:
@@ -275,16 +338,35 @@ class HttpxClientAdapter(HttpClient):
             A response whose async byte iterator is bounded by backpressure.
         """
         self._ensure_open()
+        request = _validate_request_destination(
+            request,
+            self._client_options["base_url"],
+        )
         try:
-            async with self._async_client.stream(
-                request.method,
-                request.url,
-                **_request_options(request),
-            ) as response:
-                yield ClientResponse(
-                    _HttpxResponseAccess(response),
-                    asynchronous=True,
-                )
+            fake = current_http_fake()
+            if fake is None:
+                async with self._async_client.stream(
+                    request.method,
+                    request.url,
+                    **_request_options(request),
+                ) as response:
+                    yield ClientResponse(
+                        _HttpxResponseAccess(response),
+                        asynchronous=True,
+                    )
+            else:
+                async with (
+                    self._async_fake_client(fake) as client,
+                    client.stream(
+                        request.method,
+                        request.url,
+                        **_request_options(request),
+                    ) as response,
+                ):
+                    yield ClientResponse(
+                        _HttpxResponseAccess(response),
+                        asynchronous=True,
+                    )
         except httpx2.TimeoutException as error:
             raise HttpTimeoutError(_OUTGOING_TIMEOUT_MESSAGE) from error
         except httpx2.HTTPError as error:
@@ -314,9 +396,59 @@ class HttpxClientAdapter(HttpClient):
         if self._closed:
             raise RuntimeError(_CLIENT_CLOSED_MESSAGE)
 
+    def _sync_fake_client(self, fake: HttpFake) -> httpx2.Client:
+        """Create a short-lived HTTPX2 client over the active fake transport.
+
+        Args:
+            fake: Context-local fake session selected for this request.
+
+        Returns:
+            A client that cannot reach the real network.
+        """
+        return httpx2.Client(
+            **self._client_options,
+            cookies=_RequestIsolatedCookieJar(),
+            transport=sync_fake_transport(fake),
+        )
+
+    def _async_fake_client(self, fake: HttpFake) -> httpx2.AsyncClient:
+        """Create a short-lived async client over the fake transport.
+
+        Args:
+            fake: Context-local fake session selected for this request.
+
+        Returns:
+            An async client that cannot reach the real network.
+        """
+        return httpx2.AsyncClient(
+            **self._client_options,
+            cookies=_RequestIsolatedCookieJar(),
+            transport=async_fake_transport(fake),
+        )
+
     _sync_client: httpx2.Client
     _async_client: httpx2.AsyncClient
+    _client_options: _ClientOptions
     _closed: bool
+
+
+def _validate_request_destination(
+    request: OutgoingRequest,
+    base_url: str,
+) -> OutgoingRequest:
+    """Check one outbound URL before transport request resolution.
+
+    Args:
+        request: Transport-neutral request data.
+        base_url: Optional validated HTTPX2 base URL.
+
+    Returns:
+        A copy with its absolute or base-resolvable URL checked.
+    """
+    return replace(
+        request,
+        url=validate_outbound_url(request.url, base_url=base_url),
+    )
 
 
 def _request_options(
@@ -331,6 +463,28 @@ def _request_options(
         Only supported public keyword arguments for the backend request API.
     """
     options: _RequestOptions = {}
+    headers = _request_headers(request)
+    if headers:
+        options["headers"] = headers
+    if request.params is not None:
+        options["params"] = _query_values(request.params)
+    options.update(_request_body_options(request))
+    if request.timeout is not None:
+        options["timeout"] = request.timeout
+    if request.follow_redirects is not None:
+        options["follow_redirects"] = request.follow_redirects
+    return options
+
+
+def _request_headers(request: OutgoingRequest) -> dict[str, str]:
+    """Merge explicit request cookies into an isolated header snapshot.
+
+    Args:
+        request: Native request value containing headers and cookies.
+
+    Returns:
+        Fresh request header mapping.
+    """
     headers = dict(request.headers)
     if request.cookies:
         cookie = _cookie_header(request.cookies)
@@ -341,10 +495,19 @@ def _request_options(
             headers["Cookie"] = cookie
         else:
             headers[existing] = f"{headers[existing]}; {cookie}"
-    if headers:
-        options["headers"] = headers
-    if request.params is not None:
-        options["params"] = _query_values(request.params)
+    return headers
+
+
+def _request_body_options(request: OutgoingRequest) -> _RequestOptions:
+    """Translate the selected body and multipart values for HTTPX2.
+
+    Args:
+        request: Native request value containing one configured body.
+
+    Returns:
+        Supported public HTTPX2 body keyword arguments.
+    """
+    options: _RequestOptions = {}
     if request.json_enabled:
         options["json"] = request.json_body
     if request.data is not None:
@@ -352,10 +515,8 @@ def _request_options(
             options["content"] = request.data
         else:
             options["data"] = _form_values(request.data)
-    if request.timeout is not None:
-        options["timeout"] = request.timeout
-    if request.follow_redirects is not None:
-        options["follow_redirects"] = request.follow_redirects
+    if request.files:
+        options["files"] = _multipart_files(request.files)
     return options
 
 
@@ -464,6 +625,23 @@ def _form_sequence(value: Sequence[object]) -> tuple[str, ...]:
     return tuple(normalized)
 
 
+def _multipart_files(
+    values: Sequence[tuple[str, MultipartFile]],
+) -> list[tuple[str, tuple[str, bytes, str]]]:
+    """Translate replayable native attachments to HTTPX2 multipart values.
+
+    Args:
+        values: Ordered field names and immutable byte attachments.
+
+    Returns:
+        HTTPX2's supported ordered file tuple representation.
+    """
+    return [
+        (name, (file.filename, file.content, file.content_type))
+        for name, file in values
+    ]
+
+
 def _require_sync_context() -> None:
     """Reject blocking client calls from an active AnyIO runtime.
 
@@ -506,6 +684,14 @@ class _HttpxResponseAccess:
         Transport details stay behind this private adapter.
         """
         return dict(self._response.headers.items())
+
+    @property
+    def cookies(self) -> Mapping[str, str]:
+        """Return cookies set by this response without sharing a jar.
+
+        Transport details stay behind this private adapter.
+        """
+        return dict(self._response.cookies.items())
 
     def body(self) -> bytes:
         """Return content already buffered by HTTPX2.

@@ -38,6 +38,26 @@ timeouts, retry policy, and redirect control. Request and response data use
 Titanspan-owned types. Unsupported arbitrary values are rejected instead of
 being serialized from object attributes.
 
+Multipart attachments are replayable byte values. Combine `attach` or
+`with_files` with `post`, `put`, `patch`, or `request`; HTTPX2 encodes the
+multipart request body.
+
+```python
+response = await (
+    Http.attach(
+        "document",
+        document_bytes,
+        filename="report.pdf",
+        content_type="application/pdf",
+    )
+    .post_async("https://files.example.test/documents", {"name": "report"})
+)
+```
+
+`ClientResponse.cookies` returns an immutable snapshot. The application
+client does not reuse response cookies in later requests; pass request cookies
+explicitly through `with_cookies`.
+
 Ordinary requests buffer their response. For large bodies, use `stream` or
 `stream_async` as a context manager and iterate bytes inside the context.
 The response context releases the connection after complete or partial
@@ -53,7 +73,31 @@ The application owns separate synchronous and asynchronous pools. Pool sizes,
 TLS verification, timeouts, redirects, HTTP/2 negotiation, and base URL come
 from `http.client` configuration. Per-request options override those defaults.
 
-The current public client does not yet include an HTTP fake transport API,
-multipart outgoing upload builder, or bounded concurrent request pool. Use
-an explicitly configured local test server or an injected `HttpClient`
-implementation in tests until those facilities are implemented.
+Use `Http.pool` for bounded asynchronous operations. Named mappings return a
+mapping with the same keys; sequences return a tuple in input order. Each
+`HttpPoolRequest` accepts an async callback and optional timeout. Fail-fast
+mode cancels remaining callbacks, closes received responses, and raises the
+first error. Set `fail_fast=False` to collect errors beside successful
+responses. The caller must close every successful returned response.
+
+```python
+from titanspan.http import HttpPoolRequest
+
+results = await Http.pool(max_concurrency=4).run(
+    {
+        "profile": HttpPoolRequest(
+            lambda: Http.get_async("https://api.example.test/profile"),
+            timeout=3,
+        ),
+        "settings": HttpPoolRequest(
+            lambda: Http.get_async("https://api.example.test/settings"),
+            timeout=3,
+        ),
+    },
+    fail_fast=False,
+)
+```
+
+For testing, `Http.fake` provides context-local HTTPX2 mock transports,
+recorded requests, and send assertions. See the
+[HTTP testing guide](/titanspan/http/testing/).

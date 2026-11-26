@@ -37,9 +37,10 @@ the full ASGI call, not only to endpoint execution.
 - Bind the application context, request context, logging context, and native
   request scope through a pure ASGI middleware boundary that remains active
   until response transmission has completed or been cancelled.
-- Keep route definitions and dispatch in the Routing component. Concurrent
-  client pools, fake HTTP transports, and SSRF destination policy require
-  separate contracts and integration evidence.
+- Keep route definitions and dispatch in the Routing component. Implement
+  HTTP-specific concurrent requests with AnyIO task groups and test fakes
+  with HTTPX2 mock transports. Outbound URL checks reject unsafe syntax but
+  do not claim comprehensive SSRF protection.
 
 ## Consequences
 
@@ -53,9 +54,12 @@ Incoming request and upload resources remain valid during streaming response
 generation. Middleware can resolve request-scoped dependencies and modify a
 native response without buffering its body.
 
-The HTTP component provides a useful web boundary but does not own route
+The HTTP component provides a cohesive web boundary but does not own route
 definitions. The separate native Routing component compiles its canonical
 route catalog into the ASGI host; see ADR 0021 and
-`docs/specifications/routing.md`. HTTP fakes, bounded concurrent client
-pools, outgoing multipart, SSRF policy, authentication, and telemetry remain
-pending and are tracked in `docs/specifications/http.md`.
+`docs/specifications/routing.md`. HTTP fakes, bounded request pools, outgoing
+multipart, SSE client parsing, and supported Starlette middleware are
+implemented through native APIs. Authentication, sessions, CSRF, distributed
+rate limiting, Filesystem persistence, trusted proxy configuration, and
+Telemetry remain integration boundaries documented in
+`docs/specifications/http.md`.

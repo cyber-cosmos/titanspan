@@ -21,11 +21,15 @@ public release.
   Queue, Database, Broadcasting, and Console integrations remain pending.
   See `docs/src/content/docs/events/` and
   `docs/src/content/docs/specifications/events.md`.
-- Added scoped ASGI requests with bounded body and multipart parsing. HTTP
-  provides native responses, SSE, streaming, ordered middleware, and pooled
-  sync and async clients. Request scope remains active through transmission.
-  HTTP fakes, bounded request pools, multipart client uploads, and SSRF
-  enforcement remain pending. See `docs/src/content/docs/http/` and
+- Completed multipart uploads, HTTPX2 fakes, assertions, bounded AnyIO pools,
+  SSE parsing, and Starlette CORS, trusted-host, and HTTPS middleware.
+  Outbound URL checks reject unsafe schemes and embedded credentials. They do
+  not claim comprehensive SSRF protection. Scoped ASGI requests preserve
+  bounded body and upload parsing, response streaming cleanup, and scope
+  through transmission. Authentication,
+  sessions, CSRF, distributed rate limiting, Filesystem persistence, trusted
+  proxy configuration, and Telemetry remain owning-component integrations.
+  See `docs/src/content/docs/http/` and
   `docs/src/content/docs/specifications/http.md`.
 - Added a technical writing standard and canonical glossary. Vale checks
   maintained Markdown, Python comments, and docstrings with pinned rules and

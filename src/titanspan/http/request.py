@@ -4,10 +4,11 @@ Metadata is synchronous; body reads remain explicit and asynchronous.
 """
 
 import math
+import re
 from collections.abc import AsyncIterator, Mapping, Sequence
 from enum import Enum, auto
 from types import MappingProxyType
-from typing import Protocol, TypeVar, cast
+from typing import Protocol, TypeVar, cast, runtime_checkable
 
 from pydantic import TypeAdapter, ValidationError
 
@@ -34,12 +35,35 @@ class _Missing(Enum):
 
 _MISSING = _Missing.VALUE
 _JSON_ADAPTER = TypeAdapter(JsonValue)
+_ROUTE_PARAMETERS_ADAPTER = TypeAdapter(dict[str, object])
 _INVALID_JSON_BODY_ERROR = "The request body is not valid JSON."
 _BODY_ALREADY_CONSUMED_ERROR = "The request body stream was already consumed."
 _INVALID_FORM_ERROR = "The request form is invalid."
 _OBJECT_JSON_REQUIRED_ERROR = "Object-shaped JSON is required for input."
 _REQUEST_LIFECYCLE_ENDED_ERROR = "The request lifecycle has already ended."
 _EMPTY_ATTRIBUTE_NAME_ERROR = "Request attribute names cannot be empty."
+_INVALID_ROUTE_PARAMETERS_ERROR = "Matched route parameters are malformed."
+_MAX_CORRELATION_ID_LENGTH = 128
+_MEDIA_TYPE_TOKEN = re.compile(r"^[!#$%&'*+\-.^_`|~0-9A-Za-z]+$")
+_ACCEPT_QUALITY = re.compile(r"^(?:0(?:\.\d{0,3})?|1(?:\.0{0,3})?)$")
+_ROUTE_ATTRIBUTE = "titanspan.route"
+_ROUTE_PARAMETERS_ATTRIBUTE = "titanspan.route_parameters"
+
+
+@runtime_checkable
+class _NamedRoute(Protocol):
+    """Describe the route name exposed by the Routing integration boundary.
+
+    Request handling reads only this small structural property.
+    """
+
+    @property
+    def route_name(self) -> str | None:
+        """Return the route's configured name when present.
+
+        The request consumes this metadata only after Router dispatch.
+        """
+        ...
 
 
 class RequestBackend(Protocol):
@@ -246,6 +270,23 @@ class Request(HttpRequest):
         return self._request_id
 
     @property
+    def correlation_id(self) -> str:
+        """Return a validated correlation header or the request ID.
+
+        The correlation identifier remains distinct when the caller supplies
+        a bounded printable ``X-Correlation-ID`` value.
+        """
+        value = self.header("x-correlation-id")
+        if (
+            value is None
+            or not value
+            or len(value) > _MAX_CORRELATION_ID_LENGTH
+            or not value.isprintable()
+        ):
+            return self.request_id
+        return value
+
+    @property
     def method(self) -> str:
         """Return the uppercase HTTP method.
 
@@ -319,6 +360,32 @@ class Request(HttpRequest):
         return self._backend.client
 
     @property
+    def route_name(self) -> str | None:
+        """Return the matched route name through the Routing metadata hook.
+
+        The request depends only on the small structural route-name contract.
+        """
+        route = self.attribute(_ROUTE_ATTRIBUTE)
+        return route.route_name if isinstance(route, _NamedRoute) else None
+
+    @property
+    def route_parameters(self) -> Mapping[str, object]:
+        """Return matched path values as an immutable request snapshot.
+
+        Raises:
+            RequestError: If Routing stored malformed parameter metadata.
+        """
+        value = self.attribute(_ROUTE_PARAMETERS_ATTRIBUTE, {})
+        try:
+            parameters = _ROUTE_PARAMETERS_ADAPTER.validate_python(
+                value,
+                strict=True,
+            )
+        except ValidationError as error:
+            raise RequestError(_INVALID_ROUTE_PARAMETERS_ERROR) from error
+        return MappingProxyType(parameters)
+
+    @property
     def content_type(self) -> str | None:
         """Return the declared request media type, without parameters.
 
@@ -346,6 +413,27 @@ class Request(HttpRequest):
         Metadata is synchronous; body reads remain explicit and asynchronous.
         """
         return self.scheme.lower() == "https"
+
+    def is_ajax(self) -> bool:
+        """Check the conventional XMLHttpRequest request header.
+
+        This marker is advisory and does not establish authorization.
+        """
+        value = self.header("x-requested-with", "") or ""
+        return value.strip().lower() == "xmlhttprequest"
+
+    def is_json(self) -> bool:
+        """Check whether the declared request content type carries JSON.
+
+        The method accepts standard JSON and structured ``+json`` types.
+        """
+        content_type = self.content_type
+        media_type = None if content_type is None else content_type.lower()
+        return media_type == "application/json" or (
+            media_type is not None
+            and media_type.startswith("application/")
+            and media_type.endswith("+json")
+        )
 
     def header(self, name: str, default: str | None = None) -> str | None:
         """Return a header value using case-insensitive matching.
@@ -454,39 +542,40 @@ class Request(HttpRequest):
         Returns:
             Whether a positive-quality Accept range covers the media type.
         """
+        target = _normalized_media_type(media_type)
+        if target is None:
+            return False
         accepted = self.header("accept")
         if accepted is None or not accepted.strip():
             return True
-        target_type, _, target_subtype = media_type.lower().partition("/")
-        for item in accepted.split(","):
-            value, *parameters = item.strip().lower().split(";")
-            quality = 1.0
-            for parameter in parameters:
-                name, separator, raw = parameter.partition("=")
-                if separator and name.strip() == "q":
-                    try:
-                        quality = float(raw.strip())
-                    except ValueError:
-                        quality = 0.0
-            accepted_type, _, accepted_subtype = value.partition("/")
-            if (
-                quality > 0
-                and accepted_type in {"*", target_type}
-                and accepted_subtype in {"*", target_subtype}
-            ):
-                return True
-        return False
+        return (
+            _accepted_quality(
+                _accepted_ranges(accepted),
+                *target,
+            )
+            > 0
+        )
 
     def expects_json(self) -> bool:
         """Return whether JSON is explicitly preferred by the Accept header.
 
         Metadata is synchronous; body reads remain explicit and asynchronous.
         """
-        accepted = self.header("accept", "") or ""
-        requested_with = self.header("x-requested-with", "") or ""
-        return (
-            "json" in accepted.lower()
-            or requested_with.lower() == "xmlhttprequest"
+        if self.is_ajax():
+            return True
+        accepted = self.header("accept")
+        if accepted is None or not accepted.strip():
+            return False
+        ranges = _accepted_ranges(accepted)
+        subtypes = {
+            subtype
+            for media_type, subtype, _ in ranges
+            if media_type == "application"
+            and (subtype in {"*", "json"} or subtype.endswith("+json"))
+        }
+        return any(
+            _accepted_quality(ranges, "application", subtype) > 0
+            for subtype in subtypes
         )
 
     async def has(self, key: str) -> bool:
@@ -934,6 +1023,104 @@ def _invalid_input_type(key: str, expected: str) -> RequestInputError:
         A native exception that does not include untrusted input content.
     """
     return RequestInputError(f"Request input [{key}] must be {expected}.")
+
+
+def _normalized_media_type(value: str) -> tuple[str, str] | None:
+    """Parse one concrete media type without accepting malformed tokens.
+
+    Args:
+        value: Expected media type, optionally followed by parameters.
+
+    Returns:
+        Lower-case type and subtype, or ``None`` for invalid input.
+    """
+    candidate = value.split(";", maxsplit=1)[0].strip().lower()
+    media_type, separator, subtype = candidate.partition("/")
+    if (
+        not separator
+        or not _MEDIA_TYPE_TOKEN.fullmatch(media_type)
+        or not _MEDIA_TYPE_TOKEN.fullmatch(subtype)
+        or "*" in candidate
+    ):
+        return None
+    return media_type, subtype
+
+
+def _accepted_ranges(value: str) -> tuple[tuple[str, str, float], ...]:
+    """Parse valid Accept ranges and their bounded quality values.
+
+    Args:
+        value: Raw Accept header value supplied by the client.
+
+    Returns:
+        Valid media ranges in declaration order.
+    """
+    ranges: list[tuple[str, str, float]] = []
+    for raw_item in value.split(","):
+        parts = raw_item.split(";")
+        candidate = parts[0].strip().lower()
+        media_type, separator, subtype = candidate.partition("/")
+        if (
+            not separator
+            or not media_type
+            or not subtype
+            or (media_type == "*" and subtype != "*")
+            or (
+                media_type != "*"
+                and not _MEDIA_TYPE_TOKEN.fullmatch(media_type)
+            )
+            or (subtype != "*" and not _MEDIA_TYPE_TOKEN.fullmatch(subtype))
+        ):
+            continue
+        quality = 1.0
+        quality_valid = True
+        seen_quality = False
+        for parameter in parts[1:]:
+            name, assignment, raw_quality = parameter.partition("=")
+            if not assignment or name.strip().lower() != "q":
+                continue
+            normalized_quality = raw_quality.strip()
+            if seen_quality or not _ACCEPT_QUALITY.fullmatch(
+                normalized_quality
+            ):
+                quality_valid = False
+                break
+            seen_quality = True
+            quality = float(normalized_quality)
+        if quality_valid:
+            ranges.append((media_type, subtype, quality))
+    return tuple(ranges)
+
+
+def _accepted_quality(
+    ranges: Sequence[tuple[str, str, float]],
+    target_type: str,
+    target_subtype: str,
+) -> float:
+    """Return quality from the most specific matching Accept range.
+
+    Args:
+        ranges: Parsed client media ranges.
+        target_type: Concrete requested media type.
+        target_subtype: Concrete requested media subtype.
+
+    Returns:
+        The highest quality at the greatest matching specificity, or zero.
+    """
+    matches: list[tuple[int, float]] = []
+    for accepted_type, accepted_subtype, quality in ranges:
+        if accepted_type == "*" and accepted_subtype == "*":
+            matches.append((0, quality))
+        elif accepted_type == target_type and accepted_subtype == "*":
+            matches.append((1, quality))
+        elif (
+            accepted_type == target_type and accepted_subtype == target_subtype
+        ):
+            matches.append((2, quality))
+    if not matches:
+        return 0.0
+    specificity = max(value[0] for value in matches)
+    return max(quality for level, quality in matches if level == specificity)
 
 
 __all__ = ["Request"]

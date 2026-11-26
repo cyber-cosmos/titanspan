@@ -69,6 +69,37 @@ def test_native_request_is_injected_and_resolved_from_one_scope() -> None:
     }
 
 
+def test_request_exposes_route_metadata_from_native_dispatch() -> None:
+    """Read the selected route and path values through Request properties.
+
+    The HTTP component consumes metadata set by the Routing boundary.
+    """
+    application = Application(config={"app": {"name": "route metadata"}})
+
+    async def endpoint(request: Request) -> dict[str, object]:
+        """Return native route metadata for a selected path.
+
+        The HTTP request wrapper does not import Routing implementation types.
+        """
+        return {
+            "name": request.route_name,
+            "parameters": dict(request.route_parameters),
+        }
+
+    application.router.get(
+        "/documents/{document_id}",
+        endpoint,
+    ).name("documents.show")
+    with TestClient(application.asgi) as client:
+        result = client.get("/documents/42")
+
+    assert result.status_code == HTTPStatus.OK
+    assert result.json() == {
+        "name": "documents.show",
+        "parameters": {"document_id": "42"},
+    }
+
+
 def test_request_scope_remains_active_until_stream_finishes() -> None:
     """Keep request context available after the endpoint returned.
 

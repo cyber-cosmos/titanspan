@@ -19,7 +19,9 @@ from titanspan.contracts.http import (
     HttpClient,
     HttpClientResponse,
     JsonValue,
+    MultipartFile,
     OutgoingRequest,
+    ServerSentEvent,
 )
 from titanspan.facades import Http
 from titanspan.foundation import Application
@@ -50,6 +52,14 @@ class ResponseAccessFake:
         No mutable client defaults are shared with individual requests.
         """
         return {"content-type": "application/json"}
+
+    @property
+    def cookies(self) -> Mapping[str, str]:
+        """Return an empty response-cookie snapshot.
+
+        The fixture never receives Set-Cookie headers.
+        """
+        return {}
 
     def body(self) -> bytes:
         """Return the small body used by response facade assertions.
@@ -85,6 +95,29 @@ class ResponseAccessFake:
         The iterator keeps the async facade path deterministic.
         """
         yield b"{}"
+
+    def iter_sse(self) -> Iterator[ServerSentEvent]:
+        """Return no events for the buffered JSON fixture response.
+
+        Streaming event behavior is exercised in response integration tests.
+        """
+        return iter(())
+
+    def iter_sse_async(self) -> AsyncIterator[ServerSentEvent]:
+        """Return an empty asynchronous event iterator.
+
+        The facade unit fixture contains no event-stream content.
+        """
+
+        async def empty() -> AsyncIterator[ServerSentEvent]:
+            """Yield events through the asynchronous response interface.
+
+            This fixture contains no events.
+            """
+            for event in self.iter_sse():
+                yield event
+
+        return empty()
 
     def close(self) -> None:
         """Complete synchronous response cleanup without side effects.
@@ -228,6 +261,14 @@ def test_http_facade_builders_and_sync_requests_share_client() -> None:
             Http.timeout(2),
             Http.retry(2, backoff=0, jitter=False),
             Http.without_redirecting(),
+            Http.with_files(
+                {"report": MultipartFile("report.txt", b"content")}
+            ),
+            Http.attach(
+                "document",
+                b"content",
+                filename="report.txt",
+            ),
         )
         assert all(isinstance(builder, PendingRequest) for builder in builders)
 

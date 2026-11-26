@@ -10,11 +10,23 @@ from typing import TYPE_CHECKING
 from titanspan.contracts.http import (
     HttpClient,
     HttpClientResponse,
+    JsonValue,
+    MultipartFile,
     QueryParameters,
     RequestPayload,
 )
 from titanspan.facades.base import Facade
 from titanspan.http.client.pending_request import PendingRequest
+from titanspan.http.client.pool import HttpRequestPool
+from titanspan.http.testing import (
+    HttpFake,
+    HttpFakeResponse,
+    HttpFakeResponses,
+    HttpRequestMatcher,
+    HttpRequestPattern,
+    SentRequest,
+    require_http_fake,
+)
 
 if TYPE_CHECKING:
     from collections.abc import Mapping, Sequence
@@ -30,6 +42,115 @@ class Http(Facade[HttpClient]):
     """
 
     service_contract = HttpClient
+
+    @classmethod
+    def fake(cls, responses: HttpFakeResponses) -> HttpFake:
+        """Create a context-local fake transport for outgoing requests.
+
+        The active application client remains registered and owned by its
+        container; the fake only intercepts calls in the current context.
+        """
+        _ = cls
+        return HttpFake(responses)
+
+    @classmethod
+    def fake_response(
+        cls,
+        content: JsonValue | bytes | None = None,
+        *,
+        status: int = 200,
+        headers: Mapping[str, str] | None = None,
+    ) -> HttpFakeResponse:
+        """Create one buffered response value for an HTTP fake.
+
+        Args:
+            content: JSON value, text, bytes, or no response body.
+            status: HTTP status returned by the fake transport.
+            headers: Optional response headers.
+
+        Returns:
+            A transport-neutral fake response.
+        """
+        _ = cls
+        return HttpFakeResponse(
+            content=content,
+            status=status,
+            headers={} if headers is None else headers,
+        )
+
+    @classmethod
+    def request_pattern(
+        cls,
+        *,
+        url: str = "*",
+        method: str | None = None,
+        headers: Mapping[str, str] | None = None,
+        body: bytes | None = None,
+    ) -> HttpRequestPattern:
+        """Create a structured matcher for fake responses and assertions.
+
+        Args:
+            url: Case-sensitive glob matched against the complete URL.
+            method: Optional HTTP method filter.
+            headers: Header values that must match exactly.
+            body: Optional complete request body that must match exactly.
+
+        Returns:
+            A request pattern using immutable header snapshots.
+        """
+        _ = cls
+        return HttpRequestPattern(
+            url=url,
+            method=method,
+            headers={} if headers is None else headers,
+            body=body,
+        )
+
+    @classmethod
+    def sent_requests(cls) -> tuple[SentRequest, ...]:
+        """Return the immutable requests recorded by the active fake.
+
+        The current execution context selects the active fake session.
+        """
+        _ = cls
+        return require_http_fake().requests
+
+    @classmethod
+    def assert_sent(
+        cls,
+        matcher: HttpRequestMatcher | None = None,
+    ) -> None:
+        """Assert that a request matching the optional pattern was sent.
+
+        An omitted pattern matches any recorded outgoing request.
+        """
+        _ = cls
+        require_http_fake().assert_sent(matcher)
+
+    @classmethod
+    def assert_not_sent(
+        cls,
+        matcher: HttpRequestMatcher | None = None,
+    ) -> None:
+        """Assert that no request matching the optional pattern was sent.
+
+        An omitted pattern checks that the fake recorded no request.
+        """
+        _ = cls
+        require_http_fake().assert_not_sent(matcher)
+
+    @classmethod
+    def assert_sent_count(
+        cls,
+        count: int,
+        matcher: HttpRequestMatcher | None = None,
+    ) -> None:
+        """Assert an exact matching request count in the active fake.
+
+        An omitted pattern counts every request recorded in this context.
+        """
+        _ = cls
+        require_http_fake().assert_sent_count(count, matcher)
 
     @classmethod
     def resolve_from_container(
@@ -62,6 +183,19 @@ class Http(Facade[HttpClient]):
         Resolution follows the active application's container.
         """
         return PendingRequest(cls.client())
+
+    @classmethod
+    def pool(cls, *, max_concurrency: int) -> HttpRequestPool:
+        """Create a bounded pool for explicitly asynchronous HTTP requests.
+
+        Args:
+            max_concurrency: Maximum simultaneous request callbacks.
+
+        Returns:
+            A pool whose requests resolve through the active HTTP client.
+        """
+        _ = cls
+        return HttpRequestPool(max_concurrency)
 
     @classmethod
     def base_url(cls, value: str) -> PendingRequest:
@@ -157,6 +291,37 @@ class Http(Facade[HttpClient]):
         Resolution follows the active application's container.
         """
         return cls.pending_request().with_cookies(values)
+
+    @classmethod
+    def with_files(
+        cls,
+        values: Mapping[str, MultipartFile | Sequence[MultipartFile]],
+    ) -> PendingRequest:
+        """Create a builder with request-local multipart attachments.
+
+        Resolution follows the active application's container.
+        """
+        return cls.pending_request().with_files(values)
+
+    @classmethod
+    def attach(
+        cls,
+        name: str,
+        content: bytes,
+        *,
+        filename: str,
+        content_type: str = "application/octet-stream",
+    ) -> PendingRequest:
+        """Create a builder with one replayable multipart attachment.
+
+        Resolution follows the active application's container.
+        """
+        return cls.pending_request().attach(
+            name,
+            content,
+            filename=filename,
+            content_type=content_type,
+        )
 
     @classmethod
     def timeout(cls, seconds: float) -> PendingRequest:

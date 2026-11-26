@@ -215,6 +215,7 @@ async def test_asgi_multipart_uploads_are_wrapped_and_finalized() -> None:
     assert isinstance(selected, UploadedFile)
     assert selected.filename == "second.txt"
     assert len(uploads) == _EXPECTED_UPLOAD_COUNT
+    assert selected is uploads[1]
     assert uploads[0].filename == "../first.txt"
     assert uploads[0].safe_filename == "first.txt"
     assert uploads[0].content_type == "text/plain"

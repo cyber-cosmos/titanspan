@@ -48,3 +48,15 @@ async with Http.stream_async("GET", url) as result:
 The response context closes the connection on normal completion, early exit,
 failure, and cancellation. Buffered accessors on a streamed response raise a
 native `HttpClientError` if content has not been buffered.
+
+For an event stream, iterate `iter_sse` or `iter_sse_async` inside the same
+response context. The parser handles UTF-8 chunks, comments, multiline data,
+event names, identifiers, retry values, and LF, CRLF, or CR line endings.
+It bounds each in-progress event to 1 MiB of UTF-8 data and raises
+`HttpClientError` when an event exceeds that limit.
+
+```python
+async with Http.stream_async("GET", events_url) as response:
+    async for event in response.iter_sse_async():
+        await handle_event(event.event, event.data)
+```

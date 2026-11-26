@@ -21,10 +21,15 @@ from titanspan.contracts.http import (
     HttpClient,
     HttpClientResponse,
     JsonValue,
+    MultipartFile,
     OutgoingRequest,
     QueryParameters,
     QueryParameterValue,
     RequestPayload,
+)
+from titanspan.http._urls import (
+    validate_base_url,
+    validate_outbound_url,
 )
 from titanspan.http.exceptions import (
     HttpClientError,
@@ -39,11 +44,11 @@ if TYPE_CHECKING:
 _RETRYABLE_STATUSES = (408, 425, 429, 500, 502, 503, 504)
 _IDEMPOTENT_METHODS = frozenset({"DELETE", "GET", "HEAD", "OPTIONS", "PUT"})
 _JSON_ADAPTER = TypeAdapter(JsonValue)
+_MULTIPART_SEQUENCE_ADAPTER = TypeAdapter(tuple[object, ...])
 _MAX_RETRY_DELAY = 30.0
 _INVALID_JSON_BODY_ERROR = "JSON request bodies must contain JSON values only."
 _INVALID_FORM_BODY_ERROR = "Form request bodies must be mappings or byte text."
 _BODY_SNAPSHOT_ERROR = "HTTP request data could not be safely snapshotted."
-_INVALID_BASE_URL_ERROR = "HTTP base_url must use an absolute HTTP(S) URL."
 _INVALID_AUTH_HEADER_MESSAGE = (
     "Bearer tokens must be non-empty and single-line."
 )
@@ -54,8 +59,14 @@ _INVALID_RETRY_STATUS_ERROR = "Retry statuses must be valid HTTP status codes."
 _INVALID_HEADER_ERROR = (
     "HTTP headers must use valid names and single-line values."
 )
+_INVALID_MULTIPART_FIELD_ERROR = (
+    "Multipart field names must be non-empty and single-line."
+)
+_MULTIPART_JSON_ERROR = "Multipart attachments cannot use JSON encoding."
 _MAX_HTTP_STATUS = 599
 _MIN_HTTP_STATUS = 100
+_ASCII_CONTROL_MAX = 31
+_DELETE_CODEPOINT = 127
 
 
 @dataclass(frozen=True, slots=True)
@@ -69,6 +80,7 @@ class _RequestOptions:
     headers: tuple[tuple[str, str], ...] = ()
     params: tuple[tuple[str, QueryParameterValue], ...] = ()
     cookies: tuple[tuple[str, str], ...] = ()
+    files: tuple[tuple[str, MultipartFile], ...] = ()
     timeout: float | None = None
     follow_redirects: bool | None = None
     body: RequestPayload | JsonValue = None
@@ -122,9 +134,7 @@ class PendingRequest:
         Raises:
             ValueError: If the URL is not an absolute HTTP(S) base.
         """
-        if not value.startswith(("http://", "https://")):
-            raise ValueError(_INVALID_BASE_URL_ERROR)
-        return self._with_options(base_url=value.rstrip("/") + "/")
+        return self._with_options(base_url=validate_base_url(value))
 
     def with_headers(self, values: Mapping[str, str]) -> PendingRequest:
         """Merge headers into this request builder without changing its parent.
@@ -265,6 +275,63 @@ class PendingRequest:
         merged = dict(self._options.cookies)
         merged.update(cookies)
         return self._with_options(cookies=tuple(merged.items()))
+
+    def with_files(
+        self,
+        values: Mapping[str, MultipartFile | Sequence[MultipartFile]],
+    ) -> PendingRequest:
+        """Append replayable multipart attachments to this builder.
+
+        Args:
+            values: Form field names mapped to one or more byte attachments.
+
+        Returns:
+            A new builder that sends multipart form data.
+
+        Raises:
+            TypeError: If a field does not contain ``MultipartFile`` values.
+            ValueError: If a field name is empty or contains line breaks.
+        """
+        files = list(self._options.files)
+        for name, value in values.items():
+            _validate_multipart_field(name)
+            files.extend(
+                (name, attachment)
+                for attachment in _multipart_attachments(value)
+            )
+        return self._with_options(
+            files=tuple(files),
+            json_mode=False,
+        )
+
+    def attach(
+        self,
+        name: str,
+        content: bytes,
+        *,
+        filename: str,
+        content_type: str = "application/octet-stream",
+    ) -> PendingRequest:
+        """Append one replayable attachment to multipart form data.
+
+        Args:
+            name: Multipart form field name.
+            content: Immutable attachment bytes.
+            filename: Filename sent in the multipart content disposition.
+            content_type: Attachment media type.
+
+        Returns:
+            A new builder with the attachment appended.
+        """
+        return self.with_files(
+            {
+                name: MultipartFile(
+                    filename=filename,
+                    content=content,
+                    content_type=content_type,
+                ),
+            }
+        )
 
     def timeout(self, seconds: float) -> PendingRequest:
         """Set a finite positive request timeout.
@@ -718,6 +785,8 @@ class PendingRequest:
         request_data: RequestPayload = None
         json_enabled = include_body and self._options.json_mode
         if include_body and self._options.json_mode:
+            if self._options.files:
+                raise HttpClientError(_MULTIPART_JSON_ERROR)
             try:
                 json_body = _JSON_ADAPTER.validate_python(_snapshot_value(data))
             except ValidationError as error:
@@ -737,6 +806,7 @@ class PendingRequest:
             json_body=json_body,
             json_enabled=json_enabled,
             data=request_data,
+            files=self._options.files if include_body else (),
             cookies=dict(self._options.cookies),
             timeout=self._options.timeout,
             follow_redirects=self._options.follow_redirects,
@@ -763,9 +833,12 @@ class PendingRequest:
 
         Fluent updates isolate request options until execution.
         """
-        if self._options.base_url is None:
-            return url
-        return urljoin(self._options.base_url, url)
+        base_url = self._options.base_url
+        resolved = urljoin(base_url, url) if base_url else url
+        return validate_outbound_url(
+            resolved,
+            allow_relative=base_url is None,
+        )
 
     def _retry_wait(
         self,
@@ -839,6 +912,48 @@ def _validate_header(name: str, value: str) -> None:
     )
     if not valid_name or "\r" in value or "\n" in value:
         raise ValueError(_INVALID_HEADER_ERROR)
+
+
+def _validate_multipart_field(name: str) -> None:
+    """Reject multipart names that can alter the generated part header.
+
+    Args:
+        name: Untrusted form field name supplied by application code.
+
+    Raises:
+        ValueError: If the field name is empty or contains controls.
+    """
+    if not name or any(
+        ord(character) <= _ASCII_CONTROL_MAX
+        or ord(character) == _DELETE_CODEPOINT
+        for character in name
+    ):
+        raise ValueError(_INVALID_MULTIPART_FIELD_ERROR)
+
+
+def _multipart_attachments(value: object) -> tuple[MultipartFile, ...]:
+    """Validate and snapshot one multipart field's attachment values.
+
+    Args:
+        value: One file or a sequence of files supplied by the caller.
+
+    Returns:
+        Immutable attachments in field order.
+
+    Raises:
+        TypeError: If the value contains non-file objects.
+    """
+    if isinstance(value, MultipartFile):
+        return (value,)
+    if not isinstance(value, Sequence) or isinstance(value, (str, bytes)):
+        raise TypeError(_INVALID_MULTIPART_FIELD_ERROR)
+    attachments: list[MultipartFile] = []
+    values = _MULTIPART_SEQUENCE_ADAPTER.validate_python(value)
+    for attachment in values:
+        if not isinstance(attachment, MultipartFile):
+            raise TypeError(_INVALID_MULTIPART_FIELD_ERROR)
+        attachments.append(attachment)
+    return tuple(attachments)
 
 
 def _merge_params(

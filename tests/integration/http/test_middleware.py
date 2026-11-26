@@ -12,7 +12,12 @@ from titanspan.contracts.container import ServiceRegistry
 from titanspan.contracts.foundation import ServiceProvider
 from titanspan.contracts.http import HttpRequest, HttpResponse, RequestHandler
 from titanspan.foundation import Application
-from titanspan.http import Response
+from titanspan.http import (
+    CorsMiddleware,
+    HttpsRedirectMiddleware,
+    Response,
+    TrustedHostMiddleware,
+)
 
 pytestmark = pytest.mark.integration
 
@@ -150,3 +155,70 @@ def test_native_middleware_is_ordered_injected_and_can_transform_response() -> (
         "second:before",
         "second:after",
     ]
+
+
+def test_cors_and_trusted_host_middleware_use_starlette_policy() -> None:
+    """Handle CORS preflight and reject untrusted Host values.
+
+    These ASGI middleware adapters delegate protocol behavior to Starlette.
+    """
+    application = Application(config={"app": {"name": "HTTP security"}})
+    application.asgi.add_middleware(
+        CorsMiddleware,
+        allow_origins=["https://client.test"],
+        allow_methods=["GET"],
+    )
+    application.asgi.add_middleware(
+        TrustedHostMiddleware,
+        allowed_hosts=["testserver"],
+    )
+
+    async def endpoint() -> Response:
+        """Return a response for security middleware integration checks.
+
+        The test only inspects behavior added by the outer middleware.
+        """
+        return Response("ok")
+
+    application.asgi.add_api_route("/security", endpoint, methods=["GET"])
+    with TestClient(application.asgi) as client:
+        preflight = client.options(
+            "/security",
+            headers={
+                "Origin": "https://client.test",
+                "Access-Control-Request-Method": "GET",
+            },
+        )
+        rejected = client.get(
+            "/security",
+            headers={"Host": "untrusted.test"},
+        )
+
+    assert preflight.status_code == HTTPStatus.OK
+    assert preflight.headers["access-control-allow-origin"] == (
+        "https://client.test"
+    )
+    assert rejected.status_code == HTTPStatus.BAD_REQUEST
+
+
+def test_https_redirect_middleware_uses_secure_scheme() -> None:
+    """Redirect plain HTTP before dispatching the application route.
+
+    The ASGI route remains reachable after the client uses HTTPS.
+    """
+    application = Application(config={"app": {"name": "HTTPS redirect"}})
+    application.asgi.add_middleware(HttpsRedirectMiddleware)
+
+    async def endpoint() -> Response:
+        """Return a response that should not run over plain HTTP.
+
+        The middleware redirects before this endpoint can execute.
+        """
+        return Response("secure")
+
+    application.asgi.add_api_route("/secure", endpoint, methods=["GET"])
+    with TestClient(application.asgi) as client:
+        result = client.get("/secure", follow_redirects=False)
+
+    assert result.status_code == HTTPStatus.TEMPORARY_REDIRECT
+    assert result.headers["location"] == "https://testserver/secure"

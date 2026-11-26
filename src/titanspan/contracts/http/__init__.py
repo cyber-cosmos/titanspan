@@ -6,6 +6,7 @@ Callers rely on native contracts, not concrete backend types.
 from titanspan.contracts.http.client import (
     HttpClient,
     HttpClientResponse,
+    MultipartFile,
     OutgoingRequest,
 )
 from titanspan.contracts.http.events import ServerSentEvent
@@ -32,6 +33,7 @@ __all__ = [
     "HttpRequest",
     "HttpResponse",
     "JsonValue",
+    "MultipartFile",
     "OutgoingRequest",
     "QueryParameterValue",
     "QueryParameters",

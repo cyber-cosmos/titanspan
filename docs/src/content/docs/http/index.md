@@ -10,12 +10,13 @@ served through the application's FastAPI ASGI adapter. Ordinary application
 services, HTTP configuration, and the outgoing client are registered in the
 same native service container.
 
-The component is implemented incrementally. Verified capabilities include
-request metadata and input parsing, bounded body reads, request-scoped
-services, response construction, asynchronous streaming and Server-Sent
-Events, ordered native middleware, and synchronous/asynchronous outgoing
-requests through application-owned connection pools. The exact current
-surface and pending work are listed in the [HTTP specification](/titanspan/specifications/http/).
+Verified capabilities include request metadata and input parsing, bounded
+body reads, request-scoped services, response construction, asynchronous
+streaming and Server-Sent Events, native and Starlette-backed middleware,
+context-local HTTP fakes, bounded concurrent requests, and synchronous and
+asynchronous outgoing clients through application-owned connection pools.
+The [HTTP specification](/titanspan/specifications/http/) records the tested
+surface and external integration requirements.
 
 ## Application setup
 

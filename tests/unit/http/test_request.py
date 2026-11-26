@@ -166,6 +166,21 @@ def _request(
     )
 
 
+class _RouteMetadataFake:
+    """Expose only the route name required by the Routing boundary.
+
+    Request metadata reads this value through the established attributes.
+    """
+
+    @property
+    def route_name(self) -> str | None:
+        """Return a deterministic route name for request assertions.
+
+        The fake matches the structural metadata shape consumed by Request.
+        """
+        return "users.show"
+
+
 def test_request_metadata_preserves_repeated_query_and_secure_headers() -> None:
     """Expose normalized metadata without consuming the body.
 
@@ -279,6 +294,57 @@ def test_invalid_accept_quality_is_treated_as_unacceptable() -> None:
     assert not request.accepts("application/json")
 
 
+@pytest.mark.parametrize(
+    ("accept", "expects_json"),
+    [
+        ("*/*", False),
+        ("application/json;q=0, */*;q=1", False),
+        ("application/*;q=0.8", True),
+        ("application/json;q=0.5, text/html;q=1", True),
+        ("application/json;q=1.2", False),
+    ],
+)
+def test_json_negotiation_obeys_specificity_and_quality(
+    accept: str,
+    expects_json: bool,
+) -> None:
+    """Honor the most specific Accept range and reject invalid weights.
+
+    Explicit quality zero overrides less specific wildcards.
+    """
+    request = _request(RequestBackendFake(headers=(("accept", accept),)))
+
+    assert request.expects_json() is expects_json
+
+
+def test_json_and_ajax_detection_and_route_metadata_are_explicit() -> None:
+    """Expose JSON, AJAX, correlation, and native route metadata.
+
+    Routing values remain in the request's existing attribute boundary.
+    """
+    request = _request(
+        RequestBackendFake(
+            headers=(
+                ("content-type", "application/problem+json"),
+                ("x-requested-with", "XMLHttpRequest"),
+                ("x-correlation-id", "trace-42"),
+            ),
+        )
+    )
+    request.set_attribute("titanspan.route", _RouteMetadataFake())
+    request.set_attribute(
+        "titanspan.route_parameters",
+        {"user_id": 42},
+    )
+
+    assert request.is_json()
+    assert request.is_ajax()
+    assert request.expects_json()
+    assert request.correlation_id == "trace-42"
+    assert request.route_name == "users.show"
+    assert request.route_parameters == {"user_id": 42}
+
+
 def test_content_type_parameters_and_accept_parameters_are_parsed() -> None:
     """Ignore unrelated media parameters while matching accepted ranges.
 
@@ -300,6 +366,33 @@ def test_content_type_parameters_and_accept_parameters_are_parsed() -> None:
     assert request.accepts("text/plain")
     assert request.accepts("application/json")
     assert not request.accepts("image/png")
+
+
+def test_negotiation_and_route_accessors_reject_invalid_metadata() -> None:
+    """Handle absent and malformed optional request metadata consistently.
+
+    Invalid route values become native request errors without leaking Pydantic
+    internals to the HTTP caller.
+    """
+    request = _request(
+        RequestBackendFake(
+            headers=(
+                ("x-correlation-id", "bad\nvalue"),
+                ("accept", "invalid-range, application/json;q=bad"),
+            )
+        )
+    )
+    request.set_attribute("titanspan.route_parameters", ["not", "a mapping"])
+
+    assert request.correlation_id == "req-unit-test"
+    assert not request.accepts("malformed")
+    assert not request.expects_json()
+    with pytest.raises(RequestError, match="route parameters"):
+        _ = request.route_parameters
+
+    no_accept = _request(RequestBackendFake())
+    assert no_accept.accepts("text/plain")
+    assert not no_accept.expects_json()
 
 
 @pytest.mark.anyio

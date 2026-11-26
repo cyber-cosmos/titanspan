@@ -15,11 +15,19 @@ Concurrency, or Telemetry components.
 | Incoming metadata and typed input | `HttpRequest`, `Request` | `tests/unit/http/test_request.py` |
 | Bounded body and multipart parsing | `ServerConfiguration`, `Request` | Request unit and ASGI tests |
 | Request-owned upload lifecycle | `UploadedFile` | `tests/unit/http/test_uploaded_file.py` |
+| Route metadata and request/correlation identifiers | `Request` | Request and dispatch integration tests |
 | Native response construction | `ResponseFactory`, response classes | `tests/unit/http/test_response.py` |
+| Response cookies and removal | Native response classes | `tests/unit/http/test_response.py` |
 | Streaming and SSE response encoding | `StreamResponse`, `ServerSentEvent` | Response unit and ASGI lifecycle tests |
 | Ordered dependency-injected middleware | `HttpMiddleware` | `tests/integration/http/test_middleware.py` |
+| CORS, trusted hosts, and HTTPS redirects | Native ASGI middleware | `tests/integration/http/test_middleware.py` |
 | Sync/async pooled outgoing requests | `HttpClient`, `Http` | Loopback client integration tests |
+| Multipart uploads and response cookies | `PendingRequest`, `ClientResponse` | `tests/integration/http/test_client.py` |
 | Streaming outgoing response cleanup | `HttpClient.stream_async` | `tests/integration/http/test_client.py` |
+| SSE client consumption | `ClientResponse.iter_sse_async` | Loopback and parser tests |
+| Context-local fakes and request assertions | `Http.fake`, `Http.assert_sent` | `tests/integration/http/test_http_fakes.py` |
+| Bounded async request pools | `Http.pool`, `HttpPoolRequest` | `tests/integration/http/test_http_fakes.py` |
+| Outbound URL scheme and credential checks | `PendingRequest`, `HttpClient` | Builder and client integration tests |
 | Application-scoped client and request scope | `HttpServiceProvider`, `Application` | HTTP application integration tests |
 | URI redirects | `ResponseFactory.redirect`, `Uri.redirect` | Routing URI integration tests use the native response factory |
 
@@ -51,6 +59,9 @@ Query access is synchronous and preserves duplicate values through
 query values first, then overlays parsed body values. Missing values remain
 distinct from explicit null, false, zero, and empty values. Typed accessors
 validate and raise native errors without echoing untrusted content.
+Request metadata also exposes AJAX and JSON detection, a bounded correlation
+identifier, and route name and parameters through the request attributes set
+by Routing.
 
 Response fluent header methods mutate the response and return it. JSON values
 are validated against the supported JSON model. Bodyless statuses do not
@@ -66,22 +77,53 @@ bounded and selected per request; non-idempotent methods require an explicit
 idempotency key before retry. Streaming uses an explicit response context
 that owns connection release.
 
-## Pending capabilities
+Multipart attachments contain replayable immutable bytes. Response cookies
+are exposed as immutable values, and the shared client does not retain
+upstream cookie state between requests. SSE response iterators parse events
+incrementally from streaming byte iterators and cap each in-progress event at
+1 MiB of UTF-8 data.
 
-These features are not currently implemented and must not be described as
-available:
+`Http.fake` adapts native fake responses to HTTPX2 mock transports. URL globs
+or structured request patterns can repeat one response or consume a response
+sequence. Requests are recorded for inspection and assertions. Unmatched
+requests raise without a real-network fallback. Fake selection uses a
+context-local value and nested scopes restore the previous fake. Facade and
+injected-client requests share the active fake.
 
-- Outgoing HTTP fakes, request recording, and assertion helpers.
-- Bounded concurrent request pooling and partial-result policies.
-- Outgoing multipart file uploads and SSE client parsing.
-- Native SSRF destination enforcement, trusted proxy rules, or redirect
-  destination policy.
-- Native CORS, trusted-host, authentication, authorization, CSRF, and
-  rate-limiting middleware.
-- Route-specific middleware policy integration beyond the current Router's
-  native middleware registrations.
-- Native OpenTelemetry spans and metrics.
-- Windows and multiprocess guarantees for application-owned HTTP pools.
+`Http.pool(max_concurrency=...)` runs named mappings or indexed sequences
+through a bounded number of AnyIO workers. Per-request timeouts are supported.
+Fail-fast mode cancels pending work and closes responses already received;
+collect-errors mode returns exceptions beside successful responses. The
+caller owns successful response cleanup.
 
-These require a production contract and real integration tests before their
-status can change.
+Outgoing URL checks reject non-HTTP(S) schemes, embedded credentials,
+protocol-relative destinations, control characters, and backslashes.
+Relative paths require a valid configured base URL at the transport
+boundary. Redirect following is disabled by default. When enabled, HTTPX2
+follows redirects without a destination allowlist. These checks do not
+resolve DNS, restrict private network ranges, or prevent DNS rebinding and
+must not be treated as comprehensive SSRF protection.
+
+## External integration requirements
+
+- Authentication and authorization require their service providers to expose
+  identity and permission context through native request scope.
+- Sessions and CSRF protection require a Session owner and state lifecycle.
+- Distributed rate limiting requires a Cache-backed policy owner.
+- Persisting uploads requires the Filesystem component to define destination
+  and cleanup ownership. Temporary upload inspection is already available.
+- OpenTelemetry spans and metrics require the Telemetry component to define
+  instrumentation and export lifecycle.
+- Trusted proxy behavior must be configured at the ASGI server boundary with
+  an explicit proxy allowlist. HTTP does not trust forwarded headers itself.
+- Route-specific middleware composition belongs to Routing, which owns route
+  groups and dispatch. HTTP reads selected route metadata from request
+  attributes.
+- Concrete response classes support cookie creation and removal. To expose
+  those methods through the dependency-injected `HttpResponse` middleware
+  boundary, Foundation must add them to the contract surface it adapts and
+  delegate them from `_NativeHttpResponseAdapter` to Starlette's response.
+- Windows and multiprocess behavior for application-owned connection pools
+  has not been verified.
+
+These boundaries do not block the implemented HTTP behavior above.

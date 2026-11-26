@@ -40,7 +40,37 @@ scope used by endpoint injection. The outer pure ASGI middleware keeps the
 application, request, and logging contexts active until the final body
 message has been sent.
 
-Route-specific middleware groups and aliases are not implemented. CORS,
-trusted-host, trusted-proxy, authentication, and rate-limit policies should
-be provided through explicit application ASGI integrations until native
-components own those policies.
+Starlette-backed `CorsMiddleware`, `TrustedHostMiddleware`, and
+`HttpsRedirectMiddleware` are public ASGI middleware. Add them to the ASGI
+application before startup:
+
+```python
+from titanspan.http import CorsMiddleware, TrustedHostMiddleware
+
+application.asgi.add_middleware(
+    CorsMiddleware,
+    allow_origins=["https://client.example.test"],
+    allow_methods=["GET", "POST"],
+    allow_headers=["Authorization", "Content-Type"],
+)
+application.asgi.add_middleware(
+    TrustedHostMiddleware,
+    allowed_hosts=["app.example.test", "*.app.example.test"],
+)
+```
+
+Starlette owns each middleware's ASGI behavior. CORS settings should name the
+origins, methods, and headers the application uses. Trusted hosts reject
+requests with other host values. HTTPS redirection applies to HTTP and
+WebSocket scopes.
+
+The HTTP server configuration also enforces request body, multipart file,
+field, and part-size limits. The Foundation ASGI boundary assigns and returns
+the `X-Request-ID` header. Route-specific middleware registration belongs to
+Routing, which owns route groups and dispatch.
+
+Do not trust forwarded client addresses or scheme headers by default. If an
+ASGI server sits behind a proxy, configure its supported proxy middleware
+with an explicit trusted-proxy list. Authentication, authorization,
+sessions, CSRF, and distributed rate limiting belong to their owning
+components.

@@ -139,6 +139,7 @@ class _StarletteRequestBackend:
         self._request = request
         self._form_data: FormData | None = None
         self._uploads: list[UploadedFile] = []
+        self._uploads_by_identity: dict[int, UploadedFile] = {}
 
     @property
     def method(self) -> str:
@@ -325,6 +326,10 @@ class _StarletteRequestBackend:
         if not isinstance(value, StarletteUpload):
             return value
 
+        existing = self._uploads_by_identity.get(id(value))
+        if existing is not None:
+            return existing
+
         upload = UploadedFile(
             filename=value.filename or "",
             content_type=value.content_type,
@@ -333,11 +338,13 @@ class _StarletteRequestBackend:
             close_file=value.close,
         )
         self._uploads.append(upload)
+        self._uploads_by_identity[id(value)] = upload
         return upload
 
     _request: StarletteRequest
     _form_data: FormData | None
     _uploads: list[UploadedFile]
+    _uploads_by_identity: dict[int, UploadedFile]
 
 
 def create_request(

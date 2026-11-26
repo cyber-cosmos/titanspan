@@ -9,6 +9,7 @@ from typing import TYPE_CHECKING
 
 import pytest
 
+from titanspan.contracts.http.events import ServerSentEvent
 from titanspan.http.client.response import ClientResponse
 from titanspan.http.exceptions import HttpClientError, HttpStatusError
 
@@ -31,6 +32,7 @@ class ResponseAccessFake:
         status_code: int = HTTPStatus.OK,
         json_value: object = None,
         body_error: Exception | None = None,
+        chunks: tuple[bytes, ...] = (b"first", b"second"),
     ) -> None:
         """Create a transport response with optional malformed access.
 
@@ -38,11 +40,14 @@ class ResponseAccessFake:
             status_code: Status observed by response helper methods.
             json_value: Object returned by the transport JSON decoder.
             body_error: Optional exception raised by buffered body methods.
+            chunks: Byte chunks exposed by the transport iterators.
         """
         self.status_code = status_code
         self.headers = {"Content-Type": "application/json"}
+        self.cookies = {"session": "response-cookie"}
         self.json_value = json_value
         self.body_error = body_error
+        self.chunks = chunks
         self.closed = 0
         self.async_closed = 0
 
@@ -75,16 +80,15 @@ class ResponseAccessFake:
 
         Local fixtures keep these assertions deterministic.
         """
-        yield b"first"
-        yield b"second"
+        yield from self.chunks
 
     async def iter_bytes_async(self) -> AsyncIterator[bytes]:
         """Yield response chunks through an asynchronous iterator.
 
         Local fixtures keep these assertions deterministic.
         """
-        yield b"first"
-        yield b"second"
+        for chunk in self.chunks:
+            yield chunk
 
     def close(self) -> None:
         """Count synchronous resource finalization calls.
@@ -110,8 +114,10 @@ class ResponseAccessFake:
 
     status_code: int
     headers: Mapping[str, str]
+    cookies: Mapping[str, str]
     json_value: object
     body_error: Exception | None
+    chunks: tuple[bytes, ...]
     closed: int
     async_closed: int
 
@@ -184,6 +190,7 @@ def test_response_exposes_immutable_headers_and_typed_json_values() -> None:
     response = _response(ResponseAccessFake(json_value={"data": {"id": 7}}))
 
     assert response.header("content-TYPE") == "application/json"
+    assert response.cookies == {"session": "response-cookie"}
     assert response.json_path("data.id") == _DOCUMENT_ID
     assert response.body() == b'{"data":{"id":7}}'
     assert response.text() == '{"data":{"id":7}}'
@@ -228,6 +235,47 @@ def test_status_escalation_is_explicit_and_safe() -> None:
     assert "response payload" not in str(captured.value)
 
 
+def test_sync_sse_parser_handles_multibyte_and_split_crlf_chunks() -> None:
+    """Decode event fields across chunk and UTF-8 character boundaries.
+
+    The transport may split both code points and CRLF line endings.
+    """
+    access = ResponseAccessFake(
+        chunks=(
+            b"\xef\xbb\xbfdata: snowman \xe2",
+            b"\x98\x83\r",
+            b"\nevent: update\nid: event-7\nretry: 250\n\n",
+        )
+    )
+    response = _response(access)
+
+    assert list(response.iter_sse()) == [
+        ServerSentEvent(
+            "snowman \u2603",
+            event="update",
+            identifier="event-7",
+            retry=250,
+        )
+    ]
+
+
+def test_sse_parser_resets_empty_event_type_and_bounds_event_size() -> None:
+    """Apply SSE field reset semantics and stop oversized events.
+
+    An empty event type resets to the default message type.
+    """
+    reset = _response(
+        ResponseAccessFake(chunks=(b"event: update\nevent:\ndata: ready\n\n",))
+    )
+    assert list(reset.iter_sse()) == [ServerSentEvent("ready")]
+
+    oversized = _response(
+        ResponseAccessFake(chunks=(b"data: " + b"x" * 1_048_576 + b"\n\n",))
+    )
+    with pytest.raises(HttpClientError, match="event exceeds"):
+        list(oversized.iter_sse())
+
+
 @pytest.mark.anyio
 async def test_stream_iteration_and_matching_cleanup_are_explicit() -> None:
     """Forward sync and async chunks and close each response only once.
@@ -255,3 +303,24 @@ async def test_stream_iteration_and_matching_cleanup_are_explicit() -> None:
     sync_response = _response(sync_access)
     await sync_response.aclose()
     assert sync_access.closed == 1
+
+
+@pytest.mark.anyio
+async def test_async_sse_flushes_final_cr_and_bounds_partial_lines() -> None:
+    """Flush a final CR delimiter and reject an oversized partial line.
+
+    Async parsing retains backpressure while enforcing the event-size bound.
+    """
+    final_line = _response(
+        ResponseAccessFake(chunks=(b"data: final\n\r",)),
+        asynchronous=True,
+    )
+    events = [event async for event in final_line.iter_sse_async()]
+    assert events == [ServerSentEvent("final")]
+
+    oversized = _response(
+        ResponseAccessFake(chunks=(b"x" * 1_048_577,)),
+        asynchronous=True,
+    )
+    with pytest.raises(HttpClientError, match="event exceeds"):
+        _ = [event async for event in oversized.iter_sse_async()]

@@ -21,7 +21,8 @@ async def health() -> object:
 `with_header` changes the response and returns the same object. Header names
 and values are validated against response splitting. `with_cookie` accepts a
 `CookieOptions` value; defaults set `Secure`, `HttpOnly`, and `SameSite=Lax`.
-`cache_control` constructs an explicit private/public cache policy.
+`without_cookie` expires one cookie. `cache_control` constructs an explicit
+private/public cache policy.
 
 Redirects accept local paths by default. Absolute external HTTP(S) locations
 require `allow_external=True`; non-HTTP and protocol-relative destinations

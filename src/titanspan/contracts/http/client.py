@@ -13,11 +13,18 @@ from contextlib import AbstractAsyncContextManager, AbstractContextManager
 from dataclasses import dataclass, field
 from typing import Protocol, Self, runtime_checkable
 
+from titanspan.contracts.http.events import ServerSentEvent
 from titanspan.contracts.http.types import (
     JsonValue,
     QueryParameters,
     RequestPayload,
 )
+
+_ASCII_CONTROL_MAX = 31
+_DELETE_CODEPOINT = 127
+_INVALID_MULTIPART_CONTENT = "Multipart file content must be bytes."
+_INVALID_MULTIPART_FILENAME = "Multipart filenames must be printable."
+_INVALID_MULTIPART_MEDIA_TYPE = "Multipart content types must be valid."
 
 
 def _empty_string_mapping() -> Mapping[str, str]:
@@ -27,6 +34,45 @@ def _empty_string_mapping() -> Mapping[str, str]:
         An empty mapping with string keys and values.
     """
     return {}
+
+
+@dataclass(frozen=True, slots=True)
+class MultipartFile:
+    """Describe a replayable multipart attachment using immutable bytes.
+
+    Attributes:
+        filename: Filename sent in the multipart content disposition.
+        content: Complete attachment bytes owned by the caller.
+        content_type: Media type sent for the attachment.
+    """
+
+    filename: str
+    content: bytes
+    content_type: str = "application/octet-stream"
+
+    def __post_init__(self) -> None:
+        """Reject multipart metadata that can inject header lines.
+
+        Raises:
+            ValueError: If a filename or content type is malformed.
+            TypeError: If attachment content is not immutable bytes.
+        """
+        if not self.filename or any(
+            ord(character) <= _ASCII_CONTROL_MAX
+            or ord(character) == _DELETE_CODEPOINT
+            for character in self.filename
+        ):
+            raise ValueError(_INVALID_MULTIPART_FILENAME)
+        media_type = self.content_type.split(";", maxsplit=1)[0]
+        if (
+            "/" not in media_type
+            or not media_type.strip()
+            or "\r" in self.content_type
+            or "\n" in self.content_type
+        ):
+            raise ValueError(_INVALID_MULTIPART_MEDIA_TYPE)
+        if type(self.content) is not bytes:
+            raise TypeError(_INVALID_MULTIPART_CONTENT)
 
 
 @dataclass(frozen=True, slots=True)
@@ -44,6 +90,7 @@ class OutgoingRequest:
         json_body: JSON-compatible body, including explicit JSON null.
         json_enabled: Whether ``json_body`` represents an intentional body.
         data: Form, text, or bytes body when JSON mode is disabled.
+        files: Ordered, replayable multipart file fields.
         cookies: Request-specific cookies.
         timeout: Total request timeout override in seconds.
         follow_redirects: Redirect behavior override for this request.
@@ -56,6 +103,7 @@ class OutgoingRequest:
     json_body: JsonValue | None = None
     json_enabled: bool = False
     data: RequestPayload = None
+    files: tuple[tuple[str, MultipartFile], ...] = ()
     cookies: Mapping[str, str] = field(default_factory=_empty_string_mapping)
     timeout: float | None = None
     follow_redirects: bool | None = None
@@ -79,6 +127,14 @@ class HttpClientResponse(Protocol):
     @property
     def headers(self) -> Mapping[str, str]:
         """Return an immutable response-header snapshot.
+
+        Callers rely on native contracts, not concrete backend types.
+        """
+        ...
+
+    @property
+    def cookies(self) -> Mapping[str, str]:
+        """Return response cookies without retaining them in the client pool.
 
         Callers rely on native contracts, not concrete backend types.
         """
@@ -149,6 +205,20 @@ class HttpClientResponse(Protocol):
 
     def iter_bytes_async(self) -> AsyncIterator[bytes]:
         """Return an async iterator over streamed response bytes.
+
+        Callers rely on native contracts, not concrete backend types.
+        """
+        ...
+
+    def iter_sse(self) -> Iterator[ServerSentEvent]:
+        """Parse a synchronous response stream as Server-Sent Events.
+
+        Callers rely on native contracts, not concrete backend types.
+        """
+        ...
+
+    def iter_sse_async(self) -> AsyncIterator[ServerSentEvent]:
+        """Parse an async response stream while preserving backpressure.
 
         Callers rely on native contracts, not concrete backend types.
         """

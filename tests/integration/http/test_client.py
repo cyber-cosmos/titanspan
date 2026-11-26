@@ -14,14 +14,90 @@ from urllib.parse import parse_qs, urlsplit
 
 import pytest
 
+from titanspan.contracts.http import OutgoingRequest
 from titanspan.http._backends.client import HttpxClientAdapter
 from titanspan.http.client.pending_request import PendingRequest
 from titanspan.http.configuration import ClientConfiguration
-from titanspan.http.exceptions import HttpStatusError
+from titanspan.http.exceptions import HttpClientError, HttpStatusError
 
 pytestmark = pytest.mark.integration
 
 _SERVER_JOIN_TIMEOUT_SECONDS = 2
+
+
+def _response_payload(path: str, url: str, cookie: str) -> bytes:
+    """Build one bounded payload for the selected loopback endpoint.
+
+    Args:
+        path: Request path without its query.
+        url: Complete request URL from the local server handler.
+        cookie: Explicit incoming cookie header.
+
+    Returns:
+        Response bytes for the local HTTP integration.
+    """
+    if path == "/stream":
+        return b"first\nsecond\n"
+    if path == "/events":
+        return b"event: update\nid: local-1\ndata: ready\n\n"
+    if path == "/set-cookie":
+        return b"{}"
+    if path == "/query":
+        query = parse_qs(urlsplit(url).query, keep_blank_values=True)
+        return json.dumps(
+            {**query, "cookie": cookie},
+            separators=(",", ":"),
+        ).encode("utf-8")
+    if path.startswith("/status/"):
+        return b'{"message":"failed"}'
+    query = parse_qs(urlsplit(url).query)
+    return ('{"page":' + query.get("page", ["null"])[0] + "}").encode("utf-8")
+
+
+@pytest.mark.anyio
+async def test_adapter_rejects_untrusted_outbound_url_schemes() -> None:
+    """Reject unsupported direct contract URLs before opening a connection.
+
+    The native client boundary also checks requests that bypass its builder.
+    """
+    adapter = HttpxClientAdapter(ClientConfiguration())
+    try:
+        with pytest.raises(HttpClientError, match="destinations"):
+            await adapter.request_async(
+                OutgoingRequest(
+                    method="GET",
+                    url="file:///etc/passwd",
+                )
+            )
+    finally:
+        await adapter.aclose()
+
+
+@pytest.mark.anyio
+async def test_configured_base_url_resolves_relative_requests(
+    http_server: tuple[str, Queue[tuple[str, str | None]]],
+) -> None:
+    """Resolve request-relative paths through the configured HTTPX2 base.
+
+    Args:
+        http_server: Local URL and queue of observed request metadata.
+    """
+    base_url, received = http_server
+    adapter = HttpxClientAdapter(
+        ClientConfiguration(base_url=base_url),
+    )
+    try:
+        response = await adapter.request_async(
+            OutgoingRequest(method="GET", url="/query"),
+        )
+        assert response.json() == {"cookie": ""}
+        await response.aclose()
+        assert received.get(timeout=_SERVER_JOIN_TIMEOUT_SECONDS) == (
+            "GET",
+            None,
+        )
+    finally:
+        await adapter.aclose()
 
 
 @pytest.fixture
@@ -77,36 +153,21 @@ def http_server() -> Iterator[tuple[str, Queue[tuple[str, str | None]]]]:
             """
             received.put((self.command, self.headers.get("Authorization")))
             path = urlsplit(self.path).path
-            if path == "/stream":
-                payload = b"first\nsecond\n"
-            elif path == "/set-cookie":
-                payload = b"{}"
-            elif path == "/query":
-                query = parse_qs(
-                    urlsplit(self.path).query,
-                    keep_blank_values=True,
-                )
-                payload = json.dumps(
-                    {
-                        **query,
-                        "cookie": self.headers.get("Cookie", ""),
-                    },
-                    separators=(",", ":"),
-                ).encode("utf-8")
-            elif path.startswith("/status/"):
-                payload = b'{"message":"failed"}'
-            else:
-                query = parse_qs(urlsplit(self.path).query)
-                payload = (
-                    '{"page":' + query.get("page", ["null"])[0] + "}"
-                ).encode("utf-8")
+            payload = _response_payload(
+                path,
+                self.path,
+                self.headers.get("Cookie", ""),
+            )
             status = (
                 HTTPStatus.SERVICE_UNAVAILABLE
                 if path == "/status/503"
                 else HTTPStatus.OK
             )
             self.send_response(status)
-            self.send_header("Content-Type", "application/json")
+            content_type = {
+                "/events": "text/event-stream; charset=utf-8",
+            }.get(path, "application/json")
+            self.send_header("Content-Type", content_type)
             self.send_header("Content-Length", str(len(payload)))
             if path == "/set-cookie":
                 self.send_header("Set-Cookie", "session=upstream; Path=/")
@@ -279,6 +340,36 @@ async def test_async_client_streams_and_escalates_status_explicitly(
 
 
 @pytest.mark.anyio
+async def test_async_client_consumes_sse_from_loopback_server(
+    http_server: tuple[str, Queue[tuple[str, str | None]]],
+) -> None:
+    """Parse server-sent events over a real pooled HTTPX2 connection.
+
+    Args:
+        http_server: Local URL and queue of observed request metadata.
+    """
+    url, received = http_server
+    client = HttpxClientAdapter(ClientConfiguration())
+    try:
+        async with PendingRequest(client).stream_async(
+            "GET",
+            f"{url}/events",
+        ) as response:
+            events = [event async for event in response.iter_sse_async()]
+
+        assert len(events) == 1
+        assert events[0].event == "update"
+        assert events[0].identifier == "local-1"
+        assert events[0].data == "ready"
+        assert received.get(timeout=_SERVER_JOIN_TIMEOUT_SECONDS) == (
+            "GET",
+            None,
+        )
+    finally:
+        await client.aclose()
+
+
+@pytest.mark.anyio
 async def test_async_client_normalizes_forms_queries_and_response_metadata(
     http_server: tuple[str, Queue[tuple[str, str | None]]],
 ) -> None:
@@ -309,6 +400,10 @@ async def test_async_client_normalizes_forms_queries_and_response_metadata(
         assert query.header("content-type") == "application/json"
         assert query.status_code == HTTPStatus.OK
         await query.aclose()
+
+        cookie_response = await request.get_async(f"{url}/set-cookie")
+        assert cookie_response.cookies == {"session": "upstream"}
+        await cookie_response.aclose()
 
         with pytest.raises(ValueError, match="cookie names and values"):
             await request.with_cookies({"session;admin": "yes"}).get_async(
@@ -343,6 +438,10 @@ async def test_async_client_normalizes_forms_queries_and_response_metadata(
             None,
         )
         assert received.get(timeout=_SERVER_JOIN_TIMEOUT_SECONDS) == (
+            "GET",
+            None,
+        )
+        assert received.get(timeout=_SERVER_JOIN_TIMEOUT_SECONDS) == (
             "active=true&empty=&label=a&label=2",
             None,
         )
@@ -372,5 +471,37 @@ def test_sync_streaming_response_releases_pooled_connection(
             "GET",
             None,
         )
+    finally:
+        asyncio.run(client.aclose())
+
+
+def test_sync_client_sends_native_multipart_attachments(
+    http_server: tuple[str, Queue[tuple[str, str | None]]],
+) -> None:
+    """Send multipart form fields and an attached byte payload.
+
+    The loopback server verifies the actual HTTPX2 multipart wire body.
+    """
+    url, received = http_server
+    client = HttpxClientAdapter(ClientConfiguration())
+    request = PendingRequest(client).attach(
+        "document",
+        b"attachment-data",
+        filename="note.txt",
+        content_type="text/plain",
+    )
+    try:
+        response = request.post(
+            f"{url}/documents",
+            {"title": "Review"},
+        )
+        assert response.status_code == HTTPStatus.CREATED
+        response.close()
+
+        wire_body, _ = received.get(timeout=_SERVER_JOIN_TIMEOUT_SECONDS)
+        assert wire_body.startswith("--")
+        assert 'name="title"' in wire_body
+        assert 'name="document"; filename="note.txt"' in wire_body
+        assert "attachment-data" in wire_body
     finally:
         asyncio.run(client.aclose())

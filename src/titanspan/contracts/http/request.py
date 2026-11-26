@@ -26,6 +26,14 @@ class HttpRequest(Protocol):
         ...
 
     @property
+    def correlation_id(self) -> str:
+        """Return a bounded correlation header or the request identifier.
+
+        Callers rely on native contracts, not concrete backend types.
+        """
+        ...
+
+    @property
     def method(self) -> str:
         """Return the uppercase HTTP method name.
 
@@ -110,6 +118,36 @@ class HttpRequest(Protocol):
 
     def is_secure(self) -> bool:
         """Report whether the request uses HTTPS.
+
+        Callers rely on native contracts, not concrete backend types.
+        """
+        ...
+
+    def is_ajax(self) -> bool:
+        """Report the conventional XMLHttpRequest marker.
+
+        Callers rely on native contracts, not concrete backend types.
+        """
+        ...
+
+    def is_json(self) -> bool:
+        """Report whether the request body declares a JSON media type.
+
+        Callers rely on native contracts, not concrete backend types.
+        """
+        ...
+
+    @property
+    def route_name(self) -> str | None:
+        """Return the matched native route name when one was assigned.
+
+        Callers rely on native contracts, not concrete backend types.
+        """
+        ...
+
+    @property
+    def route_parameters(self) -> Mapping[str, object]:
+        """Return the matched route values as an immutable snapshot.
 
         Callers rely on native contracts, not concrete backend types.
         """

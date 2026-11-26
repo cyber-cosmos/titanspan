@@ -31,6 +31,10 @@ Method, URL, path, host, scheme, headers, cookies, and query metadata are
 synchronous and do not consume the body. `query_values` preserves repeated
 query parameters. `accepts`, `expects_json`, `is_method`, `is_secure`, and
 `bearer_token` provide common metadata checks.
+`is_ajax`, `is_json`, `correlation_id`, `route_name`, and `route_parameters`
+expose request negotiation and the route attributes supplied by Routing.
+The correlation identifier accepts a printable `X-Correlation-ID` value up
+to 128 characters and otherwise falls back to `request_id`.
 
 Reading JSON, form values, or merged input may consume and cache the body, so
 these operations are asynchronous. The merge order is query values followed

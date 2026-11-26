@@ -5,12 +5,17 @@ Response content and cleanup remain explicit.
 
 from __future__ import annotations
 
+import codecs
 from types import MappingProxyType
 from typing import TYPE_CHECKING, Protocol, Self
 
 from pydantic import TypeAdapter, ValidationError
 
-from titanspan.contracts.http import HttpClientResponse, JsonValue
+from titanspan.contracts.http import (
+    HttpClientResponse,
+    JsonValue,
+    ServerSentEvent,
+)
 from titanspan.http.exceptions import (
     HttpClientError,
     HttpStatusError,
@@ -37,6 +42,10 @@ _STATUS_UNAUTHORIZED = 401
 _STATUS_FORBIDDEN = 403
 _STATUS_NOT_FOUND = 404
 _STATUS_TOO_MANY_REQUESTS = 429
+_MAX_SSE_EVENT_SIZE = 1_048_576
+_SSE_EVENT_TOO_LARGE_ERROR = (
+    "The server-sent event exceeds the configured limit."
+)
 
 
 class ResponseAccess(Protocol):
@@ -56,6 +65,14 @@ class ResponseAccess(Protocol):
     @property
     def headers(self) -> Mapping[str, str]:
         """Return transport headers without copying response content.
+
+        Response content and cleanup remain explicit.
+        """
+        ...
+
+    @property
+    def cookies(self) -> Mapping[str, str]:
+        """Return response cookie values provided by the transport adapter.
 
         Response content and cleanup remain explicit.
         """
@@ -172,6 +189,14 @@ class ClientResponse(HttpClientResponse):
             Header value or the supplied default.
         """
         return self.headers.get(name.lower(), default)
+
+    @property
+    def cookies(self) -> Mapping[str, str]:
+        """Return an immutable snapshot of response cookie values.
+
+        The pooled transport does not retain these values for later requests.
+        """
+        return MappingProxyType(dict(self._access.cookies))
 
     def body(self) -> bytes:
         """Return buffered response bytes.
@@ -371,6 +396,31 @@ class ClientResponse(HttpClientResponse):
         """
         return self._access.iter_bytes_async()
 
+    def iter_sse(self) -> Iterator[ServerSentEvent]:
+        """Parse a streamed response as Server-Sent Events.
+
+        Yields:
+            Events decoded incrementally from the response byte stream.
+        """
+        parser = _ServerSentEventParser()
+        for chunk in self.iter_bytes():
+            yield from parser.feed(chunk)
+        yield from parser.finish()
+
+    async def iter_sse_async(self) -> AsyncIterator[ServerSentEvent]:
+        """Parse async response chunks without buffering the full stream.
+
+        Yields:
+            Events decoded incrementally while preserving transport
+            backpressure.
+        """
+        parser = _ServerSentEventParser()
+        async for chunk in self.iter_bytes_async():
+            for event in parser.feed(chunk):
+                yield event
+        for event in parser.finish():
+            yield event
+
     def close(self) -> None:
         """Close a sync response and release its connection.
 
@@ -399,6 +449,191 @@ class ClientResponse(HttpClientResponse):
     _access: ResponseAccess
     _asynchronous: bool
     _closed: bool
+
+
+class _ServerSentEventParser:
+    """Decode the standard line format into native event values.
+
+    The parser keeps only the current event and partial line, so large event
+    streams remain incremental.
+    """
+
+    def __init__(self) -> None:
+        """Initialize UTF-8 decoding and per-stream event metadata.
+
+        Parsing state belongs to one response iterator.
+        """
+        self._decoder = codecs.getincrementaldecoder("utf-8")("replace")
+        self._buffer = ""
+        self._data: list[str] = []
+        self._event: str | None = None
+        self._identifier: str | None = None
+        self._retry: int | None = None
+        self._at_start = True
+        self._event_size = 0
+
+    def feed(self, chunk: bytes) -> tuple[ServerSentEvent, ...]:
+        """Consume one byte chunk and return complete events.
+
+        Args:
+            chunk: Bytes from the transport's backpressure-aware iterator.
+
+        Returns:
+            Events terminated by a blank line in this chunk.
+        """
+        text = self._decoder.decode(chunk)
+        if self._at_start and text:
+            text = text.removeprefix("\ufeff")
+            self._at_start = False
+        self._buffer += text
+        events = self._consume_lines(final=False)
+        self._ensure_buffered_size()
+        return events
+
+    def finish(self) -> tuple[ServerSentEvent, ...]:
+        """Flush UTF-8 state and process a final unterminated line.
+
+        Returns:
+            Events completed before the transport stream ended.
+        """
+        self._buffer += self._decoder.decode(b"", final=True)
+        return self._consume_lines(final=True)
+
+    def _consume_lines(self, *, final: bool) -> tuple[ServerSentEvent, ...]:
+        """Extract complete lines while preserving split CRLF boundaries.
+
+        Args:
+            final: Whether the byte source has ended.
+
+        Returns:
+            Events dispatched by blank lines in the consumed text.
+        """
+        events: list[ServerSentEvent] = []
+        while True:
+            boundary = _line_boundary(self._buffer, final=final)
+            if boundary is None:
+                break
+            index, width = boundary
+            line = self._buffer[:index]
+            self._buffer = self._buffer[index + width :]
+            event = self._consume_line(line)
+            if event is not None:
+                events.append(event)
+        if final and self._buffer:
+            self._consume_line(self._buffer)
+            self._buffer = ""
+        return tuple(events)
+
+    def _consume_line(self, line: str) -> ServerSentEvent | None:
+        """Update fields or dispatch one blank-line-delimited event.
+
+        Args:
+            line: One line without its CR or LF terminator.
+
+        Returns:
+            A dispatched event, or ``None`` when the line only updates state.
+        """
+        self._account_line(line)
+        if not line:
+            return self._dispatch_event()
+        if line.startswith(":"):
+            return None
+        field, separator, value = line.partition(":")
+        if separator and value.startswith(" "):
+            value = value[1:]
+        self._set_field(field, value)
+        return None
+
+    def _account_line(self, line: str) -> None:
+        """Enforce the configured bound before retaining another event line.
+
+        Args:
+            line: One decoded line without its line ending.
+        """
+        if line:
+            self._event_size += len(line.encode("utf-8")) + 1
+            if self._event_size > _MAX_SSE_EVENT_SIZE:
+                raise HttpClientError(_SSE_EVENT_TOO_LARGE_ERROR)
+
+    def _dispatch_event(self) -> ServerSentEvent | None:
+        """Build the current event and clear its event-local fields.
+
+        The identifier and retry time persist across event boundaries.
+        """
+        if not self._data:
+            self._event = None
+            self._event_size = 0
+            return None
+        result = ServerSentEvent(
+            data="\n".join(self._data),
+            event=self._event,
+            identifier=self._identifier,
+            retry=self._retry,
+        )
+        self._data.clear()
+        self._event = None
+        self._event_size = 0
+        return result
+
+    def _set_field(self, field: str, value: str) -> None:
+        """Apply one recognized SSE field to the parser state.
+
+        Args:
+            field: Field name before the optional colon.
+            value: Field value after trimming one leading space.
+        """
+        if field == "data":
+            self._data.append(value)
+        elif field == "event":
+            self._event = value or None
+        elif field == "id" and "\x00" not in value:
+            self._identifier = value
+        elif field == "retry" and value.isascii() and value.isdigit():
+            self._retry = int(value)
+
+    def _ensure_buffered_size(self) -> None:
+        """Reject a partial line before it grows beyond the event limit.
+
+        The received chunk remains owned by HTTPX2; only the parser buffer is
+        checked at this boundary.
+        """
+        buffered_size = self._event_size + len(self._buffer.encode("utf-8"))
+        if buffered_size > _MAX_SSE_EVENT_SIZE:
+            raise HttpClientError(_SSE_EVENT_TOO_LARGE_ERROR)
+
+    _decoder: codecs.IncrementalDecoder
+    _buffer: str
+    _data: list[str]
+    _event: str | None
+    _identifier: str | None
+    _retry: int | None
+    _at_start: bool
+    _event_size: int
+
+
+def _line_boundary(
+    buffer: str,
+    *,
+    final: bool,
+) -> tuple[int, int] | None:
+    """Find the next LF, CR, or CRLF line ending.
+
+    Args:
+        buffer: Buffered decoded text.
+        final: Whether no more text can complete a trailing CR.
+
+    Returns:
+        The line-ending start and width, or ``None`` when more text is needed.
+    """
+    for index, character in enumerate(buffer):
+        if character == "\n":
+            return index, 1
+        if character == "\r":
+            if index + 1 == len(buffer) and not final:
+                return None
+            width = 2 if buffer[index + 1 : index + 2] == "\n" else 1
+            return index, width
+    return None
 
 
 __all__ = ["ClientResponse"]

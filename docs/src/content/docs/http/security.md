@@ -17,18 +17,25 @@ require explicit permission. File downloads require a trusted application
 path.
 
 Outgoing TLS verification is enabled by default. Set finite timeouts and
-bounded connection limits. Redirect following is disabled by default. Retry
-policy respects idempotency: unsafe methods are not retried without an
-`Idempotency-Key`. Transport and status errors omit credentials, URLs, and
-response payloads from their default messages.
+bounded connection limits. Redirect following is disabled by default. Direct
+outbound destinations reject non-HTTP(S) schemes, embedded credentials,
+protocol-relative URLs, control characters, and backslashes. Relative paths
+must resolve against a configured HTTP(S) base URL. Retry policy respects
+idempotency: unsafe methods are not retried without an `Idempotency-Key`.
+Transport and status errors omit credentials, URLs, and response payloads
+from their default messages.
 
 Do not log full request or response bodies, authorization headers, cookies,
-tokens, or sensitive query values. Titanspan does not provide SSRF
-protection, trusted-proxy policy, URL destination authorization, redirect
-destination validation for outgoing requests, or DNS rebinding defenses.
-Applications accepting user-selected destinations must implement a network
-egress policy at the connection boundary. URL string checks alone are not an
-SSRF defense.
+tokens, or sensitive query values. The outbound URL checks are practical
+input restrictions. They do not resolve DNS, reject private or link-local
+addresses, validate redirect targets, or prevent DNS rebinding. They do not
+provide comprehensive SSRF protection. Applications accepting user-selected
+destinations need an egress policy at the connection boundary.
 
-Authentication, authorization, session, CSRF, rate-limit, and CORS policy
-components are not part of the current HTTP implementation.
+Use `CorsMiddleware`, `TrustedHostMiddleware`, and
+`HttpsRedirectMiddleware` for their documented Starlette behavior. Configure
+the ASGI server's trusted proxy handling with an explicit proxy allowlist.
+Titanspan does not trust forwarded headers by default.
+
+Authentication, authorization, session, CSRF, and distributed rate-limit
+policies require their owning components.

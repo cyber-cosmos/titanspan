@@ -61,6 +61,20 @@ class HttpClientError(HttpError):
     """
 
 
+class HttpFakeError(HttpClientError):
+    """Report an invalid HTTP fake context or assertion operation.
+
+    Errors avoid exposing credentials or private request payloads.
+    """
+
+
+class UnexpectedHttpRequestError(HttpFakeError):
+    """Report an outgoing call with no available fake response.
+
+    Errors avoid exposing credentials or private request payloads.
+    """
+
+
 class HttpTransportError(HttpClientError):
     """Report a connection or protocol failure from the HTTP transport.
 
@@ -106,6 +120,7 @@ __all__ = [
     "HttpConfigurationError",
     "HttpContextError",
     "HttpError",
+    "HttpFakeError",
     "HttpStatusError",
     "HttpTimeoutError",
     "HttpTransportError",
@@ -114,4 +129,5 @@ __all__ = [
     "RequestError",
     "RequestInputError",
     "SynchronousHttpInAsyncContextError",
+    "UnexpectedHttpRequestError",
 ]

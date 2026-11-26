@@ -12,6 +12,7 @@ from typing import TYPE_CHECKING, Self, cast
 
 import pytest
 
+from titanspan.contracts.http import MultipartFile
 from titanspan.http.client.pending_request import PendingRequest
 from titanspan.http.exceptions import HttpClientError, HttpTransportError
 from titanspan.support import helpers as support_helpers
@@ -23,6 +24,7 @@ if TYPE_CHECKING:
         Generator,
         Iterator,
         Mapping,
+        Sequence,
     )
 
     from titanspan.contracts.http import (
@@ -30,6 +32,7 @@ if TYPE_CHECKING:
         JsonValue,
         OutgoingRequest,
         RequestPayload,
+        ServerSentEvent,
     )
 
 pytestmark = pytest.mark.unit
@@ -68,6 +71,14 @@ class ResponseFake:
         Local fixtures keep these assertions deterministic.
         """
         return b'{"ok":true}'
+
+    @property
+    def cookies(self) -> Mapping[str, str]:
+        """Return no cookies for deterministic builder responses.
+
+        The fake response does not model upstream cookie state.
+        """
+        return {}
 
     def text(self) -> str:
         """Return the decoded buffered representation.
@@ -131,6 +142,29 @@ class ResponseFake:
         Local fixtures keep these assertions deterministic.
         """
         yield self.body()
+
+    def iter_sse(self) -> Iterator[ServerSentEvent]:
+        """Return no events for deterministic JSON responses.
+
+        SSE parsing is covered by the native response tests.
+        """
+        return iter(())
+
+    def iter_sse_async(self) -> AsyncIterator[ServerSentEvent]:
+        """Return an empty asynchronous iterator for fake responses.
+
+        SSE parsing is covered by the native response tests.
+        """
+
+        async def empty() -> AsyncIterator[ServerSentEvent]:
+            """Yield events through the asynchronous response interface.
+
+            This fixture contains no events.
+            """
+            for event in self.iter_sse():
+                yield event
+
+        return empty()
 
     def close(self) -> None:
         """Record synchronous response cleanup.
@@ -435,6 +469,20 @@ async def test_builder_rejects_invalid_options_and_arbitrary_json_objects() -> (
 
     with pytest.raises(ValueError, match="absolute HTTP"):
         request.base_url("/relative")
+    for url in (
+        "file:///etc/passwd",
+        "https://{}:{}@example.test/data".format("user", "secret"),
+        "//example.test/data",
+    ):
+        with pytest.raises(HttpClientError, match="destinations"):
+            await request.get_async(url)
+    for base_url in (
+        "file:///etc/passwd",
+        "https://{}:{}@example.test/api".format("user", "secret"),
+        "https://example.test/api?token=secret",
+    ):
+        with pytest.raises(ValueError, match="base_url"):
+            request.base_url(base_url)
     with pytest.raises(ValueError, match="positive"):
         request.timeout(0)
     with pytest.raises(ValueError, match="at least one"):
@@ -445,6 +493,45 @@ async def test_builder_rejects_invalid_options_and_arbitrary_json_objects() -> (
         await request.as_json().post_async(
             "https://api.example.test/",
             {"unsafe": object()},
+        )
+
+
+@pytest.mark.anyio
+async def test_builder_rejects_multipart_json_and_invalid_fields() -> None:
+    """Reject mixed JSON uploads and malformed multipart fields.
+
+    Attachment metadata is validated before the transport receives a request.
+    """
+    request = PendingRequest(ClientFake())
+    attachment = MultipartFile("report.txt", b"content", "text/plain")
+
+    with pytest.raises(HttpClientError, match="cannot use JSON encoding"):
+        await (
+            request.with_files({"document": attachment})
+            .as_json()
+            .post_async(
+                "https://api.example.test/upload",
+                {"ok": True},
+            )
+        )
+
+    with pytest.raises(ValueError, match="Multipart field"):
+        request.with_files({"bad\nfield": attachment})
+
+    with pytest.raises(TypeError, match="Multipart field"):
+        request.with_files(
+            cast(
+                "Mapping[str, MultipartFile | Sequence[MultipartFile]]",
+                {"document": "not an attachment"},
+            )
+        )
+
+    with pytest.raises(TypeError, match="Multipart field"):
+        request.with_files(
+            cast(
+                "Mapping[str, MultipartFile | Sequence[MultipartFile]]",
+                {"document": (attachment, "not an attachment")},
+            )
         )
 
 

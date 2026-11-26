@@ -6,7 +6,7 @@ The operation follows native HTTP contracts and explicit ownership.
 from collections.abc import AsyncGenerator, AsyncIterable, Mapping
 from dataclasses import dataclass
 from pathlib import Path, PurePosixPath
-from typing import Literal, Self
+from typing import Literal, Self, cast
 from urllib.parse import urlsplit
 
 from titanspan.contracts.http import JsonValue
@@ -80,7 +80,78 @@ class CookieOptions:
 _DEFAULT_COOKIE_OPTIONS = CookieOptions()
 
 
-class Response(ResponseBackend):
+class _ResponseCookieMethods:
+    """Add safe fluent cookie operations to native response variants.
+
+    Starlette owns Set-Cookie serialization through its public response API.
+    """
+
+    def with_cookie(
+        self,
+        name: str,
+        value: str,
+        *,
+        options: CookieOptions = _DEFAULT_COOKIE_OPTIONS,
+    ) -> Self:
+        """Append a cookie using the selected secure attributes.
+
+        Args:
+            name: Cookie name.
+            value: Cookie value.
+            options: Cookie attributes with secure defaults.
+
+        Returns:
+            This response instance.
+
+        Raises:
+            ValueError: If any cookie field contains unsafe characters.
+        """
+        _validate_cookie(name, value, options)
+        response = cast("ResponseBackend", self)
+        response.set_cookie(
+            name,
+            value,
+            max_age=options.max_age,
+            path=options.path,
+            domain=options.domain,
+            secure=options.secure,
+            httponly=options.http_only,
+            samesite=options.same_site,
+        )
+        return self
+
+    def without_cookie(
+        self,
+        name: str,
+        *,
+        options: CookieOptions = _DEFAULT_COOKIE_OPTIONS,
+    ) -> Self:
+        """Expire a cookie using the same scope and security attributes.
+
+        Args:
+            name: Cookie name to remove from the client.
+            options: Cookie attributes matching the original cookie scope.
+
+        Returns:
+            This response instance.
+
+        Raises:
+            ValueError: If the cookie name or attributes are malformed.
+        """
+        _validate_cookie(name, "", options)
+        response = cast("ResponseBackend", self)
+        response.delete_cookie(
+            name,
+            path=options.path,
+            domain=options.domain,
+            secure=options.secure,
+            httponly=options.http_only,
+            samesite=options.same_site,
+        )
+        return self
+
+
+class Response(ResponseBackend, _ResponseCookieMethods):
     """Represent a plain text or byte response with fluent header methods.
 
     Fluent methods mutate this response and return the same object. The
@@ -130,39 +201,6 @@ class Response(ResponseBackend):
         self.headers[name] = value
         return self
 
-    def with_cookie(
-        self,
-        name: str,
-        value: str,
-        *,
-        options: CookieOptions = _DEFAULT_COOKIE_OPTIONS,
-    ) -> Self:
-        """Append a cookie using secure defaults.
-
-        Args:
-            name: Cookie name.
-            value: Cookie value.
-            options: Cookie attributes. Defaults are secure and HttpOnly.
-
-        Returns:
-            The same response instance.
-
-        Raises:
-            ValueError: If the cookie name, value, or path is unsafe.
-        """
-        _validate_cookie(name, value, options)
-        self.set_cookie(
-            name,
-            value,
-            max_age=options.max_age,
-            path=options.path,
-            domain=options.domain,
-            secure=options.secure,
-            httponly=options.http_only,
-            samesite=options.same_site,
-        )
-        return self
-
     def cache_control(
         self,
         *,
@@ -193,7 +231,7 @@ class Response(ResponseBackend):
         return self.with_header("Cache-Control", ", ".join(directives))
 
 
-class JsonResponse(JsonResponseBackend):
+class JsonResponse(JsonResponseBackend, _ResponseCookieMethods):
     """Represent a JSON response from a JSON-compatible value.
 
     The operation follows native HTTP contracts and explicit ownership.
@@ -235,7 +273,7 @@ class JsonResponse(JsonResponseBackend):
         return self
 
 
-class HtmlResponse(HtmlResponseBackend):
+class HtmlResponse(HtmlResponseBackend, _ResponseCookieMethods):
     """Represent an HTML response with an explicit status code.
 
     The operation follows native HTTP contracts and explicit ownership.
@@ -276,7 +314,7 @@ class HtmlResponse(HtmlResponseBackend):
         return self
 
 
-class RedirectResponse(RedirectResponseBackend):
+class RedirectResponse(RedirectResponseBackend, _ResponseCookieMethods):
     """Represent a validated redirect response.
 
     The operation follows native HTTP contracts and explicit ownership.
@@ -317,7 +355,7 @@ class RedirectResponse(RedirectResponseBackend):
         return self
 
 
-class StreamResponse(StreamingResponseBackend):
+class StreamResponse(StreamingResponseBackend, _ResponseCookieMethods):
     """Stream an async byte or text iterator without collecting its output.
 
     The operation follows native HTTP contracts and explicit ownership.
@@ -363,7 +401,7 @@ class StreamResponse(StreamingResponseBackend):
         return self
 
 
-class FileResponse(FileResponseBackend):
+class FileResponse(FileResponseBackend, _ResponseCookieMethods):
     """Stream one application-selected file as a download response.
 
     The operation follows native HTTP contracts and explicit ownership.
