@@ -48,8 +48,13 @@ from titanspan.contracts.foundation import (
     BootableServiceProvider,
     ServiceProvider,
 )
-from titanspan.contracts.http import HttpRequest, HttpResponse
+from titanspan.contracts.http import (
+    HttpRequest,
+    HttpResponse,
+    ResponseFactory,
+)
 from titanspan.contracts.logging import LoggingManager
+from titanspan.contracts.routing import UriUrlGenerator
 from titanspan.http import HttpServiceProvider, JsonResponse, Request
 from titanspan.http._backends.asgi import create_request
 from titanspan.http.configuration import HttpConfiguration
@@ -60,6 +65,9 @@ from titanspan.logging import (
     LoggingConfiguration,
     LoggingServiceProvider,
 )
+from titanspan.routing import Router, RoutingServiceProvider, UrlGenerator
+from titanspan.routing._backends.fastapi import install_routes
+from titanspan.support.uri import bind_uri_services
 
 if TYPE_CHECKING:
     from collections.abc import (
@@ -401,10 +409,12 @@ class Application:
             logging,
             customizers=logging_customizers,
         )
+        routing_provider = RoutingServiceProvider(repository)
         native_providers: tuple[ServiceProvider, ...] = (
             config_provider,
             logging_provider,
             HttpServiceProvider(http_configuration),
+            routing_provider,
             *service_providers,
         )
         for provider in native_providers:
@@ -418,9 +428,12 @@ class Application:
         self._logging_manager = log_manager
         self._config_manager = config_manager
         self._http_configuration = http_configuration
+        self._router = routing_provider.router
+        self._url_generator = routing_provider.url_generator
         self._started = False
         self._starting = False
         self._closed = False
+        self._routes_installed = False
         self._standalone_context: (
             AbstractContextManager[ActiveApplicationContext] | None
         ) = None
@@ -463,7 +476,7 @@ class Application:
 
             The application owns this lifecycle through shutdown.
             """
-            with bind_application_context(self, self.container):
+            with self._bind_context():
                 await self.startup()
                 try:
                     yield
@@ -526,18 +539,22 @@ class Application:
 
         self._starting = True
         try:
-            with bind_application_context(self, self.container):
+            with self._bind_context():
                 for provider in self._service_providers:
                     if isinstance(provider, BootableServiceProvider):
                         await self.container.call_async(provider.boot)
+                install_routes(
+                    self.asgi,
+                    self._router,
+                    self.container,
+                    self._url_generator,
+                )
+                self._routes_installed = True
         except BaseException as startup_error:
             self._closed = True
             try:
                 with anyio.CancelScope(shield=True):
-                    with bind_application_context(
-                        self,
-                        self.container,
-                    ):
+                    with self._bind_context():
                         await self._lifecycle_stack.aclose()
             except BaseException as cleanup_error:
                 startup_error.add_note(
@@ -571,7 +588,7 @@ class Application:
         ):
             raise ScopeError(_ACTIVE_APPLICATION_SCOPE_ERROR)
         self._closed = True
-        with bind_application_context(self, self.container):
+        with self._bind_context():
             with anyio.CancelScope(shield=True):
                 await self._lifecycle_stack.aclose()
 
@@ -588,7 +605,7 @@ class Application:
         if self._standalone_context is not None:
             raise RuntimeError(_APPLICATION_CONTEXT_REENTRY_ERROR)
         await self.startup()
-        binding = bind_application_context(self, self.container)
+        binding = self._bind_context()
         binding.__enter__()
         self._standalone_context = binding
         return self
@@ -692,6 +709,15 @@ class Application:
         """
         return self._http_configuration
 
+    @property
+    def router(self) -> Router:
+        """Return the Router used by facades and incoming ASGI dispatch.
+
+        Returns:
+            The same application-owned Router registered in the container.
+        """
+        return self._router
+
     def make[ServiceT](self, service: type[ServiceT]) -> ServiceT:
         """Resolve a synchronous service through the canonical registry.
 
@@ -724,8 +750,38 @@ class Application:
         Notes:
             ContextVar restoration applies on exceptions and cancellation.
         """
-        with bind_application_context(self, self.container):
+        with self._bind_context():
             yield
+
+    @contextmanager
+    def _bind_context(
+        self,
+        scope: object | None = None,
+    ) -> Generator[ActiveApplicationContext, None, None]:
+        """Bind URI services and the canonical active application together.
+
+        Args:
+            scope: Optional execution scope visible during service resolution.
+
+        Yields:
+            The active application context for this execution.
+
+        Notes:
+            Services resolve lazily from this container. ContextVar tokens
+            restore nested applications and concurrent tasks independently.
+        """
+        with (
+            bind_application_context(
+                self,
+                self.container,
+                scope,
+            ) as active,
+            bind_uri_services(
+                lambda: self.container.make(UriUrlGenerator),
+                lambda: self.container.make(ResponseFactory),
+            ),
+        ):
+            yield active
 
     @asynccontextmanager
     async def execution_scope(
@@ -750,11 +806,7 @@ class Application:
         if self._closed:
             raise RuntimeError(_APPLICATION_CLOSED_ERROR)
         async with self.container.scope(scope) as active_scope:
-            with bind_application_context(
-                self,
-                self.container,
-                active_scope,
-            ):
+            with self._bind_context(active_scope):
                 yield active_scope
 
     asgi: FastAPI
@@ -762,12 +814,15 @@ class Application:
     _config_repository: ConfigRepository
     _logging_manager: LoggingManager
     _http_configuration: HttpConfiguration
+    _router: Router
+    _url_generator: UrlGenerator
     _config_manager: ConfigManager
     _service_providers: tuple[ServiceProvider, ...]
     _lifecycle_stack: AsyncExitStack
     _started: bool
     _starting: bool
     _closed: bool
+    _routes_installed: bool
     _standalone_context: AbstractContextManager[ActiveApplicationContext] | None
 
 

@@ -47,8 +47,9 @@ Incoming request and upload resources remain valid during streaming response
 generation. Middleware can resolve request-scoped dependencies and modify a
 native response without buffering its body.
 
-The HTTP component provides a useful initial web boundary but is not a
-complete web stack. Route registration remains FastAPI-backed. HTTP fakes,
-bounded concurrent client pools, outgoing multipart, SSRF policy, routing,
-authentication, and telemetry are pending and are tracked in
-`docs/specifications/http.md`.
+The HTTP component provides a useful web boundary but does not own route
+definitions. The separate native Routing component compiles its canonical
+route catalog into the ASGI host; see ADR 0021 and
+`docs/specifications/routing.md`. HTTP fakes, bounded concurrent client
+pools, outgoing multipart, SSRF policy, authentication, and telemetry remain
+pending and are tracked in `docs/specifications/http.md`.

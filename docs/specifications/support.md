@@ -39,6 +39,12 @@ future utility has been implemented.
 - HTML contracts distinguish trusted markup from ordinary text. Escaping is
   not sanitization for URLs, CSS, or JavaScript contexts.
 - URI parsing does not establish that a destination is safe to fetch.
+- URI route factories resolve `UriUrlGenerator` only inside the active
+  Application context. Support re-exports the same contract object defined in
+  `contracts.routing`; the application provider binds its canonical generator.
+- URI redirects use the registered `ResponseFactory`. Parsing remains
+  independent of app state, while `Uri.redirect()` requires active app
+  context and inherits native external and protocol-relative redirect checks.
 
 ## Optional capabilities
 

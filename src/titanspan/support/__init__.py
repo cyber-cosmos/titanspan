@@ -33,6 +33,7 @@ from titanspan.support.exceptions import (
     NoMatchingArrayItemError,
     NonAdvancingNumberRangeError,
     RandomSelectionError,
+    UriContextError,
 )
 from titanspan.support.fluent import Fluent
 from titanspan.support.forwards_calls import ForwardsCalls
@@ -123,6 +124,7 @@ __all__ = [
     "Tappable",
     "Timebox",
     "Uri",
+    "UriContextError",
     "UriQueryString",
     "UriUrlGenerator",
     "blank",

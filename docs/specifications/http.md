@@ -17,6 +17,7 @@ Validation, Concurrency, or Telemetry components.
 | Sync/async pooled outgoing requests | `HttpClient`, `Http` | Loopback client integration tests |
 | Streaming outgoing response cleanup | `HttpClient.stream_async` | `tests/integration/http/test_client.py` |
 | Application-scoped client and request scope | `HttpServiceProvider`, `Application` | HTTP application integration tests |
+| URI redirects | `ResponseFactory.redirect`, `Uri.redirect` | Routing URI integration tests use the native response factory |
 
 ## Resolution and lifecycle
 
@@ -68,7 +69,8 @@ available:
   destination policy.
 - Native CORS, trusted-host, authentication, authorization, CSRF, and
   rate-limiting middleware.
-- Routing-owned route middleware groups, aliases, and route-level policies.
+- Route-specific middleware policy integration beyond the current Router's
+  native middleware registrations.
 - Native OpenTelemetry spans and metrics.
 - Windows and multiprocess guarantees for application-owned HTTP pools.
 

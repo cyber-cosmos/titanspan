@@ -54,6 +54,14 @@ from titanspan.contracts.logging import (
     LogProcessor,
     LogWriter,
 )
+from titanspan.contracts.routing import (
+    ControllerAction,
+    RouteAction,
+    RouteCatalog,
+    RouteEndpoint,
+    RouteInfo,
+    UriUrlGenerator,
+)
 from titanspan.contracts.support import (
     DeferredDisplayValue,
     HtmlRenderable,
@@ -73,6 +81,7 @@ __all__ = [
     "ConfigReader",
     "ConfigRepository",
     "ConfigWriter",
+    "ControllerAction",
     "DeferredDisplayValue",
     "DeliveryStatus",
     "HtmlRenderable",
@@ -99,6 +108,10 @@ __all__ = [
     "RequestHandler",
     "RequestPayload",
     "ResponseFactory",
+    "RouteAction",
+    "RouteCatalog",
+    "RouteEndpoint",
+    "RouteInfo",
     "Scope",
     "ScopedConfigOverrides",
     "ServerSentEvent",
@@ -108,4 +121,5 @@ __all__ = [
     "ServiceProvider",
     "ServiceRegistry",
     "TypedConfigReader",
+    "UriUrlGenerator",
 ]

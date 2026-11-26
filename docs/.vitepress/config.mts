@@ -44,6 +44,7 @@ export default defineConfig({
           { text: "Contracts", link: "/contracts/" },
           { text: "HTTP", link: "/http/" },
           { text: "Logging", link: "/logging/" },
+          { text: "Routing", link: "/routing/" },
           { text: "Support", link: "/support/" },
         ],
       },
@@ -182,6 +183,10 @@ export default defineConfig({
                 text: "0020 — Native HTTP component",
                 link: "/architecture/decisions/0020-native-http-component",
               },
+              {
+                text: "0021 — Native routing and URI generation",
+                link: "/architecture/decisions/0021-native-routing-uri-generation",
+              },
             ],
           },
         ],
@@ -246,6 +251,20 @@ export default defineConfig({
           {
             text: "Behavioral specification",
             link: "/specifications/collections",
+          },
+        ],
+      },
+      {
+        text: "Routing",
+        items: [
+          { text: "Overview", link: "/routing/" },
+          {
+            text: "URL generation and redirects",
+            link: "/routing/url-generation",
+          },
+          {
+            text: "Behavioral specification",
+            link: "/specifications/routing",
           },
         ],
       },

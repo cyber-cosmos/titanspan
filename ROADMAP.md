@@ -1,12 +1,12 @@
 # Roadmap
 
-Titanspan is consolidating its engineering foundation before completing the
-full application and web composition lifecycle. Native configuration,
-logging, Support, and the sync-first container have working implementations
-and cross-component application integration. FastAPI route injection still
-uses a separate private graph. These phases are capability milestones, not
-calendar promises. Each phase should ship coherent vertical slices with tests
-and documentation before expanding its surface area.
+Titanspan is consolidating its engineering foundation and implementing the
+application and web composition lifecycle in tested vertical slices. Native
+configuration, logging, Support, the sync-first container, HTTP, and initial
+Routing have application integration. Explicit third-party FastAPI providers
+remain an interoperability boundary; ordinary Titanspan route dispatch uses
+the native container. These phases are capability milestones, not calendar
+promises.
 
 The standalone Collections component now provides eager and lazy operations
 for ordinary Python iterables. Data pipelines, async streams, and large-scale
@@ -27,16 +27,19 @@ processing remain planned.
   and provider registration and boot are lifecycle-integrated.
 - Domain-oriented contracts and a native synchronous-first container API are
   implemented incrementally, with contract conformance and app identity tests.
-- Next: complete established Container capabilities and unify ASGI route
-  dependency injection with the native registry without exposing backend
-  provider types through ordinary APIs.
+- Remaining work: complete established Container capabilities and expand
+  lifecycle integrations without exposing backend provider types through
+  ordinary APIs.
 
 ## Phase 2 — Web and developer tooling
 
-- Native ASGI request scopes, response construction, initial middleware,
-  streaming, and pooled HTTP clients are implemented; see `docs/http/`.
-- Routing, controllers, route-level middleware, HTTP fake transports, bounded
-  concurrent HTTP pools, and structured observability improvements remain.
+- Native ASGI request scopes, response construction, middleware, streaming,
+  pooled HTTP clients, native route registration, controller dispatch, and
+  route-aware URL generation are implemented incrementally; see `docs/http/`
+  and `docs/routing/`.
+- Route discovery, route caching, WebSockets, secure signed URLs, HTTP fake
+  transports, bounded concurrent HTTP pools, and structured observability
+  improvements remain.
 - CLI generators and application test utilities.
 
 ## Phase 3 — AI orchestration
