@@ -7,10 +7,11 @@ title: "Framework engineering review"
 ## Scope and evidence
 
 The historical source audit started at commit `2afcd31`. This continuation
-reviewed main at `ad06e47`, including the HTTP implementation. It revalidated
-URL generation and event subscriber ownership against production code and
-tests. Findings distinguish reproduced defects from documented limits and
-evidence gaps.
+reviewed main at `b2de4de`, including the integrated Hashing component. The
+repository did not contain the requested C-001 through C-012 review. This
+record uses its existing F-001 through F-012 findings. The latest source and
+tests revalidated these findings and added two confirmed Foundation
+integration corrections below.
 
 The lockfile pins Blinker 1.9.0, Dishka 1.10.1, FastAPI 0.165.0, and
 Starlette 1.10.0. It also pins HTTPX2 2.16.2, Pydantic 2.14.4, Pydantic
@@ -341,6 +342,53 @@ owned and must have application lifetime.
 subscription and dispatch. The complete Events unit and integration suites
 pass after correction.
 
+### F-013 — Route discovery ignored the effective application root
+
+**Severity:** P2 — confirmed application bootstrap defect, resolved here.
+
+**Affected components:** Foundation and Routing.
+
+**Evidence:** `Application` constructed `RoutingServiceProvider` without its
+resolved `ConfigManager.base_path`. `RouteDiscovery.from_configuration()`
+therefore used the process working directory when `routing.path` was absent.
+
+**Reproduction:** Place `routes/web.py` under a temporary `Application.base_path`
+and request its route. Before correction, the application returned 404. A
+relative `routing.path` also resolved from the process working directory.
+
+**Correction:** Foundation passes the effective base path to the existing
+Routing provider boundary. Discovery uses that path by default and resolves
+relative overrides beneath it. Absolute overrides remain explicit.
+
+**Verification:** `tests/integration/test_application_root.py` exercises
+default and relative route roots through real application startup and ASGI
+dispatch. `tests/integration/routing/test_route_discovery.py` preserves
+explicit absolute-root behavior.
+
+### F-014 — Validation failures had no native HTTP response
+
+**Severity:** P2 — confirmed HTTP error-mapping defect, resolved here.
+
+**Affected components:** Foundation, Validation, and HTTP.
+
+**Evidence:** Foundation registered only the generic exception handler for
+`ValidationException`. An uncaught request validation error was reported as
+an application failure instead of a client input error.
+
+**Reproduction:** Raise `ValidationException` from a real routed endpoint.
+Before correction, the ASGI test logged it as unhandled and surfaced the
+server exception instead of receiving a 422 response.
+
+**Correction:** Foundation maps native validation issues to status 422 through
+the canonical `ResponseFactory`. The response groups safe messages by field,
+omits rejected input values, and permits application-specific handler
+overrides.
+
+**Verification:** `tests/integration/test_validation_exception_rendering.py`
+uses the real Validation provider, request parser, Router, Container, and
+response factory. It asserts the 422 status and confirms that input values do
+not appear in the response.
+
 ## Open findings
 
 ### F-002 — Request and workflow lifetimes cannot overlap
@@ -476,7 +524,8 @@ application services and lifecycle ownership. Their adapters delegate mature
 protocol and execution engines. Verified fixes cover cookie isolation, bounded
 request bodies, stream cleanup, URL constraints, middleware composition,
 intersection semantics, URL contract substitution, and subscriber scope
-isolation.
+isolation. Foundation now uses its effective root for route discovery and
+renders native Validation failures as safe 422 responses.
 
 Within one application container, singleton identity is shared across
 concurrent synchronous, asynchronous, and worker-thread resolution. The

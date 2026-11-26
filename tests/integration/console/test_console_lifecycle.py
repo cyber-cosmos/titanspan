@@ -9,6 +9,8 @@ from typing import Annotated
 
 import pytest
 
+from titanspan import app
+from titanspan._application_context import active_application_context
 from titanspan.console import Argument, Console, TerminalOutput
 from titanspan.console.testing import ConsoleTester
 from titanspan.contracts import (
@@ -18,6 +20,7 @@ from titanspan.contracts import (
     ServiceProvider,
     ServiceRegistry,
 )
+from titanspan.facades import Config
 from titanspan.foundation import Application
 
 pytestmark = pytest.mark.integration
@@ -73,6 +76,9 @@ def test_command_resolves_services_from_its_application() -> None:
     """
     lifecycle: list[str] = []
     resolved_outputs: list[ConsoleOutput] = []
+    resolved_configurations: list[ConfigRepository] = []
+    active_applications: list[Application] = []
+    applications: list[Application] = []
     output = TerminalOutput()
 
     def make_application(provider: ServiceProvider) -> Application:
@@ -80,7 +86,7 @@ def test_command_resolves_services_from_its_application() -> None:
 
         The command host supplies its output provider before composition.
         """
-        return (
+        application = (
             Application.builder()
             .with_config({"app": {"name": _APPLICATION_NAME}})
             .with_service_provider(provider)
@@ -88,6 +94,8 @@ def test_command_resolves_services_from_its_application() -> None:
             .on_shutdown(lambda: lifecycle.append("shutdown"))
             .build()
         )
+        applications.append(application)
+        return application
 
     console = Console(
         output=output,
@@ -103,10 +111,13 @@ def test_command_resolves_services_from_its_application() -> None:
     ) -> None:
         """Observe injected services and report one configured value.
 
-        The test records the resolved output service for identity checks.
+        The test compares injected, facade, and helper service access.
         """
         resolved_outputs.append(terminal)
-        terminal.write(f"{label}: {config.get('app.name')}")
+        resolved_configurations.append(Config.repository())
+        active_applications.append(app())
+        terminal.write(f"{label}: {Config.get('app.name')}")
+        assert config.get("app.name") == Config.get("app.name")
 
     assert callable(registrar.register_command)
     result = ConsoleTester(console).invoke(["inspect", "ready"])
@@ -114,6 +125,9 @@ def test_command_resolves_services_from_its_application() -> None:
     assert result.exit_code == 0
     assert len(resolved_outputs) == 1
     assert resolved_outputs[0] is output
+    assert resolved_configurations == [applications[0].config]
+    assert active_applications == applications
+    assert active_application_context() is None
     assert lifecycle == ["startup", "shutdown"]
 
 

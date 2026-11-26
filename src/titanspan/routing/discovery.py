@@ -72,11 +72,15 @@ class RouteDiscovery:
     def from_configuration(
         cls,
         configuration: ConfigRepository,
+        *,
+        base_path: Path | None = None,
     ) -> RouteDiscovery:
         """Build discovery policy from the application's routing settings.
 
         Args:
             configuration: Canonical application configuration repository.
+            base_path: Effective application root used when ``routing.path``
+                is not configured.
 
         Returns:
             Validated module and conventional route loading settings.
@@ -85,10 +89,14 @@ class RouteDiscovery:
             TypeError: If a route setting has an unsupported value type.
             ValueError: If a module name or route root is invalid.
         """
-        raw_root = configuration.get("routing.path", str(Path.cwd()))
+        default_root = Path.cwd() if base_path is None else base_path
+        raw_root = configuration.get("routing.path", default_root)
         if not isinstance(raw_root, (str, Path)):
             raise TypeError(_INVALID_ROUTE_ROOT_ERROR)
-        root = Path(raw_root).expanduser().resolve()
+        root = Path(raw_root).expanduser()
+        if not root.is_absolute():
+            root = default_root / root
+        root = root.resolve()
         raw_modules = configuration.get("routing.modules", ())
         if isinstance(raw_modules, str) or not isinstance(
             raw_modules,

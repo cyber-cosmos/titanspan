@@ -4,6 +4,7 @@ The provider shares route definitions with URL generation and route discovery.
 """
 
 from collections.abc import Awaitable, Callable
+from pathlib import Path
 
 from titanspan.contracts.config import ConfigRepository
 from titanspan.contracts.container import ServiceRegistry
@@ -23,11 +24,18 @@ class RoutingServiceProvider(BootableServiceProvider):
     facades, inspection, and OpenAPI compilation.
     """
 
-    def __init__(self, configuration: ConfigRepository) -> None:
+    def __init__(
+        self,
+        configuration: ConfigRepository,
+        *,
+        base_path: Path | None = None,
+    ) -> None:
         """Create routing services from trusted application configuration.
 
         Args:
             configuration: Canonical configuration repository for this app.
+            base_path: Effective application root used when route discovery
+                has no explicit ``routing.path`` setting.
 
         Raises:
             TypeError: If a configured origin is not text or None.
@@ -39,7 +47,10 @@ class RoutingServiceProvider(BootableServiceProvider):
         if origin is not None and not isinstance(origin, str):
             raise TypeError(_INVALID_ORIGIN_TYPE_ERROR)
         self._router = Router()
-        self._discovery = RouteDiscovery.from_configuration(configuration)
+        self._discovery = RouteDiscovery.from_configuration(
+            configuration,
+            base_path=base_path,
+        )
         self._url_generator = UrlGenerator(
             self._router.routes,
             origin=origin,

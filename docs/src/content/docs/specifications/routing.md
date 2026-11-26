@@ -89,10 +89,10 @@ asynchronous hook. Conventional imports are restricted to the resolved
 relative imports. Duplicate route conflicts retain `DuplicateRouteError`.
 
 `routing.discover=False` disables conventional files but keeps explicit
-modules. The current Foundation integration does not pass `Application`'s
-effective `base_path` to `RoutingServiceProvider`. Set `routing.path` to the
-trusted application route root until Foundation passes that base path during
-provider composition.
+modules. When `routing.path` is absent, Foundation passes its effective
+`Application.base_path` to `RoutingServiceProvider`. An explicit `routing.path`
+setting takes precedence. Relative values resolve beneath the application
+root; absolute values remain explicit.
 
 `Router.inspect` and `RouteFilter` filter by exact method, path, name,
 protocol, domain, or middleware and preserve registration order and route

@@ -22,6 +22,7 @@ application-rule sequencing, request integration, and safe native errors.
 | Async application rules | `AsyncValidationRule`, `validate_async` | Validator unit tests |
 | Non-raising test results | `make`, `make_async` | Validator unit tests |
 | Container and Config integration | `ValidationServiceProvider` | `tests/integration/validation/test_validation_application.py` |
+| Safe HTTP 422 rendering | Foundation's default `ValidationException` handler | `tests/integration/test_validation_exception_rendering.py` |
 | HTTP request input | `validate_request`, `validate_request_async` | Real ASGI application integration test |
 
 ## Schemas and errors
@@ -77,12 +78,10 @@ reuses HTTP's authoritative JSON, form, multipart, and query input behavior
 and does not add a request parser. HTTP owns upload temporary files and
 request-scoped cleanup.
 
-Foundation integration remains for a default `ValidationException` handler
-that returns status 422 through the canonical HTTP response factory. It must
-render the safe field-error mapping and must not include rejected values.
-Routing integration remains for typed route input binding, OpenAPI request
-schemas, and a documented 422 response schema. These changes belong to
-Foundation and Routing respectively.
+Foundation maps uncaught `ValidationException` values to status 422 through
+the canonical HTTP response factory. The response contains safe field
+messages and omits rejected input values. Routing integration remains for
+typed route input binding and OpenAPI request and response schemas.
 
 ## Verification
 

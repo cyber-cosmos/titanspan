@@ -79,6 +79,11 @@ that root. `config_path`, `bootstrap_path`, and `storage_path` return
 conventional paths without creating directories. They do not enforce
 filesystem containment for untrusted values.
 
+Foundation supplies this root to conventional route discovery. An explicit
+`routing.path` setting takes precedence. Other components must use
+`Application.base_path` or `Application.path()` for application-relative
+resources.
+
 `environment` reads `app.env` and defaults to `production`.
 `is_environment()` compares names without case sensitivity. `debug` returns
 the validated `app.debug` value.

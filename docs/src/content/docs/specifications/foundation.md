@@ -18,6 +18,7 @@ This specification records the behavior verified by Foundation tests.
 | Request scope and context | Implemented | Real ASGI tests cover scope identity, streaming lifetime, and isolation. |
 | Exception rendering | Implemented | Native handlers receive the request and exception through Container injection. |
 | Generic error response | Implemented | Unhandled request failures are logged and return a generic JSON 500 response. |
+| Validation response | Implemented | `ValidationException` uses the canonical response factory and returns safe field errors with status 422. |
 | Configurable middleware | Implemented | Builder and constructor accept ordered native HTTP middleware. |
 | Filesystem containment | Not provided | Path helpers compose trusted application paths; they do not validate untrusted input. |
 | Shutdown callbacks resolving services | Unsupported | Container rejects new resolutions after shutdown admission closes. Use captured references or provider-owned resources. |
@@ -32,7 +33,9 @@ in builder order. Registrations remain in the canonical application
 Container.
 
 Provider boot runs after registration and uses dependency injection. Startup
-callbacks run after provider boot. Routing compiles before startup completes.
+callbacks run after provider boot. Routing resolves conventional route files
+from `Application.base_path` unless `routing.path` selects another root.
+Routing compiles before startup completes.
 If startup fails, Foundation closes initialized resources and restores the
 application context.
 
@@ -54,6 +57,8 @@ cleanup.
 
 Unhandled `Exception` values are reported through the application logger.
 The default ASGI response is JSON with status 500 and a generic detail value.
+`ValidationException` returns status 422 with a generic detail value and safe
+field messages. The response does not include rejected input values.
 Custom handlers use native request and response contracts. They receive
 explicit `request` and `exception` arguments, plus any additional services
 resolved from the active request scope.

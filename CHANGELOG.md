@@ -7,8 +7,8 @@ public release.
 
 - Added Pydantic-backed Validation with typed schemas, coercion policy, safe
   field issues, sync and async application rules, result helpers, and
-  authoritative HTTP request input. Foundation 422 rendering and Routing
-  schema integration remain owner changes.
+  authoritative HTTP request input. Foundation renders uncaught validation
+  failures as safe 422 responses. Routing schema integration remains pending.
 - Added native commands with typed parameters, groups, trusted discovery,
   Container injection, and per-command Foundation lifecycle. Rich output and
   parser tests use shared contracts. Generators and component-owned commands
@@ -24,8 +24,10 @@ public release.
 - Added a typed Application builder, trusted provider entry points, path and
   environment helpers, and standalone execution. Lifecycle callbacks and
   native exception rendering use the application Container. Unhandled request
-  failures return a generic JSON response. See the Foundation guide and
-  specification.
+  failures return a generic JSON response. Conventional route discovery uses
+  the effective application root unless `routing.path` overrides it. Relative
+  overrides resolve beneath that root. Uncaught Validation errors use a safe
+  422 response. See the Foundation guide and specification.
 - Validate outbound URLs before base resolution and again after joining.
   Fail-fast request pools stop accepting callbacks after a failure. Responses
   suppress bodies for `HEAD` and statuses 204, 205, and 304.

@@ -74,6 +74,7 @@ from titanspan.logging import (
 from titanspan.routing import Router, RoutingServiceProvider, UrlGenerator
 from titanspan.routing._backends.fastapi import install_routes
 from titanspan.support.uri import bind_uri_services
+from titanspan.validation import ValidationException
 
 if TYPE_CHECKING:
     from collections.abc import (
@@ -123,6 +124,7 @@ _INVALID_EXCEPTION_RESPONSE_ERROR = (
     "Native exception handlers must return a Titanspan ASGI response."
 )
 _DEFAULT_SERVER_ERROR = "Internal server error."
+_VALIDATION_ERROR_DETAIL = "Request validation failed."
 _INVALID_ENVIRONMENT_ERROR = "Application environment must not be empty."
 _LIFECYCLE_REGISTRATION_ERROR = (
     "Lifecycle hooks and exception handlers must be registered before startup."
@@ -433,7 +435,10 @@ class Application:
             logging,
             customizers=logging_customizers,
         )
-        routing_provider = RoutingServiceProvider(repository)
+        routing_provider = RoutingServiceProvider(
+            repository,
+            base_path=config_manager.base_path,
+        )
         events_provider = EventServiceProvider(native_container, repository)
         native_providers: tuple[ServiceProvider, ...] = (
             config_provider,
@@ -527,6 +532,10 @@ class Application:
         asgi.add_exception_handler(
             RequestBodyTooLargeError,
             _request_too_large,
+        )
+        asgi.add_exception_handler(
+            ValidationException,
+            self._validation_exception,
         )
         asgi.add_exception_handler(Exception, self._unhandled_exception)
         for exception_type, handler in self._exception_handlers.items():
@@ -1077,6 +1086,35 @@ class Application:
         response = self.container.make(ResponseFactory).json(
             {"detail": _DEFAULT_SERVER_ERROR},
             status=500,
+        )
+        return _require_asgi_response(response)
+
+    async def _validation_exception(
+        self,
+        request: StarletteRequest,
+        error: Exception,
+    ) -> StarletteResponse:
+        """Render native validation issues through the shared response API.
+
+        Args:
+            request: Backend request associated with the validation failure.
+            error: Exception selected by the ASGI handler registry.
+
+        Returns:
+            A generic 422 response with messages grouped by field.
+        """
+        _ = request
+        # Starlette selects this handler only for the registered error type.
+        validation_error = cast("ValidationException", error)
+        response = self.container.make(ResponseFactory).json(
+            {
+                "detail": _VALIDATION_ERROR_DETAIL,
+                "errors": {
+                    field: list(messages)
+                    for field, messages in validation_error.field_errors.items()
+                },
+            },
+            status=422,
         )
         return _require_asgi_response(response)
 

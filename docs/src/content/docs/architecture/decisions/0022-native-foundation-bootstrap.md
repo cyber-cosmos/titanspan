@@ -23,10 +23,14 @@ rendering hooks.
   entry-point group. Treat those packages as trusted executable code.
 - Add path and environment accessors backed by the selected configuration
   repository and `ConfigManager` root.
+- Pass the effective application root to route discovery. An explicit
+  `routing.path` setting remains the route discovery override.
 - Add zero-argument startup and shutdown callbacks. Keep dependency-injected
   initialization in service-provider boot hooks.
 - Add exception handlers through native HTTP contracts. Keep FastAPI and
   Starlette request and response types inside the Foundation adapter.
+- Render native `ValidationException` values as safe HTTP 422 responses
+  through the canonical response factory.
 - Route standalone operations through the same startup and shutdown methods
   used by ASGI hosting.
 

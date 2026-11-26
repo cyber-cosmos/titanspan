@@ -96,15 +96,13 @@ not supported by the current HTTP contract.
 
 At application startup, Routing loads configured `routing.modules` in their
 listed order, then `routes/web.py` and `routes/api.py` from `routing.path`.
+When that setting is absent, Foundation supplies the effective
+`Application.base_path`. A relative `routing.path` is resolved beneath that
+root; an absolute path remains explicit.
 Each module defines `register_routes(router)`; synchronous and asynchronous
 hooks are supported. Set `routing.discover` to `False` to disable conventional
 files while retaining explicit modules. Imports occur within the trusted
 application startup lifecycle, not at module import time.
-
-Foundation currently does not pass `Application.base_path` to the routing
-provider. Until that integration is added, set `routing.path` to the
-application's route root; otherwise discovery uses the current working
-directory.
 
 `application.router.inspect(RouteFilter(...))` returns original route
 definitions in declaration order. Filters select exact methods, paths, names,

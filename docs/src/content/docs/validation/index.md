@@ -242,9 +242,11 @@ if not result.is_valid:
 ```
 
 The same result methods work through the `Validation` facade inside an active
-application context. `ValidationException` is not automatically rendered as
-an HTTP 422 response yet. Foundation needs a default handler that converts
-its safe field errors to the canonical JSON response type.
+application context. Foundation automatically renders an uncaught
+`ValidationException` as a 422 JSON response through the native response
+factory. The response includes safe field messages and excludes rejected
+input values. Applications can register a more specific handler before
+startup.
 
 ## Integration boundaries
 
