@@ -6,9 +6,9 @@ The command tests use isolated application roots and never print raw secrets.
 from pathlib import Path
 
 import pytest
-from typer.testing import CliRunner
 
-from titanspan.console.cli import app
+from titanspan.console.cli import console
+from titanspan.console.testing import ConsoleTester
 
 pytestmark = pytest.mark.unit
 
@@ -43,7 +43,7 @@ def test_config_show_redacts_secret_values(
     )
     monkeypatch.chdir(tmp_path)
 
-    result = CliRunner().invoke(app, ["config:show"], color=False)
+    result = ConsoleTester(console).invoke(["config:show"])
 
     assert result.exit_code == 0
     assert "Titanspan" in result.stdout
@@ -68,13 +68,13 @@ def test_config_cache_and_clear_manage_only_the_cache_file(
     neighbor.parent.mkdir(parents=True)
     neighbor.write_text("keep", encoding="utf-8")
 
-    cached = CliRunner().invoke(app, ["config:cache"], color=False)
+    cached = ConsoleTester(console).invoke(["config:cache"])
 
     assert cached.exit_code == 0
     assert cache_file.is_file()
     assert cache_file.name in cached.stdout
 
-    cleared = CliRunner().invoke(app, ["config:clear"], color=False)
+    cleared = ConsoleTester(console).invoke(["config:clear"])
 
     assert cleared.exit_code == 0
     assert not cache_file.exists()
@@ -94,7 +94,7 @@ def test_config_validate_reports_source_errors_without_source_contents(
     _write_application_config(tmp_path, "config = 'private source value'\n")
     monkeypatch.chdir(tmp_path)
 
-    result = CliRunner().invoke(app, ["config:validate"], color=False)
+    result = ConsoleTester(console).invoke(["config:validate"])
 
     assert result.exit_code == 1
     assert "Could not load configuration source" in result.stderr
@@ -117,10 +117,8 @@ def test_config_show_returns_failure_for_a_missing_path(
     _write_application_config(tmp_path, "config = {'name': 'Titanspan'}\n")
     monkeypatch.chdir(tmp_path)
 
-    result = CliRunner().invoke(
-        app,
+    result = ConsoleTester(console).invoke(
         ["config:show", "missing.path"],
-        color=False,
     )
 
     assert result.exit_code == 1
@@ -140,7 +138,7 @@ def test_config_show_reports_source_errors_without_disclosing_values(
     _write_application_config(tmp_path, "config = 'private-value'\n")
     monkeypatch.chdir(tmp_path)
 
-    result = CliRunner().invoke(app, ["config:show"], color=False)
+    result = ConsoleTester(console).invoke(["config:show"])
 
     assert result.exit_code == 1
     assert "private-value" not in result.stdout + result.stderr
@@ -165,7 +163,7 @@ def test_config_cache_reports_unsupported_values_safely(
     )
     monkeypatch.chdir(tmp_path)
 
-    result = CliRunner().invoke(app, ["config:cache"], color=False)
+    result = ConsoleTester(console).invoke(["config:cache"])
 
     assert result.exit_code == 1
     assert "private-value" not in result.stderr
@@ -188,7 +186,7 @@ def test_config_clear_reports_filesystem_failures(
     cache_directory.mkdir(parents=True)
     monkeypatch.chdir(tmp_path)
 
-    result = CliRunner().invoke(app, ["config:clear"], color=False)
+    result = ConsoleTester(console).invoke(["config:clear"])
 
     assert result.exit_code == 1
     assert "Configuration cache" in result.stderr
@@ -210,7 +208,7 @@ def test_config_validate_reports_valid_sources(
     _write_application_config(tmp_path, "config = {'name': 'Titanspan'}\n")
     monkeypatch.chdir(tmp_path)
 
-    result = CliRunner().invoke(app, ["config:validate"], color=False)
+    result = ConsoleTester(console).invoke(["config:validate"])
 
     assert result.exit_code == 0
     assert "Configuration is valid" in result.stdout

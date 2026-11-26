@@ -4,6 +4,16 @@ Follow root `AGENTS.md` and `src/titanspan/AGENTS.md`. This module owns the
 `titanspan` command-line interface using Typer and Rich.
 
 - Keep commands explicit and provide useful help and failure messages.
+- Define shared command and output contracts only under
+  `titanspan.contracts.console`; import the same objects from that package.
+  Do not define component-local protocol duplicates.
+- Register application services through `ConsoleServiceProvider` and the
+  canonical `ServiceRegistry`. Let Foundation own startup and shutdown.
+- Keep Typer and Rich imports inside `_backends/`. Preserve Titanspan types
+  in public signatures and test APIs.
+- Use `CommandRegistrar` when another component registers a command. Do not
+  add a second parser or a separate command registry.
+- Treat installed entry points as trusted code. Do not scan arbitrary modules.
 - Do not perform destructive actions, network access, package publication, or
   implicit project modifications without an explicit user command.
 - Keep CLI startup lightweight and ensure runtime templates, if introduced,

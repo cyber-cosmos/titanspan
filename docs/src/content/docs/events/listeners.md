@@ -71,9 +71,9 @@ Use `inspect_events()`, `cache_events()`, and `clear_event_cache()` from
 `titanspan.events` to inspect or manage a manifest. These functions use the
 same trusted module list as startup discovery.
 
-The Console component does not yet provide event list, cache, or clear
-commands. Those commands require integration with the canonical CLI and
-application loading conventions.
+Events does not yet provide event list, cache, or clear commands. Those
+commands require event-specific inspection behavior and registration through
+the shared `CommandRegistrar` contract.
 
 ## Configuration
 

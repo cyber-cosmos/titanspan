@@ -15,6 +15,13 @@ from titanspan.contracts.config import (
     ScopedConfigOverrides,
     TypedConfigReader,
 )
+from titanspan.contracts.console import (
+    CommandHandler,
+    CommandRegistrar,
+    ConsoleCommand,
+    ConsoleOutput,
+    ProgressTask,
+)
 from titanspan.contracts.container import (
     AsyncServiceContainer,
     InstanceRegistration,
@@ -100,6 +107,8 @@ __all__ = [
     "AsyncValidationRule",
     "AsyncValidationRuleCheck",
     "BootableServiceProvider",
+    "CommandHandler",
+    "CommandRegistrar",
     "ConfigArray",
     "ConfigDiagnostics",
     "ConfigKeySequence",
@@ -107,6 +116,8 @@ __all__ = [
     "ConfigReader",
     "ConfigRepository",
     "ConfigWriter",
+    "ConsoleCommand",
+    "ConsoleOutput",
     "ControllerAction",
     "DeferredDisplayValue",
     "DeliveryStatus",
@@ -134,6 +145,7 @@ __all__ = [
     "OutgoingRequest",
     "PipelineContinuation",
     "PipelineMiddlewareHandler",
+    "ProgressTask",
     "QueryParameterValue",
     "QueryParameters",
     "RequestHandler",

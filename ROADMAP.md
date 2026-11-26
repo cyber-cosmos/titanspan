@@ -20,7 +20,9 @@ Streaming data pipelines and large-scale processing remain planned.
 
 The Events component now provides ordered in-process dispatch, Container-backed
 listeners, scoped fakes, deferred dispatch, and trusted discovery. Durable
-queue, transaction, broadcasting, and Console integrations remain planned.
+queue, transaction, broadcasting, and event-owned Console commands remain
+planned. Console provides native command registration and application-aware
+execution.
 
 ## Phase 0 — Engineering foundation
 
@@ -52,7 +54,7 @@ queue, transaction, broadcasting, and Console integrations remain planned.
   and Foundation base-path discovery. HTTP fake transports and bounded
   concurrent HTTP pools are implemented; structured observability improvements
   remain with Telemetry.
-- CLI generators and application test utilities.
+- CLI generators and application test utilities remain planned.
 
 ## Phase 3 — AI orchestration
 

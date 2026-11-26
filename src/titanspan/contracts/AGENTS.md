@@ -6,10 +6,11 @@ guides under `docs/src/content/docs/contracts/` before changing public interface
 - Keep this package dependency-independent and limited to contracts.
 - Use structural `Protocol` types by default. Use `ABC` only for a
   documented nominal or shared-behavior requirement.
-- Organize shared contracts by domain under this package: `config`,
-  `container`, `logging`, and `support` are established namespaces. Component
-  packages may re-export the same contract object; they must not define a
-  second protocol with equivalent behavior.
+- Organize shared contracts by domain under this package. Established
+  namespaces include `config`, `container`, `console`, `events`, `foundation`,
+  `http`, `logging`, `pipeline`, `routing`, and `support`. Component packages
+  may re-export the same contract object; they must not define a second
+  protocol with equivalent behavior.
 - Keep optional capabilities separate. Do not add contracts for unimplemented
   roadmap items or solely to mirror an external name.
 - Use precise generics and standard-library types. Do not expose backend

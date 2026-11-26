@@ -14,6 +14,7 @@ concrete framework service exists.
 contracts/
 ├── config/
 ├── container/
+├── console/
 ├── events/
 ├── filesystem/
 ├── foundation/
@@ -48,6 +49,7 @@ Component-private protocols remain in their owning component.
 | `RouteCatalog`, `RouteInfo`, `UriUrlGenerator` | Share route inspection and URL generation | `titanspan.routing`; route and URI integration tests |
 | `PipelineContinuation`, `PipelineMiddlewareHandler` | Type sequential continuation callbacks | `titanspan.pipeline`; Pipeline unit tests |
 | `ValidationService`, `ValidationRule`, `AsyncValidationRule` | Validate typed values and apply ordered application rules | `titanspan.validation`; `tests/integration/validation/test_validation_application.py` |
+| `CommandRegistrar`, `ConsoleCommand`, `ConsoleOutput`, `ProgressTask` | Share command registration and terminal output behavior | `titanspan.console.Console`, `TerminalOutput`; Console unit and Foundation integration tests |
 
 `Scope` and `ServiceFactory` are container domain values in Contracts and are
 re-exported by `titanspan.container` with canonical object identity.

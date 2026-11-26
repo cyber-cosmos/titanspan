@@ -9,6 +9,10 @@ public release.
   field issues, sync and async application rules, result helpers, and
   authoritative HTTP request input. Foundation 422 rendering and Routing
   schema integration remain owner changes.
+- Added native commands with typed parameters, groups, trusted discovery,
+  Container injection, and per-command Foundation lifecycle. Rich output and
+  parser tests use shared contracts. Generators and component-owned commands
+  remain pending.
 - Added an ordered sync and async Pipeline for transforms, continuation
   middleware, class stages, conditional inclusion, and native Container
   resolution. Pipeline owns no task scheduler or workflow state.
@@ -51,7 +55,7 @@ public release.
   context-local fakes, deferral, and bounded event pushes.
   Class-based subscriber methods resolve in each active dispatch scope;
   explicit instance subscribers remain registration-owned.
-  Queue, Database, Broadcasting, and Console integrations remain pending.
+  Queue, Database, Broadcasting, and event-owned CLI commands remain pending.
   See `docs/src/content/docs/events/` and
   `docs/src/content/docs/specifications/events.md`.
 - Completed multipart uploads, HTTPX2 fakes, assertions, bounded AnyIO pools,

@@ -115,7 +115,7 @@ capabilities in more detail.
 | Routing | Dispatch, URI integration, and URL generator tests | One catalog drives matching and reversal. Native custom converters and route-file discovery remain unsupported. |
 | Collections | Collection unit tests and Hypothesis invariants | Eager and lazy operations use Python iterators and preserve documented order. Intersection checks every supplied iterable. |
 | Events | Events application and dispatcher integration tests | Dispatch uses the application Container. Class subscribers now resolve handlers in the active scope; Blinker currently stores receivers. |
-| Console | CLI tests and Typer integration | The CLI delegates argument parsing and output. Many component-specific commands remain planned. |
+| Console | CLI tests and Foundation integration | Native registration, Container injection, and command lifecycle are implemented. Component-owned commands and generators remain pending. |
 
 This evidence does not establish production readiness for distributed
 execution, Windows, multiprocess pools, AI agents, or nested workflow scopes.

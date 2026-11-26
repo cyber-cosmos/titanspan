@@ -48,7 +48,7 @@ sequential-await semantics. It does not keep a second listener registry.
 | Queued listeners, retries, and queue metadata | Deferred | Queue owns jobs, serialization, backoff, uniqueness, middleware, and failure handling. Events does not execute queued listeners inline. |
 | Dispatch after database commit | Deferred | Database must own transaction state, nested commit semantics, and rollback callbacks. |
 | Broadcasting and remote delivery | Deferred | Broadcasting must own channels, authorization, brokers, delivery, and distributed guarantees. |
-| Event CLI inspection and generation | Deferred | Console must provide application loading and native command registration first. |
+| Event CLI inspection and generation | Deferred | Events has not registered event-specific commands through `CommandRegistrar`. |
 | Automatic application event guessing | Adapted | Explicit module configuration and decorators or annotations replace framework path guessing. |
 | PHP namespaces and object serialization rules | Not applicable | Titanspan uses Python module identity and ordinary in-process object references. |
 

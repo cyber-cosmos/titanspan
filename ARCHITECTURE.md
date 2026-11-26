@@ -81,14 +81,14 @@ tracked in [`docs/src/content/docs/specifications/backend-boundaries.md`](docs/s
 | `parallel` | CPU-bound multiprocessing and parallel computation. | Planned. |
 | `pipeline` | Ordered synchronous and asynchronous value transformations. | Sequential callable and Container-resolved stages are implemented. Pipeline does not own streaming or concurrent execution. See `docs/src/content/docs/specifications/pipeline.md`. |
 | `validation` | Pydantic-backed schema validation, safe field issues, and ordered application rules. | Native sync and async service, standalone validator, and HTTP request integration are implemented. Foundation exception rendering and Routing schema integration remain owner changes. See `docs/src/content/docs/specifications/validation.md`. |
-| `events` | Event dispatching, listeners, subscribers, and application event lifecycle integration. | Native Blinker-backed dispatch, listener injection, scoped fakes, deferred and pushed events, and trusted discovery are implemented. Queue, Database, Broadcasting, and Console integrations remain pending. See `docs/src/content/docs/specifications/events.md`. |
+| `events` | Event dispatching, listeners, subscribers, and application event lifecycle integration. | Native Blinker-backed dispatch, listener injection, scoped fakes, deferred and pushed events, and trusted discovery are implemented. Queue, Database, Broadcasting, and event-owned CLI commands remain pending. See `docs/src/content/docs/specifications/events.md`. |
 | `queue` | Distributed jobs, workers, retries, chains, and batches. | Planned. |
 | `mail` | Email messages, delivery, templates, and attachments. | Planned. |
 | `notifications` | Multi-channel application notifications. | Planned. |
 | `filesystem` | Local and cloud storage abstractions. | Planned. |
 | `logging` | Native records, channels, drivers, redaction, context, async dispatch, and lifecycle. | Initial component implemented; see `docs/src/content/docs/logging/` and its specification for limits. |
 | `scheduling` | Recurring tasks, cron expressions, and coordination. | Planned. |
-| `console` | CLI commands, generators, and scaffolding. | Initial help and version options implemented; the command system remains in progress. |
+| `console` | Native commands, terminal output, and application-aware execution. | Typed registration, groups, trusted entry-point discovery, Container injection, per-command Foundation lifecycle, output, and parser-backed testing are implemented. Generators and component-owned inspection commands remain pending. See `docs/src/content/docs/specifications/console.md`. |
 | `ai` | Model providers, prompts, embeddings, and structured output. | Planned. |
 | `agents` | Agent definitions, execution policies, and lifecycle. | Planned. |
 | `workflows` | Typed stateful orchestration over LangGraph. | Planned. |

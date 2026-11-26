@@ -13,12 +13,12 @@ column distinguishes static assignments and behavioral tests from real
 application integration. The cross-component test target runs tests marked
 `architecture` and is a required job in the CI gate.
 
-The shared Contracts package currently defines 36 public protocols across
-eight domains: configuration, container, foundation, Events, HTTP, logging,
-Routing, and Support. Domain value types are identified separately. One public
-abstract facade base and one private production protocol are also listed.
-Every public contract appears in its canonical domain package. The root
-package re-exports the same object. Private implementation and test-only
+The shared Contracts package defines public protocols across ten domains:
+configuration, container, Console, Events, foundation, HTTP, logging,
+Pipeline, Routing, and Support. Domain value types are identified separately.
+One public abstract facade base and one private production protocol are also
+listed. Every public contract appears in its canonical domain package. The
+root package re-exports the same object. Private implementation and test-only
 protocols remain unexported.
 
 ## Configuration contracts
@@ -74,6 +74,19 @@ work outside an ASGI host, and the ASGI lifespan delegates to those methods.
 Pure ASGI request middleware keeps request scope and context active through
 streamed response bodies. Regression tests cover cleanup and restoration after
 shutdown and failed startup.
+
+## Console contracts
+
+| Contract or type | Definition | Implementation and consumers | Registration and evidence | Status |
+| --- | --- | --- | --- | --- |
+| `CommandRegistrar` | `contracts/console/__init__.py` | `console.Console`; applications and component command registration | Static assignment and duplicate-path behavior in `tests/unit/console/test_console.py`; parser dispatch in the same suite | Implemented and consumed |
+| `ConsoleCommand` | `contracts/console/__init__.py` | Application command classes with `handle()` | Real class construction and async handler invocation through the Application Container | Implemented extension boundary |
+| `ConsoleOutput` | `contracts/console/__init__.py` | `console.TerminalOutput`; command handlers | `ConsoleServiceProvider` binds the same output through `ServiceRegistry`; injection identity is verified in Console integration tests | Implemented, registered, and consumed |
+| `ProgressTask` | `contracts/console/__init__.py` | Private Rich progress adapter; command handlers | Native context-manager behavior and progress validation in Console unit tests | Implemented and consumed |
+
+`CommandHandler` is a public callable type alias. All Console contracts are
+defined in their domain package and re-exported by `titanspan.contracts`.
+Typer and Rich types remain inside the Console backend boundary.
 
 ## Events contracts
 
