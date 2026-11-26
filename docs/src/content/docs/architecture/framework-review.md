@@ -28,16 +28,16 @@ retry scheduling to selected libraries. Their native adapters add Titanspan
 contracts, security rules, lifecycle ownership, and application integration.
 
 This is a coherent foundation for current configuration, logging, events,
-HTTP, and routing use. It is not ready for concurrent synchronous singleton
-factories or overlapping workflow and request lifetimes. Those limits affect
-service identity and future workflow architecture.
+HTTP, and routing use. The worker-thread singleton race documented below is
+resolved by this review's correction. Semantic scope nesting remains limited
+by the backend hierarchy and affects future workflow architecture.
 
 ## Custom infrastructure review
 
 | Component | Existing infrastructure | Custom behavior | Decision |
 | --- | --- | --- | --- |
 | Contracts | Python `Protocol`, `ABC`, and typing | Native service boundaries and domain values | Keep. These declarations provide dependency inversion and do not recreate engines. |
-| Container | Dishka graph construction, validation, caching, and cleanup | Native bindings, discovery, contextual injection, overrides, scopes, and exception translation | Keep the adapter. These capabilities define the public container behavior. Fix shared initialization before claiming concurrent sync identity. |
+| Container | Dishka graph construction, validation, caching, and cleanup | Native bindings, discovery, contextual injection, overrides, scopes, and exception translation | Keep the adapter. Native policy adds framework behavior while Dishka retains graph and resource ownership. |
 | Config | Pydantic Settings, `python-dotenv`, JSON, and TOML libraries | Repository semantics, source ordering, safe diagnostics, and cache validation | Keep. The repository and loader coordinate framework precedence and safe snapshots. Review the Settings inheritance exposure separately. |
 | Logging | Structlog and Python logging handlers | Channels, redaction, context, bounded delivery, and application ownership | Keep. Titanspan owns policy and lifecycle; the backends own processing and sinks. |
 | HTTP | Starlette, HTTPX2, AnyIO, and Tenacity | Native request and response contracts, body limits, client isolation, retry safety, and resource ownership | Keep narrow adapters. Do not duplicate parsing, pooling, scheduling, or ASGI transmission. |
@@ -101,65 +101,103 @@ registration cost, snapshot cost, and dependency impact. Tests preserve ordered
 snapshots, removal during dispatch, independent applications, and concurrent
 registration for the selected design.
 
-## Open findings
+## Resolved findings
 
-### F-001 — Sync singleton initialization can race across worker threads
+### F-001 — Sync singleton initialization raced across worker threads
 
-**Severity:** P1 — confirmed correctness defect.
+**Severity:** P1 — confirmed correctness defect, resolved in this change.
 
 **Affected components:** Container, HTTP, Routing.
 
-**Evidence:** `src/titanspan/container/container.py:781` stores async locks.
-`src/titanspan/container/container.py:1961-1966` uses them for async lookup.
-`src/titanspan/container/container.py:2007-2078` resolves sync lookups without
-the same initialization guard.
+**Evidence:** Dishka 1.10.1 documents `AsyncContainer.get_sync`, but that
+operation does not use the async getter's lock. The earlier native worker
+path reached `get_sync` without shared initialization gates across graph
+generations. Twenty concurrent synchronous ASGI requests then initialized one
+application singleton twenty times.
 
 **Reproduction:** Two real synchronous HTTP endpoints request the same
 application singleton. Gate its factory with a two-party `threading.Barrier`
 and issue both requests concurrently through `TestClient`. The factory ran
 twice and returned different instances; both requests returned HTTP 200.
 
-**Consequence:** Concurrent synchronous calls can violate singleton identity
-and can initialize duplicate resources. Sequential sync and async calls share
-the resolved identity, but this does not prove safe concurrent initialization.
+**Correction:** Application singleton dependencies are primed in
+application-owned graphs before dependent roots. Per-service async gates span
+all relevant graph generations. Worker-thread lookups return through the
+owning AnyIO runtime, acquire those gates, and call the same backend cache.
+Scoped gates use the owning execution scope, so unrelated requests remain
+concurrent. An in-flight nested lookup through another graph fails with a
+native error instead of creating a second instance.
 
-**Recommendation:** Design one cross-mode initialization policy. It must not
-block the event loop, create duplicate caches, or leak partially initialized
-resources. Do not add a blocking lock without analyzing reentrant graphs and
-async cancellation.
+**Implementation:** `src/titanspan/container/container.py:2123-2156`
+coordinates asynchronous roots; `src/titanspan/container/container.py:2335-2389`
+bridges worker calls; and `src/titanspan/container/container.py:2819-2915`
+primes application-owned singleton dependencies. These paths use the gates
+and cache owned by one Container.
 
-**Acceptance:** A deterministic integration test proves one construction and
-one identity across concurrent sync calls and mixed sync/async calls. The test
-also covers factory failure, cancellation, and cleanup. No event-loop task
-blocks while another mode owns initialization.
+**Verification:**
+`tests/integration/test_container_thread_safety.py:552-595` retains the
+twenty-request reproduction. The same integration module checks async and
+mixed-mode contention, including both endpoint modes in one ASGI application
+at `tests/integration/test_container_thread_safety.py:643-730`. It also checks
+worker-thread lookups, transitive singletons, request isolation, retries,
+cancellation, shutdown, and exact resource finalization.
 
-### F-002 — Semantic scopes share a finite backend hierarchy
+**Result:** Sync and async resolution use one application backend cache and a
+shared native initialization gate. Worker requests are not serialized at the
+request level. The regression suite verifies the required one-owner behavior.
+
+## Open findings
+
+### F-002 — Request and workflow lifetimes cannot overlap
 
 **Severity:** P2 — demonstrated architectural limitation.
 
 **Affected components:** Container, Foundation, future Workflows and Agents.
 
 **Evidence:** `src/titanspan/contracts/container/scope.py:13-16` documents
-the shared levels. `src/titanspan/container/container.py:3552-3563` maps
-request, connection, job, and workflow to one level; node and agent share
-another. `tests/unit/container/test_container.py:449-480` verifies that
-same-level scopes cannot nest.
+the shared levels. The Container maps request, connection, job, and workflow
+to one level. `src/titanspan/container/container.py:4161-4172` assigns these
+levels. `tests/unit/container/test_container.py:460-463` verifies that
+workflow and request scopes cannot nest.
 
 **Reproduction:** Enter `WORKFLOW`, then enter `REQUEST`; the Container raises
-`ScopeError`. `WORKFLOW` → `NODE` → `TOOL` is supported, but independent
-request and workflow lifetimes cannot overlap in one container.
+`ScopeError` because both scopes map to one backend level.
 
-**Consequence:** The current hierarchy cannot represent every concurrent
-request, workflow, agent, and node lifetime as independent nested scopes.
-Separate containers avoid nesting but do not share application singletons.
+**Consequence:** A request cannot own or overlap a workflow scope in the same
+container. Separate containers avoid nesting but do not share app singletons.
 
 **Recommendation:** Before implementing workflow execution, decide whether
-the framework needs branch-local scopes or independently owned scope contexts.
-Keep the current mapping until a real lifecycle requires that change.
+workflows need independently owned scopes alongside active requests. Keep the
+current mapping until a real lifecycle requires that change.
 
 **Acceptance:** Tests demonstrate overlapping request and workflow scopes,
-isolated concurrent nodes, deterministic cleanup, and shared application
-singletons, or the supported restrictions remain explicit in public docs.
+deterministic cleanup, and shared application singletons, or public docs state
+the supported restrictions.
+
+### F-007 — Node and agent lifetimes cannot nest
+
+**Severity:** P2 — demonstrated architectural limitation.
+
+**Affected components:** Container, future Workflows and Agents.
+
+**Evidence:** `src/titanspan/contracts/container/scope.py:13-16` maps node and
+agent scopes to the same backend level. The Container rejects nested scopes
+that do not advance that hierarchy at
+`src/titanspan/container/container.py:4161-4172`.
+`tests/unit/container/test_container.py:464-468` and `489-492` verify both
+node-agent nesting orders. Lines 480-484 verify the tool-task conflict.
+
+**Reproduction:** Enter `NODE`, then `AGENT`; the Container raises `ScopeError`.
+The reverse nesting order fails for the same reason.
+
+**Consequence:** One workflow cannot model an agent lifetime nested inside a
+node, or a node lifetime nested inside an agent, with the current scopes.
+
+**Recommendation:** Before implementing nested agents, decide whether node and
+agent scopes need separate levels or independently owned child contexts.
+
+**Acceptance:** Tests demonstrate nested agent/node isolation and cleanup, or
+public documentation states the supported restrictions.
 
 ### F-003 — Public Settings inheritance exposes backend methods
 
@@ -252,11 +290,11 @@ protocol and execution engines. The reviewed fixes add regression evidence for
 cookie isolation, bounded request bodies, stream cleanup, URL constraints,
 middleware composition, and intersection semantics.
 
-The framework is ready for focused component work that does not depend on
-concurrent sync singleton initialization or overlapping semantic scopes. It is
-not ready to claim production-safe high-concurrency service identity or to
-freeze workflow scope semantics. Address F-001 before relying on concurrent
-synchronous singleton factories. Resolve F-002 before implementing nested
-workflow and request lifecycles. Treat F-003 as a public API design decision
-before stabilization. Review F-006 before stabilizing the Events boundary.
-Benchmark HTTP and Routing before making performance claims.
+Within one application container, singleton identity is shared across
+concurrent synchronous, asynchronous, and worker-thread resolution. The
+current scope map cannot overlap request and workflow lifetimes or nest node
+and agent lifetimes. Resolve F-002 before implementing overlapping request and
+workflow execution. Resolve F-007 before implementing nested agent and node
+lifecycles. Treat F-003 as a public API design decision before stabilization.
+Review F-006 before stabilizing Events. Benchmark HTTP and Routing before
+making performance claims.

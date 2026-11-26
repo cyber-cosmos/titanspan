@@ -22,11 +22,23 @@ Dishka.
   `titanspan.contracts.container`. Ordinary resolution uses `make`/`get` for
   sync-safe graphs; `make_async`/`get_async` explicitly allow async resources.
 - At application scope, keep one Dishka async graph for both `get_sync` and
-  `get`, because those operations share its cache. Scope-local sync graphs
-  must register cleanup with their owning sync or async scope. Never block,
-  start an event loop, or return an awaitable from a sync method.
-- Do not claim cross-thread safety for mixed-mode access unless a separate
-  verified synchronization contract is implemented.
+  `get`, because those operations share its cache. Worker-thread sync calls
+  must return through the owning AnyIO runtime, acquire Titanspan's shared
+  initialization gates, then call `get_sync` in a bounded worker pool.
+- Key application singleton gates by container and service. Key scoped gates
+  by execution-scope owner and service. Do not serialize independent request
+  or workflow scopes with one global scoped-service lock.
+- Bind a started container to one event loop. Reject unsafe resolution on the
+  owner loop while another task initializes the same shared value. Never
+  block, create a hidden event loop, or return an awaitable from a sync method.
+- Synchronous resolution before runtime startup uses separate per-key thread
+  gates. Startup must reject while any public sync resolution remains active.
+- Do not use a broad `RuntimeError` catch to translate expired AnyIO tokens.
+  Preserve factory failures and translate only the documented token-expiry
+  exception.
+- A sync factory running in the managed backend worker must declare uncached
+  dependencies in its signature. Reject nested container lookup that could
+  deadlock while the worker waits on its owning event loop.
 - Validate registration graphs before serving. Freeze production
   registrations after boot; avoid shared mutable runtime mutation.
 - Contextual rules, injection metadata, extensions, callbacks, and temporary

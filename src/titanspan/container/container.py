@@ -9,6 +9,7 @@ dependency adapter composes validated graphs and finalizes resources.
 from __future__ import annotations
 
 import asyncio
+from _thread import RLock as ThreadRLock
 from collections.abc import Awaitable as AwaitableABC
 from collections.abc import Coroutine as CoroutineABC
 from collections.abc import Hashable
@@ -33,7 +34,7 @@ from inspect import (
     signature,
     unwrap,
 )
-from threading import RLock
+from threading import RLock, get_ident
 from typing import (
     TYPE_CHECKING,
     Literal,
@@ -42,8 +43,11 @@ from typing import (
     get_type_hints,
     overload,
 )
+from weakref import WeakKeyDictionary
 
 import anyio
+from anyio import CapacityLimiter, RunFinishedError
+from anyio.lowlevel import EventLoopToken, current_token
 
 from titanspan.container._backends.dependency_engine import (
     AsyncInspectionContext,
@@ -127,6 +131,7 @@ _INHERITED_SCOPE_ERROR = "An inherited execution scope has closed."
 _ACTIVE_SCOPE_ERROR = (
     "Execution scopes and overrides must close before the container."
 )
+_ACTIVE_RESOLUTION_ERROR = "Container resolution must finish before shutdown."
 _OVERRIDE_SINGLETON_ERROR = (
     "A temporary override cannot replace a dependency captured by an "
     "application singleton."
@@ -166,6 +171,29 @@ _APPLICATION_RESOURCE_GRAPH_ERROR = (
 )
 _APPLICATION_DEPENDENCY_MODE_ERROR = (
     "Application dependencies require an async graph."
+)
+_ASYNC_INITIALIZATION_IN_PROGRESS_ERROR = (
+    "A shared dependency is initializing asynchronously. "
+    "Use make_async() to wait safely."
+)
+_RUNTIME_LOOP_MISMATCH_ERROR = (
+    "This container is bound to a different active event loop. "
+    "Resolve it from its owning application runtime."
+)
+_RUNTIME_LOOP_CLOSED_ERROR = (
+    "The owning application event loop is no longer active. "
+    "Start a new application container before resolving services."
+)
+_RUNTIME_ACTIVATION_ERROR = (
+    "The container cannot start while synchronous resolution is active."
+)
+_NESTED_SYNC_RESOLUTION_ERROR = (
+    "A synchronous factory cannot start nested container resolution from a "
+    "container worker. Declare dependencies in the factory signature."
+)
+_NESTED_SHARED_RESOLUTION_ERROR = (
+    "A factory requested a shared service that is still initializing. "
+    "Declare the dependency in the factory signature."
 )
 _ASYNC_SCOPE_SYNC_ERROR = (
     "Use async resolution for a dependency not yet entered in this scope."
@@ -337,6 +365,7 @@ class ContainerScope:
         self._generations: dict[tuple[type[object], bool], _Generation] = {}
         self._instances: dict[type[object], object] = {}
         self._provided_instance_scopes: dict[type[object], str] = {}
+        self._instance_lock = ThreadRLock()
         self._lock = asyncio.Lock()
         self._active = False
         self._entered = False
@@ -392,6 +421,7 @@ class ContainerScope:
             ContainerClosedError: If the owning container is closed.
             ScopeError: If nested scopes do not advance the scope hierarchy.
         """
+        await self._container.start()
         self._activate(synchronous=False)
         return self
 
@@ -416,13 +446,13 @@ class ContainerScope:
         if self._entered:
             raise ScopeError(_REENTERED_SCOPE_ERROR)
 
+        self._callbacks.entered()
         self._entered = True
         self._active = True
         self._synchronous = synchronous
         self._token = self._scope_context.set(
             (*parents, self),
         )
-        self._callbacks.entered()
 
     def _deactivate(self) -> None:
         """Restore the prior execution-local scope stack exactly once.
@@ -558,7 +588,8 @@ class ContainerScope:
         Returns:
             A pair containing a membership flag and the stored value.
         """
-        return service in self._instances, self._instances.get(service)
+        with self._instance_lock:
+            return service in self._instances, self._instances.get(service)
 
     def instance_snapshot(self) -> Mapping[type[object], object]:
         """Return a shallow snapshot for seeding a new graph generation.
@@ -566,7 +597,8 @@ class ContainerScope:
         Returns:
             Scoped service identities observed through this container API.
         """
-        return dict(self._instances)
+        with self._instance_lock:
+            return dict(self._instances)
 
     def instance_scope_snapshot(self) -> Mapping[type[object], str]:
         """Return lifecycle ownership for values seeded in this frame.
@@ -575,7 +607,8 @@ class ContainerScope:
             Scope names for externally supplied values that remain visible
             only within this frame or a nested frame.
         """
-        return dict(self._provided_instance_scopes)
+        with self._instance_lock:
+            return dict(self._provided_instance_scopes)
 
     def remember_instance(
         self,
@@ -588,7 +621,8 @@ class ContainerScope:
             service: Canonical service type.
             instance: Resolved object whose identity must be preserved.
         """
-        self._instances[service] = instance
+        with self._instance_lock:
+            self._instances[service] = instance
 
     def provide_instance[ServiceT](
         self,
@@ -609,14 +643,15 @@ class ContainerScope:
             ScopeError: If the frame is inactive, graph composition has
                 started, or this service key already has an instance.
         """
-        if not self._active:
-            raise ScopeError(_INACTIVE_SCOPE_ERROR)
-        if self._generations or self._graphs or self._sync_graphs:
-            raise ScopeError(_SCOPE_CONTEXT_LOCKED_ERROR)
-        if service in self._instances:
-            raise ScopeError(_DUPLICATE_SCOPE_INSTANCE_ERROR)
-        self._instances[service] = instance
-        self._provided_instance_scopes[service] = self.scope.value
+        with self._instance_lock:
+            if not self._active:
+                raise ScopeError(_INACTIVE_SCOPE_ERROR)
+            if self._generations or self._graphs or self._sync_graphs:
+                raise ScopeError(_SCOPE_CONTEXT_LOCKED_ERROR)
+            if service in self._instances:
+                raise ScopeError(_DUPLICATE_SCOPE_INSTANCE_ERROR)
+            self._instances[service] = instance
+            self._provided_instance_scopes[service] = self.scope.value
 
     def generation_for(
         self,
@@ -717,14 +752,17 @@ class ContainerScope:
         return graph
 
 
+_SharedResolutionKey = tuple[type[object], ContainerScope | None]
+
+
 class Container(ServiceContainer):
     """Register services and resolve sync-safe graphs synchronously.
 
     Bindings are mutable until the first graph is requested. Concrete
     unregistered classes are discovered recursively by the private graph
-    adapter. Sync resolution uses the async backend's documented sync getter,
-    preserving its application cache. Async factories use the explicitly
-    asynchronous methods. Each discovered root has a bounded graph generation.
+    adapter. Worker-thread lookups use the owning event loop's shared gates,
+    then call the backend's sync getter in a bounded worker pool. Async
+    factories use explicit asynchronous methods. Each root has a bounded graph.
 
     Attributes:
         providers: Optional advanced interoperability registrations. Ordinary
@@ -779,6 +817,28 @@ class Container(ServiceContainer):
         self._local_override_services: frozenset[type[object]] = frozenset()
         self._override_owner: Container | None = None
         self._shared_resolution_locks: dict[type[object], asyncio.Lock] = {}
+        self._sync_shared_resolution_locks: dict[
+            type[object],
+            ThreadRLock,
+        ] = {}
+        self._scope_shared_resolution_locks: WeakKeyDictionary[
+            ContainerScope,
+            dict[type[object], asyncio.Lock],
+        ] = WeakKeyDictionary()
+        self._scope_sync_resolution_locks: WeakKeyDictionary[
+            ContainerScope,
+            dict[type[object], ThreadRLock],
+        ] = WeakKeyDictionary()
+        self._held_shared_resolution_services: ContextVar[
+            tuple[int | None, frozenset[_SharedResolutionKey]]
+        ] = ContextVar(
+            f"titanspan_container_shared_resolution_{id(self)}",
+            default=(None, frozenset()),
+        )
+        self._sync_backend_worker: ContextVar[bool] = ContextVar(
+            f"titanspan_container_sync_worker_{id(self)}",
+            default=False,
+        )
         self._generations: list[DependencyGraph | SyncDependencyGraph] = []
         self._generation_by_type: dict[type[object], _Generation] = {}
         self._next_generation_id = 0
@@ -790,6 +850,14 @@ class Container(ServiceContainer):
             default=None,
         )
         self._generation_lock = RLock()
+        self._state_lock = RLock()
+        self._close_lock = asyncio.Lock()
+        self._runtime_token: EventLoopToken | None = None
+        self._runtime_thread_id: int | None = None
+        self._sync_resolution_limiter: CapacityLimiter | None = None
+        self._active_sync_resolutions = 0
+        self._active_resolution_count = 0
+        self._closing = False
         self._closed = False
         self._frozen = False
         self._active_scope_count = 0
@@ -814,7 +882,8 @@ class Container(ServiceContainer):
             This supports same-event-loop lifecycle coordination. It does not
             establish cross-thread synchronization.
         """
-        return self._active_scope_count
+        with self._state_lock:
+            return self._active_scope_count
 
     @property
     def active_override_count(self) -> int:
@@ -826,7 +895,73 @@ class Container(ServiceContainer):
         Notes:
             Nested overlays remain owned by their root override context.
         """
-        return self._active_override_count
+        with self._state_lock:
+            return self._active_override_count
+
+    @property
+    def active_resolution_count(self) -> int:
+        """Return active public resolution and callable operations.
+
+        Returns:
+            The container-wide count used to prevent shutdown from racing
+            service construction or injected callable execution.
+        """
+        with self._state_lock:
+            return self._active_resolution_count
+
+    async def start(self) -> None:
+        """Bind the container to its owning asynchronous runtime.
+
+        The binding lets synchronous lookups from worker threads return to
+        this loop for shared initialization coordination. A container remains
+        bound to one event loop for its complete resource lifetime.
+
+        Raises:
+            ContainerClosedError: If this container has already closed.
+            ScopeError: If startup races an in-flight pre-runtime sync lookup.
+            BindingResolutionError: If another event loop already owns it.
+        """
+        token = current_token()
+        thread_id = get_ident()
+        with self._state_lock:
+            if self._closed or self._closing:
+                raise ContainerClosedError(_CLOSED_CONTAINER_ERROR)
+            if self._runtime_token is None:
+                if (
+                    self._active_sync_resolutions
+                    or self._active_resolution_count
+                ):
+                    raise ScopeError(_RUNTIME_ACTIVATION_ERROR)
+                # Worker endpoints hold default AnyIO tokens while waiting
+                # for this loop. Give backend sync resolution a separate,
+                # equally bounded pool to avoid nested-limiter starvation.
+                default_limiter = (
+                    anyio.to_thread.current_default_thread_limiter()
+                )
+                self._sync_resolution_limiter = CapacityLimiter(
+                    default_limiter.total_tokens,
+                )
+                self._runtime_token = token
+                self._runtime_thread_id = thread_id
+            elif self._runtime_token != token:
+                raise BindingResolutionError(_RUNTIME_LOOP_MISMATCH_ERROR)
+
+    def stop_accepting(self) -> None:
+        """Close resolution admission before application teardown begins.
+
+        Raises:
+            ScopeError: If an execution scope, override, or resolution remains
+                active. A failed call leaves the container open for retry.
+            ContainerClosedError: If finalization has already completed.
+        """
+        with self._state_lock:
+            if self._closed:
+                raise ContainerClosedError(_CLOSED_CONTAINER_ERROR)
+            if self._active_scope_count or self._active_override_count:
+                raise ScopeError(_ACTIVE_SCOPE_ERROR)
+            if self._active_resolution_count:
+                raise ScopeError(_ACTIVE_RESOLUTION_ERROR)
+            self._closing = True
 
     async def __aenter__(self) -> Container:
         """Return this container for deterministic asynchronous ownership.
@@ -837,7 +972,7 @@ class Container(ServiceContainer):
         Raises:
             ContainerClosedError: If this instance has already been closed.
         """
-        self._ensure_open()
+        await self.start()
         return self
 
     async def __aexit__(
@@ -1279,23 +1414,28 @@ class Container(ServiceContainer):
         effective = self._effective_container()
         if effective is not self:
             return await effective.call_async(callback, parameters)
-        call_signature, annotations = self._call_signature(
-            cast("Callable[..., object]", callback)
-        )
-        arguments, keywords = await self._resolve_call_arguments_async(
-            call_signature,
-            annotations,
-            {} if parameters is None else dict(parameters),
-            consumer=self._call_consumer(callback),
-        )
-        callable_callback = cast(
-            "Callable[..., ReturnT] | Callable[..., Awaitable[ReturnT]]",
-            callback,
-        )
-        result = callable_callback(*arguments, **keywords)
-        if isawaitable(result):
-            return await cast("Awaitable[ReturnT]", result)
-        return cast("ReturnT", result)
+        await self.start()
+        self._begin_resolution()
+        try:
+            call_signature, annotations = self._call_signature(
+                cast("Callable[..., object]", callback)
+            )
+            arguments, keywords = await self._resolve_call_arguments_async(
+                call_signature,
+                annotations,
+                {} if parameters is None else dict(parameters),
+                consumer=self._call_consumer(callback),
+            )
+            callable_callback = cast(
+                "Callable[..., ReturnT] | Callable[..., Awaitable[ReturnT]]",
+                callback,
+            )
+            result = callable_callback(*arguments, **keywords)
+            if isawaitable(result):
+                return await cast("Awaitable[ReturnT]", result)
+            return cast("ReturnT", result)
+        finally:
+            self._end_resolution()
 
     @staticmethod
     def _call_signature(
@@ -1348,28 +1488,36 @@ class Container(ServiceContainer):
         effective = self._effective_container()
         if effective is not self:
             return effective.call(callback, parameters)
-        callable_callback = cast("Callable[..., object]", callback)
-        call_signature, annotations = self._call_signature(callable_callback)
-        return_hint = annotations.get(
-            "return",
-            call_signature.return_annotation,
-        )
-        if _is_async_callable(callable_callback) or _is_awaitable_hint(
-            return_hint,
-        ):
-            raise AsyncResolutionRequiredError(_SYNC_ASYNC_CALLBACK_ERROR)
-        arguments, keywords = self._resolve_call_arguments_sync(
-            call_signature,
-            annotations,
-            {} if parameters is None else dict(parameters),
-            consumer=self._call_consumer(callback),
-        )
-        result = callable_callback(*arguments, **keywords)
-        if isawaitable(result):
-            if iscoroutine(result):
-                result.close()
-            raise AsyncResolutionRequiredError(_SYNC_AWAITABLE_RESULT_ERROR)
-        return cast("ReturnT", result)
+        self._begin_resolution()
+        try:
+            callable_callback = cast("Callable[..., object]", callback)
+            call_signature, annotations = self._call_signature(
+                callable_callback,
+            )
+            return_hint = annotations.get(
+                "return",
+                call_signature.return_annotation,
+            )
+            if _is_async_callable(callable_callback) or _is_awaitable_hint(
+                return_hint,
+            ):
+                raise AsyncResolutionRequiredError(_SYNC_ASYNC_CALLBACK_ERROR)
+            arguments, keywords = self._resolve_call_arguments_sync(
+                call_signature,
+                annotations,
+                {} if parameters is None else dict(parameters),
+                consumer=self._call_consumer(callback),
+            )
+            result = callable_callback(*arguments, **keywords)
+            if isawaitable(result):
+                if iscoroutine(result):
+                    result.close()
+                raise AsyncResolutionRequiredError(
+                    _SYNC_AWAITABLE_RESULT_ERROR,
+                )
+            return cast("ReturnT", result)
+        finally:
+            self._end_resolution()
 
     def _resolve_call_arguments_sync(
         self,
@@ -1863,11 +2011,16 @@ class Container(ServiceContainer):
         effective = self._effective_container()
         if effective is not self:
             return effective.make(service)
-        key = self._resolve_key(service)
-        return self._resolution_callbacks.run_sync(
-            key,
-            lambda: self._make_sync(key),
-        )
+        self._begin_resolution()
+        try:
+            key = self._resolve_key(service)
+            self._ensure_sync_available(key)
+            return self._resolution_callbacks.run_sync(
+                key,
+                lambda: self._make_sync(key),
+            )
+        finally:
+            self._end_resolution()
 
     @overload
     async def make_async[ServiceT](
@@ -1915,12 +2068,16 @@ class Container(ServiceContainer):
         effective = self._effective_container()
         if effective is not self:
             return await effective.make_async(service)
-        self._ensure_open()
-        key = self._resolve_key(service)
-        return await self._resolution_callbacks.run_async(
-            key,
-            lambda: self._make_async_core(key),
-        )
+        await self.start()
+        self._begin_resolution()
+        try:
+            key = self._resolve_key(service)
+            return await self._resolution_callbacks.run_async(
+                key,
+                lambda: self._make_async_core(key),
+            )
+        finally:
+            self._end_resolution()
 
     async def _make_async_core(self, key: type[object]) -> object:
         """Resolve one service using async-capable backend scopes.
@@ -1943,13 +2100,16 @@ class Container(ServiceContainer):
                     "Use 'async with container.override(...)'."
                 )
                 raise AsyncResolutionRequiredError(message)
-            return self._make_sync(key)
+            return await self._resolve_sync_graph_async(
+                key,
+                self._active_scopes.get(),
+            )
         frames = self._active_scopes.get()
         if frames and frames[-1].is_synchronous:
             path = self._async_path(key)
             if path is not None:
                 raise ScopeError(_SYNC_SCOPE_ASYNC_ERROR)
-            return self._make_sync(key)
+            return await self._resolve_sync_graph_async(key, frames)
         is_cached, cached = self._cached_value(key, frames)
         if is_cached:
             return cached
@@ -1958,12 +2118,80 @@ class Container(ServiceContainer):
                 key,
                 self._override_owner,
             )
+        return await self._resolve_with_shared_locks(key, frames)
+
+    async def _resolve_with_shared_locks(
+        self,
+        key: type[object],
+        frames: tuple[ContainerScope, ...],
+    ) -> object:
+        """Resolve one graph while owning its shared initialization gates.
+
+        Args:
+            key: Canonical root service key.
+            frames: Active scope stack for this execution context.
+
+        Returns:
+            The resolved service after application dependencies are primed.
+        """
+        held_services = self._held_shared_services()
+        shared_keys = self._shared_services_for_resolution(
+            key,
+            frames,
+            held_services,
+        )
+        newly_held = frozenset(shared_keys).difference(held_services)
         async with AsyncExitStack() as lock_stack:
-            for lock in self._shared_locks_for(key, frames):
+            for shared_key in shared_keys:
+                lock = self._shared_lock_for(shared_key)
                 await lock_stack.enter_async_context(lock)
-            if frames and self._override_owner is None:
-                await self._prime_application_dependencies(key)
-            return await self._resolve_locked(key, frames)
+            token = self._set_held_shared_services(
+                held_services | newly_held,
+            )
+            try:
+                if self._override_owner is None:
+                    await self._prime_application_dependencies(key)
+                return await self._resolve_locked(key, frames)
+            finally:
+                self._held_shared_resolution_services.reset(token)
+
+    async def _resolve_sync_graph_async(
+        self,
+        key: type[object],
+        frames: tuple[ContainerScope, ...],
+    ) -> object:
+        """Resolve a sync-safe graph after awaiting shared initialization.
+
+        Async calls can wait for an application singleton even when their
+        active scope uses Dishka's synchronous child graph. Construction then
+        stays synchronous and uses the existing graph cache.
+
+        Args:
+            key: Canonical service key.
+            frames: Active execution-scope stack.
+
+        Returns:
+            The sync-safe resolved service.
+        """
+        held_services = self._held_shared_services()
+        shared_keys = self._shared_services_for_resolution(
+            key,
+            frames,
+            held_services,
+        )
+        newly_held = frozenset(shared_keys).difference(held_services)
+        async with AsyncExitStack() as lock_stack:
+            for shared_key in shared_keys:
+                await lock_stack.enter_async_context(
+                    self._shared_lock_for(shared_key),
+                )
+            token = self._set_held_shared_services(
+                held_services | newly_held,
+            )
+            try:
+                return self._make_sync_local(key)
+            finally:
+                self._held_shared_resolution_services.reset(token)
 
     def make_with[ServiceT](
         self,
@@ -2005,7 +2233,166 @@ class Container(ServiceContainer):
         )
 
     def _make_sync(self, service: type[object] | str) -> object:
-        """Resolve one service synchronously through the shared graph cache.
+        """Resolve a sync-safe service with one shared initialization owner.
+
+        Args:
+            service: Native service type or registered string alias.
+
+        Returns:
+            The service value from the active application or execution scope.
+
+        Raises:
+            AsyncResolutionRequiredError: If async initialization is required
+                or a shared initialization is already in progress on this
+                event-loop thread.
+            BindingResolutionError: If the owning runtime is unavailable or
+                synchronous backend resolution fails.
+            ScopeError: If startup races a pre-runtime lookup.
+        """
+        self._ensure_open()
+        key = self._resolve_key(service)
+        self._ensure_sync_available(key)
+        frames = self._active_scopes.get()
+        owner = self._shared_singleton_owner(key)
+        if owner is not None:
+            return Container._make_sync(owner, key)
+        is_cached, cached = self._cached_value(key, frames)
+        if is_cached:
+            return cached
+        with self._state_lock:
+            runtime_token = self._runtime_token
+            runtime_thread = self._runtime_thread_id
+            if runtime_token is None:
+                self._active_sync_resolutions += 1
+
+        if runtime_token is None:
+            return self._make_sync_before_runtime(key, frames)
+
+        if runtime_thread != get_ident():
+            if self._sync_backend_worker.get():
+                raise BindingResolutionError(_NESTED_SYNC_RESOLUTION_ERROR)
+            return self._bridge_sync_lookup(key, runtime_token)
+
+        return self._make_sync_local(key)
+
+    def _make_sync_before_runtime(
+        self,
+        key: type[object],
+        frames: tuple[ContainerScope, ...],
+    ) -> object:
+        """Serialize shared construction before async runtime activation.
+
+        Args:
+            key: Canonical service key.
+            frames: Active scope stack for the current execution context.
+
+        Returns:
+            The sync-safe service instance.
+        """
+        try:
+            with ExitStack() as lock_stack:
+                for shared_key in self._shared_services_for(key, frames):
+                    lock_stack.enter_context(
+                        self._sync_shared_lock_for(shared_key),
+                    )
+                return self._make_sync_local(key)
+        finally:
+            with self._state_lock:
+                self._active_sync_resolutions -= 1
+
+    def _bridge_sync_lookup(
+        self,
+        key: type[object],
+        token: EventLoopToken,
+    ) -> object:
+        """Run a worker-thread lookup through its owning event loop.
+
+        Args:
+            key: Canonical service key.
+            token: AnyIO token captured during application startup.
+
+        Returns:
+            The sync-safe service instance.
+
+        Raises:
+            BindingResolutionError: If the owning event loop has stopped.
+        """
+        try:
+            return anyio.from_thread.run(
+                self._make_sync_from_worker,
+                key,
+                token=token,
+            )
+        except anyio.NoEventLoopError as error:
+            raise BindingResolutionError(
+                _RUNTIME_LOOP_CLOSED_ERROR,
+            ) from error
+        except RunFinishedError as error:
+            raise BindingResolutionError(
+                _RUNTIME_LOOP_CLOSED_ERROR,
+            ) from error
+
+    async def _make_sync_from_worker(self, key: type[object]) -> object:
+        """Resolve synchronously from a worker under async shared locks.
+
+        The owning event loop acquires the same locks as async resolution,
+        then the backend's sync getter runs in a managed AnyIO worker. This
+        preserves the shared graph cache without blocking the event loop.
+
+        Args:
+            key: Canonical service key after alias normalization.
+
+        Returns:
+            The sync-safe service instance.
+
+        Raises:
+            AsyncResolutionRequiredError: If the dependency needs async work.
+            BindingResolutionError: If the backend cannot resolve the key.
+        """
+        self._ensure_open()
+        path = self._async_path(key)
+        if path is not None:
+            message = (
+                f"{_ASYNC_RESOLUTION_ERROR} Dependency path: "
+                f"{' -> '.join(path)}. Use make_async()."
+            )
+            raise AsyncResolutionRequiredError(message)
+
+        frames = self._active_scopes.get()
+        shared_keys = self._shared_services_for(key, frames)
+        held_services = self._held_shared_services()
+        newly_held = frozenset(shared_keys).difference(held_services)
+        limiter = self._sync_resolution_limiter
+        if limiter is None:
+            raise BindingResolutionError(_RUNTIME_LOOP_CLOSED_ERROR)
+        async with AsyncExitStack() as lock_stack:
+            for shared_key in shared_keys:
+                if shared_key in held_services:
+                    continue
+                await lock_stack.enter_async_context(
+                    self._shared_lock_for(shared_key),
+                )
+            token = self._set_held_shared_services(
+                held_services | newly_held,
+            )
+            try:
+                worker_token = self._sync_backend_worker.set(True)
+                try:
+                    return await anyio.to_thread.run_sync(
+                        self._make_sync_local,
+                        key,
+                        limiter=limiter,
+                    )
+                finally:
+                    self._sync_backend_worker.reset(worker_token)
+            finally:
+                self._held_shared_resolution_services.reset(token)
+
+    def _make_sync_local(self, service: type[object] | str) -> object:
+        """Resolve one service using the backend's documented sync getter.
+
+        Call this method only before runtime activation or while the caller
+        owns every shared-resolution lock for the dependency closure.
 
         Args:
             service: Native service type or registered string alias.
@@ -2022,7 +2409,7 @@ class Container(ServiceContainer):
         key = self._resolve_key(service)
         owner = self._shared_singleton_owner(key)
         if owner is not None:
-            return Container._make_sync(owner, key)
+            return Container._make_sync_local(owner, key)
         frames = self._active_scopes.get()
         is_cached, cached = self._cached_value(key, frames)
         if is_cached:
@@ -2057,8 +2444,7 @@ class Container(ServiceContainer):
                     frames,
                 )
 
-        if frames or self._override_owner is not None:
-            self._prime_application_dependencies_sync(key)
+        self._prime_application_dependencies_sync(key)
         generation = self._generation_for_sync(key, frames)
         if frames:
             frame = frames[-1]
@@ -2073,6 +2459,8 @@ class Container(ServiceContainer):
             )
         try:
             result = resolve(key)
+        except BindingResolutionError:
+            raise
         except Exception as error:
             raise self._translate_sync_error(key) from error
         self._remember(key, result, frames)
@@ -2189,44 +2577,212 @@ class Container(ServiceContainer):
         )
         return result
 
-    def _shared_locks_for(
+    def _shared_services_for(
         self,
         service: type[object],
         frames: tuple[ContainerScope, ...],
-    ) -> tuple[asyncio.Lock, ...]:
-        """Return ordered locks for shared bindings in a dependency closure.
+    ) -> tuple[_SharedResolutionKey, ...]:
+        """Return uncached shared keys in deterministic dependency order.
 
         Args:
-            service: Requested root whose annotated graph is inspected.
-            frames: Active scopes used to identify already cached dependencies.
+            service: Requested root whose dependency closure is inspected.
+            frames: Active scopes used to identify cached scoped values.
 
         Returns:
-            One stable lock for each explicitly shared service dependency.
+            Service keys paired with their application or scope owner.
         """
-        # Include the requested root as well as its constructor closure. An
-        # override graph and its parent use separate backend graphs, so they
-        # must coordinate first construction of the same application key.
         dependencies = self._dependency_types_for(service) | {service}
-        shared = sorted(
-            (
-                dependency
-                for dependency in dependencies
-                if (policy := self._binding_policy(dependency)) is not None
-                and policy[0] is not Lifetime.TRANSIENT
-                and not self._cached_value(dependency, frames)[0]
-            ),
-            key=lambda dependency: (
-                dependency.__module__,
-                dependency.__qualname__,
-            ),
-        )
+        shared_keys: list[_SharedResolutionKey] = []
+        for dependency in dependencies:
+            policy = self._binding_policy(dependency)
+            if (
+                policy is None
+                or policy[0] is Lifetime.TRANSIENT
+                or self._cached_value(dependency, frames)[0]
+            ):
+                continue
+            owner_scope: ContainerScope | None = None
+            if policy[0] is Lifetime.SCOPED:
+                level = _scope_level(policy[1])
+                owner_scope = next(
+                    (
+                        frame
+                        for frame in reversed(frames)
+                        if _scope_level(frame.scope) == level
+                    ),
+                    None,
+                )
+            shared_keys.append((dependency, owner_scope))
         return tuple(
-            self._shared_resolution_locks.setdefault(
-                dependency,
-                asyncio.Lock(),
-            )
-            for dependency in shared
+            sorted(
+                shared_keys,
+                key=lambda shared_key: (
+                    shared_key[0].__module__,
+                    shared_key[0].__qualname__,
+                    0 if shared_key[1] is None else id(shared_key[1]),
+                ),
+            ),
         )
+
+    def _held_shared_services(
+        self,
+    ) -> frozenset[_SharedResolutionKey]:
+        """Return shared gates owned by the current asynchronous task.
+
+        Context variables copy into child tasks. The task identity check keeps
+        those children from treating a parent's held gates as their own.
+
+        Returns:
+            Shared keys that the current execution context may reenter.
+        """
+        owner_id, services = self._held_shared_resolution_services.get()
+        if not services:
+            return services
+        task = asyncio.current_task()
+        if id(task) == owner_id:
+            return services
+        return frozenset()
+
+    def _set_held_shared_services(
+        self,
+        services: frozenset[_SharedResolutionKey],
+    ) -> Token[tuple[int | None, frozenset[_SharedResolutionKey]]]:
+        """Bind held gate ownership to the current async task.
+
+        Args:
+            services: Shared keys held by the current resolver.
+
+        Returns:
+            Token that restores the prior task-local gate state.
+        """
+        task = asyncio.current_task()
+        owner_id = None if task is None else id(task)
+        return self._held_shared_resolution_services.set((owner_id, services))
+
+    def _shared_lock_for(
+        self,
+        shared_key: _SharedResolutionKey,
+    ) -> asyncio.Lock:
+        """Return the async initialization gate for its lifetime owner.
+
+        Args:
+            shared_key: Service key paired with its application or scope owner.
+
+        Returns:
+            The canonical lock shared by callers with the same owner.
+        """
+        service, scope = shared_key
+        with self._state_lock:
+            if scope is None:
+                return self._shared_resolution_locks.setdefault(
+                    service,
+                    asyncio.Lock(),
+                )
+            scope_locks = self._scope_shared_resolution_locks.setdefault(
+                scope,
+                {},
+            )
+            return scope_locks.setdefault(service, asyncio.Lock())
+
+    def _sync_shared_lock_for(
+        self,
+        shared_key: _SharedResolutionKey,
+    ) -> ThreadRLock:
+        """Return a pre-runtime lock for one shared lifetime owner.
+
+        Args:
+            shared_key: Service key paired with its application or scope owner.
+
+        Returns:
+            A reentrant lock used only before runtime activation.
+        """
+        with self._state_lock:
+            service, scope = shared_key
+            if scope is None:
+                return self._sync_shared_resolution_locks.setdefault(
+                    service,
+                    ThreadRLock(),
+                )
+            scope_locks = self._scope_sync_resolution_locks.setdefault(
+                scope,
+                {},
+            )
+            return scope_locks.setdefault(service, ThreadRLock())
+
+    def _ensure_sync_available(self, service: type[object]) -> None:
+        """Reject unsafe sync resolution before callbacks or construction.
+
+        Args:
+            service: Canonical key requested by a synchronous operation.
+
+        Raises:
+            AsyncResolutionRequiredError: If the dependency or an initializer
+                requires async work, or an owner-loop lock is already held.
+            BindingResolutionError: If the bound runtime is inactive or differs.
+        """
+        path = self._async_path(service)
+        if path is not None:
+            recommendation = (
+                "Use 'async with container.override(...)'."
+                if self._synchronous_override
+                else "Use make_async()."
+            )
+            message = (
+                f"{_ASYNC_RESOLUTION_ERROR} Dependency path: "
+                f"{' -> '.join(path)}. {recommendation}"
+            )
+            raise AsyncResolutionRequiredError(message)
+
+        with self._state_lock:
+            runtime_token = self._runtime_token
+            runtime_thread = self._runtime_thread_id
+        if runtime_token is None or runtime_thread != get_ident():
+            return
+        try:
+            active_token = current_token()
+        except anyio.NoEventLoopError as error:
+            raise BindingResolutionError(
+                _RUNTIME_LOOP_CLOSED_ERROR,
+            ) from error
+        if active_token != runtime_token:
+            raise BindingResolutionError(_RUNTIME_LOOP_MISMATCH_ERROR)
+
+        frames = self._active_scopes.get()
+        held = self._held_shared_services()
+        shared_keys = self._shared_services_for_resolution(
+            service,
+            frames,
+            held,
+        )
+        if any(self._shared_lock_for(key).locked() for key in shared_keys):
+            raise AsyncResolutionRequiredError(
+                _ASYNC_INITIALIZATION_IN_PROGRESS_ERROR,
+            )
+
+    def _shared_services_for_resolution(
+        self,
+        service: type[object],
+        frames: tuple[ContainerScope, ...],
+        held_services: frozenset[_SharedResolutionKey],
+    ) -> tuple[_SharedResolutionKey, ...]:
+        """Reject nested access to shared services still being initialized.
+
+        Args:
+            service: Requested root whose shared dependency closure is checked.
+            frames: Active execution scopes used to identify cached values.
+            held_services: Shared gates owned by the current task.
+
+        Returns:
+            Ordered shared keys that this operation can safely acquire.
+
+        Raises:
+            BindingResolutionError: If nested lookup would create a second
+                backend graph for a service whose initialization is active.
+        """
+        shared_keys = self._shared_services_for(service, frames)
+        if any(shared_key in held_services for shared_key in shared_keys):
+            raise BindingResolutionError(_NESTED_SHARED_RESOLUTION_ERROR)
+        return shared_keys
 
     def _dependency_types_for(
         self,
@@ -2376,19 +2932,20 @@ class Container(ServiceContainer):
         Raises:
             ScopeError: If an inherited execution frame has already closed.
         """
-        for frame in frames:
-            if not frame.is_active:
-                raise ScopeError(_INHERITED_SCOPE_ERROR)
-            is_cached, cached = frame.find_instance(service)
-            if is_cached:
-                return True, cached
-        if service in self._override_services:
-            if service in self._override_instances:
-                return True, self._override_instances[service]
+        with self._state_lock:
+            for frame in frames:
+                if not frame.is_active:
+                    raise ScopeError(_INHERITED_SCOPE_ERROR)
+                is_cached, cached = frame.find_instance(service)
+                if is_cached:
+                    return True, cached
+            if service in self._override_services:
+                if service in self._override_instances:
+                    return True, self._override_instances[service]
+                return False, None
+            if service in self._shared_instances:
+                return True, self._shared_instances[service]
             return False, None
-        if service in self._shared_instances:
-            return True, self._shared_instances[service]
-        return False, None
 
     async def _graph_in_scope(
         self,
@@ -2430,6 +2987,8 @@ class Container(ServiceContainer):
         """
         try:
             return await graph.get(service)
+        except BindingResolutionError:
+            raise
         except Exception as error:
             message = f"Unable to resolve service {service.__qualname__}."
             raise BindingResolutionError(message) from error
@@ -2492,7 +3051,7 @@ class Container(ServiceContainer):
             ):
                 continue
             self._ensure_singleton_override_safe(dependency, owner)
-            Container._make_sync(owner, dependency)
+            Container._make_sync_local(owner, dependency)
 
     def _shared_singleton_owner(
         self,
@@ -2925,8 +3484,11 @@ class Container(ServiceContainer):
         Returns:
             Token that restores the preceding override context.
         """
-        token = self._override_context.set(child)
-        self._active_override_count += 1
+        with self._state_lock:
+            if self._closed or self._closing:
+                raise ContainerClosedError(_CLOSED_CONTAINER_ERROR)
+            token = self._override_context.set(child)
+            self._active_override_count += 1
         return token
 
     def _restore_override(self, token: Token[Container | None]) -> None:
@@ -2936,7 +3498,8 @@ class Container(ServiceContainer):
             token: Exact execution-local state saved on entry.
         """
         self._override_context.reset(token)
-        self._active_override_count -= 1
+        with self._state_lock:
+            self._active_override_count -= 1
 
     def _clone_for_override(
         self,
@@ -2979,7 +3542,16 @@ class Container(ServiceContainer):
         child._local_override_services = frozenset(bindings)
         child._override_owner = self
         child._shared_resolution_locks = self._shared_resolution_locks
+        child._sync_shared_resolution_locks = self._sync_shared_resolution_locks
+        child._held_shared_resolution_services = (
+            self._held_shared_resolution_services
+        )
+        child._sync_backend_worker = self._sync_backend_worker
         child._override_context = self._override_context
+        child._state_lock = self._state_lock
+        child._runtime_token = self._runtime_token
+        child._runtime_thread_id = self._runtime_thread_id
+        child._sync_resolution_limiter = self._sync_resolution_limiter
         child._synchronous_override = synchronous
 
         for service, replacement in bindings.items():
@@ -3033,10 +3605,12 @@ class Container(ServiceContainer):
     def _scope_entered(self) -> None:
         """Track an active frame so shutdown cannot race its cleanup.
 
-        Scope contexts invoke this callback after setting their execution-local
-        context.
+        Scope contexts reserve their active count before installing local state.
         """
-        self._active_scope_count += 1
+        with self._state_lock:
+            if self._closed or self._closing:
+                raise ContainerClosedError(_CLOSED_CONTAINER_ERROR)
+            self._active_scope_count += 1
 
     def _scope_exited(self, generation_count: int) -> None:
         """Release scope and graph counts after resource finalization.
@@ -3046,8 +3620,9 @@ class Container(ServiceContainer):
 
         Scope contexts invoke this callback from a ``finally`` block.
         """
-        self._active_scope_count -= 1
-        self._scope_generation_count -= generation_count
+        with self._state_lock:
+            self._active_scope_count -= 1
+            self._scope_generation_count -= generation_count
 
     def _scope_generation_created(self) -> None:
         """Count a scope-owned graph under the container-wide graph bound.
@@ -3055,7 +3630,8 @@ class Container(ServiceContainer):
         Graph construction invokes this callback while holding the shared
         generation lock, so independent tasks cannot exceed the cap.
         """
-        self._scope_generation_count += 1
+        with self._state_lock:
+            self._scope_generation_count += 1
 
     async def aclose(self) -> None:
         """Finalize graph resources in reverse generation order.
@@ -3067,20 +3643,26 @@ class Container(ServiceContainer):
             Later graph generations may borrow cached instances from earlier
             generations, so they close first.
         """
-        if self._closed:
-            return
-        if self._active_scope_count or self._active_override_count:
-            raise ScopeError(_ACTIVE_SCOPE_ERROR)
-        self._closed = True
         failures: list[Exception] = []
-        for graph in reversed(self._generations):
-            try:
-                if isinstance(graph, DependencyGraph):
-                    await graph.close()
-                else:
-                    graph.close()
-            except Exception as error:
-                failures.append(error)
+        with anyio.CancelScope(shield=True):
+            async with self._close_lock:
+                with self._state_lock:
+                    if self._closed:
+                        return
+                    if self._active_scope_count or self._active_override_count:
+                        raise ScopeError(_ACTIVE_SCOPE_ERROR)
+                    if self._active_resolution_count:
+                        raise ScopeError(_ACTIVE_RESOLUTION_ERROR)
+                    self._closing = True
+                    self._closed = True
+                for graph in reversed(self._generations):
+                    try:
+                        if isinstance(graph, DependencyGraph):
+                            await graph.close()
+                        else:
+                            graph.close()
+                    except Exception as error:
+                        failures.append(error)
         if failures:
             details = "; ".join(type(error).__name__ for error in failures)
             message = f"Container resource finalization failed: {details}."
@@ -3094,19 +3676,24 @@ class Container(ServiceContainer):
             ScopeError: If a scope or child override remains active.
             BindingResolutionError: If a synchronous resource cannot close.
         """
-        if self._closed:
-            return
-        if self._active_scope_count or self._active_override_count:
-            raise ScopeError(_ACTIVE_SCOPE_ERROR)
-        if any(
-            isinstance(graph, DependencyGraph) for graph in self._generations
-        ):
-            message = (
-                "This override owns asynchronous graph resources. "
-                "Enter it with 'async with container.override(...)'."
-            )
-            raise AsyncResolutionRequiredError(message)
-        self._closed = True
+        with self._state_lock:
+            if self._closed:
+                return
+            if self._active_scope_count or self._active_override_count:
+                raise ScopeError(_ACTIVE_SCOPE_ERROR)
+            if self._active_resolution_count:
+                raise ScopeError(_ACTIVE_RESOLUTION_ERROR)
+            if any(
+                isinstance(graph, DependencyGraph)
+                for graph in self._generations
+            ):
+                message = (
+                    "This override owns asynchronous graph resources. "
+                    "Enter it with 'async with container.override(...)'."
+                )
+                raise AsyncResolutionRequiredError(message)
+            self._closing = True
+            self._closed = True
         failures: list[Exception] = []
         for graph in reversed(self._generations):
             try:
@@ -3455,11 +4042,12 @@ class Container(ServiceContainer):
         Returns:
             Backend context values owned by this application or override.
         """
-        instances = dict(self._shared_instances)
-        for service in self._override_services:
-            instances.pop(service, None)
-        instances.update(self._override_instances)
-        return instances
+        with self._state_lock:
+            instances = dict(self._shared_instances)
+            for service in self._override_services:
+                instances.pop(service, None)
+            instances.update(self._override_instances)
+            return instances
 
     @staticmethod
     def _engine_binding(binding: Binding[object]) -> EngineBinding:
@@ -3508,10 +4096,11 @@ class Container(ServiceContainer):
             return
         lifetime, scope = policy
         if lifetime is Lifetime.SINGLETON:
-            if service in self._override_services:
-                self._override_instances[service] = instance
-            else:
-                self._shared_instances[service] = instance
+            with self._state_lock:
+                if service in self._override_services:
+                    self._override_instances[service] = instance
+                else:
+                    self._shared_instances[service] = instance
             return
         level = _scope_level(scope)
         for frame in reversed(frames):
@@ -3525,8 +4114,28 @@ class Container(ServiceContainer):
         Raises:
             ContainerClosedError: If this instance is already closed.
         """
-        if self._closed:
-            raise ContainerClosedError(_CLOSED_CONTAINER_ERROR)
+        with self._state_lock:
+            if self._closed or self._closing:
+                raise ContainerClosedError(_CLOSED_CONTAINER_ERROR)
+
+    def _begin_resolution(self) -> None:
+        """Register one public operation before it touches service state.
+
+        Raises:
+            ContainerClosedError: If shutdown already began.
+        """
+        with self._state_lock:
+            if self._closed or self._closing:
+                raise ContainerClosedError(_CLOSED_CONTAINER_ERROR)
+            self._active_resolution_count += 1
+
+    def _end_resolution(self) -> None:
+        """Release one active-operation count in a public method's finally.
+
+        Shutdown uses this count to reject active operations.
+        """
+        with self._state_lock:
+            self._active_resolution_count -= 1
 
     def _ensure_mutable(self) -> None:
         """Reject registrations after graph composition has started.

@@ -61,8 +61,8 @@ and generator cleanup to the selected dependency engine.
   values are seeded into later graphs using public backend APIs. |
 | Generator resource cleanup | Verified | Real synchronous generator resources close when the owning scope exits. |
 | Async generator resource cleanup | Verified | Real asynchronous generator resources close when the owning scope exits. |
-| Shared initialization | Adapted | Async graph resolutions coordinate registered and decorated shared values with per-service async locks. Concurrent sync `get_sync` calls from worker threads do not share that lock and can initialize one application singleton more than once; see the framework review. |
-| Application resource ownership | Verified | Application singletons in a scoped graph are initialized through application-owned generations and remain open until container shutdown. |
+| Shared initialization | Verified | Sync and async callers share per-service gates and one Dishka cache. Worker lookups bridge through the owning runtime. Tests verify mixed-mode identity and cleanup. |
+| Application resource ownership | Verified | Requested singleton dependencies are primed in application-owned graphs before dependent roots. Root failure does not transfer their ownership. |
 | Callable injection | Verified | `call` invokes sync callbacks immediately; `call_async` awaits async callbacks and dependencies. |
 | Method callback registration | Verified | `bind_method` dispatches through callable injection. |
 | Lazy resolver factory | Verified | `factory` returns a sync resolver; `factory_async` returns an async resolver. |
@@ -76,6 +76,7 @@ and generator cleanup to the selected dependency engine.
 | Backend provider interop | Advanced | `providers` accepts explicit integration objects. It is an escape hatch,
   not the ordinary registration API. |
 | Active application helper | Verified | `titanspan.app()` returns the active `Application`; use `.container` for its canonical service container. |
+| Runtime binding and shutdown admission | Verified | `start` binds one event loop; `stop_accepting` rejects new work before application resource cleanup. |
 
 The remaining provider escape hatch belongs to `foundation.Application`,
 whose `providers` parameter passes explicit interoperability registrations to
@@ -85,7 +86,8 @@ third-party integration; see the [backend boundary audit](/titanspan/specificati
 
 Focused evidence is in `tests/unit/container/test_container.py`,
 `tests/unit/container/test_execution_modes.py`, and
-`tests/unit/container/test_decorators.py`. Existing
+`tests/unit/container/test_decorators.py`, plus real thread and ASGI
+contention coverage in `tests/integration/test_container_thread_safety.py`.
 FastAPI lifecycle and request-scope evidence remains in
 `tests/integration/test_container_lifecycle.py` and
 `tests/integration/test_contract_resolution.py`.
@@ -135,22 +137,35 @@ close the sync resource before the scope completes.
    A graph that exceeds the configured bound raises `GraphLimitError`.
 10. Externally supplied instances registered with `instance` are not closed by
     the container.
-11. Application singletons needed by an execution scope are resolved through
-    an application-owned graph before the scoped graph is built. This keeps
-    generator resources alive until application shutdown.
+11. The container primes uncached application singletons in each requested
+    dependency closure through application-owned graphs before it builds the
+    consuming root graph. This gives each singleton one resource owner, even
+    when root construction fails, and keeps resources alive until shutdown.
 12. An individual `ContainerScope` context object can be entered only once.
     Create a fresh scope context for each independent lifecycle.
 13. Synchronous resolution preflights the known native constructor/factory
     graph. If an async factory is required, it raises
     `AsyncResolutionRequiredError` with a dependency path and recommends
     `make_async`; it does not invoke the async factory.
-14. At application scope, `make` uses the async backend graph's documented
-    `get_sync`, and `make_async` uses `get`. Both operations share the same
-    backend cache. This does not guarantee single-flight initialization when
-    concurrent worker threads call `get_sync`; async locks do not coordinate
-    those calls. Scope-local sync graphs are tracked separately by execution
-    mode, while tracked singleton and scoped instances preserve identity across
-    newly composed roots after initialization.
+14. A started container belongs to one event loop. A worker-thread `make`
+    call uses its captured AnyIO token to enter that loop and acquire the same
+    lifetime gates as `make_async`. The backend's sync getter then runs in a
+    separate bounded worker pool. Both getters use the same Dishka graph cache.
+15. Application singleton gates span graph generations. Scoped gates belong
+    to the active scope object, so one request does not hold another request's
+    scoped initialization. Sync resolution on the owner event-loop thread
+    raises `AsyncResolutionRequiredError` if another task holds a required
+    gate. Use `make_async` to wait safely.
+16. A factory cannot start a nested lookup for a shared service that remains
+    in flight through another graph. The container raises
+    `BindingResolutionError`; declare that dependency in the factory signature.
+17. Before runtime startup, sync resolutions use per-key thread gates.
+    `start` rejects a public resolution that remains active. This prevents
+    pre-runtime gates from overlapping runtime gates.
+18. Shutdown rejects active scopes, overrides, and resolution operations.
+    `Application.shutdown` closes admission before resource finalization.
+    `aclose` serializes concurrent closers and shields cleanup from
+    cancellation.
 
 ## Canonical API names
 
@@ -287,15 +302,20 @@ that point. Arbitrary live rebinding is not supported.
 - Synchronous and asynchronous generator resource factories have lifecycle
   tests, including cleanup when the active task is cancelled. Direct
   context-manager factory forms are not implemented.
-- The scope names adapt to one backend hierarchy and do not represent
-  independent request, job, and workflow branches.
+- A started container is fixed to one event loop. Cross-thread sync lookups
+  use its captured AnyIO token and managed worker path. A sync factory must
+  declare uncached dependencies in its signature; nested container lookup
+  from the backend worker fails explicitly.
+- Request, connection, job, and workflow scopes map to one backend level.
+  They cannot overlap as nested lifecycles in one container.
+- Node and agent scopes map to one backend level. They cannot nest within one
+  another, so this mapping cannot represent nested agent and node lifecycles.
 - Component coverage remains subject to the repository-wide line and branch
   coverage gates; passing isolated tests alone does not prove completeness.
-- Task-group tests verify sync and async operations share one application
-  singleton cache and scope tests verify a scoped instance is shared across
-  both modes. Cross-thread access to one Dishka graph is not declared safe or
-  tested; integrations must not share a graph across worker threads unless
-  they provide their own documented synchronization boundary.
+- `tests/integration/test_container_thread_safety.py` verifies one singleton
+  initialization across twenty sync ASGI workers, twenty async requests, and
+  mixed-mode calls. It also verifies per-scope initialization, retries,
+  cancellation, exact resource finalization, and application isolation.
 - Async resolution inside a synchronous scope is supported only when the
   dependency graph is sync-safe; it delegates to synchronous resolution.
   Async-only resources require an asynchronous scope.
@@ -316,10 +336,13 @@ Titanspan's consumer-specific `when(...).needs(...).give_*` precedence or its
 let Dishka resolve these selected values while retaining its construction,
 cache, and cleanup ownership. Reachable-type inspection is also retained to
 compose only the requested closure, preflight async-only paths, and track
-shared values across the dynamically generated Dishka graphs. Per-service
-async locks coordinate first construction across asynchronous graph caches.
-They do not protect synchronous ``get_sync`` calls from worker threads.
-Dishka's own per-container lock cannot synchronize distinct graph containers.
+shared values across dynamically generated Dishka graphs. Native gates
+coordinate first construction across graph generations. Worker-thread sync
+resolution enters the owning runtime, acquires those gates, then calls
+`get_sync` through a separate bounded AnyIO limiter. Scoped gates use their
+execution-scope owner, so independent requests can initialize independently.
+Dishka remains the one cache and resource owner; Titanspan gates select the
+single initializer.
 Temporary overlays are composed with the public provider API because a
 validated Dishka graph is fixed after construction. They do not reimplement
 object construction or resource finalization.

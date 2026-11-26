@@ -15,6 +15,7 @@ It does not claim that pending web capabilities are available.
 | Registration, names, groups, resources | `Router`, `RouteDefinition` | `tests/unit/routing/` |
 | ASGI matching and method errors | Private FastAPI adapter | Real `TestClient` routing integration tests |
 | Controller and callable injection | Native Container | `tests/integration/routing/test_dispatch.py` |
+| Sync endpoint service resolution | Native Container worker bridge | `tests/integration/test_container_thread_safety.py` verifies `app().make` from concurrent sync ASGI endpoints uses one app singleton. |
 | Request-scoped dispatch and streaming | Foundation ASGI boundary | Request lifecycle and route streaming integration tests |
 | URL generator contract | `contracts.routing.UriUrlGenerator` | Strict service injection and URI integration tests |
 | URI factories and safe redirects | Support and HTTP contracts | `tests/integration/routing/test_uri_integration.py` |
@@ -63,6 +64,10 @@ HTTP method mismatches return 405 with an `Allow` header only when the path,
 domain, and parameter constraints match. A constraint failure returns 404.
 Global middleware wraps routing; route middleware wraps only the selected
 endpoint. Explicitly registering one middleware at both levels runs it twice.
+Synchronous endpoint code runs in managed AnyIO workers. Container lookups
+return through the owning application loop and use the same singleton gates
+and cache as asynchronous endpoints. Request scope remains active through the
+complete ASGI response send.
 
 Signed URLs are unavailable because Titanspan has no key-management boundary
 that supports both signing and verification. Both signed URI factory methods

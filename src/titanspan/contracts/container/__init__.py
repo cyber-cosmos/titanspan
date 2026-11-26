@@ -110,11 +110,28 @@ class ServiceRegistry(Protocol):
 class ServiceContainer(ServiceRegistry, Protocol):
     """Describe synchronous and explicit asynchronous service resolution.
 
-    Implementations resolve synchronous graphs without an event-loop bridge,
-    expose async-only graphs through ``get_async``, and own async shutdown.
-    Runtime protocol checks confirm member presence only, not lifecycle or
-    behavioral correctness.
+    Implementations resolve sync-safe graphs immediately and expose async-only
+    graphs through explicit async methods. Running containers coordinate
+    worker-thread access through their owning runtime. Runtime protocol checks
+    confirm member presence only, not lifecycle or behavioral correctness.
     """
+
+    async def start(self) -> None:
+        """Bind the container to the active application runtime.
+
+        Applications call this during startup before accepting work. The
+        binding supports coordinated synchronous lookups from managed worker
+        threads and remains fixed until the container closes.
+        """
+        ...
+
+    def stop_accepting(self) -> None:
+        """Reject new work before the application begins resource cleanup.
+
+        This operation fails while a resolution, scope, or temporary override
+        remains active. A failed call leaves the container available.
+        """
+        ...
 
     def make[ServiceT](self, service: type[ServiceT]) -> ServiceT:
         """Synchronously resolve a sync-safe dependency graph.

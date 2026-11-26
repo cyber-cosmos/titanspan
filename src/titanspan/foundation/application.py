@@ -107,8 +107,8 @@ _APPLICATION_CONTEXT_ERROR = (
     "Native HTTP dependencies require this application's active context."
 )
 _ACTIVE_APPLICATION_SCOPE_ERROR = (
-    "Application shutdown requires all execution scopes and overrides "
-    "to finish first."
+    "Application shutdown requires active execution scopes, overrides, and "
+    "service resolution operations to finish first."
 )
 _INVALID_MIDDLEWARE_RESPONSE_ERROR = (
     "Native HTTP middleware must return an ASGI-compatible response."
@@ -543,6 +543,7 @@ class Application:
 
         self._starting = True
         try:
+            await self.container.start()
             with self._bind_context():
                 for provider in self._service_providers:
                     if isinstance(provider, BootableServiceProvider):
@@ -589,8 +590,12 @@ class Application:
         if (
             self.container.active_scope_count
             or self.container.active_override_count
+            or self.container.active_resolution_count
         ):
             raise ScopeError(_ACTIVE_APPLICATION_SCOPE_ERROR)
+        # Atomically prevent direct container users from starting work after
+        # the count check and before owned resources begin finalization.
+        self.container.stop_accepting()
         self._closed = True
         with self._bind_context():
             with anyio.CancelScope(shield=True):

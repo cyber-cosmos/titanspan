@@ -450,8 +450,7 @@ async def test_scope_context_cannot_be_reentered_after_cleanup() -> None:
 async def test_scope_validates_entry_and_typed_resolution() -> None:
     """Validate scope hierarchy and the concise typed resolution method.
 
-    Reject application-owned and same-level nested scopes while allowing a
-    deeper execution scope to resolve dependencies normally.
+    Reject same-level lifetimes and allow deeper scopes to resolve services.
     """
     async with Container() as container:
         with pytest.raises(ScopeError):
@@ -464,6 +463,9 @@ async def test_scope_validates_entry_and_typed_resolution() -> None:
                     pass
             async with container.scope(Scope.NODE) as node:
                 assert node.is_active
+                with pytest.raises(ScopeError):
+                    async with container.scope(Scope.AGENT):
+                        pass
                 assert isinstance(
                     await node.get_async(ScopedService), ScopedService
                 )
@@ -477,9 +479,17 @@ async def test_scope_validates_entry_and_typed_resolution() -> None:
 
                 async with container.scope(Scope.TOOL) as tool:
                     assert tool.is_active
+                    with pytest.raises(ScopeError):
+                        async with container.scope(Scope.TASK):
+                            pass
 
         with pytest.raises(ScopeError):
             await workflow.make_async(ScopedService)
+
+        async with container.scope(Scope.AGENT):
+            with pytest.raises(ScopeError):
+                async with container.scope(Scope.NODE):
+                    pass
 
 
 @pytest.mark.anyio
