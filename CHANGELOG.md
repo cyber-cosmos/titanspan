@@ -11,8 +11,8 @@ public release.
   failures as safe 422 responses. Routing schema integration remains pending.
 - Added native commands with typed parameters, groups, trusted discovery,
   Container injection, and per-command Foundation lifecycle. Rich output and
-  parser tests use shared contracts. Generators and component-owned commands
-  remain pending.
+  parser tests use shared contracts. The built-in `route:list` command reads
+  the active route catalog. Event inspection and generators remain pending.
 - Added an ordered sync and async Pipeline for transforms, continuation
   middleware, class stages, conditional inclusion, and native Container
   resolution. Pipeline owns no task scheduler or workflow state.

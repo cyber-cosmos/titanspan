@@ -26,7 +26,8 @@ application composition and resource cleanup.
 | Process status and error reporting | Implemented | Exit-code, failure, and cleanup tests |
 | Parser-backed command tests | Implemented | `ConsoleTester` delegates to the production parser |
 | Configuration commands | Implemented | `tests/unit/config/test_config_cli.py` |
-| Route and event inspection commands | Pending | Owning components have not registered these commands |
+| Route inspection command | Implemented | `route:list` resolves the shared `RouteCatalog` and `ConsoleOutput` contracts; `tests/integration/console/test_route_list_command.py` |
+| Event inspection command | Pending | The Events component does not expose a stable read-only inspection contract |
 | Application and command generation | Pending | No supported template lifecycle exists |
 
 ## Public API
@@ -120,9 +121,8 @@ Rich types.
 ## Limitations
 
 Console does not scan arbitrary application modules. It does not generate
-application scaffolds or command classes. It does not provide route or event
-inspection commands until their owning components register them through the
-shared command contract.
+application scaffolds or command classes. It does not provide event
+inspection until Events exposes a stable read-only inspection contract.
 
 Nested command groups are supported. Invoking a second command from inside an
 active command is unsupported because the synchronous entry point cannot

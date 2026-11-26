@@ -134,7 +134,7 @@ FastAPI own protocol parsing and ASGI response transmission.
 
 | Contract | Definition | Implementation and consumers | Registration and evidence | Status |
 | --- | --- | --- | --- | --- |
-| `RouteCatalog`, `RouteInfo` | `contracts/routing/catalog.py` | `Router.routes`, `RouteDefinition`; URL generation, facade inspection, and backend compilation | One application-owned catalog; routing unit and ASGI integration tests | Implemented, registered, and consumed |
+| `RouteCatalog`, `RouteInfo` | `contracts/routing/catalog.py` | `Router.routes`, `RouteDefinition`; URL generation, facade inspection, backend compilation, and Console `route:list` | One application-owned catalog; routing and Console lifecycle integration tests | Implemented, registered, and consumed |
 | `UriUrlGenerator` | `contracts/routing/url_generator.py` | `routing.UrlGenerator`; URI factories, helpers, and named redirects | Registered under concrete and protocol keys; URI integration verifies shared identity | Implemented, registered, and consumed |
 | `RouteAction`, `ControllerAction`, `RouteEndpoint` | `contracts/routing/types.py` | Route registration and dispatch annotations | Static checks and dispatch tests; these are type aliases, not protocols | Implemented |
 

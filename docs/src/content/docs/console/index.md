@@ -174,11 +174,17 @@ result = ConsoleTester(console).invoke(["greet", "Ada"])
 assert result.exit_code == 0
 ```
 
+The installed command also provides `route:list`. It starts the application
+and displays routes from the same catalog used for request matching and URL
+generation. It resolves `RouteCatalog` and `ConsoleOutput` from the native
+Container.
+
 ## Current limits
 
-Console does not generate applications or command classes. It does not add
-route or event inspection commands. Owning components can register commands
-through `CommandRegistrar` when those integrations are implemented.
+Console does not generate applications or command classes. Event inspection
+remains pending because Events has no stable read-only inspection contract.
+Other components can add commands through the shared `CommandRegistrar`
+contract.
 
 Synchronous `run()` and `invoke()` cannot start inside an active async task.
 Async handlers run in the CLI-owned AnyIO runtime. Do not call synchronous

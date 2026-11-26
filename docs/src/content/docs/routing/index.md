@@ -111,10 +111,8 @@ serializing live callables or containers. Reading validates the snapshot
 against routes that the application has already discovered and registered;
 it does not skip startup or claim faster startup.
 
-The Console component currently lacks application-aware command registration.
-Routing provides inspection and cache APIs, but a `route:list` command needs
-Console to expose an application command lifecycle and registered command
-extension point.
+The installed Console provides `route:list`. It starts the application and
+reads this same catalog through the shared `RouteCatalog` contract.
 
 ## WebSockets and OpenAPI
 

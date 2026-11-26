@@ -103,9 +103,9 @@ still run route discovery and registration; this cache is not a startup
 shortcut. Local or stateful handlers without stable identities are rejected.
 
 Console provides native command registration, application lifecycle handling,
-and typed terminal output. Route listing remains pending until Routing
-registers its inspection command through the shared `CommandRegistrar`
-contract. Routing does not add a second CLI engine.
+and typed terminal output. Its `route:list` command receives the active
+catalog through `RouteCatalog` and renders through `ConsoleOutput`. Routing
+does not add a second CLI engine.
 
 ## WebSockets and OpenAPI
 
@@ -165,11 +165,6 @@ application context-local service bindings.
 - View routes need the View component's rendering contract and response
   integration.
 - Parameterized middleware needs the HTTP contract change described above.
-- `route:list` needs a Routing-owned inspection handler registered through
-  Console's shared command contract.
-- Automatic `Application.base_path` discovery needs Foundation to pass its
-  effective trusted base path to `RoutingServiceProvider` or set
-  `routing.path` before provider creation.
 
 Security policies remain with authentication, authorization, rate limiting,
 and session components. No Routing-specific security engine is introduced.
