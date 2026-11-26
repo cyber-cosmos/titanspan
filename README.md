@@ -95,6 +95,23 @@ applications, retrieval-augmented generation, streaming APIs, data ingestion,
 and distributed background processing. These are design goals, not claims of
 current functionality.
 
+## Citation
+
+If you use Titanspan in academic research, publications, or software projects, please consider citing the framework.
+
+```bibtex
+@software{thayananthajothy_titanspan,
+  author = {Thayananthajothy, Jerome},
+  title  = {Titanspan},
+  year   = {2026},
+  url    = {https://github.com/titanspan/titanspan}
+}
+```
+
+Machine-readable citation metadata is available in [CITATION.cff](CITATION.cff).
+
+Titanspan was created by [Jerome Thayananthajothy](https://thavarshan.com).
+
 ## Contributing
 
 Please read [CONTRIBUTING.md](CONTRIBUTING.md) and the repository's

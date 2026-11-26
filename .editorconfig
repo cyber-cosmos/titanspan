@@ -57,7 +57,7 @@ indent_size = 4
 indent_size = 4
 
 # Markdown documentation.
-[*.{md,mdx}]
+[*.{md,mdx,cff}]
 indent_size = 2
 trim_trailing_whitespace = false
 

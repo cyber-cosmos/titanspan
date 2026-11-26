@@ -1,0 +1,38 @@
+cff-version: 1.2.0
+message: >-
+  If you use Titanspan in your research, publications,
+  or software projects, please cite it using the metadata
+  provided in this file.
+
+title: Titanspan
+
+type: software
+
+authors:
+  - given-names: Jerome
+    family-names: Thayananthajothy
+    website: 'https://thavarshan.com'
+
+abstract: >-
+  Titanspan is an independent, open-source, async-first
+  Python application framework for building intelligent
+  systems at scale. It provides expressive APIs, application
+  lifecycle management, dependency integration, stateful
+  workflow orchestration, and scalable application
+  infrastructure.
+
+repository-code: 'https://github.com/titanspan/titanspan'
+
+license: MIT
+
+keywords:
+  - Python
+  - Application framework
+  - Artificial intelligence
+  - Agentic AI
+  - Workflow orchestration
+  - Dependency injection
+  - Asynchronous programming
+  - Distributed systems
+  - Data processing
+  - Open source
