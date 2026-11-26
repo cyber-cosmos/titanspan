@@ -21,8 +21,7 @@ assert resolver.parse_key("messages.errors.required") == [
 ]
 ```
 
-`parseKey` remains available as the upstream-compatible spelling. Python code
-should use `parse_key`.
+Use `parse_key` to split a key into its namespace, group, and optional item.
 
 ## Cache control
 
@@ -42,11 +41,9 @@ assert resolver.parse_key("messages.custom") == [None, "messages", "custom"]
 ```
 
 The cache stores immutable tuples and returns fresh lists, preserving the
-value-copy behavior of PHP arrays while preventing caller mutation from
-changing later results. The resolver does not load configuration or
+value-copy behavior while preventing caller mutation from changing later
+results. The resolver does not load configuration or
 translation files; those concerns belong to their owning modules.
 
-The API is based on the pinned
-[Illuminate source](https://github.com/laravel/framework/blob/8a8c4a84852869e13190d89f9da873cd9a70f14c/src/Illuminate/Support/NamespacedItemResolver.php)
-and its
-[upstream tests](https://github.com/laravel/framework/blob/8a8c4a84852869e13190d89f9da873cd9a70f14c/tests/Support/SupportNamespacedItemResolverTest.php).
+See the [Support specification](/specifications/support) for module ownership
+and test evidence.

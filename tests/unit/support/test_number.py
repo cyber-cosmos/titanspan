@@ -1,4 +1,4 @@
-"""Verify numeric helpers against the pinned Support behavior.
+"""Verify locale-aware numeric formatting and parsing behavior.
 
 The cases cover API names, locale formatting, number spelling, boundaries,
 optional dependencies, task-local state, and async callback handling.
@@ -49,33 +49,21 @@ def _reset_number_defaults() -> Iterator[None]:
     Number.use_currency("USD")
 
 
-def test_number_exposes_laravel_and_python_method_names() -> None:
-    """Expose both method spellings through the public Support package.
-
-    Matching results show that compatibility aliases share the same
-    implementation as their Python-named methods.
-    """
-    assert Number.format(1234) == "1,234"
-    assert Number.parse_int("1,234") == Number.parseInt("1,234")
-    assert Number.default_locale() == Number.defaultLocale()
-    assert Number.default_currency() == Number.defaultCurrency()
-
-
-def test_default_locale_and_currency_match_upstream_defaults() -> None:
+def test_default_locale_and_currency_are_documented() -> None:
     """Use and update the documented locale and currency defaults.
 
-    Both naming styles update the active execution context's values.
+    Updates affect only the active execution context.
     """
     assert Number.default_locale() == "en"
     assert Number.default_currency() == "USD"
-    Number.useLocale("de")
+    Number.use_locale("de")
     assert Number.default_locale() == "de"
     Number.use_locale("fr")
-    assert Number.defaultLocale() == "fr"
-    Number.useCurrency("GBP")
+    assert Number.default_locale() == "fr"
+    Number.use_currency("GBP")
     assert Number.default_currency() == "GBP"
     Number.use_currency("EUR")
-    assert Number.defaultCurrency() == "EUR"
+    assert Number.default_currency() == "EUR"
 
 
 def test_format_uses_locale_grouping_and_precision() -> None:
@@ -142,7 +130,7 @@ def test_parse_respects_numeric_result_type() -> None:
 
 
 def test_parse_returns_false_for_invalid_input() -> None:
-    """Return the compatibility failure value for invalid numeric text.
+    """Return ``False`` for invalid numeric text.
 
     The same failure convention is shared by all three parsing entry points.
     """
@@ -193,11 +181,11 @@ def test_ordinal_and_spelled_ordinal() -> None:
     assert Number.ordinal(3) == "3rd"
     assert Number.ordinal(11) == "11th"
     assert Number.spell_ordinal(1) == "first"
-    assert Number.spellOrdinal(2) == "second"
+    assert Number.spell_ordinal(2) == "second"
 
 
 def test_percentage_matches_integer_scale_semantics() -> None:
-    """Format the provided value on Laravel's percentage input scale.
+    """Format values as percentage points without rescaling them.
 
     Values represent percentage points rather than fractional ratios.
     """
@@ -221,12 +209,12 @@ def test_currency_uses_default_or_explicit_currency_and_locale() -> None:
 
 
 def test_file_size_uses_binary_units_and_precision() -> None:
-    """Scale byte counts by 1024 and preserve upstream unit labels.
+    """Scale byte counts by 1024 and use the documented unit labels.
 
     Values beyond the largest named unit remain representable in that unit.
     """
     assert Number.file_size(0) == "0 B"
-    assert Number.fileSize(1024) == "1 KB"
+    assert Number.file_size(1024) == "1 KB"
     assert Number.file_size(1264, precision=2) == "1.23 KB"
     assert Number.file_size(1264.12345, max_precision=3) == "1.234 KB"
     assert Number.file_size(-(1024**3) * 5) == "-5 GB"
@@ -261,7 +249,7 @@ def test_for_humans_summarizes_values(
 
 
 def test_abbreviate_uses_short_magnitude_suffixes() -> None:
-    """Render named powers using the upstream short suffixes.
+    """Render named powers using the configured short suffixes.
 
     Non-finite values and negatives retain their documented display behavior.
     """
@@ -348,11 +336,11 @@ def test_trim_removes_fractional_zeroes_and_preserves_non_finite_values() -> (
 def test_locale_and_currency_scopes_restore_after_success_and_failure() -> None:
     """Restore prior values after nested callback scopes and exceptions.
 
-    Both aliases and Python-named methods preserve values at scope boundaries.
+    Context-local state returns to its prior values at scope boundaries.
     """
-    result = Number.withLocale(
+    result = Number.with_locale(
         "de",
-        lambda: Number.withCurrency(
+        lambda: Number.with_currency(
             "EUR",
             lambda: Number.currency(1),
         ),

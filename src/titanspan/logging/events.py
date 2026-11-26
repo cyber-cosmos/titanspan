@@ -9,7 +9,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
-from titanspan.logging.delivery import DeliveryStatus
+from titanspan.contracts.logging import DeliveryStatus
 
 if TYPE_CHECKING:
     from titanspan.logging.record import LogRecord

@@ -1,8 +1,7 @@
 """Build explicit synchronous or asynchronous sleep operations.
 
-The fluent API follows Laravel's Support Sleep component. Python execution is
-explicit rather than destructor-driven, and fake state is local to the active
-execution context.
+Execution is explicit rather than destructor-driven, and fake state is local
+to the active execution context.
 """
 
 from __future__ import annotations
@@ -109,8 +108,8 @@ class _SleepMeta(type):
     """Expose fake callback controls through class-level properties.
 
     The properties resolve their values from the currently active context
-    so callers can use Laravel's static-style testing API without sharing
-    a process-global mutable callback registry.
+    so callers can configure fake callbacks without sharing a process-global
+    mutable callback registry.
     """
 
     @property
@@ -125,24 +124,6 @@ class _SleepMeta(type):
     @fake_sleep_callbacks.setter
     def fake_sleep_callbacks(cls, callbacks: list[SleepFakeCallback]) -> None:
         """Replace the active context's fake callback list.
-
-        Args:
-            callbacks: The replacement callback collection.
-        """
-        _fake_state().callbacks = list(callbacks)
-
-    @property
-    def fakeSleepCallbacks(cls) -> list[SleepFakeCallback]:
-        """Expose Laravel's camelCase callback property.
-
-        Returns:
-            The mutable callback list used by fake sleep operations.
-        """
-        return _fake_state().callbacks
-
-    @fakeSleepCallbacks.setter
-    def fakeSleepCallbacks(cls, callbacks: list[SleepFakeCallback]) -> None:
-        """Replace callbacks through the Laravel-compatible property.
 
         Args:
             callbacks: The replacement callback collection.
@@ -590,8 +571,8 @@ class Sleep(Macroable, metaclass=_SleepMeta):
         self._ensure_complete()
         duration = self.duration
         try:
-            # Laravel's fake branch records one operation without evaluating
-            # the real-wait repetition predicate.
+            # Fake execution records one operation without evaluating the
+            # real-wait repetition predicate.
             if self._record_fake_sync(duration):
                 return
             while_callback = self._while_callback
@@ -626,7 +607,7 @@ class Sleep(Macroable, metaclass=_SleepMeta):
             if while_callback is None:
                 await anyio.sleep(duration.total_seconds())
                 return
-            # The predicate is the upstream repeat condition, not an event.
+            # This predicate controls repetition; it is not a callback event.
             should_repeat = await self._invoke_while_callback_async(
                 while_callback
             )
@@ -728,7 +709,7 @@ class Sleep(Macroable, metaclass=_SleepMeta):
 
         Notes:
             Expected Sleep builders are marked non-executing even when the
-            assertion fails, matching Laravel's test helper cleanup behavior.
+            assertion fails, preserving the prior fake state.
         """
         state = _fake_state()
         expected_count = len(sequence)
@@ -797,7 +778,7 @@ class Sleep(Macroable, metaclass=_SleepMeta):
             self._should_sleep = False
             raise RuntimeError(_NO_DURATION_ERROR)
         # Integers stay exact; float values truncate at Python's supported
-        # microsecond resolution, matching the upstream smallest unit.
+        # Store at the finest resolution supported by timedelta.
         amount = max(0, self._pending)
         microseconds = amount * unit_microseconds
         if isinstance(microseconds, float) and not math.isfinite(microseconds):
@@ -1010,10 +991,3 @@ class Sleep(Macroable, metaclass=_SleepMeta):
         if inspect.iscoroutine(result):
             result.close()
         raise TypeError(_ASYNC_CALLBACK_ERROR)
-
-    whenFakingSleep = when_faking_sleep
-    assertSlept = assert_slept
-    assertSleptTimes = assert_slept_times
-    assertSequence = assert_sequence
-    assertNeverSlept = assert_never_slept
-    assertInsomniac = assert_insomniac

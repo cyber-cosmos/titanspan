@@ -10,6 +10,9 @@ from contextlib import AbstractContextManager, contextmanager
 from contextvars import ContextVar
 from typing import TYPE_CHECKING
 
+from titanspan._application_context import ApplicationContextError
+from titanspan.contracts.logging import LogBridge, LoggingManager, LogWriter
+from titanspan.facades.base import Facade
 from titanspan.logging.configuration import (
     ChannelConfiguration,
     LoggingConfiguration,
@@ -23,12 +26,11 @@ from titanspan.logging.testing import FakeLog
 if TYPE_CHECKING:
     from collections.abc import Callable, Generator, Mapping
 
-    from titanspan.logging.bridge import StandardLogBridge
-    from titanspan.logging.contracts.log_driver import LogDriver
-    from titanspan.logging.logger import Logger
+    from titanspan.contracts.container import ServiceContainer
+    from titanspan.contracts.logging import LogDriver
     from titanspan.logging.record import LogRecord
 
-_ACTIVE_MANAGER: ContextVar[LogManager | None] = ContextVar(
+_ACTIVE_MANAGER: ContextVar[LoggingManager | None] = ContextVar(
     "titanspan_active_log_manager",
     default=None,
 )
@@ -36,9 +38,12 @@ _ACTIVE_FAKE: ContextVar[FakeLog | None] = ContextVar(
     "titanspan_active_log_fake",
     default=None,
 )
+_FAKE_CONFIGURATION_ERROR = (
+    "The active logging service cannot be captured by Log.fake()."
+)
 
 
-class Log:
+class Log(Facade[LoggingManager]):
     """Resolve logging operations from an explicitly active manager.
 
     Use ``with Log.use(manager):`` around application code or bind the
@@ -46,9 +51,26 @@ class Log:
     isolated across asynchronous tasks and restored on scope exit.
     """
 
+    service_contract = LoggingManager
+
+    @classmethod
+    def resolve_from_container(
+        cls,
+        container: ServiceContainer,
+    ) -> LoggingManager:
+        """Resolve the canonical manager from an application container.
+
+        Args:
+            container: Active application service registry.
+
+        Returns:
+            The manager registered by the logging service provider.
+        """
+        return container.make(LoggingManager)
+
     @classmethod
     @contextmanager
-    def use(cls, manager: LogManager) -> Generator[None, None, None]:
+    def use(cls, manager: LoggingManager) -> Generator[None, None, None]:
         """Bind a manager to the current execution context.
 
         Args:
@@ -64,7 +86,7 @@ class Log:
             _ACTIVE_MANAGER.reset(token)
 
     @classmethod
-    def manager(cls) -> LogManager:
+    def manager(cls) -> LoggingManager:
         """Return the active manager for this execution context.
 
         Returns:
@@ -74,13 +96,16 @@ class Log:
             LogContextError: If no manager is active.
         """
         manager = _ACTIVE_MANAGER.get()
-        if manager is None:
-            message = "Bind a LogManager with Log.use() before facade logging"
-            raise LogContextError(message)
-        return manager
+        if manager is not None:
+            return manager
+        try:
+            return cls.resolve_service()
+        except ApplicationContextError as error:
+            message = "Bind an application context before facade logging"
+            raise LogContextError(message) from error
 
     @classmethod
-    def channel(cls, name: str | None = None) -> Logger:
+    def channel(cls, name: str | None = None) -> LogWriter:
         """Resolve a named or default logger from the active manager.
 
         Args:
@@ -92,19 +117,7 @@ class Log:
         return cls.manager().channel(name)
 
     @classmethod
-    def driver(cls, name: str | None = None) -> Logger:
-        """Resolve a channel using Laravel-compatible driver terminology.
-
-        Args:
-            name: Optional channel name, defaulting to the selected channel.
-
-        Returns:
-            The native logger associated with the selected channel.
-        """
-        return cls.manager().driver(name)
-
-    @classmethod
-    def build(cls, configuration: Mapping[str, object]) -> Logger:
+    def build(cls, configuration: Mapping[str, object]) -> LogWriter:
         """Build an independently owned logger from native settings.
 
         Args:
@@ -122,7 +135,7 @@ class Log:
         *,
         channel: str | None = None,
         ignore_exceptions: bool = False,
-    ) -> Logger:
+    ) -> LogWriter:
         """Create a fan-out logger from configured channel names.
 
         Args:
@@ -144,7 +157,7 @@ class Log:
         cls,
         logger_name: str,
         channel: str | None = None,
-    ) -> StandardLogBridge:
+    ) -> LogBridge:
         """Bridge one selected standard logger into a native channel.
 
         Args:
@@ -157,28 +170,28 @@ class Log:
         return cls.manager().bridge_standard_logger(logger_name, channel)
 
     @classmethod
-    def get_default_driver(cls) -> str:
+    def get_default_channel(cls) -> str:
         """Return the configured default channel name.
 
         Returns:
             The name currently selected as the manager default.
         """
-        return cls.manager().get_default_driver()
+        return cls.manager().get_default_channel()
 
     @classmethod
-    def set_default_driver(cls, name: str) -> None:
+    def set_default_channel(cls, name: str) -> None:
         """Select a configured channel as the default destination.
 
         Args:
             name: Declared channel name to select.
         """
-        cls.manager().set_default_driver(name)
+        cls.manager().set_default_channel(name)
 
     @classmethod
     def extend(
         cls,
         name: str,
-        factory: Callable[[ChannelConfiguration], LogDriver],
+        factory: Callable[[ChannelConfiguration], LogDriver[LogRecord]],
     ) -> None:
         """Register a native custom driver factory.
 
@@ -631,7 +644,7 @@ class Log:
         cls.manager().flush_shared_context()
 
     @classmethod
-    def get_channels(cls) -> Mapping[str, Logger]:
+    def get_channels(cls) -> Mapping[str, LogWriter]:
         """Return a read-only snapshot of resolved native channels.
 
         Returns:
@@ -668,14 +681,17 @@ class Log:
             Assertions and captured records for the fake scope.
         """
         source = cls.manager()
+        configuration = source.configuration
+        if not isinstance(configuration, LoggingConfiguration):
+            raise LogContextError(_FAKE_CONFIGURATION_ERROR)
         fake_driver = MemoryLogDriver()
         channels = {
             name: _fake_configuration(channel)
-            for name, channel in source.configuration.channels.items()
+            for name, channel in configuration.channels.items()
         }
         fake_manager = LogManager(
             LoggingConfiguration(
-                default=source.get_default_driver(),
+                default=source.get_default_channel(),
                 channels=channels,
             ),
             drivers={"memory": lambda _: fake_driver},
@@ -788,7 +804,7 @@ class Log:
 
     @classmethod
     def _fake(cls) -> FakeLog:
-        """Return the active fake for Laravel-inspired facade assertions.
+        """Return the fake active in the current execution context.
 
         Raises:
             RuntimeError: If no fake scope is active.
@@ -798,224 +814,6 @@ class Log:
             message = "Use Log.fake() before logging assertions"
             raise LogContextError(message)
         return fake
-
-    @classmethod
-    def withContext(  # noqa: N802
-        cls,
-        context: Mapping[str, object] | None = None,
-        **values: object,
-    ) -> None:
-        """Add context using the Laravel-compatible method spelling.
-
-        Prefer :meth:`with_context` in new Python code.
-
-        Args:
-            context: Optional mapping of structured values.
-            **values: Additional values that override mapping keys.
-        """
-        cls.with_context(context, **values)
-
-    @classmethod
-    def shareContext(  # noqa: N802
-        cls,
-        context: Mapping[str, object] | None = None,
-        **values: object,
-    ) -> None:
-        """Share context using the Laravel-compatible method spelling.
-
-        Prefer :meth:`share_context` in new Python code.
-
-        Args:
-            context: Optional mapping of structured values.
-            **values: Additional values that override mapping keys.
-        """
-        cls.share_context(context, **values)
-
-    @classmethod
-    def withoutContext(cls, *keys: str) -> None:  # noqa: N802
-        """Remove context values using Laravel-compatible spelling.
-
-        Prefer :meth:`without_context` in new Python code.
-
-        Args:
-            *keys: Context keys to remove from the current execution.
-        """
-        cls.without_context(*keys)
-
-    @classmethod
-    def flushContext(cls) -> None:  # noqa: N802
-        """Clear context using the Laravel-compatible method spelling.
-
-        Prefer :meth:`flush_context` in new Python code.
-        """
-        cls.flush_context()
-
-    @classmethod
-    def getContext(cls) -> dict[str, object]:  # noqa: N802
-        """Return context using the Laravel-compatible method spelling.
-
-        Prefer :meth:`get_context` in new Python code.
-
-        Returns:
-            A detached mapping of active context values.
-        """
-        return cls.get_context()
-
-    @classmethod
-    def getDefaultDriver(cls) -> str:  # noqa: N802
-        """Return the default channel with Laravel-compatible spelling.
-
-        Returns:
-            The name selected as the active default channel.
-        """
-        return cls.get_default_driver()
-
-    @classmethod
-    def setDefaultDriver(cls, name: str) -> None:  # noqa: N802
-        """Select a default channel with Laravel-compatible spelling.
-
-        Args:
-            name: A declared channel name.
-        """
-        cls.set_default_driver(name)
-
-    @classmethod
-    def sharedContext(cls) -> dict[str, object]:  # noqa: N802
-        """Return shared context with Laravel-compatible spelling.
-
-        Returns:
-            A detached mapping of active shared values.
-        """
-        return cls.shared_context()
-
-    @classmethod
-    def flushSharedContext(cls) -> None:  # noqa: N802
-        """Clear shared context with Laravel-compatible spelling.
-
-        Prefer :meth:`flush_shared_context` in new Python code.
-        """
-        cls.flush_shared_context()
-
-    @classmethod
-    def getChannels(cls) -> Mapping[str, Logger]:  # noqa: N802
-        """Return resolved channels with Laravel-compatible spelling.
-
-        Returns:
-            A read-only snapshot of instantiated channel loggers.
-        """
-        return cls.get_channels()
-
-    @classmethod
-    def forgetChannel(cls, name: str | None = None) -> None:  # noqa: N802
-        """Forget a channel with Laravel-compatible spelling.
-
-        Args:
-            name: Channel to close, or the default channel when omitted.
-        """
-        cls.forget_channel(name)
-
-    @classmethod
-    def forgetChannels(cls) -> None:  # noqa: N802
-        """Forget every channel with Laravel-compatible spelling.
-
-        The validated channel configuration remains available for reuse.
-        """
-        cls.forget_channels()
-
-    @classmethod
-    def assertLogged(  # noqa: N802
-        cls,
-        level: LogLevel | str | int | None = None,
-        message: str | None = None,
-        *,
-        channel: str | None = None,
-        context: Mapping[str, object] | None = None,
-        predicate: Callable[[LogRecord], bool] | None = None,
-    ) -> LogRecord:
-        """Assert a matching record with Laravel-compatible spelling.
-
-        Args:
-            level: Optional severity filter.
-            message: Optional exact message.
-            channel: Optional channel name.
-            context: Required structured context values.
-            predicate: Optional record predicate.
-
-        Returns:
-            The first matching record.
-        """
-        return cls.assert_logged(
-            level,
-            message,
-            channel=channel,
-            context=context,
-            predicate=predicate,
-        )
-
-    @classmethod
-    def assertNotLogged(  # noqa: N802
-        cls,
-        level: LogLevel | str | int | None = None,
-        message: str | None = None,
-        *,
-        channel: str | None = None,
-        context: Mapping[str, object] | None = None,
-        predicate: Callable[[LogRecord], bool] | None = None,
-    ) -> None:
-        """Assert no matching record with Laravel-compatible spelling.
-
-        Args:
-            level: Optional severity filter.
-            message: Optional exact message.
-            channel: Optional channel name.
-            context: Required structured context values.
-            predicate: Optional record predicate.
-        """
-        cls.assert_not_logged(
-            level,
-            message,
-            channel=channel,
-            context=context,
-            predicate=predicate,
-        )
-
-    @classmethod
-    def assertLoggedTimes(  # noqa: N802
-        cls,
-        count: int,
-        level: LogLevel | str | int | None = None,
-        message: str | None = None,
-        *,
-        channel: str | None = None,
-        context: Mapping[str, object] | None = None,
-        predicate: Callable[[LogRecord], bool] | None = None,
-    ) -> None:
-        """Assert a matching record count with Laravel-style spelling.
-
-        Args:
-            count: Expected number of matching records.
-            level: Optional severity filter.
-            message: Optional exact message.
-            channel: Optional channel name.
-            context: Required structured context values.
-            predicate: Optional record predicate.
-        """
-        cls.assert_logged_times(
-            count,
-            level,
-            message,
-            channel=channel,
-            context=context,
-            predicate=predicate,
-        )
-
-    @classmethod
-    def assertNothingLogged(cls) -> None:  # noqa: N802
-        """Assert no records were captured with Laravel-style spelling.
-
-        Prefer :meth:`assert_nothing_logged` in new Python code.
-        """
-        cls.assert_nothing_logged()
 
 
 def _fake_configuration(

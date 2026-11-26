@@ -1,8 +1,7 @@
-"""Provide typed, Laravel-inspired string transformations.
+"""Provide typed string transformations over Python Unicode text.
 
-The implementation uses Python's Unicode strings and standard library.
-It intentionally exposes both snake_case names and Illuminate-compatible
-camelCase aliases while documenting behavior that cannot be identical.
+The implementation keeps pure transformations synchronous and uses the
+standard library for Unicode operations and secure randomness.
 """
 
 from __future__ import annotations
@@ -148,7 +147,7 @@ def _word_parts(value: str) -> list[str]:
 
 
 def _slice_start(value: str, start: int) -> int:
-    """Normalize PHP-style negative offsets to Python string positions.
+    """Normalize negative offsets to Python string positions.
 
     Args:
         value: The string being sliced.
@@ -165,7 +164,7 @@ def _python_substr(
     start: int,
     length: int | None = None,
 ) -> str:
-    """Slice text with PHP-compatible negative length interpretation.
+    """Slice text using Python's negative end-offset interpretation.
 
     Args:
         value: The source string.
@@ -214,7 +213,7 @@ def _pad_string(value: str, size: int, pad: str, side: str) -> str:
 
 
 class Str(Macroable):
-    """Expose static string utilities with Laravel-compatible naming.
+    """Expose static Python string utilities.
 
     ``Str`` groups pure text transformations and validators. It follows
     Python string indexing and regular expression rules, and uses only the
@@ -258,7 +257,7 @@ class Str(Macroable):
 
         Returns:
             The generated string. Negative lengths produce an empty string,
-            matching the pinned Laravel behavior.
+            following the documented Titanspan helper contract.
 
         Raises:
             TypeError: If an active factory returns a non-string value or
@@ -306,8 +305,8 @@ class Str(Macroable):
             TypeError: If a non-callable factory is supplied.
 
         Notes:
-            Unlike Laravel's process-wide static override, this state is
-            scoped to the current context to isolate concurrent tasks.
+            This state is scoped to the current context to isolate concurrent
+            tasks.
         """
         if factory is None:
             _RANDOM_STRING_STATE.set(None)
@@ -429,9 +428,8 @@ class Str(Macroable):
                 all enabled classes.
 
         Notes:
-            This is a Titanspan extension, not a method in the pinned Laravel
-            ``Str`` API. Character selection and final shuffling use the
-            standard library's system-backed cryptographic randomness.
+            Character selection and final shuffling use the standard library's
+            system-backed cryptographic randomness.
         """
         length = _require_password_length(length)
         enabled_classes = tuple(
@@ -579,20 +577,20 @@ class Str(Macroable):
         )
 
     @staticmethod
-    def char_at(subject: str, index: int) -> str | bool:
-        """Return one Unicode code point at ``index`` or ``False``.
+    def char_at(subject: str, index: int) -> str:
+        """Return one Unicode code point using native string indexing.
 
         Args:
             subject: The source string.
             index: A zero-based index; negative indexes count from the end.
 
         Returns:
-            The requested one-character string, or ``False`` out of range.
+            The requested one-character string.
+
+        Raises:
+            IndexError: If the index is outside the string.
         """
-        position = index if index >= 0 else len(subject) + index
-        if position < 0 or position >= len(subject):
-            return False
-        return subject[position]
+        return subject[index]
 
     @staticmethod
     def chop_start(subject: str, needle: str | Iterable[str]) -> str:
@@ -671,18 +669,12 @@ class Str(Macroable):
         )
 
     @staticmethod
-    def convert_case(
-        string: str,
-        mode: int = 3,
-        encoding: str | None = "UTF-8",
-    ) -> str:
+    def convert_case(string: str, mode: int = 3) -> str:
         """Convert text using the four standard multibyte case modes.
 
         Args:
             string: The text to convert.
             mode: Upper, lower, title, or Unicode case-fold mode (0 through 3).
-            encoding: Accepted for API compatibility; Python strings are
-                Unicode and do not require a selected encoding.
 
         Returns:
             The transformed string.
@@ -690,7 +682,6 @@ class Str(Macroable):
         Raises:
             ValueError: If ``mode`` is not one of the supported values.
         """
-        del encoding
         operation = _CASE_MODES.get(mode)
         if operation is None:
             raise ValueError(  # noqa: TRY003
@@ -1004,18 +995,15 @@ class Str(Macroable):
         return value[0] in "01234567"
 
     @staticmethod
-    def ascii(value: str, language: str = "en") -> str:
+    def ascii(value: str) -> str:
         """Transliterate decomposable text into a limited ASCII form.
 
         Args:
             value: The input string.
-            language: A reserved compatibility argument; no locale tables are
-                loaded by this standard-library implementation.
 
         Returns:
             ASCII text with combining marks removed where possible.
         """
-        del language
         expanded = "".join(
             _ASCII_REPLACEMENTS.get(char, char) for char in value
         )
@@ -1041,17 +1029,15 @@ class Str(Macroable):
         return "-".join(part.lower() for part in _word_parts(value))
 
     @staticmethod
-    def length(value: str, encoding: str | None = None) -> int:
+    def length(value: str) -> int:
         """Return the number of Python Unicode code points in a string.
 
         Args:
             value: The string to measure.
-            encoding: Accepted for API compatibility and otherwise unused.
 
         Returns:
             The code point length.
         """
-        del encoding
         return len(value)
 
     @staticmethod
@@ -1130,7 +1116,6 @@ class Str(Macroable):
         character: str,
         index: int,
         length: int | None = None,
-        encoding: str = "UTF-8",
     ) -> str:
         """Replace a selected range with the first code point of a marker.
 
@@ -1139,12 +1124,10 @@ class Str(Macroable):
             character: The marker repeated across the selected range.
             index: The start position, with negative offsets from the end.
             length: Number of code points to mask; defaults to the remainder.
-            encoding: Accepted for compatibility; Python strings are Unicode.
 
         Returns:
             The masked string.
         """
-        del encoding
         if not character or not string:
             return string
         start = _slice_start(string, index)
@@ -1305,8 +1288,8 @@ class Str(Macroable):
             A pair containing the class label and method name.
 
         Notes:
-            PHP anonymous class names can contain ``@``. If their marker is
-            present, the final ``@`` separates an optional method suffix.
+            Dynamically generated class names can contain ``@``. If the
+            marker is present, the final ``@`` separates a method suffix.
         """
         if "@anonymous\0" in callback:
             if callback.count("@") > 1:
@@ -1323,7 +1306,6 @@ class Str(Macroable):
         haystack: str,
         needle: str,
         offset: int = 0,
-        encoding: str | None = None,
     ) -> int | None:
         """Find a substring from a code point offset.
 
@@ -1331,12 +1313,10 @@ class Str(Macroable):
             haystack: The string to search.
             needle: The target substring.
             offset: Start offset, including negative offsets from the end.
-            encoding: Accepted for compatibility; Python strings are Unicode.
 
         Returns:
             The zero-based position, or ``None`` when absent.
         """
-        del encoding
         start = _slice_start(haystack, offset)
         found = haystack.find(needle, start)
         return found if found >= 0 else None
@@ -1632,7 +1612,6 @@ class Str(Macroable):
     def slug(
         title: str,
         separator: str = "-",
-        language: str = "en",
         dictionary: Mapping[str, str] | None = None,
     ) -> str:
         """Create a lowercase ASCII-oriented slug from a title.
@@ -1640,14 +1619,11 @@ class Str(Macroable):
         Args:
             title: The source title.
             separator: The word separator in the result.
-            language: Accepted for compatibility; locale transliteration is
-                not loaded by this standard-library implementation.
             dictionary: Optional replacements applied before transliteration.
 
         Returns:
             A normalized slug.
         """
-        del language
         replacements = {"@": "at"} if dictionary is None else dictionary
         for source, target in replacements.items():
             title = title.replace(source, f" {target} ")
@@ -1782,7 +1758,6 @@ class Str(Macroable):
         string: str,
         start: int,
         length: int | None = None,
-        encoding: str = "UTF-8",
     ) -> str:
         """Return a substring using Python code point indexing.
 
@@ -1790,12 +1765,10 @@ class Str(Macroable):
             string: The source string.
             start: Starting offset, possibly negative.
             length: Optional forward length or negative end offset.
-            encoding: Accepted for compatibility; Python strings are Unicode.
 
         Returns:
             The selected substring.
         """
-        del encoding
         return _python_substr(string, start, length)
 
     @staticmethod
@@ -2015,46 +1988,8 @@ class Str(Macroable):
             )
         )
 
-    afterLast = after_last
-    beforeLast = before_last
-    betweenFirst = between_first
-    charAt = char_at
-    chopStart = chop_start
-    chopEnd = chop_end
-    containsAll = contains_all
-    convertCase = convert_case
-    doesntContain = doesnt_contain
-    endsWith = ends_with
-    doesntEndWith = doesnt_end_with
-    isAscii = is_ascii
-    isJson = is_json
-    isUrl = is_url
-    isUuid = is_uuid
-    isUlid = is_ulid
-    padBoth = pad_both
-    padLeft = pad_left
-    padRight = pad_right
-    replaceArray = replace_array
-    replaceFirst = replace_first
-    replaceStart = replace_start
-    replaceLast = replace_last
-    replaceEnd = replace_end
-    replaceMatches = replace_matches
-    doesntStartWith = doesnt_start_with
-    startsWith = starts_with
-    parseCallback = parse_callback
-    substrCount = substr_count
-    substrReplace = substr_replace
-    toBase64 = to_base64
-    fromBase64 = from_base64
     ucwords = ucwords
     ucsplit = ucsplit
-    wordCount = word_count
-    wordWrap = word_wrap
-    isMatch = is_match
-    createRandomStringsUsing = create_random_strings_using
-    createRandomStringsUsingSequence = create_random_strings_using_sequence
-    createRandomStringsNormally = create_random_strings_normally
 
 
 def _reject_json_constant(value: str) -> None:

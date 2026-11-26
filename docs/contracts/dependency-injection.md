@@ -45,11 +45,11 @@ Replace `MyService` with an application class. Consumers must keep each
 container within its application or execution lifecycle and close it after
 use. Implementations own resource finalization and cancellation behavior.
 
-The native `Container` implements `ServiceContainer`. The ASGI `Application`
-still composes its web graph through the existing private adapter and does not
-yet expose the native `Container` as its single composition root. No
-module-level `app()` container helper is available yet; adding one before this
-composition boundary is unified would create a second service registry.
+The native `Container` implements `ServiceContainer` and is the composition
+root for framework-owned services in `Application`. FastAPI route injection
+still uses a separate private graph adapter because its request-injection
+lifecycle has not yet been unified. No module-level `app()` container helper
+is available.
 
 Do not build another resolver, infer dependency graphs, or promise scopes that
 the selected adapter cannot enforce. Any adapter should be introduced with

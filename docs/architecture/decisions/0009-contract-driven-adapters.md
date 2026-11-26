@@ -13,7 +13,8 @@ to one backend.
 
 Define small typed protocols or interfaces at real substitution and lifecycle
 boundaries. Keep library-specific adapters at module edges and compose them
-through providers. Preserve access to native library objects.
+through providers. Expose native library objects only through explicit,
+documented interoperability boundaries where applications need them.
 
 Add a contract when it enables replacement, lifecycle ownership, a test seam,
 or stable public behavior. Do not wrap a single function without a real need.
@@ -34,8 +35,9 @@ without a live service.
 
 ## Risks
 
-Over-generalized protocols can hide backend features. Keep native escape
-hatches and review contracts alongside concrete adapters.
+Over-generalized protocols can hide backend features. Provide deliberate
+interoperability boundaries where they serve an actual integration need and
+review contracts alongside concrete adapters.
 
 ## References
 

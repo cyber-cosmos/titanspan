@@ -5,7 +5,7 @@ service remains typed only against a Titanspan-owned protocol.
 """
 
 from collections.abc import Mapping
-from typing import overload
+from typing import cast, overload
 
 import pytest
 
@@ -20,6 +20,7 @@ from titanspan.config import ConfigServiceProvider, Repository
 from titanspan.container import Container
 from titanspan.container._backends.fastapi import create_fastapi_container
 from titanspan.contracts import ConfigRepository
+from titanspan.support.arr import Arr
 
 pytestmark = pytest.mark.integration
 
@@ -35,7 +36,9 @@ class ConfigRepositoryAdapter:
 
         Store the application name used by the resolver assertion.
         """
-        self.values: dict[str, object] = {"app.name": "Titanspan"}
+        self.values: dict[str, object] = {
+            "app": {"name": "Titanspan"},
+        }
 
     def has(self, key: str) -> bool:
         """Check whether a configuration path is present.
@@ -46,7 +49,7 @@ class ConfigRepositoryAdapter:
         Returns:
             Whether the path exists, including for a stored ``None``.
         """
-        return key in self.values
+        return Arr.has(self.values, key)
 
     @overload
     def get(
@@ -80,9 +83,23 @@ class ConfigRepositoryAdapter:
             A mapping from requested paths to values.
         """
 
+    @overload
     def get(
         self,
-        key: str | list[str] | tuple[str, ...],
+        key: Mapping[str, object],
+    ) -> Mapping[str, object]:
+        """Retrieve multiple paths with individual fallback values.
+
+        Args:
+            key: Paths mapped to their missing-value fallback.
+
+        Returns:
+            A mapping from requested paths to values.
+        """
+
+    def get(
+        self,
+        key: str | list[str] | tuple[str, ...] | Mapping[str, object],
         default: object = None,
     ) -> object:
         """Retrieve one path or a set of paths.
@@ -95,8 +112,31 @@ class ConfigRepositoryAdapter:
             A configured value or mapping of selected values.
         """
         if isinstance(key, str):
-            return self.values.get(key, default)
-        return {item: self.values.get(item, default) for item in key}
+            return Arr.get(self.values, key, default)
+        return self.get_many(key, default)
+
+    def get_many(
+        self,
+        keys: list[str] | tuple[str, ...] | Mapping[str, object],
+        default: object = None,
+    ) -> Mapping[str, object]:
+        """Retrieve multiple paths through the canonical batch operation.
+
+        Args:
+            keys: Ordered paths or paths mapped to fallback values.
+            default: Shared fallback for ordered paths.
+
+        Returns:
+            Values keyed by the requested path strings.
+        """
+        pairs = (
+            keys.items()
+            if isinstance(keys, Mapping)
+            else ((key, default) for key in keys)
+        )
+        return {
+            key: Arr.get(self.values, key, fallback) for key, fallback in pairs
+        }
 
     def all(self) -> Mapping[str, object]:
         """Return a shallow, read-only-typed snapshot of stored values.
@@ -118,9 +158,10 @@ class ConfigRepositoryAdapter:
             value: Value assigned when ``key`` is a string.
         """
         if isinstance(key, str):
-            self.values[key] = value
+            Arr.set(self.values, key, value)
         else:
-            self.values.update(key)
+            for path, item in key.items():
+                Arr.set(self.values, path, item)
 
     def prepend(self, key: str, value: object) -> None:
         """Insert a value before existing list entries.
@@ -129,9 +170,10 @@ class ConfigRepositoryAdapter:
             key: The configuration path to update.
             value: The value inserted at the beginning.
         """
-        existing = self.values.get(key, [])
+        existing = Arr.get(self.values, key, [])
         assert isinstance(existing, list)
-        self.values[key] = [value, *existing]
+        values = cast("list[object]", existing)
+        Arr.set(self.values, key, [value, *values])
 
     def push(self, key: str, value: object) -> None:
         """Append a value after existing list entries.
@@ -140,9 +182,10 @@ class ConfigRepositoryAdapter:
             key: The configuration path to update.
             value: The value appended at the end.
         """
-        existing = self.values.get(key, [])
+        existing = Arr.get(self.values, key, [])
         assert isinstance(existing, list)
-        self.values[key] = [*existing, value]
+        values = cast("list[object]", existing)
+        Arr.set(self.values, key, [*values, value])
 
 
 class ConfigRepositoryProvider(Provider):

@@ -28,6 +28,12 @@ Validation failures become `SettingsValidationError`. Diagnostics include
 field paths only, not submitted values. `redacted()` and the model's string
 representations mask common secret-shaped field names.
 
+Use `settings.to_dict()` to export values to framework code. It includes
+declaration defaults by default; `to_dict(include_defaults=False)` exports
+only fields supplied by the selected environment or explicit constructor.
+This mapping contains actual values, including secrets, and must not be logged
+or exposed in diagnostics. Use `redacted()` for diagnostic output.
+
 Typed settings and repository access serve related purposes: Settings
 validates declared fields, while `Repository` offers synchronous runtime
 lookup. `ConfigManager` projects explicitly supplied fields into the same
@@ -52,5 +58,8 @@ class ServiceSettings(Settings):
 An explicit `queue={"workers": 8}` value updates `queue.workers` while
 preserving other keys loaded from `config/queue.py`.
 
-The public settings base does not expose third-party settings source
-configuration. Use its `from_environment()` method to select a dotenv file.
+Use `from_environment()` to select a dotenv file rather than configuring
+backend-specific sources. Inherited validation-library methods may remain
+visible because the current native settings base subclasses its validation
+backend; those inherited methods are outside Titanspan's documented settings
+API. See the [backend boundary audit](/specifications/backend-boundaries).

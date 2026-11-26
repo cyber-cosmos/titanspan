@@ -1,8 +1,8 @@
-"""Provide an immutable-by-default fluent string wrapper.
+"""Provide an immutable-by-default fluent wrapper for Python strings.
 
 Transformations delegate to :class:`Str`; predicate and extraction methods
-retain their native return types. Integer offsets remain mutable to match
-Laravel's ``ArrayAccess`` behavior.
+retain their native return types. Integer offsets remain mutable through
+Python's standard item access methods.
 """
 
 from __future__ import annotations
@@ -38,8 +38,7 @@ class Stringable(Macroable, Conditionable, Tappable):
         _value: The current string value.
 
     Notes:
-        Python string indexing uses Unicode code points. Laravel's PHP
-        string offsets operate on bytes, so non-ASCII offset behavior differs.
+        Python string indexing uses Unicode code points.
     """
 
     def __init__(self, value: str = "") -> None:
@@ -289,25 +288,26 @@ class Stringable(Macroable, Conditionable, Tappable):
             raise ValueError(_LINE_COUNT_ERROR)
         return self.append("\n" * count)
 
-    def ascii(self, language: str = "en") -> Self:
+    def ascii(self) -> Self:
         """Transliterate the value using Titanspan's standard-library rules.
 
         Args:
-            language: Accepted for Laravel compatibility.
-
         Returns:
             A new fluent string.
         """
-        return self._new(Str.ascii(self._value, language))
+        return self._new(Str.ascii(self._value))
 
-    def char_at(self, index: int) -> str | bool:
-        """Return the character at an index or ``False`` when out of range.
+    def char_at(self, index: int) -> str:
+        """Return the character at an index using Python string semantics.
 
         Args:
             index: The Python code point index.
 
         Returns:
-            A one-character string or ``False``.
+            The character at the requested index.
+
+        Raises:
+            IndexError: If the index is outside the string.
         """
         return Str.char_at(self._value, index)
 
@@ -392,18 +392,16 @@ class Stringable(Macroable, Conditionable, Tappable):
     def convert_case(
         self,
         mode: int = 3,
-        encoding: str | None = "UTF-8",
     ) -> Self:
         """Convert case using the selected multibyte case mode.
 
         Args:
             mode: Upper, lower, title, or case-fold mode from zero to three.
-            encoding: Accepted for compatibility; Python text is Unicode.
 
         Returns:
             A new fluent string.
         """
-        return self._new(Str.convert_case(self._value, mode, encoding))
+        return self._new(Str.convert_case(self._value, mode))
 
     def deduplicate(self, characters: str | Iterable[str] = " ") -> Self:
         """Collapse repeated occurrences of selected characters.
@@ -457,7 +455,7 @@ class Stringable(Macroable, Conditionable, Tappable):
         pattern: str | Iterable[str],
         ignore_case: bool = False,
     ) -> bool:
-        """Match the complete value against Laravel-style glob patterns.
+        """Match the complete value against shell-style glob patterns.
 
         Args:
             pattern: One glob pattern or an iterable of patterns.
@@ -554,16 +552,14 @@ class Stringable(Macroable, Conditionable, Tappable):
         """
         return self._new(Str.kebab(self._value))
 
-    def length(self, encoding: str | None = None) -> int:
+    def length(self) -> int:
         """Return the number of Python Unicode code points.
 
         Args:
-            encoding: Accepted for compatibility; Python text is Unicode.
-
         Returns:
             The code point count.
         """
-        return Str.length(self._value, encoding)
+        return Str.length(self._value)
 
     def limit(
         self,
@@ -689,19 +685,17 @@ class Stringable(Macroable, Conditionable, Tappable):
         self,
         needle: str,
         offset: int = 0,
-        encoding: str | None = None,
     ) -> int | None:
         """Find a substring starting at a Python code point offset.
 
         Args:
             needle: The substring to locate.
             offset: The starting index, allowing negative offsets.
-            encoding: Accepted for compatibility; Python text is Unicode.
 
         Returns:
             The character position, or ``None`` when absent.
         """
-        return Str.position(self._value, needle, offset, encoding)
+        return Str.position(self._value, needle, offset)
 
     def remove(
         self,
@@ -852,20 +846,18 @@ class Stringable(Macroable, Conditionable, Tappable):
     def slug(
         self,
         separator: str = "-",
-        language: str = "en",
         dictionary: Mapping[str, str] | None = None,
     ) -> Self:
         """Create a lowercase ASCII-oriented slug.
 
         Args:
             separator: The separator between words.
-            language: Accepted for compatibility with the Laravel API.
             dictionary: Optional replacements applied before transliteration.
 
         Returns:
             A new fluent string.
         """
-        return self._new(Str.slug(self._value, separator, language, dictionary))
+        return self._new(Str.slug(self._value, separator, dictionary))
 
     def snake(self, delimiter: str = "_") -> Self:
         """Convert the value to snake case.
@@ -983,19 +975,17 @@ class Stringable(Macroable, Conditionable, Tappable):
         self,
         start: int,
         length: int | None = None,
-        encoding: str = "UTF-8",
     ) -> Self:
         """Return a substring using Python code point indexing.
 
         Args:
             start: Starting index, allowing negative offsets.
             length: Optional result length or negative end offset.
-            encoding: Accepted for compatibility with Laravel.
 
         Returns:
             A new fluent string containing the selected portion.
         """
-        return self._new(Str.substr(self._value, start, length, encoding))
+        return self._new(Str.substr(self._value, start, length))
 
     def substr_count(
         self,
@@ -1201,14 +1191,6 @@ class Stringable(Macroable, Conditionable, Tappable):
         result = Str.from_base64(self._value, strict)
         return self._new(result if isinstance(result, str) else "")
 
-    def json_serialize(self) -> str:
-        """Return the wrapped string for JSON-compatible serialization.
-
-        Returns:
-            The underlying string.
-        """
-        return self._value
-
     def to_html_string(self) -> HtmlString:
         """Wrap the current value as explicitly trusted HTML.
 
@@ -1393,7 +1375,7 @@ class Stringable(Macroable, Conditionable, Tappable):
         callback: Callable[[Self, object], object],
         default: Callable[[Self, object], object] | None = None,
     ) -> Self | object:
-        """Run a callback when a Laravel-style glob pattern matches.
+        """Run a callback when a shell-style glob pattern matches.
 
         Args:
             pattern: One glob pattern or an iterable of patterns.
@@ -1512,66 +1494,6 @@ class Stringable(Macroable, Conditionable, Tappable):
             The selected callback result or this stringable value.
         """
         return self._when_predicate(self.test(pattern), callback, default)
-
-    afterLast = after_last
-    beforeLast = before_last
-    betweenFirst = between_first
-    newLine = new_line
-    charAt = char_at
-    chopStart = chop_start
-    chopEnd = chop_end
-    containsAll = contains_all
-    convertCase = convert_case
-    doesntContain = doesnt_contain
-    endsWith = ends_with
-    doesntEndWith = doesnt_end_with
-    isAscii = is_ascii
-    isJson = is_json
-    isUrl = is_url
-    isUuid = is_uuid
-    isUlid = is_ulid
-    isEmpty = is_empty
-    isNotEmpty = is_not_empty
-    isBlank = is_blank
-    isNotBlank = is_not_blank
-    isMatch = is_match
-    padBoth = pad_both
-    padLeft = pad_left
-    padRight = pad_right
-    parseCallback = parse_callback
-    replaceArray = replace_array
-    replaceFirst = replace_first
-    replaceStart = replace_start
-    replaceLast = replace_last
-    replaceEnd = replace_end
-    replaceMatches = replace_matches
-    doesntStartWith = doesnt_start_with
-    startsWith = starts_with
-    substrCount = substr_count
-    substrReplace = substr_replace
-    toBase64 = to_base64
-    fromBase64 = from_base64
-    wordCount = word_count
-    wordWrap = word_wrap
-    toString = to_string
-    jsonSerialize = json_serialize
-    offsetExists = offset_exists
-    toHtmlString = to_html_string
-    whenContains = when_contains
-    whenContainsAll = when_contains_all
-    whenEmpty = when_empty
-    whenNotEmpty = when_not_empty
-    whenEndsWith = when_ends_with
-    whenDoesntEndWith = when_doesnt_end_with
-    whenExactly = when_exactly
-    whenNotExactly = when_not_exactly
-    whenIs = when_is
-    whenIsAscii = when_is_ascii
-    whenIsUuid = when_is_uuid
-    whenIsUlid = when_is_ulid
-    whenStartsWith = when_starts_with
-    whenDoesntStartWith = when_doesnt_start_with
-    whenTest = when_test
 
 
 __all__ = ["Stringable"]

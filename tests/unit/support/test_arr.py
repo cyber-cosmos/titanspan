@@ -1,4 +1,4 @@
-"""Verify Laravel-compatible array utility contracts.
+"""Verify native mapping and sequence utility behavior.
 
 The cases focus on nested paths, explicit ``None`` values, mutation behavior,
 and stable key handling across Titanspan's Python representations.
@@ -152,8 +152,8 @@ def test_typed_accessors_validate_values() -> None:
 
 
 @pytest.mark.unit
-def test_compatibility_aliases_share_the_python_implementation() -> None:
-    """Expose camelCase names without duplicating implementation logic.
+def test_native_array_helpers_cover_common_transformations() -> None:
+    """Exercise shared array predicates and keyed transformations.
 
     Returns:
         None.
@@ -161,22 +161,19 @@ def test_compatibility_aliases_share_the_python_implementation() -> None:
     data = {"first_name": "Ada"}
 
     assert Arr.has_all(data, ["first_name"])
-    assert Arr.hasAll(data, ["first_name"])
     assert Arr.is_assoc({"first_name": "Ada"})
-    assert Arr.isAssoc({"first_name": "Ada"})
-    assert Arr.crossJoin([1], ["a"]) == [[1, "a"]]
-    assert Arr.exceptValues({"number": 1}, 1) == {}
+    assert Arr.cross_join([1], ["a"]) == [[1, "a"]]
+    assert Arr.except_values({"number": 1}, 1) == {}
     assert Arr.is_list(["first", "second"])
-    assert Arr.isList(["first", "second"])
     assert not Arr.is_list({0: "first", 2: "second"})
-    assert Arr.keyBy([{"id": 1}], "id") == {1: {"id": 1}}
-    assert Arr.onlyValues({"one": 1, "two": 2}, 2) == {"two": 2}
-    assert Arr.sortRecursive({"b": 2, "a": 1}) == {"a": 1, "b": 2}
+    assert Arr.key_by([{"id": 1}], "id") == {1: {"id": 1}}
+    assert Arr.only_values({"one": 1, "two": 2}, 2) == {"two": 2}
+    assert Arr.sort_recursive({"b": 2, "a": 1}) == {"a": 1, "b": 2}
 
 
 @pytest.mark.unit
-def test_every_laravel_arr_method_has_a_python_entry_point() -> None:
-    """Keep the pinned Arr method inventory visible in Python APIs.
+def test_public_array_operations_have_python_entry_points() -> None:
+    """Keep the supported array helper surface discoverable.
 
     Returns:
         None.
@@ -188,12 +185,12 @@ def test_every_laravel_arr_method_has_a_python_entry_point() -> None:
         "array",
         "boolean",
         "collapse",
-        "crossJoin",
+        "cross_join",
         "divide",
         "dot",
         "undot",
-        "except",
-        "exceptValues",
+        "except_",
+        "except_values",
         "exists",
         "first",
         "last",
@@ -201,26 +198,26 @@ def test_every_laravel_arr_method_has_a_python_entry_point() -> None:
         "flatten",
         "float",
         "forget",
-        "from",
+        "from_",
         "get",
         "has",
-        "hasAll",
-        "hasAny",
+        "has_all",
+        "has_any",
         "every",
         "some",
         "integer",
-        "isAssoc",
-        "isList",
+        "is_assoc",
+        "is_list",
         "join",
-        "keyBy",
-        "prependKeysWith",
+        "key_by",
+        "prepend_keys_with",
         "only",
-        "onlyValues",
+        "only_values",
         "select",
         "pluck",
         "map",
-        "mapWithKeys",
-        "mapSpread",
+        "map_with_keys",
+        "map_spread",
         "prepend",
         "pull",
         "query",
@@ -230,44 +227,21 @@ def test_every_laravel_arr_method_has_a_python_entry_point() -> None:
         "shuffle",
         "sole",
         "sort",
-        "sortDesc",
-        "sortRecursive",
-        "sortRecursiveDesc",
+        "sort_desc",
+        "sort_recursive",
+        "sort_recursive_desc",
         "string",
-        "toCssClasses",
-        "toCssStyles",
+        "to_css_classes",
+        "to_css_styles",
         "where",
         "reject",
         "partition",
-        "whereNotNull",
+        "where_not_null",
         "wrap",
     )
 
-    def python_name(name: str) -> str:
-        """Map pinned Laravel reserved words to legal Python names.
-
-        Args:
-            name: The upstream public method name.
-
-        Returns:
-            The corresponding Titanspan snake_case name.
-        """
-        aliases = {"except": "except_", "from": "from_"}
-        if name in aliases:
-            return aliases[name]
-        output: list[str] = []
-        for character in name:
-            if character.isupper():
-                output.extend(("_", character.lower()))
-            else:
-                output.append(character)
-        return "".join(output).lstrip("_")
-
     for name in method_names:
-        python_api = python_name(name)
-        assert callable(getattr(Arr, python_api))
-        if name not in {"except", "from"}:
-            assert callable(getattr(Arr, name, None))
+        assert callable(getattr(Arr, name))
 
 
 @pytest.mark.unit
@@ -434,7 +408,7 @@ def test_only_and_except_accept_iterables_of_keys() -> None:
 
 
 @pytest.mark.unit
-def test_mapping_operations_cover_upstream_contracts() -> None:
+def test_mapping_operations_cover_native_contracts() -> None:
     """Check core mapping classification and composition operations.
 
     Returns:
@@ -634,7 +608,7 @@ def test_recursive_sort_handles_nested_sequences_and_mixed_categories() -> None:
 
 @pytest.mark.unit
 def test_nested_presence_selection_and_iteration_helpers() -> None:
-    """Cover Laravel key predicates and field projection helpers.
+    """Cover key predicates and field projection helpers.
 
     Returns:
         None.
@@ -654,7 +628,7 @@ def test_nested_presence_selection_and_iteration_helpers() -> None:
 
 @pytest.mark.unit
 def test_map_spread_appends_each_source_key() -> None:
-    """Expand each tuple and preserve Laravel's appended-key callback.
+    """Expand each tuple and append callback-produced mapping entries.
 
     Returns:
         None.
@@ -731,7 +705,7 @@ def test_sole_and_sort_helpers_cover_success_and_failure_paths() -> None:
 
 @pytest.mark.unit
 def test_sort_accepts_field_paths_and_multiple_criteria() -> None:
-    """Sort record sequences with one or more Laravel-style selectors.
+    """Sort record sequences with one or more key selectors.
 
     Returns:
         None.
@@ -852,10 +826,10 @@ def test_array_conversions_cover_iterables_models_and_invalid_values() -> None:
             return {"id": EXPECTED_COUNT}
 
     class ToDict:
-        """Provide a compatibility object exposing ``to_dict``.
+        """Provide a plain object exposing ``to_dict``.
 
-        The fixture confirms that Titanspan accepts plain Python model
-        adapters without requiring a framework-specific base class.
+        The fixture confirms that Titanspan accepts Python model adapters
+        without requiring a framework-specific base class.
         """
 
         def to_dict(self) -> dict[str, object]:
@@ -1086,8 +1060,8 @@ def test_defaults_error_paths_and_empty_predicate_behaviour() -> None:
     )
     assert Arr.flatten([[1, [2]]]) == [1, 2]
     assert Arr.collapse([]) == []
-    assert Arr.crossJoin() == [[]]
-    assert Arr.crossJoin([], [1]) == []
+    assert Arr.cross_join() == [[]]
+    assert Arr.cross_join([], [1]) == []
     assert Arr.divide({}) == ([], [])
     assert Arr.to_css_classes([]) == ""
     assert Arr.to_css_styles("") == ""

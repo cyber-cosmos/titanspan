@@ -22,7 +22,8 @@ COVERAGE_CATEGORIES = (
     "regression",
     "concurrency",
     "security",
-    "compatibility",
+    "component-api",
+    "cross-component",
     "public-api",
 )
 CATEGORY_PATTERN = re.compile(r"^[a-z][a-z0-9-]*$")

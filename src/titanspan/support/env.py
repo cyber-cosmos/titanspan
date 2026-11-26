@@ -1,8 +1,7 @@
 """Read process environment values and update dotenv files.
 
-The public methods follow Laravel's Support Env API. Python's environment
-mapping and immutable adapter snapshots replace Dotenv repositories and PHP's
-separate process environment adapters.
+Environment snapshots keep reads explicit and prevent accidental process
+environment mutation.
 """
 
 from __future__ import annotations
@@ -157,13 +156,12 @@ class Env:
     Pydantic Settings.
 
     Notes:
-        Adapter configuration is immutable and context-local. Python has no
-        separate ``putenv`` lookup table, so the compatibility switch controls
-        whether the native ``os.environ`` mapping is consulted.
+        Adapter configuration is immutable and context-local. The process
+        environment can be excluded while custom adapters remain available.
     """
 
     @classmethod
-    def enable_putenv(cls) -> None:
+    def enable_process_environment(cls) -> None:
         """Enable reads from Python's process environment mapping.
 
         Returns:
@@ -179,7 +177,7 @@ class Env:
         )
 
     @classmethod
-    def disable_putenv(cls) -> None:
+    def disable_process_environment(cls) -> None:
         """Disable reads from Python's process environment mapping.
 
         Custom adapters remain available after this change.
@@ -447,7 +445,7 @@ class Env:
 
     @staticmethod
     def _normalize(value: str) -> str | bool | None:
-        """Apply Laravel dotenv literal and balanced-quote conversions.
+        """Normalize dotenv literals and balanced outer quotes.
 
         Args:
             value: Raw environment text.
@@ -497,7 +495,7 @@ class Env:
             value: Text or scalar value to serialize.
 
         Returns:
-            Quoted and unquoted assignment values in compatibility order.
+            Quoted and unquoted assignment values using deterministic rules.
 
         Raises:
             ValueError: If text contains newlines, NUL, or non-finite numbers.
@@ -506,7 +504,7 @@ class Env:
         if value is None:
             return ("",)
         if type(value) is bool:
-            # PHP string concatenation writes true as "1" and false as "".
+            # Dotenv files use an empty assignment for false and null values.
             raw_value = "1" if value else ""
             return (raw_value,)
         if isinstance(value, int):
@@ -592,10 +590,3 @@ class Env:
 
         updated.insert(last_prefix_index + 1, line_to_add)
         return updated
-
-    enablePutenv = enable_putenv
-    disablePutenv = disable_putenv
-    getRepository = get_repository
-    getOrFail = get_or_fail
-    writeVariables = write_variables
-    writeVariable = write_variable

@@ -1,4 +1,4 @@
-"""Verify deterministic and probabilistic Laravel-style lotteries.
+"""Verify deterministic and probabilistic callback selection.
 
 The tests isolate result factories in their active context so one test's
 forced outcome cannot affect unrelated asynchronous execution.
@@ -26,9 +26,9 @@ def reset_lottery_factory() -> Iterator[None]:
     Yields:
         None after installing the normal randomized behavior.
     """
-    Lottery.determine_results_normally()
+    Lottery.determine_result_normally()
     yield
-    Lottery.determine_results_normally()
+    Lottery.determine_result_normally()
 
 
 @pytest.mark.unit
@@ -38,10 +38,10 @@ def test_lottery_uses_callbacks_for_wins_losses_and_default_results() -> None:
     Returns:
         None.
     """
-    Lottery.alwaysWin()
+    Lottery.always_win()
     assert Lottery.odds(0, 1).winner(lambda: "won").choose() == "won"
 
-    Lottery.alwaysLose()
+    Lottery.always_lose()
     assert Lottery.odds(1, 1).loser(lambda: "lost").choose() == "lost"
     assert Lottery.odds(1, 1).choose() is False
 
@@ -249,13 +249,13 @@ def test_default_fallback_runs_after_sequence_exhaustion(
 
 
 @pytest.mark.unit
-def test_sequence_mapping_and_result_factory_aliases() -> None:
-    """Support indexed outcomes and the Laravel-compatible setter alias.
+def test_sequence_mapping_and_result_factory_are_supported() -> None:
+    """Use indexed outcomes and a deterministic result factory.
 
     Returns:
         None.
     """
-    Lottery.forceResultWithSequence({0: True, 1: False})
+    Lottery.force_result_with_sequence({0: True, 1: False})
     lottery = Lottery.odds(0, 1)
 
     assert lottery.choose() is True
@@ -273,16 +273,16 @@ def test_sequence_mapping_and_result_factory_aliases() -> None:
         """
         return False
 
-    Lottery.setResultFactory(force_loss)
+    Lottery.set_result_factory(force_loss)
     assert Lottery.odds(1, 1).choose() is False
-    Lottery.determineResultsNormally()
+    Lottery.determine_result_normally()
 
 
 @pytest.mark.unit
-def test_determine_result_normally_clears_forced_result_alias(
+def test_determine_result_normally_clears_forced_result(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Clear the active override through Laravel's singular method alias.
+    """Clear the active override and use the configured result factory.
 
     Args:
         monkeypatch: Pytest's attribute replacement fixture.
@@ -310,7 +310,7 @@ def test_determine_result_normally_clears_forced_result_alias(
         staticmethod(force_win),
     )
 
-    Lottery.determineResultNormally()
+    Lottery.determine_result_normally()
 
     assert Lottery.odds(0, 1).choose() is True
 
@@ -393,7 +393,7 @@ def test_temporary_forced_result_restores_outer_factory() -> None:
         """
         observed.append(Lottery.odds(0, 1).choose())
 
-    Lottery.alwaysWin(record)
+    Lottery.always_win(record)
 
     assert observed == [True]
     assert Lottery.odds(1, 1).choose() is False

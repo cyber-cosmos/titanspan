@@ -101,7 +101,7 @@ def test_macro_registry_supports_static_and_instance_calls() -> None:
     MacroTarget.macro("add_prefix", add_prefix)
 
     assert MacroTarget.has_macro("greet")
-    assert MacroTarget.hasMacro("greet")
+    assert MacroTarget.has_macro("greet")
     assert MacroTarget.invoke_macro("greet") == "Hello, Guest"
     assert MacroTarget.invoke_macro("greet", "Ada") == "Hello, Ada"
     assert MacroTarget().call_macro("add_prefix", "beyond limits") == (
@@ -120,8 +120,8 @@ def test_macro_mixin_replacement_and_subclass_registry_are_isolated() -> None:
     class Mixin:
         """Provide macro factories for registry mixin tests.
 
-        The protected factory validates Laravel-style inclusion of
-        protected mixin methods.
+        The protected factory validates inclusion of protected mixin
+        methods.
         """
 
         def salute(self) -> Callable[[str], str]:

@@ -72,4 +72,25 @@ def initialize_settings(
         raise SettingsValidationError(_validation_fields(error)) from None
 
 
-__all__ = ["_SettingsBackend", "initialize_settings"]
+def export_settings(
+    instance: _SettingsBackend,
+    *,
+    include_defaults: bool,
+) -> dict[str, object]:
+    """Export validated fields without leaking backend options.
+
+    Args:
+        instance: Validated settings model to export.
+        include_defaults: Whether to include declaration-time defaults.
+
+    Returns:
+        Python values keyed by native settings field names.
+    """
+    values = instance.model_dump(
+        mode="python",
+        exclude_unset=not include_defaults,
+    )
+    return cast("dict[str, object]", values)
+
+
+__all__ = ["_SettingsBackend", "export_settings", "initialize_settings"]

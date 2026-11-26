@@ -3,14 +3,16 @@
 Follow the root `AGENTS.md`, `ARCHITECTURE.md`,
 `docs/development/standards.md`, and
 `docs/architecture/decisions/0012-native-logging.md` before changing this
-component. Consult `docs/compatibility/laravel-logging.md` for the pinned
-Laravel API inventory and current gaps.
+component. Consult `docs/specifications/logging.md` for native API ownership
+and current implementation limits.
 
 ## Responsibility and dependencies
 
 This module owns Titanspan logging records, levels, loggers, channels,
-managers, configuration, drivers, formatter and processor contracts, events,
-redaction, and test fakes. Keep public filenames and types Titanspan-oriented.
+managers, configuration, driver implementations, events, redaction, and test
+fakes. Shared driver, formatter, processor, customization, and delivery
+contracts are owned by `titanspan.contracts.logging` and re-exported here as
+the same objects. Keep public filenames and types Titanspan-oriented.
 Direct Structlog and standard-library handler integration belongs under
 `_backends/`; public signatures and ordinary examples must not require those
 backend types.
@@ -21,6 +23,11 @@ logging depend on optional AI, database, workflow, queue, or storage modules.
 Those modules can attach execution-local context through explicit integration
 hooks when they exist. Do not create a competing event dispatcher, DI
 container, formatter engine, or logging service registry.
+
+`LoggingServiceProvider` must resolve `ConfigRepository` through the native
+application registry and bind one config-driven `LoggingManager` plus its
+default `LogWriter`. Facade calls resolve those same services from the shared
+application context; do not add a second production manager registry.
 
 ## Lifecycle and safety
 
@@ -41,14 +48,13 @@ container, formatter engine, or logging service registry.
 
 ## Public API and tests
 
-Expose both idiomatic snake_case and explicitly typed Laravel-compatible
-camelCase aliases where supported. Keep each pair backed by one
-implementation. Add unit tests for every behavior and real integration tests
-for handlers, bridges, file operations, lifecycle, and network delivery. Add
-deterministic concurrency tests for task isolation, queue bounds, cancellation,
-and cleanup. Avoid external services in the default test suite.
+Expose one idiomatic snake_case method for each public operation. Add unit
+tests for every behavior and real integration tests for handlers, bridges,
+file operations, lifecycle, and network delivery. Add deterministic
+concurrency tests for task isolation, queue bounds, cancellation, and cleanup.
+Avoid external services in the default test suite.
 
-Update the compatibility inventory, docs, and changelog for public behavior
+Update the native specification, docs, and changelog for public behavior
 changes. Run `uv run --locked ruff check .`,
 `uv run --locked ruff format --check .`, `uv run --locked pyright`, the
 logging unit and integration tests, and `make check`. Do not weaken coverage or

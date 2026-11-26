@@ -25,8 +25,8 @@ class NamespacedItemResolver:
         _parsed: Immutable cached segment sequences keyed by original input.
 
     Notes:
-        Public parsing returns fresh lists to preserve PHP array value
-        semantics without exposing the resolver's cached values to mutation.
+        Public parsing returns fresh lists so callers cannot mutate cached
+        values through a returned result.
     """
 
     def __init__(self) -> None:
@@ -114,18 +114,13 @@ class NamespacedItemResolver:
             The namespace followed by the group's name and optional item.
 
         Notes:
-            The upstream implementation keeps only the first two pieces
-            produced by splitting on ``::``; additional pieces are ignored.
+            The first separator divides the namespace from the item path.
+            Additional separators remain part of the item path.
         """
-        pieces = key.split("::")
+        pieces = key.split("::", maxsplit=1)
         namespace, item = pieces[0], pieces[1]
         basic = self._parse_basic_segments(item.split("."))
         return [namespace, basic[1], basic[2]]
-
-    # Keep the original Illuminate method names as explicit aliases.
-    parseKey = parse_key
-    setParsedKey = set_parsed_key
-    flushParsedKeys = flush_parsed_keys
 
 
 __all__ = ["NamespacedItemResolver"]

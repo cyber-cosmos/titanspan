@@ -1,10 +1,11 @@
-"""Exercise manager aliases, validation, and resource contracts.
+"""Exercise channel management, validation, and resource contracts.
 
 These tests use real in-memory drivers so public manager operations are
 verified through the native channel and record lifecycle.
 """
 
 from collections.abc import Mapping
+from typing import TYPE_CHECKING
 
 import pytest
 
@@ -23,6 +24,9 @@ from titanspan.logging import (
     MessageLogged,
 )
 from titanspan.logging.formatters import JsonLogFormatter
+
+if TYPE_CHECKING:
+    from titanspan.contracts.logging import LoggingManager, LogWriter
 
 pytestmark = pytest.mark.unit
 SCOPE_FAILURE_MESSAGE = "scope failed"
@@ -57,6 +61,20 @@ def _make_manager(
     return manager, selected_driver
 
 
+def _unused_memory_driver_factory(
+    _: ChannelConfiguration,
+) -> MemoryLogDriver:
+    """Return a typed callback for validation paths that reject registration.
+
+    Args:
+        _: Configuration ignored by tests that fail before factory use.
+
+    Returns:
+        A new in-memory driver if a future test path invokes the callback.
+    """
+    return MemoryLogDriver()
+
+
 def _write_then_fail(manager: LogManager) -> None:
     """Write inside temporary context and raise to exercise restoration.
 
@@ -80,10 +98,10 @@ def _fail_inside_manager_scope(manager: LogManager) -> None:
         raise ValueError(APPLICATION_FAILURE_MESSAGE)
 
 
-def test_manager_exposes_all_laravel_context_and_cache_aliases() -> None:
-    """Keep compatibility spellings backed by shared manager state.
+def test_manager_context_and_channel_operations_share_state() -> None:
+    """Keep context and cached channels on shared manager state.
 
-    Alias calls must operate on the same context and resolved channels.
+    Each channel should observe the manager's current context.
     """
     drivers: list[MemoryLogDriver] = []
 
@@ -106,12 +124,12 @@ def test_manager_exposes_all_laravel_context_and_cache_aliases() -> None:
         },
         drivers={"memory": create_driver},
     )
-    manager.withContext(
+    manager.with_context(
         {"request_id": "mapping", "remove": "local"},
         request_id="keyword",
         local_only=True,
     )
-    manager.shareContext(
+    manager.share_context(
         {"tenant_id": "mapping", "remove_shared": True},
         tenant_id="keyword",
     )
@@ -125,57 +143,57 @@ def test_manager_exposes_all_laravel_context_and_cache_aliases() -> None:
         "tenant_id": "keyword",
         "remove_shared": True,
     }
-    assert manager.getContext() == {
+    assert manager.get_context() == {
         "request_id": "keyword",
         "local_only": True,
         "remove": "local",
         "tenant_id": "keyword",
         "remove_shared": True,
     }
-    assert manager.sharedContext() == {
+    assert manager.shared_context() == {
         "tenant_id": "keyword",
         "remove_shared": True,
     }
 
-    manager.withoutContext(
+    manager.without_context(
         ["local_only", "remove_shared", "remove"],
         "tenant_id",
     )
     assert manager.get_context() == {"request_id": "keyword"}
-    manager.withoutContext(None, "request_id")
-    assert manager.getContext() == {}
+    manager.without_context(None, "request_id")
+    assert manager.get_context() == {}
 
-    manager.withContext(trace_id="trace-1")
-    manager.shareContext(tenant_id="tenant-1")
-    manager.flushSharedContext()
-    assert manager.getContext() == {"trace_id": "trace-1"}
-    manager.flushContext()
-    assert manager.sharedContext() == {}
+    manager.with_context(trace_id="trace-1")
+    manager.share_context(tenant_id="tenant-1")
+    manager.flush_shared_context()
+    assert manager.get_context() == {"trace_id": "trace-1"}
+    manager.flush_context()
+    assert manager.shared_context() == {}
 
     default_logger = manager.channel()
     worker_logger = manager.channel("worker")
-    assert manager.getChannels() == {
+    assert manager.get_channels() == {
         "default": default_logger,
         "worker": worker_logger,
     }
-    manager.setDefaultDriver("worker")
-    assert manager.getDefaultDriver() == "worker"
-    assert manager.get() is worker_logger
-    manager.forgetDriver("worker")
+    manager.set_default_channel("worker")
+    assert manager.get_default_channel() == "worker"
+    assert manager.channel() is worker_logger
+    manager.forget_channel("worker")
     assert worker_logger.channel.closed
-    manager.setDefaultDriver("default")
-    manager.forgetChannel()
-    assert manager.getChannels() == {}
+    manager.set_default_channel("default")
+    manager.forget_channel()
+    assert manager.get_channels() == {}
     manager.close()
 
 
-def test_manager_write_and_context_scope_restore_after_failure() -> None:
-    """Route write aliases and restore context after raised errors.
+def test_manager_writes_and_restores_context_after_failure() -> None:
+    """Write records and restore context after raised errors.
 
     Temporary context must not leak into later logging operations.
     """
     manager, driver = _make_manager()
-    manager.log("notice", "through write", context={"source": "alias"})
+    manager.log("notice", "through log", context={"source": "direct"})
 
     with pytest.raises(RuntimeError, match=SCOPE_FAILURE_MESSAGE):
         _write_then_fail(manager)
@@ -183,7 +201,7 @@ def test_manager_write_and_context_scope_restore_after_failure() -> None:
     manager.log(LogLevel.INFO, "after scope")
 
     assert [record.message for record in driver.records] == [
-        "through write",
+        "through log",
         "within scope",
         "after scope",
     ]
@@ -235,15 +253,18 @@ def test_manager_extension_validation_and_resolved_driver_protection() -> None:
     Resolved driver factories cannot be replaced underneath live channels.
     """
     manager, _ = _make_manager()
+    manager_contract: LoggingManager = manager
+    logger_contract: LogWriter = manager.channel()
+    assert manager_contract.channel() is logger_contract
 
     with pytest.raises(LogConfigurationError, match="driver name"):
-        manager.extend(" custom", lambda _: MemoryLogDriver())
+        manager.extend(" custom", _unused_memory_driver_factory)
     with pytest.raises(LogConfigurationError, match="formatter name"):
         manager.extend_formatter(" custom", lambda _: JsonLogFormatter())
 
     manager.channel()
     with pytest.raises(LogConfigurationError, match="already used"):
-        manager.extend("memory", lambda _: MemoryLogDriver())
+        manager.extend("memory", _unused_memory_driver_factory)
     with pytest.raises(LogConfigurationError, match="reserved"):
         manager.extend_formatter("json", lambda _: JsonLogFormatter())
 
@@ -457,7 +478,7 @@ def test_manager_missing_channel_and_invalid_default_are_explicit() -> None:
     with pytest.raises(LogChannelNotFoundError):
         manager.channel("absent")
     with pytest.raises(LogChannelNotFoundError):
-        manager.set_default_driver("absent")
+        manager.set_default_channel("absent")
 
     manager.close()
 

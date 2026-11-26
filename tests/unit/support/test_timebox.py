@@ -84,13 +84,13 @@ def test_return_early_and_dont_return_early_control_waiting() -> None:
 
     assert box.return_early() is box
     assert box.early_return is True
-    assert box.earlyReturn is True
+    assert box.early_return is True
     assert box.dont_return_early() is box
     assert box.early_return is False
-    box.earlyReturn = True
+    box.early_return = True
     assert box.early_return is True
-    assert box.returnEarly() is box
-    assert box.dontReturnEarly() is box
+    assert box.return_early() is box
+    assert box.dont_return_early() is box
 
 
 @pytest.mark.unit

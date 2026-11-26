@@ -3,8 +3,9 @@
 .PHONY: help install sync update lint format format-check docs-check \
 	docblocks-check comments-check line-length-check syntax-check types \
 	python-standards typecheck architecture-check public-api-check agents-check lock-check \
-	workflows-check yaml-check unit-test integration-test feature-test \
-	regression-test concurrency-test security-test compatibility-test test \
+	workflows-check yaml-check unit-test integration-test \
+	architecture-integration-test feature-test \
+	regression-test concurrency-test security-test component-api-test test \
 	coverage audit license-check security benchmark stress-test build \
 	docs-build docker-check check ci fix clean hooks hooks-check serve docs \
 	docker-up docker-down
@@ -30,6 +31,7 @@ update: ## Upgrade dependencies and update uv.lock
 
 lint: ## Run strict Ruff lint checks
 	uv run --locked ruff check .
+	uv run --locked ruff check --select N,A --ignore-noqa .
 
 format: ## Format maintained Python files with Ruff
 	uv run --locked ruff format .
@@ -65,9 +67,10 @@ typecheck: types ## Alias for strict Pyright verification
 architecture-check: ## Enforce implemented module dependency direction
 	uv run --locked lint-imports
 
-public-api-check: ## Verify the supported package import surface
+public-api-check: ## Verify public imports and native Python API policy
 	mkdir -p test-results
-	$(PYTEST) tests/unit/test_public_api.py -m unit \
+	$(PYTEST) tests/unit/test_public_api.py \
+		tests/unit/test_native_api_names.py -m unit \
 		--junitxml=test-results/public-api.xml -q
 
 agents-check: ## Validate agent policy and package boundaries
@@ -86,18 +89,24 @@ unit-test: ## Run isolated unit tests outside specialized categories
 		--ignore=tests/unit/support \
 		--ignore=tests/unit/logging \
 		--ignore=tests/unit/test_public_api.py \
-		-m "unit and not feature and not regression and not security and not concurrency" \
+		-m "unit and not feature and not regression and not security and not concurrency and not architecture" \
 		--junitxml=test-results/unit.xml -q
 
 integration-test: ## Run real dependency integration tests
 	mkdir -p test-results
 	$(PYTEST) tests/integration \
-		-m "integration and not feature and not regression and not security and not concurrency" \
+		-m "integration and not architecture and not feature and not regression and not security and not concurrency" \
 		--junitxml=test-results/integration.xml -q
+
+architecture-integration-test: ## Verify cross-component contracts and lifecycle
+	mkdir -p test-results
+	$(PYTEST) tests \
+		-m architecture \
+		--junitxml=test-results/architecture-integration.xml -q
 
 feature-test: ## Run complete user-facing feature tests
 	mkdir -p test-results
-	$(PYTEST) tests -m feature \
+	$(PYTEST) tests -m "feature and not architecture" \
 		--junitxml=test-results/feature.xml -q
 
 regression-test: ## Run focused regression tests
@@ -115,11 +124,11 @@ security-test: ## Run security behavior tests
 	$(PYTEST) tests -m security \
 		--junitxml=test-results/security.xml -q
 
-compatibility-test: ## Run Laravel-inspired Support and logging contracts
+component-api-test: ## Run Support and logging behavioral suites
 	mkdir -p test-results
 	$(PYTEST) tests/unit/support tests/unit/logging \
 		-m "unit and not regression and not security and not concurrency" \
-		--junitxml=test-results/compatibility.xml -q
+		--junitxml=test-results/component-api.xml -q
 
 test: ## Run every collected test exactly once
 	$(PYTEST) -q

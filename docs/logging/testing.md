@@ -16,9 +16,9 @@ with Log.fake():
 
 Assertions accept optional severity, message, channel, context subset, and
 record predicate filters. Available assertions are `assert_logged`,
-`assert_not_logged`, `assert_logged_times`, and `assert_nothing_logged`, with
-Laravel-compatible camelCase aliases. A fake is isolated to the active
-context and restores the previous manager on scope exit, including failure.
+`assert_not_logged`, `assert_logged_times`, and `assert_nothing_logged`. A
+fake is isolated to the active context and restores the previous manager on
+scope exit, including failure.
 
 For direct unit tests, `MemoryLogDriver` retains a bounded sequence of native
 `LogRecord` instances. For integration tests, use temporary directories,

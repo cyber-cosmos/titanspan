@@ -1,6 +1,6 @@
-"""Verify fluent strings delegate to the pinned Laravel string API.
+"""Verify immutable fluent strings and Python string interoperability.
 
-The tests check chaining, Python aliases, return types, immutability,
+The tests check chaining, return types, immutability,
 condition callbacks, macro invocation, and Python string interoperability.
 """
 
@@ -58,7 +58,7 @@ def test_stringable_chains_transformations_and_keeps_original_value() -> None:
     assert original.to_string() == "  Hello World  "
     assert original.value() == original.to_string()
     assert len(original) == len(original.value())
-    assert result.toString() == "hello-world-framework"
+    assert result.to_string() == "hello-world-framework"
     assert str(result) == "hello-world-framework"
 
 
@@ -74,27 +74,28 @@ def test_stringable_preserves_native_result_types() -> None:
     assert value.contains("Framework") is True
     assert value.length() == EXPECTED_TEXT_LENGTH
     assert value.match(r"Titan\w+").to_string() == "Titanspan"
-    assert value.to_base64().fromBase64().to_string() == ("Titanspan Framework")
+    assert value.to_base64().from_base64().to_string() == (
+        "Titanspan Framework"
+    )
 
 
 @pytest.mark.unit
-def test_stringable_supports_laravel_and_python_spellings() -> None:
-    """Expose explicit camelCase aliases beside Python snake_case names.
+def test_stringable_supports_chained_path_transformations() -> None:
+    """Apply path-oriented transformations with the fluent interface.
 
     Returns:
         None.
     """
     value = Stringable("path/to/report.csv")
 
-    assert value.afterLast("/").before_last(".").to_string() == "report"
-    assert value.after_last("/").beforeLast(".").toString() == "report"
-    assert value.startsWith("path")
+    assert value.after_last("/").before_last(".").to_string() == "report"
+    assert value.starts_with("path")
     assert value.ends_with(".csv")
 
 
 @pytest.mark.unit
 def test_stringable_conditional_operations_delegate_to_conditionable() -> None:
-    """Apply Laravel's conditional string operations with fluent results.
+    """Apply conditional string operations with fluent results.
 
     Returns:
         None.
@@ -153,30 +154,30 @@ def test_stringable_conditional_operations_delegate_to_conditionable() -> None:
     assert isinstance(fallback, Stringable)
     assert fallback.to_string() == "Titanspan?"
     camel_case = [
-        Stringable("Titanspan").whenContains("Titan", append_marker),
-        Stringable("Titanspan").whenContainsAll(
+        Stringable("Titanspan").when_contains("Titan", append_marker),
+        Stringable("Titanspan").when_contains_all(
             ["Titan", "span"],
             append_marker,
         ),
-        Stringable("").whenEmpty(append_marker),
-        Stringable("Titanspan").whenNotEmpty(append_marker),
-        Stringable("Titanspan").whenEndsWith("span", append_marker),
-        Stringable("Titanspan").whenDoesntEndWith("other", append_marker),
-        Stringable("Titanspan").whenExactly(
+        Stringable("").when_empty(append_marker),
+        Stringable("Titanspan").when_not_empty(append_marker),
+        Stringable("Titanspan").when_ends_with("span", append_marker),
+        Stringable("Titanspan").when_doesnt_end_with("other", append_marker),
+        Stringable("Titanspan").when_exactly(
             "Titanspan",
             append_marker,
         ),
-        Stringable("Titanspan").whenNotExactly("other", append_marker),
-        Stringable("Titanspan").whenIs("Titan*", append_marker),
-        Stringable("Titanspan").whenIsAscii(append_marker),
-        Stringable(EXPECTED_UUID).whenIsUuid(append_marker),
-        Stringable(EXPECTED_ULID).whenIsUlid(append_marker),
-        Stringable("Titanspan").whenStartsWith("Titan", append_marker),
-        Stringable("Titanspan").whenDoesntStartWith(
+        Stringable("Titanspan").when_not_exactly("other", append_marker),
+        Stringable("Titanspan").when_is("Titan*", append_marker),
+        Stringable("Titanspan").when_is_ascii(append_marker),
+        Stringable(EXPECTED_UUID).when_is_uuid(append_marker),
+        Stringable(EXPECTED_ULID).when_is_ulid(append_marker),
+        Stringable("Titanspan").when_starts_with("Titan", append_marker),
+        Stringable("Titanspan").when_doesnt_start_with(
             "other",
             append_marker,
         ),
-        Stringable("Titanspan").whenTest("Titan.*", append_marker),
+        Stringable("Titanspan").when_test("Titan.*", append_marker),
     ]
     assert [str(result) for result in camel_case] == [
         "Titanspan!",
@@ -207,8 +208,8 @@ def test_stringable_supports_delimiter_and_case_transformations() -> None:
     value = Stringable("[hello_world]")
 
     assert value.between("[", "]").camel().to_string() == "helloWorld"
-    assert value.betweenFirst("[", "]").kebab().to_string() == ("hello-world")
-    assert value.beforeLast("_").after("[").to_string() == "hello"
+    assert value.between_first("[", "]").kebab().to_string() == ("hello-world")
+    assert value.before_last("_").after("[").to_string() == "hello"
     assert value.after_last("_").before("]").to_string() == "world"
     assert Stringable("hello-world").studly().to_string() == "HelloWorld"
     assert Stringable("hello-world").snake().to_string() == "hello_world"
@@ -216,7 +217,7 @@ def test_stringable_supports_delimiter_and_case_transformations() -> None:
     assert Stringable("Crème brûlée").ascii().slug().to_string() == (
         "creme-brulee"
     )
-    assert Stringable("prefix value").chopStart("prefix ").to_string() == (
+    assert Stringable("prefix value").chop_start("prefix ").to_string() == (
         "value"
     )
     assert Stringable("value.csv").chop_end(".csv").to_string() == "value"
@@ -231,27 +232,28 @@ def test_stringable_exposes_string_predicates_and_native_results() -> None:
     """
     value = Stringable("Titanspan Framework")
 
-    assert value.containsAll(["Titan", "Framework"])
-    assert value.doesntContain("Laravel")
-    assert value.startsWith("Titan")
-    assert value.doesntStartWith("Laravel")
-    assert value.endsWith("Framework")
-    assert value.doesntEndWith("Laravel")
+    assert value.contains_all(["Titan", "Framework"])
+    assert value.doesnt_contain("Django")
+    assert value.starts_with("Titan")
+    assert value.doesnt_start_with("Django")
+    assert value.ends_with("Framework")
+    assert value.doesnt_end_with("Django")
     assert value.is_("Titan*")
-    assert value.isMatch(r"Framework$")
+    assert value.is_match(r"Framework$")
     assert value.test(r"^Titan")
     assert value.is_ascii()
-    assert Stringable('{"enabled": true}').isJson()
-    assert Stringable("https://example.com").isUrl()
-    assert Stringable(EXPECTED_UUID).isUuid(4)
-    assert Stringable(EXPECTED_ULID).isUlid()
-    assert Stringable("").isEmpty()
-    assert value.isNotEmpty()
-    assert Stringable(" \t\n").isBlank()
-    assert value.isNotBlank()
+    assert Stringable('{"enabled": true}').is_json()
+    assert Stringable("https://example.com").is_url()
+    assert Stringable(EXPECTED_UUID).is_uuid(4)
+    assert Stringable(EXPECTED_ULID).is_ulid()
+    assert Stringable("").is_empty()
+    assert value.is_not_empty()
+    assert Stringable(" \t\n").is_blank()
+    assert value.is_not_blank()
     assert value.length() == EXPECTED_TEXT_LENGTH
-    assert Stringable("Titan🙂").charAt(-1) == "🙂"
-    assert Stringable("x").char_at(10) is False
+    assert Stringable("Titan🙂").char_at(-1) == "🙂"
+    with pytest.raises(IndexError):
+        Stringable("x").char_at(10)
 
 
 @pytest.mark.unit
@@ -264,22 +266,22 @@ def test_stringable_handles_padding_search_and_replacements() -> None:
     value = Stringable("a/b/c")
 
     assert value.replace("/", "-").to_string() == "a-b-c"
-    assert value.replaceArray("/", ["one", "two"]).to_string() == ("aonebtwoc")
-    assert value.replaceFirst("/", "-").to_string() == "a-b/c"
-    assert value.replaceLast("/", "-").to_string() == "a/b-c"
-    assert value.replaceStart("a", "x").to_string() == "x/b/c"
-    assert value.replaceEnd("c", "x").to_string() == "a/b/x"
-    assert value.replaceMatches(r"/", "-").to_string() == "a-b-c"
+    assert value.replace_array("/", ["one", "two"]).to_string() == ("aonebtwoc")
+    assert value.replace_first("/", "-").to_string() == "a-b/c"
+    assert value.replace_last("/", "-").to_string() == "a/b-c"
+    assert value.replace_start("a", "x").to_string() == "x/b/c"
+    assert value.replace_end("c", "x").to_string() == "a/b/x"
+    assert value.replace_matches(r"/", "-").to_string() == "a-b-c"
     assert value.remove(["/", "b"]).to_string() == "ac"
     assert value.swap({"/": "-", "a": "x"}).to_string() == "x-b-c"
     assert value.position("b") == EXPECTED_POSITION
-    assert Stringable("Handler@run").parseCallback() == (
+    assert Stringable("Handler@run").parse_callback() == (
         "Handler",
         "run",
     )
-    assert Stringable("x").padLeft(3, "0").to_string() == "00x"
+    assert Stringable("x").pad_left(3, "0").to_string() == "00x"
     assert Stringable("x").pad_right(3, "0").to_string() == "x00"
-    assert Stringable("x").padBoth(3, "0").to_string() == "0x0"
+    assert Stringable("x").pad_both(3, "0").to_string() == "0x0"
 
 
 @pytest.mark.unit
@@ -307,11 +309,11 @@ def test_stringable_handles_unicode_limits_and_whitespace() -> None:
     )
     assert value.words(2).to_string() == "  one   two..."
     assert value.word_count() == EXPECTED_WORD_COUNT
-    assert value.wordCount("-") == EXPECTED_WORD_COUNT
+    assert value.word_count("-") == EXPECTED_WORD_COUNT
     assert value.word_wrap(7).to_string() == "  one\ntwo\nthree"
     assert Stringable("hello").substr(1, 3).to_string() == "ell"
     assert Stringable("ababa").substr_count("a") == EXPECTED_WORD_COUNT
-    assert Stringable("hello").substrReplace("X", 1, 2).to_string() == ("hXlo")
+    assert Stringable("hello").substr_replace("X", 1, 2).to_string() == ("hXlo")
     assert Stringable("Titanspan").take(-4).to_string() == "span"
 
 
@@ -324,7 +326,7 @@ def test_stringable_formats_and_encodes_strings() -> None:
     """
     value = Stringable("hello_world")
 
-    assert value.convertCase(1).to_string() == "hello_world"
+    assert value.convert_case(1).to_string() == "hello_world"
     assert value.deduplicate("_").to_string() == "hello_world"
     assert value.headline().to_string() == "Hello World"
     assert value.initials().to_string() == "h"
@@ -337,7 +339,7 @@ def test_stringable_formats_and_encodes_strings() -> None:
     assert Stringable("S/N: 12").numbers().to_string() == "12"
     assert Stringable("one").append(" ", "two").to_string() == "one two"
     assert Stringable("two").prepend("one", " ").to_string() == "one two"
-    assert Stringable("line").newLine(2).to_string() == "line\n\n"
+    assert Stringable("line").new_line(2).to_string() == "line\n\n"
     assert Stringable("ha ").repeat(2).to_string() == (
         EXPECTED_REPEATED_WORDS + " "
     )
@@ -346,11 +348,13 @@ def test_stringable_formats_and_encodes_strings() -> None:
     assert Stringable("///api").start("/").to_string() == "/api"
     assert Stringable("<value>").unwrap("<", ">").to_string() == "value"
     assert Stringable("value").wrap("<", ">").to_string() == "<value>"
-    encoded = Stringable("Titanspan").toBase64()
+    encoded = Stringable("Titanspan").to_base64()
     assert encoded.from_base64().to_string() == "Titanspan"
-    assert encoded.jsonSerialize() == str(encoded)
-    assert Stringable("VALUE").toString() == "VALUE"
-    assert Stringable("<b>safe</b>").toHtmlString().toHtml() == ("<b>safe</b>")
+    assert encoded.to_string() == str(encoded)
+    assert Stringable("VALUE").to_string() == "VALUE"
+    assert Stringable("<b>safe</b>").to_html_string().to_html() == (
+        "<b>safe</b>"
+    )
 
 
 @pytest.mark.unit
@@ -385,7 +389,7 @@ def test_stringable_checks_errors_and_mutable_offset_boundaries() -> None:
 
 @pytest.mark.unit
 def test_stringable_supports_indexing_and_offset_mutation() -> None:
-    """Expose Python indexing while matching Laravel mutable offsets.
+    """Expose native Python indexing and immutable string behavior.
 
     Returns:
         None.
@@ -394,7 +398,7 @@ def test_stringable_supports_indexing_and_offset_mutation() -> None:
 
     assert value[0] == "T"
     assert value[-4:] == "span"
-    assert value.offsetExists(0)
+    assert value.offset_exists(0)
     assert value.offset_exists(-1)
     assert not value.offset_exists(20)
     value[0] = "t"
@@ -436,6 +440,6 @@ def test_stringable_composes_conditionable_and_macroable_behaviour() -> None:
     try:
         assert isinstance(result, Stringable)
         assert result.to_string() == "Titanspan Framework"
-        assert Stringable.hasMacro("appendSuffix")
+        assert Stringable.has_macro("appendSuffix")
     finally:
-        Stringable.flushMacros()
+        Stringable.flush_macros()

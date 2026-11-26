@@ -1,7 +1,6 @@
-"""Verify the native typed settings abstraction and safe validation errors.
+"""Verify native typed settings export and safe validation errors.
 
-Pydantic Settings remains an internal validation engine while applications
-inherit from the Titanspan-owned ``Settings`` base.
+Applications use Titanspan's ``Settings`` declaration and error surface.
 """
 
 import os
@@ -103,3 +102,21 @@ def test_settings_repr_redacts_secret_named_fields() -> None:
     assert "private-value" not in repr(settings)
     assert "private-value" not in str(settings)
     assert settings.redacted()["api_key"] == "[REDACTED]"
+
+
+def test_settings_export_through_native_dictionary_api() -> None:
+    """Expose complete and explicitly supplied values as native mappings.
+
+    Returns:
+        None.
+    """
+    settings = WorkerSettings(workers=_PARSED_WORKER_COUNT)
+
+    assert settings.to_dict() == {
+        "app_name": "Titanspan",
+        "debug": False,
+        "workers": _PARSED_WORKER_COUNT,
+    }
+    assert settings.to_dict(include_defaults=False) == {
+        "workers": _PARSED_WORKER_COUNT,
+    }

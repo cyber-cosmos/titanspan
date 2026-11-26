@@ -93,6 +93,7 @@ strict_config = true
 strict_markers = true
 testpaths = ["tests"]
 markers = [
+    "architecture: verifies real cross-component framework composition",
     "benchmark: performance measurement without a shared-runner threshold",
     "concurrency: cancellation, isolation, bounded execution, or shutdown",
     "feature: user-visible behavior across framework boundaries",
@@ -167,123 +168,27 @@ ignore = [
 [tool.ruff.lint.per-file-ignores]
 "tests/**" = ["S101"]
 "benchmarks/**" = ["S101"]
-"src/titanspan/support/arr.py" = [
-    "N815", # Laravel-compatible aliases intentionally retain camelCase.
-]
-"src/titanspan/support/binary_codec.py" = [
-    "A002", # Preserve Laravel's public format parameter name.
-    "N802", # Preserve Laravel's isBinary compatibility method.
-    "N815", # Preserve Laravel's isBinary compatibility alias.
-]
-"src/titanspan/support/configuration_url_parser.py" = [
-    "N802", # Preserve Illuminate's public camelCase method aliases.
-    "N815", # Preserve Illuminate's class-level camelCase method aliases.
-]
-"src/titanspan/support/namespaced_item_resolver.py" = [
-    "N815", # Preserve Illuminate's class-level camelCase method aliases.
-]
-"src/titanspan/support/forwards_calls.py" = [
-    "N815", # Preserve Illuminate's class-level camelCase method aliases.
-]
-"src/titanspan/support/interacts_with_time.py" = [
-    "N815", # Preserve Illuminate's class-level camelCase method aliases.
-]
-"src/titanspan/support/conditionable.py" = [
-    "N815", # Laravel-compatible async aliases retain camelCase.
-]
-"src/titanspan/support/macroable.py" = [
-    "N815", # Laravel-compatible macro aliases retain camelCase.
-]
-"src/titanspan/support/fluent.py" = [
-    "N802", # Laravel-compatible methods intentionally retain camelCase.
-    "N815", # Laravel-compatible aliases retain camelCase.
-]
-"src/titanspan/support/message_bag.py" = [
-    "A002", # Keep Laravel's public format argument name.
-    "N802", # Laravel-compatible aliases retain camelCase.
-]
-"src/titanspan/contracts/message_bag.py" = [
-    "A002", # Keep Laravel's public format argument name.
-    "N802", # Laravel-compatible protocol aliases retain camelCase.
-]
-"src/titanspan/contracts/deferring_displayable_value.py" = [
-    "N802", # Preserve Laravel's public resolveDisplayableValue alias.
-    "N815", # Preserve the Laravel-compatible protocol alias.
-]
-"src/titanspan/contracts/support.py" = [
-    "N802", # Preserve Laravel-compatible method spellings in protocols.
-    "N815", # Preserve Laravel-compatible camelCase protocol aliases.
-]
-"tests/unit/contracts/test_contracts.py" = [
-    "N802", # Exercise Laravel-compatible method spellings.
-    "N815", # Exercise Laravel-compatible camelCase protocol aliases.
-]
-"tests/unit/support/test_html_strings.py" = [
-    "N802", # Exercise the original Illuminate protocol method spelling.
-    "N815", # Exercise the Laravel-compatible deferred-value protocol alias.
-]
-"tests/unit/support/test_helpers.py" = [
-    "N815", # Exercise Laravel-compatible camelCase callback protocols.
-]
-"src/titanspan/support/str.py" = [
-    "N815", # Laravel-compatible aliases intentionally retain camelCase.
-]
-"src/titanspan/support/stringable.py" = [
-    "A002", # Retain selected Illuminate-compatible argument names.
-    "N802", # Laravel-compatible methods intentionally retain camelCase.
-    "N815", # Laravel-compatible aliases intentionally retain camelCase.
-]
-"src/titanspan/support/html_string.py" = [
-    "N815", # Laravel-compatible aliases intentionally retain camelCase.
-]
-"src/titanspan/support/encoded_html_string.py" = [
-    "N815", # Laravel-compatible aliases intentionally retain camelCase.
-]
-"src/titanspan/support/uri.py" = [
-    "N815", # Laravel-compatible aliases intentionally retain camelCase.
-]
 "src/titanspan/support/uri_query_string.py" = [
-    "N815",   # Preserve the Laravel-compatible toArray alias.
-    "SLF001", # The paired adapter reads its owning URI's private state.
+    "SLF001", # The URI query adapter reads its owning URI's private state.
 ]
 "src/titanspan/support/benchmark.py" = [
-    "PIE790", # Keep required type-only overload bodies explicit.
-]
-"src/titanspan/support/lottery.py" = [
-    "N815", # Laravel-compatible aliases intentionally retain camelCase.
-]
-"src/titanspan/config/repository.py" = [
-    "N815", # Preserve the Laravel-compatible getMany repository alias.
-]
-"src/titanspan/facades/config.py" = [
-    "N815", # Preserve the Laravel-compatible getMany facade alias.
-]
-"src/titanspan/support/timebox.py" = [
-    "N802", # Preserve the Laravel-compatible earlyReturn property.
-    "N815", # Laravel-compatible aliases intentionally retain camelCase.
-]
-"src/titanspan/support/sleep.py" = [
-    "N802", # Preserve the Laravel-compatible fakeSleepCallbacks property.
-    "N815", # Preserve Laravel-compatible camelCase assertion aliases.
-]
-"src/titanspan/support/env.py" = [
-    "N802", # Preserve Laravel-compatible camelCase method aliases.
-    "N815", # Preserve Laravel-compatible camelCase method aliases.
+    "PIE790", # Keep required overload declarations explicit.
 ]
 "src/titanspan/support/number.py" = [
-    "A002", # Preserve ICU-compatible type and Laravel numeric bounds.
-    "N802", # Preserve Laravel-compatible public method aliases.
-    "N815", # Preserve Laravel-compatible method alias assignments.
-    "PLC0415", # Load optional number libraries only when methods are called.
+    "PLC0415", # Load optional number libraries only when called.
+]
+"src/titanspan/logging/drivers/standard.py" = [
+    "N802", # Match TimedRotatingFileHandler.computeRollover.
+    "N803", # Match the computeRollover parameter required by the base hook.
+]
+"tests/integration/logging/test_webhook.py" = [
+    "A002", # Match BaseHTTPRequestHandler.log_message's format parameter.
 ]
 "tests/unit/support/test_number.py" = [
     "PLR2004", # Keep expected numeric outputs readable in behavior examples.
 ]
 "tests/integration/support/test_number_integration.py" = [
     "PLR2004", # Keep exact locale conversion fixtures readable.
-]
-"src/titanspan/contracts/htmlable.py" = [
-    "N802", # Preserve the Laravel-compatible Protocol method spelling.
 ]
 
 [tool.ruff.lint.mccabe]

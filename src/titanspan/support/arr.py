@@ -1,8 +1,7 @@
-r"""Provide PHP-array-inspired utilities for Python mappings and sequences.
+r"""Provide nested-data utilities for Python mappings and sequences.
 
-The API follows Laravel's ``Illuminate\\Support\\Arr`` naming and observable
-operations where Python has an equivalent representation. Mutable helpers
-require mutable mappings or lists; they never mutate an immutable input.
+Operations work with Python mappings and sequences. Mutable helpers require
+mutable mappings or lists; they never mutate an immutable input.
 """
 
 from __future__ import annotations
@@ -97,7 +96,7 @@ def _text_sort_value(
 
     Args:
         value: The source value.
-        mode: The Laravel-compatible string sorting mode.
+        mode: The configured string sorting mode.
         case_sensitive: Whether letter case affects the result.
 
     Returns:
@@ -119,7 +118,7 @@ def _sort_representation(
 
     Args:
         value: The value to normalize.
-        options: A Laravel-compatible sort mode and flags.
+        options: A sort mode and its flags.
 
     Returns:
         A stable category and typed payload pair.
@@ -147,8 +146,8 @@ class _SortOrder:
     """Provide deterministic ordering for heterogeneous Python values.
 
     Numeric, string, byte, missing, and other values occupy stable type
-    categories. This avoids PHP-style loose comparisons while supporting
-    Python collections that mix otherwise incomparable values.
+    categories. This avoids coercive comparisons while supporting Python
+    collections that mix otherwise incomparable values.
     """
 
     def __init__(
@@ -162,7 +161,7 @@ class _SortOrder:
         Args:
             value: The value used as a sort key.
             descending: Whether the key sorts in reverse order.
-            options: A Laravel-compatible sort mode and case flag.
+            options: A sort mode and case flag.
         """
         self.descending = descending
         self.category, self.value = _sort_representation(value, options)
@@ -368,7 +367,7 @@ def _read(value: object, key: object) -> object:
 
 
 def _default_value(default: object) -> object:
-    """Resolve a Laravel-style lazy default.
+    """Resolve a lazy default value.
 
     Args:
         default: A value or zero-argument callable returning the value.
@@ -696,12 +695,12 @@ def _sort_array(
 
 
 class Arr:
-    """Expose Laravel-inspired static helpers for mapping-like data.
+    """Expose static helpers for mapping-like data.
 
     Methods accept Python mappings and positional sequences where the
     operation is meaningful. Dot paths can traverse both forms. Mutating
-    methods require a mutable mapping or list, reflecting Python ownership
-    rather than PHP's copy-on-write array syntax.
+    methods require a mutable mapping or list and mutate that object
+    directly, reflecting Python's ordinary reference semantics.
     """
 
     SORT_REGULAR = _SORT_REGULAR
@@ -746,8 +745,8 @@ class Arr:
     ) -> MutableArray[K, V]:
         """Add a value only when the resolved path currently yields ``None``.
 
-        This follows Laravel's ``Arr::add`` null behavior. Use ``has`` when
-        the distinction between a missing path and explicit ``None`` matters.
+        This operation treats an explicit ``None`` value like an absent
+        value. Use ``has`` when key presence matters.
 
         Args:
             array: The mutable target.
@@ -834,7 +833,7 @@ class Arr:
             if _is_mapping(source):
                 if not keyed:
                     # Flush earlier positional values before later mappings,
-                    # preserving the input order used by PHP array_merge.
+                    # Preserve input ordering when mappings follow sequences.
                     for value in positional:
                         output[next_index] = value
                         next_index += 1
@@ -887,8 +886,7 @@ class Arr:
     ) -> dict[str, object]:
         """Flatten nested mappings and sequences using dotted keys.
 
-        Empty nested containers are retained as leaf values, matching
-        Laravel's ``Arr::dot`` behavior.
+        Empty nested containers are retained as leaf values.
 
         Args:
             array: The source mapping or sequence.
@@ -1561,8 +1559,7 @@ class Arr:
     ) -> dict[K, T]:
         """Expand each sequence into callback positional arguments.
 
-        The source key is appended as the final callback argument, matching
-        Laravel's ``Arr::mapSpread`` convention.
+        The source key is appended as the final callback argument.
 
         Args:
             array: A mapping of keys to positional chunks.
@@ -1814,7 +1811,7 @@ class Arr:
         array: Mapping[K, V] | Iterable[V],
         callback: str | Callable[[V], object] | Sequence[object] | None = None,
     ) -> dict[Hashable, object] | list[object]:
-        """Sort values in descending order using Laravel-style selectors.
+        """Sort values in descending order using supported selectors.
 
         Args:
             array: The source mapping or iterable.
@@ -1884,9 +1881,8 @@ class Arr:
             A new recursively sorted mapping or list.
 
         Notes:
-            Python cannot reproduce PHP's array comparison flags. Scalar
-            values use native ordering; nested, non-orderable values use
-            deterministic representation ordering.
+            Scalar values use native ordering; nested, non-orderable values
+            use deterministic representation ordering.
         """
         return Arr.sort_recursive(array, options, descending=True)
 
@@ -2055,25 +2051,6 @@ class Arr:
         if _is_iterable(value) and not isinstance(value, (str, bytes)):
             return list(value)
         return [value]
-
-    # Laravel-compatible spellings remain statically discoverable aliases.
-    crossJoin = cross_join
-    exceptValues = except_values
-    hasAll = has_all
-    hasAny = has_any
-    isAssoc = is_assoc
-    isList = is_list
-    keyBy = key_by
-    prependKeysWith = prepend_keys_with
-    onlyValues = only_values
-    mapWithKeys = map_with_keys
-    mapSpread = map_spread
-    sortDesc = sort_desc
-    sortRecursive = sort_recursive
-    sortRecursiveDesc = sort_recursive_desc
-    toCssClasses = to_css_classes
-    toCssStyles = to_css_styles
-    whereNotNull = where_not_null
 
 
 __all__ = ["Arr"]

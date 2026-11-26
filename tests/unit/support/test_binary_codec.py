@@ -1,7 +1,7 @@
 """Verify binary identifier conversion and codec registration behaviour.
 
-Tests follow the pinned Illuminate Support cases and add Python-specific
-coverage for the distinction between text and byte sequences.
+The cases cover the distinction between text and byte sequences along with
+UUID and ULID round trips.
 """
 
 from __future__ import annotations
@@ -129,7 +129,7 @@ def test_registered_codec_overrides_a_builtin_format() -> None:
 def test_blank_values_encode_and_decode_as_none(
     value: str | bytes | None,
 ) -> None:
-    """Return None for inputs considered blank by Laravel Support.
+    """Return ``None`` when the input is an empty string or byte sequence.
 
     Args:
         value: A nullable textual or byte input.
@@ -248,7 +248,7 @@ def test_ulid_codec_converts_text_and_bytes() -> None:
 def test_ulid_codec_handles_nul_bearing_text_as_binary() -> None:
     """Treat a 16-byte NUL-bearing string as an already encoded identifier.
 
-    This preserves the upstream binary-detection behavior for string inputs.
+    Text inputs are detected without converting them to bytes first.
     """
     encoded = b"\x00" * 16
     binary_text = encoded.decode("ascii")
@@ -310,4 +310,4 @@ def test_binary_detection_handles_text_bytes_and_invalid_utf8() -> None:
     assert BinaryCodec.is_binary(b"\xff\xfe")
     assert BinaryCodec.is_binary("hello\x00world")
     assert BinaryCodec.is_binary("\ud800")
-    assert BinaryCodec.isBinary(b"\xff\xfe")
+    assert BinaryCodec.is_binary(b"\xff\xfe")

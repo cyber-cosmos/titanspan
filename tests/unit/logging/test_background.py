@@ -22,8 +22,8 @@ from titanspan.logging import (
 )
 
 if TYPE_CHECKING:
+    from titanspan.contracts.logging import LogDriver
     from titanspan.logging.configuration import ChannelConfiguration
-    from titanspan.logging.contracts.log_driver import LogDriver
     from titanspan.logging.events import MessageLogged
     from titanspan.logging.record import LogRecord
 
@@ -78,7 +78,7 @@ class BlockingDriver:
 
 
 def _manager(
-    driver: LogDriver,
+    driver: LogDriver[LogRecord],
     policy: str,
     *,
     wait_timeout: float = 5.0,
@@ -96,7 +96,7 @@ def _manager(
         A manager that owns the background worker and wrapped driver.
     """
 
-    def factory(_: ChannelConfiguration) -> LogDriver:
+    def factory(_: ChannelConfiguration) -> LogDriver[LogRecord]:
         """Return the configured native test sink.
 
         Returns:

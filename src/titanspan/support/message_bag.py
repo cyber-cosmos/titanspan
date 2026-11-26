@@ -1,8 +1,6 @@
-r"""Store and format keyed validation and application messages.
+"""Store and format keyed validation and application messages.
 
-The implementation follows Laravel's ``Illuminate\\Support\\MessageBag``
-contract while using Python mappings, explicit aliases, and standard JSON
-serialization.
+Messages use Python mappings, ordered keys, and standard JSON serialization.
 """
 
 from __future__ import annotations
@@ -16,7 +14,10 @@ from titanspan.support.str import Str
 if TYPE_CHECKING:
     from collections.abc import Sequence
 
-    from titanspan.contracts.message_bag import MessageKey, MessageProvider
+    from titanspan.contracts.support.message_bag import (
+        MessageKey,
+        MessageProvider,
+    )
 
 _DEFAULT_FORMAT = ":message"
 _JSON_PRETTY_PRINT = 128
@@ -30,8 +31,8 @@ class MessageBag:
     """Manage unique messages grouped by field or application key.
 
     Construction removes duplicate messages within each key. Explicit
-    :meth:`add` operations also preserve uniqueness; :meth:`merge` follows
-    Laravel's recursive merge behavior and can append repeated messages.
+    :meth:`add` operations also preserve uniqueness; :meth:`merge` appends
+    repeated messages from another source.
 
     Attributes:
         _messages: The internal ordered mapping of keys to message lists.
@@ -117,27 +118,14 @@ class MessageBag:
             self.add(key, message)
         return self
 
-    def addIf(self, condition: bool, key: MessageKey, message: str) -> Self:
-        """Add a message through Laravel's camelCase method name.
-
-        Args:
-            condition: Whether the message should be added.
-            key: The field or message group receiving the message.
-            message: The text to add when selected.
-
-        Returns:
-            This instance for fluent chaining.
-        """
-        return self.add_if(condition, key, message)
-
     def merge(
         self,
         messages: Mapping[object, object] | MessageProvider,
     ) -> Self:
         """Append messages from another bag or mapping.
 
-        Unlike :meth:`add`, merge preserves duplicates to match PHP's
-        ``array_merge_recursive`` behavior for repeated field values.
+        Unlike :meth:`add`, merge preserves repeated messages from the
+        incoming mapping.
 
         Args:
             messages: A message provider or mapping of keys to message values.
@@ -209,22 +197,6 @@ class MessageBag:
         selected.extend(more_keys)
         return any(self.has(key) for key in selected)
 
-    def hasAny(
-        self,
-        keys: MessageKey | Iterable[MessageKey] | None = (),
-        *more_keys: MessageKey,
-    ) -> bool:
-        """Check selected keys using Laravel's camelCase method name.
-
-        Args:
-            keys: One field name or an iterable of field names.
-            *more_keys: Additional fields checked alongside ``keys``.
-
-        Returns:
-            Whether one or more selected keys have messages.
-        """
-        return self.has_any(keys, *more_keys)
-
     def missing(
         self,
         key: MessageKey | Iterable[MessageKey] | None,
@@ -244,18 +216,22 @@ class MessageBag:
     def first(
         self,
         key: MessageKey | None = None,
-        format: str | None = None,
+        message_format: str | None = None,
     ) -> str:
         """Return the first formatted message for a field or the whole bag.
 
         Args:
             key: The field to query, or ``None`` for the first global message.
-            format: An optional ``:message``/``:key`` format template.
+            message_format: An optional ``:message``/``:key`` template.
 
         Returns:
             The first matching message or an empty string.
         """
-        messages = self.all(format) if key is None else self.get(key, format)
+        messages = (
+            self.all(message_format)
+            if key is None
+            else self.get(key, message_format)
+        )
         if isinstance(messages, dict):
             for first_group in messages.values():
                 return first_group[0] if first_group else ""
@@ -265,58 +241,58 @@ class MessageBag:
     def get(
         self,
         key: MessageKey,
-        format: str | None = None,
+        message_format: str | None = None,
     ) -> list[str] | dict[MessageKey, list[str]]:
         """Get formatted messages for a key or wildcard pattern.
 
         Args:
-            key: A field key or Laravel-style wildcard pattern.
-            format: An optional message format template.
+            key: A field key or supported wildcard pattern.
+            message_format: An optional message format template.
 
         Returns:
             A list for an exact key or a mapping for wildcard matches.
         """
         if key in self._messages:
-            selected_format = self._check_format(format)
+            selected_format = self._check_format(message_format)
             return self._transform(self._messages[key], selected_format, key)
         if not isinstance(key, str) or "*" not in key:
             return []
         return {
             message_key: self._transform(
                 values,
-                self._check_format(format),
+                self._check_format(message_format),
                 message_key,
             )
             for message_key, values in self._messages.items()
             if Str.is_(key, str(message_key))
         }
 
-    def all(self, format: str | None = None) -> list[str]:
+    def all(self, message_format: str | None = None) -> list[str]:
         """Return every formatted message in key and insertion order.
 
         Args:
-            format: An optional message format template.
+            message_format: An optional message format template.
 
         Returns:
             A flat list of formatted messages.
         """
-        selected_format = self._check_format(format)
+        selected_format = self._check_format(message_format)
         return [
             message
             for key, values in self._messages.items()
             for message in self._transform(values, selected_format, key)
         ]
 
-    def unique(self, format: str | None = None) -> list[str]:
+    def unique(self, message_format: str | None = None) -> list[str]:
         """Return formatted messages with duplicate text removed in order.
 
         Args:
-            format: An optional message format template.
+            message_format: An optional message format template.
 
         Returns:
             A list containing the first occurrence of each formatted message.
         """
-        return list(dict.fromkeys(self.all(format)))
+        return list(dict.fromkeys(self.all(message_format)))
 
     def forget(self, key: MessageKey) -> Self:
         """Remove all messages associated with one key.
@@ -338,30 +314,6 @@ class MessageBag:
         """
         return {key: list(values) for key, values in self._messages.items()}
 
-    def messages(self) -> dict[MessageKey, list[str]]:
-        """Return raw messages through Laravel's ``messages`` method.
-
-        Returns:
-            A defensive copy of the stored messages.
-        """
-        return self.get_messages()
-
-    def getMessages(self) -> dict[MessageKey, list[str]]:
-        """Return raw messages using Laravel's camelCase method name.
-
-        Returns:
-            A defensive copy of raw keyed messages.
-        """
-        return self.get_messages()
-
-    def messages_copy(self) -> dict[MessageKey, list[str]]:
-        """Return raw messages through an explicit non-shadowing API.
-
-        Returns:
-            A defensive copy of raw keyed messages.
-        """
-        return self.get_messages()
-
     def get_message_bag(self) -> Self:
         """Return this object as a message provider.
 
@@ -369,14 +321,6 @@ class MessageBag:
             This message bag instance.
         """
         return self
-
-    def getMessageBag(self) -> Self:
-        """Return this provider through Laravel's camelCase method name.
-
-        Returns:
-            This message bag instance.
-        """
-        return self.get_message_bag()
 
     def get_format(self) -> str:
         """Return the configured default message format.
@@ -386,36 +330,17 @@ class MessageBag:
         """
         return self._format
 
-    def getFormat(self) -> str:
-        """Return the configured format using Laravel's method name.
-
-        Returns:
-            The active format template.
-        """
-        return self.get_format()
-
-    def set_format(self, format: str = _DEFAULT_FORMAT) -> Self:
+    def set_format(self, message_format: str = _DEFAULT_FORMAT) -> Self:
         """Set the default formatting template for future queries.
 
         Args:
-            format: A template supporting ``:message`` and ``:key``.
+            message_format: A template supporting ``:message`` and ``:key``.
 
         Returns:
             This instance for fluent chaining.
         """
-        self._format = format
+        self._format = message_format
         return self
-
-    def setFormat(self, format: str = _DEFAULT_FORMAT) -> Self:
-        """Set the default format using Laravel's camelCase method name.
-
-        Args:
-            format: A template supporting ``:message`` and ``:key``.
-
-        Returns:
-            This instance for fluent chaining.
-        """
-        return self.set_format(format)
 
     def is_empty(self) -> bool:
         """Return whether the bag contains no messages.
@@ -425,14 +350,6 @@ class MessageBag:
         """
         return self.count() == 0
 
-    def isEmpty(self) -> bool:
-        """Check emptiness through Laravel's camelCase method name.
-
-        Returns:
-            Whether all message groups are empty.
-        """
-        return self.is_empty()
-
     def is_not_empty(self) -> bool:
         """Return whether the bag contains at least one message.
 
@@ -440,14 +357,6 @@ class MessageBag:
             Whether the bag has any messages.
         """
         return not self.is_empty()
-
-    def isNotEmpty(self) -> bool:
-        """Check non-emptiness using Laravel's camelCase method name.
-
-        Returns:
-            Whether the bag has any messages.
-        """
-        return self.is_not_empty()
 
     def any(self) -> bool:
         """Return whether at least one message exists.
@@ -465,38 +374,6 @@ class MessageBag:
         """
         return sum(len(values) for values in self._messages.values())
 
-    def to_array(self) -> dict[MessageKey, list[str]]:
-        """Convert the bag to a defensive raw-message mapping.
-
-        Returns:
-            A new mapping of field names to messages.
-        """
-        return self.get_messages()
-
-    def toArray(self) -> dict[MessageKey, list[str]]:
-        """Convert to a mapping using Laravel's camelCase method name.
-
-        Returns:
-            A new mapping of field names to messages.
-        """
-        return self.to_array()
-
-    def json_serialize(self) -> dict[MessageKey, list[str]]:
-        """Return a JSON-compatible raw-message mapping.
-
-        Returns:
-            A new mapping of field names to messages.
-        """
-        return self.to_array()
-
-    def jsonSerialize(self) -> dict[MessageKey, list[str]]:
-        """Return JSON data using Laravel's camelCase method name.
-
-        Returns:
-            A new mapping of field names to messages.
-        """
-        return self.json_serialize()
-
     def to_json(self, options: int = 0) -> str:
         """Serialize raw messages to JSON.
 
@@ -513,23 +390,12 @@ class MessageBag:
         ensure_ascii = not bool(options & _JSON_UNESCAPED_UNICODE)
         separators = None if indent is not None else (",", ":")
         return json.dumps(
-            self.json_serialize(),
+            self.get_messages(),
             indent=indent,
             ensure_ascii=ensure_ascii,
             separators=separators,
             allow_nan=False,
         )
-
-    def toJson(self, options: int = 0) -> str:
-        """Serialize messages using Laravel's camelCase method name.
-
-        Args:
-            options: A bitmask supporting pretty printing and Unicode output.
-
-        Returns:
-            A JSON string.
-        """
-        return self.to_json(options)
 
     def to_pretty_json(self, options: int = 0) -> str:
         """Serialize messages as indented JSON.
@@ -541,17 +407,6 @@ class MessageBag:
             An indented JSON string.
         """
         return self.to_json(options | _JSON_PRETTY_PRINT)
-
-    def toPrettyJson(self, options: int = 0) -> str:
-        """Serialize indented JSON with Laravel's camelCase method name.
-
-        Args:
-            options: Additional supported JSON option bits.
-
-        Returns:
-            An indented JSON string.
-        """
-        return self.to_pretty_json(options)
 
     def __len__(self) -> int:
         """Return the number of stored messages.
@@ -569,37 +424,40 @@ class MessageBag:
         """
         return self.to_json()
 
-    def _check_format(self, format: str | None) -> str:
+    def _check_format(self, message_format: str | None) -> str:
         """Choose the explicit format or the configured default.
 
         Args:
-            format: A query-specific format, if provided.
+            message_format: A query-specific template, if provided.
 
         Returns:
             The selected non-empty format string.
         """
-        return format or self._format
+        return message_format or self._format
 
     @staticmethod
     def _transform(
         messages: Sequence[str],
-        format: str,
+        message_format: str,
         key: MessageKey,
     ) -> list[str]:
-        """Replace Laravel message placeholders in each string.
+        """Replace named placeholders in each message string.
 
         Args:
             messages: The raw field messages.
-            format: The selected output template.
+            message_format: The selected output template.
             key: The field key used for ``:key`` substitution.
 
         Returns:
             Formatted messages in their original order.
         """
-        if format == _DEFAULT_FORMAT:
+        if message_format == _DEFAULT_FORMAT:
             return list(messages)
         return [
-            format.replace(":message", message).replace(":key", str(key))
+            message_format.replace(":message", message).replace(
+                ":key",
+                str(key),
+            )
             for message in messages
         ]
 

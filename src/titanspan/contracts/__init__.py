@@ -1,52 +1,77 @@
-"""Expose dependency-independent Titanspan protocols and interfaces.
+"""Expose dependency-independent Titanspan contracts.
 
-The package re-exports canonical contracts without adding implementations.
+Domain packages own each protocol. These exports provide convenient imports
+without creating additional contract identities or concrete implementations.
 """
 
-from titanspan.contracts.config_repository import ConfigRepository
+from titanspan.contracts.config import (
+    ConfigArray,
+    ConfigDiagnostics,
+    ConfigKeySequence,
+    ConfigMacroRegistry,
+    ConfigReader,
+    ConfigRepository,
+    ConfigWriter,
+    ScopedConfigOverrides,
+    TypedConfigReader,
+)
 from titanspan.contracts.container import (
     AsyncServiceContainer,
     InstanceRegistration,
     ServiceContainer,
+    ServiceRegistry,
+)
+from titanspan.contracts.foundation import (
+    BootableServiceProvider,
+    ServiceProvider,
+)
+from titanspan.contracts.logging import (
+    AsyncLogDriver,
+    DeliveryStatus,
+    LogBridge,
+    LogCustomizer,
+    LogDriver,
+    LogFormatter,
+    LoggingManager,
+    LogProcessor,
+    LogWriter,
 )
 from titanspan.contracts.support import (
-    Arrayable,
-    ArrayKey,
-    DeferringDisplayableValue,
-    Htmlable,
-    Jsonable,
-    LaravelArrayable,
-    LaravelDeferringDisplayableValue,
-    LaravelHtmlable,
-    LaravelJsonable,
-    LaravelResponsable,
-    MessageBagData,
+    DeferredDisplayValue,
+    HtmlRenderable,
+    MessageBagProtocol,
     MessageKey,
     MessageProvider,
-    Renderable,
-    Responsable,
-    ValidatedData,
 )
 
 __all__ = [
-    "ArrayKey",
-    "Arrayable",
+    "AsyncLogDriver",
     "AsyncServiceContainer",
+    "BootableServiceProvider",
+    "ConfigArray",
+    "ConfigDiagnostics",
+    "ConfigKeySequence",
+    "ConfigMacroRegistry",
+    "ConfigReader",
     "ConfigRepository",
-    "DeferringDisplayableValue",
-    "Htmlable",
+    "ConfigWriter",
+    "DeferredDisplayValue",
+    "DeliveryStatus",
+    "HtmlRenderable",
     "InstanceRegistration",
-    "Jsonable",
-    "LaravelArrayable",
-    "LaravelDeferringDisplayableValue",
-    "LaravelHtmlable",
-    "LaravelJsonable",
-    "LaravelResponsable",
-    "MessageBagData",
+    "LogBridge",
+    "LogCustomizer",
+    "LogDriver",
+    "LogFormatter",
+    "LogProcessor",
+    "LogWriter",
+    "LoggingManager",
+    "MessageBagProtocol",
     "MessageKey",
     "MessageProvider",
-    "Renderable",
-    "Responsable",
+    "ScopedConfigOverrides",
     "ServiceContainer",
-    "ValidatedData",
+    "ServiceProvider",
+    "ServiceRegistry",
+    "TypedConfigReader",
 ]

@@ -23,11 +23,12 @@ PLATFORM_MATRIX = ("macos-latest", "windows-latest")
 COVERAGE_INPUT_JOBS = (
     "unit-tests",
     "integration-tests",
+    "cross-component",
     "feature-tests",
     "regression-tests",
     "concurrency-tests",
     "security-tests",
-    "compatibility-tests",
+    "component-api-tests",
     "public-api",
 )
 JOB_UNVISITED = 0
@@ -396,6 +397,60 @@ def _validate_coverage_job(jobs: dict[str, object]) -> list[str]:
     return errors
 
 
+def _validate_cross_component_job(jobs: dict[str, object]) -> list[str]:
+    """Require the dedicated status to run lifecycle tests and collect data.
+
+    Args:
+        jobs: Parsed primary workflow job mapping.
+
+    Returns:
+        Diagnostics for a missing or decorative integration job.
+    """
+    job = _string_mapping(jobs.get("cross-component"))
+    if job is None:
+        return ["cross-component job must be a mapping"]
+
+    errors: list[str] = []
+    if job.get("name") != "Architecture: Cross-component integration":
+        errors.append("cross-component job must have a stable visible name")
+    environment = _string_mapping(job.get("env"))
+    if environment is None or environment.get("COVERAGE") != "collect":
+        errors.append("cross-component job must collect branch coverage")
+
+    raw_steps = job.get("steps")
+    steps = (
+        cast("list[object]", raw_steps) if isinstance(raw_steps, list) else []
+    )
+    runs_test = False
+    uploads_coverage = False
+    for raw_step in steps:
+        step = _string_mapping(raw_step)
+        if step is None:
+            continue
+        command = step.get("run")
+        if isinstance(
+            command, str
+        ) and "make architecture-integration-test" in (command):
+            runs_test = True
+        action = step.get("uses")
+        artifact_options = _string_mapping(step.get("with"))
+        if (
+            isinstance(action, str)
+            and "actions/upload-artifact@" in action
+            and artifact_options is not None
+            and artifact_options.get("name") == "coverage-cross-component"
+        ):
+            uploads_coverage = True
+
+    if not runs_test:
+        errors.append(
+            "cross-component job must run its integration test target"
+        )
+    if not uploads_coverage:
+        errors.append("cross-component job must upload required coverage data")
+    return errors
+
+
 def _validate_independent_coverage_reports(
     steps: list[object],
 ) -> list[str]:
@@ -485,6 +540,7 @@ def validate_ci_workflow(workflow: object) -> list[str]:
     errors.extend(_validate_job_inventory(jobs))
     errors.extend(_validate_job_matrices(jobs))
     errors.extend(_validate_coverage_job(jobs))
+    errors.extend(_validate_cross_component_job(jobs))
     errors.extend(_validate_gate(jobs))
     return errors
 

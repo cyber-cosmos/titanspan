@@ -48,6 +48,23 @@ def _workflow() -> dict[str, object]:
         }
         for job_id in EXPECTED_JOBS
     }
+    jobs["cross-component"] = {
+        "name": "Architecture: Cross-component integration",
+        "runs-on": "ubuntu-latest",
+        "timeout-minutes": "20",
+        "env": {"COVERAGE": "collect"},
+        "steps": [
+            {"run": "make architecture-integration-test"},
+            {
+                "uses": (
+                    "actions/upload-artifact@"
+                    "cf430e030ddbb5b0abf9"  # pragma: allowlist secret
+                    "3d22962f4752f3646cd9"  # pragma: allowlist secret
+                ),
+                "with": {"name": "coverage-cross-component"},
+            },
+        ],
+    }
     for job_id in ("unit-tests", "integration-tests"):
         job = _mapping(jobs[job_id])
         job["strategy"] = {
@@ -162,6 +179,22 @@ def test_workflow_policy_rejects_missing_timeouts() -> None:
     errors = validate_ci_workflow(workflow)
 
     assert any("timeout-minutes" in error for error in errors)
+
+
+def test_workflow_policy_requires_real_cross_component_integration() -> None:
+    """Reject a decorative architecture job with no executable test.
+
+    The visible cross-component status must execute its dedicated target and
+    contribute branch coverage to the aggregate coverage job.
+    """
+    workflow = _workflow()
+    jobs = _mapping(workflow["jobs"])
+    cross_component = _mapping(jobs["cross-component"])
+    cross_component["steps"] = []
+
+    errors = validate_ci_workflow(workflow)
+
+    assert any("cross-component" in error for error in errors)
 
 
 def test_workflow_policy_rejects_paths_that_hide_required_statuses() -> None:

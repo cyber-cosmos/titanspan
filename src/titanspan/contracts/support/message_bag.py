@@ -20,24 +20,24 @@ class MessageProvider(Protocol):
     """Expose a message bag through a framework-independent contract.
 
     Implementations may return their native bag type as long as it follows
-    :class:`MessageBagData`.
+    :class:`MessageBagProtocol`.
     """
 
-    def get_message_bag(self) -> MessageBagData:
+    def get_message_bag(self) -> MessageBagProtocol:
         """Return the provider's keyed message representation.
 
         Returns:
-            An object implementing :class:`MessageBagData`.
+            An object implementing :class:`MessageBagProtocol`.
         """
         ...
 
 
 @runtime_checkable
-class MessageBagData(Protocol):
+class MessageBagProtocol(Protocol):
     """Describe the public operations of a keyed message bag.
 
-    The protocol mirrors the Laravel message-bag contract and also includes
-    Python snake_case spellings for IDE discovery and typed callers.
+    The protocol defines message lookup and formatting operations used by
+    Titanspan's view and validation integrations.
     """
 
     def keys(self) -> list[MessageKey]:
@@ -106,22 +106,6 @@ class MessageBagData(Protocol):
         """
         ...
 
-    def hasAny(
-        self,
-        keys: MessageKey | Iterable[MessageKey] | None = (),
-        *more_keys: MessageKey,
-    ) -> bool:
-        """Check keys using Laravel's camelCase method name.
-
-        Args:
-            keys: One key, several keys, or an iterable of keys.
-            *more_keys: Additional keys to check.
-
-        Returns:
-            Whether one selected key has a message.
-        """
-        ...
-
     def missing(
         self,
         key: MessageKey | Iterable[MessageKey] | None,
@@ -141,13 +125,13 @@ class MessageBagData(Protocol):
     def first(
         self,
         key: MessageKey | None = None,
-        format: str | None = None,
+        message_format: str | None = None,
     ) -> str:
         """Return the first formatted message for a key or the whole bag.
 
         Args:
             key: The key to query, or ``None`` for the first global message.
-            format: An optional formatting template.
+            message_format: An optional formatting template.
 
         Returns:
             The first matching message or an empty string.
@@ -157,35 +141,35 @@ class MessageBagData(Protocol):
     def get(
         self,
         key: MessageKey,
-        format: str | None = None,
+        message_format: str | None = None,
     ) -> list[str] | dict[MessageKey, list[str]]:
         """Return messages for an exact key or wildcard pattern.
 
         Args:
             key: The field key or wildcard pattern.
-            format: An optional formatting template.
+            message_format: An optional formatting template.
 
         Returns:
             The matching formatted messages.
         """
         ...
 
-    def all(self, format: str | None = None) -> list[str]:
+    def all(self, message_format: str | None = None) -> list[str]:
         """Return all messages in insertion order.
 
         Args:
-            format: An optional formatting template.
+            message_format: An optional formatting template.
 
         Returns:
             A flat list of formatted messages.
         """
         ...
 
-    def unique(self, format: str | None = None) -> list[str]:
+    def unique(self, message_format: str | None = None) -> list[str]:
         """Return unique messages in insertion order.
 
         Args:
-            format: An optional formatting template.
+            message_format: An optional formatting template.
 
         Returns:
             A flat list without duplicate formatted messages.
@@ -203,24 +187,8 @@ class MessageBagData(Protocol):
         """
         ...
 
-    def messages(self) -> Mapping[MessageKey, list[str]]:
-        """Return a read-only view or copy of raw messages.
-
-        Returns:
-            The mapping of keys to messages.
-        """
-        ...
-
     def get_messages(self) -> Mapping[MessageKey, list[str]]:
         """Return raw messages through the Python method spelling.
-
-        Returns:
-            The mapping of keys to messages.
-        """
-        ...
-
-    def getMessages(self) -> Mapping[MessageKey, list[str]]:
-        """Return raw messages through Laravel's camelCase spelling.
 
         Returns:
             The mapping of keys to messages.
@@ -235,30 +203,11 @@ class MessageBagData(Protocol):
         """
         ...
 
-    def getFormat(self) -> str:
-        """Return the format through Laravel's camelCase method name.
-
-        Returns:
-            The current formatting template.
-        """
-        ...
-
-    def set_format(self, format: str = ":message") -> Self:
+    def set_format(self, message_format: str = ":message") -> Self:
         """Set the default message format.
 
         Args:
-            format: A template supporting ``:message`` and ``:key``.
-
-        Returns:
-            This bag for fluent chaining.
-        """
-        ...
-
-    def setFormat(self, format: str = ":message") -> Self:
-        """Set the format through Laravel's camelCase method name.
-
-        Args:
-            format: A template supporting ``:message`` and ``:key``.
+            message_format: A template supporting ``:message`` and ``:key``.
 
         Returns:
             This bag for fluent chaining.
@@ -273,14 +222,6 @@ class MessageBagData(Protocol):
         """
         ...
 
-    def isEmpty(self) -> bool:
-        """Check emptiness through Laravel's camelCase method name.
-
-        Returns:
-            Whether the bag is empty.
-        """
-        ...
-
     def is_not_empty(self) -> bool:
         """Check whether the bag contains messages.
 
@@ -289,13 +230,5 @@ class MessageBagData(Protocol):
         """
         ...
 
-    def isNotEmpty(self) -> bool:
-        """Check non-emptiness through Laravel's camelCase method name.
 
-        Returns:
-            Whether the bag is non-empty.
-        """
-        ...
-
-
-__all__ = ["MessageBagData", "MessageKey", "MessageProvider"]
+__all__ = ["MessageBagProtocol", "MessageKey", "MessageProvider"]

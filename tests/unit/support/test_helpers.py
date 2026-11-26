@@ -1,4 +1,4 @@
-"""Verify the Laravel-inspired shared support helper contracts.
+"""Verify shared helper behavior and public utility contracts.
 
 The tests focus on value handling, nested data, safe escaping, and mutation
 semantics that are common across framework modules.
@@ -67,8 +67,6 @@ class DeferredText:
             Plain text that must be escaped as HTML.
         """
         return "<strong>deferred</strong>"
-
-    resolveDisplayableValue = resolve_displayable_value
 
 
 @pytest.mark.unit
@@ -161,7 +159,7 @@ def test_transform_uses_callback_only_for_filled_values() -> None:
 
 @pytest.mark.unit
 def test_data_access_supports_dot_paths_wildcards_and_lazy_defaults() -> None:
-    """Read nested mapping and sequence data using Laravel path syntax.
+    """Read nested mapping and sequence values using dotted paths.
 
     Returns:
         None.
@@ -305,15 +303,15 @@ def test_data_set_can_create_sequence_roots_and_object_attributes() -> None:
 
 @pytest.mark.unit
 def test_head_and_last_handle_empty_and_nonempty_iterables() -> None:
-    """Return endpoints from iterables and false for empty inputs.
+    """Return endpoints from iterables and None for empty inputs.
 
     Returns:
         None.
     """
     assert head(["first", "last"]) == "first"
     assert last(("first", "last")) == "last"
-    assert head([]) is False
-    assert last(iter(())) is False
+    assert head([]) is None
+    assert last(iter(())) is None
 
 
 @pytest.mark.unit
@@ -444,7 +442,7 @@ def test_html_helper_resolves_deferred_and_trusted_values() -> None:
 
 @pytest.mark.unit
 def test_html_helper_uses_the_active_encoded_html_encoder() -> None:
-    """Apply the active encoder override to Laravel's e helper.
+    """Apply the active encoder override to the HTML helper.
 
     Returns:
         None.

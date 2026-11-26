@@ -1,4 +1,4 @@
-"""Verify the pinned Laravel-inspired string utility contracts.
+"""Verify string transformations and text utility behavior.
 
 The tests cover deterministic string transformations, Unicode handling,
 matching, replacement, and both public naming conventions.
@@ -46,16 +46,18 @@ def test_after_uses_first_unicode_occurrence(
 
 
 @pytest.mark.unit
-def test_before_last_and_between_match_laravel_examples() -> None:
+def test_before_last_and_between_extract_delimited_text() -> None:
     """Extract string portions using first and last delimiters.
 
     Returns:
         None.
     """
-    assert Str.before_last("laravel framework docs", " ") == "laravel framework"
+    assert Str.before_last("titanspan framework docs", " ") == (
+        "titanspan framework"
+    )
     assert Str.between("[section] value", "[", "]") == "section"
     assert Str.between_first("[a][b]", "[", "]") == "a"
-    assert Str.afterLast("/a/b", "/") == "b"
+    assert Str.after_last("/a/b", "/") == "b"
 
 
 @pytest.mark.unit
@@ -65,59 +67,59 @@ def test_prefix_suffix_and_containment_support_multiple_needles() -> None:
     Returns:
         None.
     """
-    assert Str.startsWith("Titanspan", ["Titan", "Tita"])
+    assert Str.starts_with("Titanspan", ["Titan", "Tita"])
     assert Str.ends_with("report.csv", [".json", ".csv"])
     assert Str.contains("Titanspan Framework", ["AI", "Framework"])
-    assert Str.containsAll("Titanspan Framework", ["Titan", "Framework"])
-    assert Str.doesntContain("Titanspan", "framework")
+    assert Str.contains_all("Titanspan Framework", ["Titan", "Framework"])
+    assert Str.doesnt_contain("Titanspan", "framework")
     assert not Str.starts_with("Titanspan", "")
     assert not Str.ends_with("", "")
 
 
 @pytest.mark.unit
-def test_camel_case_compatibility_aliases_are_callable() -> None:
-    """Keep tested Illuminate method names visible beside Python aliases.
+def test_string_operations_cover_common_transformations() -> None:
+    """Exercise string operations across common transformation groups.
 
     Returns:
         None.
     """
-    assert Str.afterLast("a/b", "/") == "b"
-    assert Str.beforeLast("a/b/c", "/") == "a/b"
-    assert Str.betweenFirst("[a][b]", "[", "]") == "a"
-    assert Str.charAt("Titanspan", 0) == "T"
-    assert Str.chopStart("prefix", "pre") == "fix"
-    assert Str.chopEnd("file.csv", ".csv") == "file"
-    assert Str.containsAll("Titanspan", ["Titan", "span"])
-    assert Str.doesntContain("Titanspan", "Laravel")
-    assert Str.endsWith("report.csv", ".csv")
-    assert Str.doesntEndWith("report.csv", ".json")
-    assert Str.isJson('{"ok": true}')
-    assert Str.isAscii("plain")
-    assert Str.isUrl("https://example.com")
-    assert Str.isUuid("550e8400-e29b-41d4-a716-446655440000", 4)
-    assert Str.isUlid("01ARZ3NDEKTSV4RRFFQ69G5FAV")
-    assert Str.padBoth("x", 3) == " x "
-    assert Str.padLeft("x", 2) == " x"
-    assert Str.padRight("x", 2) == "x "
-    assert Str.replaceArray(":", ["one"], "a:b") == "aoneb"
-    assert Str.replaceFirst("a", "x", "a") == "x"
-    assert Str.replaceStart("a", "x", "a") == "x"
-    assert Str.replaceLast("a", "x", "a") == "x"
-    assert Str.replaceEnd("a", "x", "a") == "x"
-    assert Str.replaceMatches(r"a", "x", "a") == "x"
-    assert Str.doesntStartWith("Titanspan", "Laravel")
-    assert Str.startsWith("Titanspan", "Titan")
-    assert Str.substrCount("aba", "a") == EXPECTED_MATCH_COUNT
-    assert Str.substrReplace("abc", "X", 1, 1) == "aXc"
-    assert Str.toBase64("Titanspan") == Str.to_base64("Titanspan")
-    assert Str.wordCount("one two") == EXPECTED_TWO_WORDS
-    assert Str.wordWrap("one two", 3) == "one\ntwo"
-    assert Str.isMatch("dog", "a dog")
+    assert Str.after_last("a/b", "/") == "b"
+    assert Str.before_last("a/b/c", "/") == "a/b"
+    assert Str.between_first("[a][b]", "[", "]") == "a"
+    assert Str.char_at("Titanspan", 0) == "T"
+    assert Str.chop_start("prefix", "pre") == "fix"
+    assert Str.chop_end("file.csv", ".csv") == "file"
+    assert Str.contains_all("Titanspan", ["Titan", "span"])
+    assert Str.doesnt_contain("Titanspan", "Django")
+    assert Str.ends_with("report.csv", ".csv")
+    assert Str.doesnt_end_with("report.csv", ".json")
+    assert Str.is_json('{"ok": true}')
+    assert Str.is_ascii("plain")
+    assert Str.is_url("https://example.com")
+    assert Str.is_uuid("550e8400-e29b-41d4-a716-446655440000", 4)
+    assert Str.is_ulid("01ARZ3NDEKTSV4RRFFQ69G5FAV")
+    assert Str.pad_both("x", 3) == " x "
+    assert Str.pad_left("x", 2) == " x"
+    assert Str.pad_right("x", 2) == "x "
+    assert Str.replace_array(":", ["one"], "a:b") == "aoneb"
+    assert Str.replace_first("a", "x", "a") == "x"
+    assert Str.replace_start("a", "x", "a") == "x"
+    assert Str.replace_last("a", "x", "a") == "x"
+    assert Str.replace_end("a", "x", "a") == "x"
+    assert Str.replace_matches(r"a", "x", "a") == "x"
+    assert Str.doesnt_start_with("Titanspan", "Django")
+    assert Str.starts_with("Titanspan", "Titan")
+    assert Str.substr_count("aba", "a") == EXPECTED_MATCH_COUNT
+    assert Str.substr_replace("abc", "X", 1, 1) == "aXc"
+    assert Str.to_base64("Titanspan") == Str.to_base64("Titanspan")
+    assert Str.word_count("one two") == EXPECTED_TWO_WORDS
+    assert Str.word_wrap("one two", 3) == "one\ntwo"
+    assert Str.is_match("dog", "a dog")
 
 
 @pytest.mark.unit
 def test_is_uses_glob_patterns_with_explicit_case_option() -> None:
-    """Match whole strings with Laravel-style asterisk patterns.
+    """Match whole strings with asterisk glob patterns.
 
     Returns:
         None.
@@ -135,12 +137,16 @@ def test_case_conversion_handles_acronyms_and_separators() -> None:
     Returns:
         None.
     """
-    assert Str.snake("LaravelHTTPFramework") == "laravel_http_framework"
+    assert Str.snake("TitanspanHTTPFramework") == "titanspan_http_framework"
     assert Str.camel("hello_world") == "helloWorld"
-    assert Str.kebab("Laravel Php Framework") == "laravel-php-framework"
+    assert Str.kebab("Titanspan Python Framework") == (
+        "titanspan-python-framework"
+    )
     assert Str.studly("hello_world") == "HelloWorld"
     assert Str.pascal("hello-world") == "HelloWorld"
-    assert Str.headline("laravel_http-framework") == "Laravel Http Framework"
+    assert Str.headline("titanspan_http-framework") == (
+        "Titanspan Http Framework"
+    )
 
 
 @pytest.mark.unit
@@ -155,7 +161,8 @@ def test_slug_and_unicode_operations_use_python_code_points() -> None:
     )
     assert Str.length("你好🙂") == EXPECTED_CODE_POINT_COUNT
     assert Str.char_at("café", -1) == "é"
-    assert Str.char_at("café", 9) is False
+    with pytest.raises(IndexError):
+        Str.char_at("café", 9)
     assert Str.reverse("你好") == "好你"
 
 
@@ -166,9 +173,9 @@ def test_limit_words_and_substring_are_unicode_aware() -> None:
     Returns:
         None.
     """
-    assert Str.limit("Laravel is a framework", 10) == "Laravel is..."
-    assert Str.limit("Laravel is a framework", 15, preserve_words=True) == (
-        "Laravel is a..."
+    assert Str.limit("Titanspan is a framework", 10) == "Titanspan..."
+    assert Str.limit("Titanspan is a framework", 15, preserve_words=True) == (
+        "Titanspan is..."
     )
     assert Str.words("one two three", 2) == "one two..."
     assert Str.substr("Titanspan", -4, 4) == "span"
@@ -221,7 +228,7 @@ def test_ascii_json_uuid_and_base64_helpers() -> None:
     assert not Str.is_json("not json")
     assert Str.is_uuid("550e8400-e29b-41d4-a716-446655440000", 4)
     assert not Str.is_uuid("not-a-uuid")
-    assert Str.fromBase64(Str.toBase64("Titanspan")) == "Titanspan"
+    assert Str.from_base64(Str.to_base64("Titanspan")) == "Titanspan"
 
 
 @pytest.mark.unit
@@ -284,8 +291,8 @@ def test_containment_and_prefix_helpers_cover_negative_cases() -> None:
     assert not Str.contains_all("Titanspan", ["Titan", "absent"])
     assert Str.doesnt_end_with("file.csv", ".json")
     assert Str.doesnt_start_with("Titanspan", "Python")
-    assert Str.startsWith("Titanspan", "Titan")
-    assert Str.doesntStartWith("Titanspan", "Python")
+    assert Str.starts_with("Titanspan", "Titan")
+    assert Str.doesnt_start_with("Titanspan", "Python")
 
 
 @pytest.mark.unit
@@ -298,9 +305,9 @@ def test_globs_ascii_and_url_validation_cover_boundaries() -> None:
     assert not Str.is_("", "value")
     assert Str.is_("*", "value")
     assert Str.is_ascii("plain")
-    assert not Str.isAscii("café")
+    assert not Str.is_ascii("café")
     assert Str.is_url("https://localhost:8000/path")
-    assert Str.isUrl("mailto:hello@example.com")
+    assert Str.is_url("mailto:hello@example.com")
     assert Str.is_url("https://[::1]/")
     assert not Str.is_url("http://.")
     assert not Str.is_url("https://example.com:invalid")
@@ -321,7 +328,7 @@ def test_uuid_ulid_and_json_validators_reject_malformed_values() -> None:
     assert not Str.is_uuid("550e8400-e29b-41d4-a716-446655440000", 1)
     assert not Str.is_uuid(None)
     assert Str.is_ulid("01ARZ3NDEKTSV4RRFFQ69G5FAV")
-    assert Str.isUlid("01arz3ndektsv4rrffq69g5fav")
+    assert Str.is_ulid("01arz3ndektsv4rrffq69g5fav")
     assert not Str.is_ulid("81ARZ3NDEKTSV4RRFFQ69G5FAV")
     assert not Str.is_ulid("invalid")
     assert Str.is_json("null")
@@ -337,7 +344,7 @@ def test_ascii_case_and_slug_helpers_cover_empty_and_custom_inputs() -> None:
         None.
     """
     assert Str.ascii("") == ""
-    assert Str.ascii("Straße", language="de") == "Strasse"
+    assert Str.ascii("Straße") == "Strasse"
     assert Str.camel("") == ""
     assert Str.kebab("") == ""
     assert Str.snake("", delimiter=".") == ""
@@ -395,7 +402,7 @@ def test_match_and_regex_utilities_preserve_python_errors() -> None:
     """
     assert Str.match(r"id=(\d+)", "id=42") == "42"
     assert Str.match(r"missing", "value") == ""
-    assert Str.isMatch([r"cat", r"dog"], "a dog")
+    assert Str.is_match([r"cat", r"dog"], "a dog")
     assert not Str.is_match([], "anything")
     assert Str.match_all(r"(\w+)", "one two") == ["one", "two"]
     assert Str.match_all(r"(a)(b)", "ab") == ["a"]
@@ -459,7 +466,7 @@ def test_whitespace_case_split_and_word_helpers() -> None:
     assert Str.ucfirst("") == ""
     assert Str.lcfirst("Hello") == "hello"
     assert Str.ucwords("hello-world", "-") == "Hello-World"
-    assert Str.ucsplit("LaravelFramework") == ["Laravel", "Framework"]
+    assert Str.ucsplit("TitanspanFramework") == ["Titanspan", "Framework"]
     assert Str.ucsplit("") == []
     assert Str.word_count("hello-world") == EXPECTED_HYPHENATED_WORDS
     assert Str.word_count("foo-bar", "-") == EXPECTED_CHARACTER_INDEX
@@ -476,7 +483,7 @@ def test_callback_parsing_and_keyword_swapping() -> None:
     Returns:
         None.
     """
-    assert Str.parseCallback("Service@run") == ("Service", "run")
+    assert Str.parse_callback("Service@run") == ("Service", "run")
     assert Str.parse_callback("Service", "handle") == ("Service", "handle")
     assert Str.parse_callback("Class@anonymous\0file.py@run") == (
         "Class@anonymous\0file.py",
@@ -494,14 +501,14 @@ def test_callback_parsing_and_keyword_swapping() -> None:
 
 @pytest.mark.unit
 def test_case_modes_and_contextual_excerpts() -> None:
-    """Convert text using named PHP-compatible modes and excerpt context.
+    """Convert text using named modes and excerpt context.
 
     Returns:
         None.
     """
     assert Str.convert_case("hello", 0) == "HELLO"
     assert Str.convert_case("HELLO", 1) == "hello"
-    assert Str.convertCase("Straße", 3) == "strasse"
+    assert Str.convert_case("Straße", 3) == "strasse"
     assert Str.convert_case("hello WORLD", 2) == "Hello World"
     assert (
         Str.excerpt(

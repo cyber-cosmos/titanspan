@@ -1,8 +1,8 @@
 # Forwarded calls
 
 `ForwardsCalls` is a small mixin for wrappers that delegate selected methods
-to a composed object. It follows Illuminate's `ForwardsCalls` trait while
-using Python's attribute lookup and error conventions.
+to a composed object while preserving Python's attribute lookup and error
+conventions.
 
 ```python
 from titanspan.support import ForwardsCalls
@@ -34,15 +34,14 @@ class RendererProxy(ForwardsCalls):
 
 ## Methods
 
-| Python name | Illuminate name | Behavior |
+| Method | Behavior |
 |---|---|---|
-| `forward_call_to` | `forwardCallTo` | Invoke a target method with positional arguments. |
-| `forward_decorated_call_to` | `forwardDecoratedCallTo` | Return the wrapper if the target method returns the target itself. |
-| `throw_bad_method_call_exception` | `throwBadMethodCallException` | Raise `AttributeError` naming the wrapper and missing method. |
+| `forward_call_to` | Invoke a target method with positional arguments. |
+| `forward_decorated_call_to` | Return the wrapper if the target method returns the target itself. |
+| `throw_bad_method_call_exception` | Raise `AttributeError` naming the wrapper and missing method. |
 
-The camelCase forms are explicit aliases to the same implementations. A
-missing target method raises `AttributeError`. An `AttributeError` raised by
-an existing descriptor or method is preserved, and a present non-callable
+A missing target method raises `AttributeError`. An `AttributeError` raised
+by an existing descriptor or method is preserved, and a present non-callable
 attribute raises `TypeError`.
 
 The mixin accepts positional arguments as a sequence. It does not intercept

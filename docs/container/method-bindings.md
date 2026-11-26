@@ -63,7 +63,5 @@ async def run_async_callback() -> str:
         )
 ```
 
-The container also exposes the camelCase aliases `bindMethod`,
-`hasMethodBinding`, `callMethodBinding`, and `callMethodBindingAsync`.
 Registrations follow the same freeze rule as service bindings and must be
 added before the first graph is composed.

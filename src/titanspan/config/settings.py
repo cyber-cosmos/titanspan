@@ -1,14 +1,15 @@
 """Expose Titanspan-owned typed settings and validation conventions.
 
-Pydantic Settings supplies parsing and validation through a private adapter;
-applications subclass this framework type and receive native error handling.
+The private adapter initializes and exports validated values while translating
+backend validation errors into native configuration exceptions.
 """
 
 from pathlib import Path
-from typing import Self, cast
+from typing import Self
 
 from titanspan.config._backends.settings import (
     _SettingsBackend,
+    export_settings,
     initialize_settings,
 )
 from titanspan.config.repository import Repository
@@ -69,8 +70,21 @@ class Settings(_SettingsBackend):
             A structurally copied settings mapping with common secret keys
             replaced by a fixed redaction marker.
         """
-        values = cast("dict[str, object]", self.model_dump(mode="python"))
-        return dict(Repository(values).redacted())
+        return dict(Repository(self.to_dict()).redacted())
+
+    def to_dict(self, *, include_defaults: bool = True) -> dict[str, object]:
+        """Export validated values through a Titanspan-owned API.
+
+        Args:
+            include_defaults: Whether to include fields supplied only by
+                their class declarations.
+
+        Returns:
+            A new mapping containing the settings values. Secret values are
+            included for authorized application use; use :meth:`redacted`
+            for diagnostics.
+        """
+        return export_settings(self, include_defaults=include_defaults)
 
     def __repr__(self) -> str:
         """Render settings without exposing secret-shaped fields.

@@ -1,4 +1,4 @@
-"""Verify native logging convenience methods and compatibility aliases.
+"""Verify native logging methods and their shared record path.
 
 These behavior-focused tests keep manager, logger, and facade entry points
 delegating to the same native record path.
@@ -84,12 +84,10 @@ async def test_logger_exposes_all_eight_asynchronous_level_methods() -> None:
     assert tuple(record.level for record in driver.records) == EXPECTED_LEVELS
 
 
-def test_manager_direct_methods_and_laravel_aliases_share_channel_state() -> (
-    None
-):
-    """Exercise manager conveniences, selection, and context aliases.
+def test_manager_methods_share_channel_and_context_state() -> None:
+    """Exercise manager conveniences, channels, and execution context.
 
-    Compatibility spellings share their snake-case implementation state.
+    The facade and manager must share context and channel state.
     """
     driver = MemoryLogDriver()
     manager = _manager_with_memory(
@@ -108,8 +106,8 @@ def test_manager_direct_methods_and_laravel_aliases_share_channel_state() -> (
     manager.notice("notice")
     manager.info("info")
     manager.debug("debug")
-    manager.withContext(request_id="request-1")
-    manager.shareContext(tenant_id="tenant-1")
+    manager.with_context(request_id="request-1")
+    manager.share_context(tenant_id="tenant-1")
     manager.channel("worker").info("worker")
 
     assert (
@@ -119,13 +117,12 @@ def test_manager_direct_methods_and_laravel_aliases_share_channel_state() -> (
         "request_id": "request-1",
         "tenant_id": "tenant-1",
     }
-    assert manager.getDefaultDriver() == "default"
-    assert manager.sharedContext() == {"tenant_id": "tenant-1"}
-    assert manager.getChannels()["default"] is manager.channel()
-    manager.setDefaultDriver("worker")
-    assert manager.get_default_driver() == "worker"
-    assert manager.get() is manager.driver()
-    assert manager.resolve() is manager.channel()
+    assert manager.get_default_channel() == "default"
+    assert manager.shared_context() == {"tenant_id": "tenant-1"}
+    assert manager.get_channels()["default"] is manager.channel()
+    manager.set_default_channel("worker")
+    assert manager.get_default_channel() == "worker"
+    assert manager.channel() is manager.channel("worker")
 
 
 def test_manager_build_stack_extension_and_cache_lifecycle() -> None:
@@ -164,7 +161,7 @@ def test_manager_build_stack_extension_and_cache_lifecycle() -> None:
     manager.forget_channel("first")
     first_again = manager.channel("first")
     assert first_again.channel.closed is False
-    manager.forgetChannels()
+    manager.forget_channels()
     fresh_default = manager.channel()
 
     assert dynamic.channel.closed is True
@@ -173,8 +170,8 @@ def test_manager_build_stack_extension_and_cache_lifecycle() -> None:
     manager.close()
 
 
-def test_facade_aliases_and_sync_levels_resolve_active_manager() -> None:
-    """Keep facade aliases statically available and explicitly scoped.
+def test_facade_levels_and_context_resolve_the_active_manager() -> None:
+    """Resolve native facade operations from the explicitly bound manager.
 
     Log operations resolve only from the bound manager context.
     """
@@ -196,18 +193,18 @@ def test_facade_aliases_and_sync_levels_resolve_active_manager() -> None:
         Log.notice("notice")
         Log.info("info")
         Log.debug("debug")
-        Log.withContext(request_id="request-2")
-        Log.shareContext(tenant_id="tenant-2")
-        assert Log.getContext() == {
+        Log.with_context(request_id="request-2")
+        Log.share_context(tenant_id="tenant-2")
+        assert Log.get_context() == {
             "request_id": "request-2",
             "tenant_id": "tenant-2",
         }
-        assert Log.sharedContext() == {"tenant_id": "tenant-2"}
-        assert Log.getDefaultDriver() == "default"
-        assert "default" in Log.getChannels()
-        Log.setDefaultDriver("worker")
+        assert Log.shared_context() == {"tenant_id": "tenant-2"}
+        assert Log.get_default_channel() == "default"
+        assert "default" in Log.get_channels()
+        Log.set_default_channel("worker")
         Log.channel().info("selected")
-        Log.flushSharedContext()
+        Log.flush_shared_context()
 
     assert (
         tuple(record.level for record in driver.records[:8]) == EXPECTED_LEVELS

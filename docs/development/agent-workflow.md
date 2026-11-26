@@ -34,13 +34,17 @@ and would materially change the implementation; continue independent work.
 - Use small, cohesive changes and Red-Green-Refactor for every meaningful
   behavior change. Write a failing regression test before implementation and
   confirm that it fails for the intended reason.
-- Preserve existing APIs and user changes. Avoid speculative features and
-  unnecessary dependencies.
+- Preserve useful behavior and user changes. When a pre-release public name
+  conflicts with the native Python API policy, update its callers, tests, and
+  documentation together and record the breaking change. Avoid speculative
+  features and unnecessary dependencies.
 - Fully type and document every declaration. Require physically multi-line
   docstrings and meaningful comments explaining non-obvious decisions.
 - Keep async behavior bounded and cancellation-safe. Make ownership and
   cleanup explicit.
-- Make integrations thin and preserve access to the underlying library.
+- Keep integrations thin. Expose underlying library objects only through an
+  explicit, documented interoperability boundary; ordinary Titanspan APIs
+  should remain framework-owned.
 - Do not present placeholders, mocks, TODOs, or roadmap work as implemented.
 
 ## 5. Validate
@@ -70,7 +74,7 @@ passed unless it completed successfully in the current work.
 
 Inspect the complete diff, not only the last edit. Check correctness, security,
 resource cleanup, error handling, architecture, async behavior, memory use,
-typing, public compatibility, test adequacy, docs, and development-only
+typing, public API semantics, test adequacy, docs, and development-only
 packaging. Verify that a built wheel contains only intended runtime files.
 
 ## 7. Document

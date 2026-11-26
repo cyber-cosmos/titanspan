@@ -212,10 +212,7 @@ class ConfigManager:
         """
         # Exclude unset defaults so application files remain higher priority
         # than a model's declaration-time defaults.
-        values = cast(
-            "dict[str, object]",
-            self.settings.model_dump(mode="python", exclude_unset=True),
-        )
+        values = self.settings.to_dict(include_defaults=False)
         if "app_name" in values:
             values["app.name"] = values.pop("app_name")
         if "debug" in values:

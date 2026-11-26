@@ -4,197 +4,27 @@ The tests exercise structural conformance and public symbol identity without
 instantiating infrastructure implementations.
 """
 
-from collections.abc import Iterator, Mapping
+from collections.abc import Mapping, Sequence
 from typing import overload
 
 import pytest
 
+from titanspan.config import ConfigCapabilityError
 from titanspan.contracts import (
-    Arrayable,
     AsyncServiceContainer,
     ConfigRepository,
-    Jsonable,
-    LaravelArrayable,
-    LaravelJsonable,
-    LaravelResponsable,
-    Renderable,
-    Responsable,
-    ValidatedData,
+    DeferredDisplayValue,
+    HtmlRenderable,
 )
-from titanspan.contracts.config_repository import (
+from titanspan.contracts.config.repository import (
     ConfigRepository as ConfigModule,
 )
 from titanspan.contracts.container import (
     AsyncServiceContainer as ContainerModule,
 )
-from titanspan.contracts.support import (
-    Arrayable as SupportArrayable,
-)
-from titanspan.contracts.support import (
-    Htmlable,
-)
+from titanspan.facades import Config
 
 pytestmark = pytest.mark.unit
-EXPECTED_ARRAY_COUNT = 3
-EXPECTED_RESPONSE_LENGTH = 5
-EXPECTED_VALIDATED_AGE = 30
-
-
-class PythonArrayValue:
-    """Provide a Python-style typed array representation.
-
-    The fixture keeps the example protocol implementation minimal.
-    """
-
-    def to_array(self) -> dict[str, int]:
-        """Return the value as a string-keyed mapping.
-
-        Returns:
-            A new mapping containing the value's public fields.
-        """
-        return {"count": 3}
-
-
-class LaravelArrayValue:
-    """Provide the upstream camelCase array conversion method.
-
-    The object intentionally omits the Python spelling.
-    """
-
-    def toArray(self) -> dict[str, int]:
-        """Return the value as an upstream-compatible array.
-
-        Returns:
-            A new mapping containing the value's public fields.
-        """
-        return {"count": 4}
-
-
-class PythonJsonValue:
-    """Provide a native JSON string representation.
-
-    The example returns a fixed valid document.
-    """
-
-    def to_json(self) -> str:
-        """Serialize the value to JSON text.
-
-        Returns:
-            A JSON document encoded as Unicode text.
-        """
-        return '{"ready": true}'
-
-
-class LaravelJsonValue:
-    """Provide the upstream camelCase JSON conversion method.
-
-    The example does not translate PHP option bits into Python settings.
-    """
-
-    def toJson(self, options: int = 0) -> str:
-        """Serialize the value using upstream option flags.
-
-        Args:
-            options: Laravel-compatible JSON encoding flags.
-
-        Returns:
-            A JSON document encoded as Unicode text.
-        """
-        del options
-        return '{"ready": true}'
-
-
-class RenderedValue:
-    """Provide rendered text without depending on a template engine.
-
-    The fixture demonstrates the backend-neutral string result.
-    """
-
-    def render(self) -> str:
-        """Return the rendered text representation.
-
-        Returns:
-            The completed text output.
-        """
-        return "ready"
-
-
-class PythonResponseValue:
-    """Provide a Python-named response conversion operation.
-
-    The example keeps request and response types application-defined.
-    """
-
-    def to_response(self, request: str) -> int:
-        """Build a response value from a request value.
-
-        Args:
-            request: The request input used by this example.
-
-        Returns:
-            The adapted response value.
-        """
-        return len(request)
-
-
-class LaravelResponseValue:
-    """Provide the upstream camelCase response conversion operation.
-
-    The fixture omits a snake_case alias to test structural separation.
-    """
-
-    def toResponse(self, request: str) -> int:
-        """Build an upstream-compatible response value.
-
-        Args:
-            request: The request input used by this example.
-
-        Returns:
-            The adapted response value.
-        """
-        return len(request)
-
-
-class PythonValidatedValue:
-    """Expose validated data through array and mapping protocols.
-
-    This fixture demonstrates shape compatibility without validation logic.
-    """
-
-    def to_array(self) -> dict[str, int]:
-        """Return a shallow mapping copy of validated values.
-
-        Returns:
-            The validated values as a new dictionary.
-        """
-        return {"age": 30}
-
-    def __getitem__(self, key: str) -> int:
-        """Retrieve one validated integer value.
-
-        Args:
-            key: The validated field name.
-
-        Returns:
-            The value associated with the field.
-        """
-        return self.to_array()[key]
-
-    def __iter__(self) -> Iterator[str]:
-        """Iterate the available validated field names.
-
-        Yields:
-            Validated keys in insertion order.
-        """
-        return iter(self.to_array())
-
-    def __len__(self) -> int:
-        """Return the number of validated fields.
-
-        Returns:
-            The number of available fields.
-        """
-        return len(self.to_array())
 
 
 class RepositoryFixture:
@@ -253,9 +83,23 @@ class RepositoryFixture:
             A mapping keyed by requested paths.
         """
 
+    @overload
     def get(
         self,
-        key: str | list[str] | tuple[str, ...],
+        key: Mapping[str, object],
+    ) -> Mapping[str, object]:
+        """Retrieve paths with individual fallback values.
+
+        Args:
+            key: Paths mapped to fallback values.
+
+        Returns:
+            A mapping keyed by requested paths.
+        """
+
+    def get(
+        self,
+        key: str | list[str] | tuple[str, ...] | Mapping[str, object],
         default: object = None,
     ) -> object:
         """Retrieve one value or a selected set of values.
@@ -269,7 +113,30 @@ class RepositoryFixture:
         """
         if isinstance(key, str):
             return self.values.get(key, default)
+        if isinstance(key, Mapping):
+            return self.get_many(key)
         return {item: self.values.get(item, default) for item in key}
+
+    def get_many(
+        self,
+        keys: Sequence[str] | Mapping[str, object],
+        default: object = None,
+    ) -> Mapping[str, object]:
+        """Retrieve multiple values using the shared repository operation.
+
+        Args:
+            keys: Ordered paths or paths mapped to fallback values.
+            default: Value used when an ordered path is missing.
+
+        Returns:
+            Values keyed by their requested paths.
+        """
+        pairs = (
+            keys.items()
+            if isinstance(keys, Mapping)
+            else ((key, default) for key in keys)
+        )
+        return {key: self.values.get(key, fallback) for key, fallback in pairs}
 
     def all(self) -> Mapping[str, object]:
         """Return a shallow snapshot of every configuration value.
@@ -357,8 +224,12 @@ def test_contract_exports_preserve_canonical_identity() -> None:
     """
     assert ConfigRepository is ConfigModule
     assert AsyncServiceContainer is ContainerModule
-    assert Arrayable is SupportArrayable
-    assert Htmlable.__module__ == "titanspan.contracts.htmlable"
+    assert HtmlRenderable.__module__ == (
+        "titanspan.contracts.support.html_renderable"
+    )
+    assert DeferredDisplayValue.__module__ == (
+        "titanspan.contracts.support.deferred_display_value"
+    )
 
 
 @pytest.mark.anyio
@@ -377,22 +248,6 @@ async def test_async_service_container_preserves_requested_service_type() -> (
         await container.get_async(ResolvedService), ResolvedService
     )
     await container.close()
-
-
-def test_support_protocols_accept_native_and_laravel_spellings() -> None:
-    """Recognize either supported spelling without requiring both methods.
-
-    Runtime protocol checks verify attribute presence only; static typing and
-    behavioral tests remain responsible for the complete method contract.
-    """
-    assert isinstance(PythonArrayValue(), Arrayable)
-    assert isinstance(LaravelArrayValue(), LaravelArrayable)
-    assert isinstance(PythonJsonValue(), Jsonable)
-    assert isinstance(LaravelJsonValue(), LaravelJsonable)
-    assert isinstance(RenderedValue(), Renderable)
-    assert isinstance(PythonResponseValue(), Responsable)
-    assert isinstance(LaravelResponseValue(), LaravelResponsable)
-    assert isinstance(PythonValidatedValue(), ValidatedData)
 
 
 def test_config_repository_protocol_is_structural_and_mutable() -> None:
@@ -419,16 +274,18 @@ def test_config_repository_protocol_is_structural_and_mutable() -> None:
     assert repository.all()["app.name"] == "Titanspan"
 
 
-def _arrayable_value(value: Arrayable[str, int]) -> int:
-    """Read a typed value from an Arrayable contract.
+def test_basic_config_contract_does_not_require_typed_extensions() -> None:
+    """Keep optional typed access separate from the base repository API.
 
-    Args:
-        value: An arrayable implementation with string keys and integers.
-
-    Returns:
-        The count stored by the implementation.
+    The fixture implements only the canonical read/write contract. A facade
+    operation requiring typed validation reports the missing capability.
     """
-    return value.to_array()["count"]
+    repository = _configuration_repository(RepositoryFixture())
+
+    with Config.use(repository):
+        assert Config.get("app.name") == "Titanspan"
+        with pytest.raises(ConfigCapabilityError):
+            Config.string("app.name")
 
 
 def _configuration_repository(
@@ -443,54 +300,3 @@ def _configuration_repository(
         The same object with its public contract type.
     """
     return repository
-
-
-def _render_value(value: Renderable) -> str:
-    """Render a contract-compatible value as text.
-
-    Args:
-        value: The object that owns its rendering behavior.
-
-    Returns:
-        The rendered text.
-    """
-    return value.render()
-
-
-def _response_value(value: Responsable[str, int], request: str) -> int:
-    """Build a generic response without importing a web implementation.
-
-    Args:
-        value: The response adapter.
-        request: A request-domain value.
-
-    Returns:
-        The corresponding response-domain value.
-    """
-    return value.to_response(request)
-
-
-def _validated_value(value: ValidatedData[str, int]) -> int:
-    """Read one typed value from a validated-data mapping.
-
-    Args:
-        value: An implementation of the validated-data contract.
-
-    Returns:
-        The integer stored under the ``age`` key.
-    """
-    return value["age"]
-
-
-def test_generic_contracts_preserve_python_value_types() -> None:
-    """Keep generic result relationships available to static type checking.
-
-    The calls also exercise the expected structural methods at runtime.
-    """
-    assert _arrayable_value(PythonArrayValue()) == EXPECTED_ARRAY_COUNT
-    assert _render_value(RenderedValue()) == "ready"
-    assert (
-        _response_value(PythonResponseValue(), "hello")
-        == EXPECTED_RESPONSE_LENGTH
-    )
-    assert _validated_value(PythonValidatedValue()) == EXPECTED_VALIDATED_AGE

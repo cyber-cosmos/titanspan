@@ -1,4 +1,4 @@
-"""Verify Laravel-compatible message storage and formatting behavior.
+"""Verify typed message storage and formatting behavior.
 
 The cases cover message uniqueness, wildcard access, formatting, and
 serialization against Titanspan's Python mapping conventions.
@@ -10,7 +10,7 @@ import json
 
 import pytest
 
-from titanspan.contracts import MessageBagData, MessageProvider
+from titanspan.contracts import MessageBagProtocol, MessageProvider
 from titanspan.support import MessageBag
 
 MESSAGE_COUNT = 2
@@ -36,10 +36,8 @@ def test_message_bag_normalizes_messages_and_exposes_keys() -> None:
         "email": ["invalid", "required"],
         "name": ["missing"],
     }
-    assert bag.getMessages() == bag.messages()
-    assert bag.messages_copy() == bag.messages()
     assert bag.get_message_bag() is bag
-    assert bag.getMessageBag() is bag
+    assert bag.get_message_bag() is bag
 
 
 @pytest.mark.unit
@@ -53,7 +51,7 @@ def test_message_bag_add_merge_and_forget_are_chainable() -> None:
     other = MessageBag({"email": ["invalid", "required"], "name": "bad"})
 
     assert bag.add("email", "invalid") is bag
-    assert bag.addIf(False, "email", "ignored") is bag
+    assert bag.add_if(False, "email", "ignored") is bag
     assert bag.add_if(True, "email", "required") is bag
     assert bag.merge(other) is bag
     assert bag.forget("name") is bag
@@ -117,7 +115,7 @@ def test_message_bag_presence_methods_match_all_and_any_semantics() -> None:
     assert not bag.has("email", "empty")
     assert bag.has_any(["missing", "email"])
     assert bag.has_any("missing", "email")
-    assert bag.hasAny(["missing", "email"])
+    assert bag.has_any(["missing", "email"])
     assert bag.missing(["missing", "unknown"])
     assert not bag.missing("email")
     assert not bag.missing("missing", "email")
@@ -125,10 +123,10 @@ def test_message_bag_presence_methods_match_all_and_any_semantics() -> None:
     assert bag.has_any(None)
     assert not empty.has(None)
     assert empty.is_empty()
-    assert empty.isEmpty()
+    assert empty.is_empty()
     assert not empty.is_not_empty()
     assert bag.is_not_empty()
-    assert bag.isNotEmpty()
+    assert bag.is_not_empty()
     assert bag.any()
     assert bag.count() == MESSAGE_COUNT
     assert MessageBag({"one": "same", "two": "same"}).unique() == [
@@ -146,18 +144,13 @@ def test_message_bag_format_configuration_and_json_serialization() -> None:
     bag = MessageBag({"name": "required"})
 
     assert bag.get_format() == DEFAULT_FORMAT
-    assert bag.getFormat() == DEFAULT_FORMAT
+    assert bag.get_format() == DEFAULT_FORMAT
     assert bag.set_format("Error: :message") is bag
-    assert bag.setFormat("Error: :message") is bag
+    assert bag.set_format("Error: :message") is bag
     assert bag.first("name") == "Error: required"
-    assert bag.to_array() == {"name": ["required"]}
-    assert bag.toArray() == bag.to_array()
-    assert bag.json_serialize() == bag.to_array()
-    assert bag.jsonSerialize() == bag.json_serialize()
-    assert json.loads(bag.to_json()) == bag.to_array()
-    assert json.loads(bag.toJson()) == bag.to_array()
-    assert json.loads(bag.to_pretty_json()) == bag.to_array()
-    assert json.loads(bag.toPrettyJson()) == bag.to_array()
+    assert bag.get_messages() == {"name": ["required"]}
+    assert json.loads(bag.to_json()) == bag.get_messages()
+    assert json.loads(bag.to_pretty_json()) == bag.get_messages()
     assert str(bag) == bag.to_json()
     assert len(bag) == bag.count()
 
@@ -197,7 +190,7 @@ def test_message_bag_empty_wildcards_and_invalid_mapping_data() -> None:
 
 @pytest.mark.unit
 def test_message_bag_adapts_numeric_array_keys_and_null_queries() -> None:
-    """Preserve numeric PHP-array keys as Python integer keys.
+    """Preserve integer keys supplied by Python mappings.
 
     Returns:
         None.
@@ -245,7 +238,7 @@ def test_message_bag_merges_framework_message_providers() -> None:
     provider = Provider(source)
     target = MessageBag({"email": ["required"]})
 
-    assert isinstance(source, MessageBagData)
+    assert isinstance(source, MessageBagProtocol)
     assert isinstance(provider, MessageProvider)
     assert target.merge(provider) is target
     assert target.get("email") == ["required", "invalid"]

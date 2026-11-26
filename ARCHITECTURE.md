@@ -2,7 +2,7 @@
 
 ## Vision
 
-Titanspan is a convention-driven, async-first Python application framework.
+Titanspan is an independent, convention-driven, async-first Python framework.
 It owns the developer-facing APIs, lifecycle, integration conventions, and
 testing experience. Mature libraries provide the underlying web server,
 dependency resolution, persistence, and workflow execution.
@@ -23,23 +23,55 @@ table.
 
 - Prefer composition and typed contracts over deep inheritance trees.
 - Keep infrastructure adapters behind module-owned interfaces.
+- Use one canonical `snake_case` name per public operation. Components may
+  re-export shared contract objects, but must not create compatibility aliases
+  or duplicate protocol identities.
 - Keep core modules independent of optional AI, database, queue, and storage
   integrations.
 - Make resource ownership and asynchronous operations explicit.
-- Preserve native access to underlying libraries.
+- Keep backend APIs behind explicit interoperability boundaries. Ordinary
+  application APIs use Titanspan-owned contracts and domain types.
 - Validate meaningful behavior with focused tests and integration tests.
 - Avoid global mutable service instances and unbounded task creation.
+
+## Component organization
+
+Components live in domain-oriented packages under `src/titanspan/`. Each
+implemented component exposes a deliberate `__init__.py` surface and owns
+concrete behavior under its package. Use `service_provider.py` for component
+registration when that lifecycle exists, `manager.py` for shared component
+coordination, `drivers/` for independently selectable destinations,
+`exceptions.py` for native errors, `events.py` for component events, and
+`testing/` for fakes and assertions. These are conventions, not empty-file
+requirements; create a subpackage only when the implementation needs it.
+
+Place shared structural interfaces in domain packages under
+`titanspan.contracts`: `config`, `container`, `logging`, and `support` are
+currently established. A component may re-export the identical contract
+object from its own public package. Implementation-only protocols remain with
+their owner. Private third-party adapters live in the owning component's
+`_backends/`; cohesive private helpers may live in `_internal/`. Do not make
+contracts import concrete services to avoid a cycle; move the shared value or
+contract to a dependency-safe location instead.
+
+Facades are context-bound entry points for application-owned services.
+`Config` and `Log` inherit one typed `Facade` base, declare the canonical
+service contract they resolve, and keep explicit methods for static
+discoverability. Their `use` and fake helpers are temporary execution-local
+test overrides; production resolution uses the active application container.
+Known public interoperability boundaries and remaining backend exposure are
+tracked in [`docs/specifications/backend-boundaries.md`](docs/specifications/backend-boundaries.md).
 
 ## Module boundaries
 
 | Module | Responsibility | Status |
 | --- | --- | --- |
 | `foundation` | Application lifecycle, bootstrapping, kernels, shutdown, and provider lifecycle. | Initial `Application` implemented. |
-| `container` | Dependency injection, bindings, concrete graph discovery, scopes, and resource management. | Native sync-first registry and private graph adapter implemented incrementally; see `docs/specifications/container.md`. |
+| `container` | Dependency injection, bindings, concrete graph discovery, scopes, and resource management. | Native sync-first container composes framework services; a separate private graph adapter remains for ASGI route injection. See `docs/specifications/container.md`. |
 | `contracts` | Dependency-independent typed protocols and shared abstraction boundaries. | Initial configuration, sync-first and async container, and Support contracts implemented; many component contracts remain pending. |
-| `support` | Shared utilities, managers, and lightweight helpers. | Selected Laravel-inspired utilities implemented; compatibility inventory is incremental. |
+| `support` | Shared utilities, managers, and lightweight helpers. | Selected native utilities implemented; see `docs/specifications/support.md`. |
 | `config` | Typed configuration, trusted sources, environment integration, and safe snapshots. | Native repository, settings, source loader, cache, commands, and application provider implemented; see `docs/config/`. |
-| `facades` | Context-aware access to application-owned services. | Execution-local `Config` and `Log` facades implemented. |
+| `facades` | Context-aware access to application-owned services. | Shared typed facade base and execution-local `Config` and `Log` facades implemented. |
 | `routing` | Fluent routing, route groups, controllers, and workflow endpoints. | Planned; FastAPI routers remain directly accessible. |
 | `http` | HTTP requests, responses, middleware, and fluent HTTP clients. | Planned. |
 | `auth` | Authentication, authorization, guards, gates, and policies. | Planned. |
@@ -54,7 +86,7 @@ table.
 | `mail` | Mailables, delivery, templates, and attachments. | Planned. |
 | `notifications` | Multi-channel application notifications. | Planned. |
 | `filesystem` | Local and cloud storage abstractions. | Planned. |
-| `logging` | Native records, channels, drivers, redaction, context, async dispatch, and lifecycle. | Initial component implemented; see `docs/logging/` and the compatibility inventory for limits. |
+| `logging` | Native records, channels, drivers, redaction, context, async dispatch, and lifecycle. | Initial component implemented; see `docs/logging/` and its specification for limits. |
 | `scheduling` | Recurring tasks, cron expressions, and coordination. | Planned. |
 | `console` | CLI commands, generators, and scaffolding. | Initial help and version options implemented. |
 | `ai` | Model providers, prompts, embeddings, and structured output. | Planned. |
@@ -101,28 +133,43 @@ only `Application` and `__version__` today.
 
 ## Application lifecycle
 
-`Application` creates a FastAPI application and its existing explicit
-dependency graph from the provided registrations. The caller can include
-native FastAPI routers via `application.asgi`. The web integration manages
-request scopes, and the application lifespan closes the app-scoped graph.
-The native `titanspan.container.Container` API is implemented incrementally;
-it is not yet the `Application` object's single composition root.
+`Application` is the composition root for framework-owned services. It loads
+trusted configuration, creates the native `Container`, registers the
+configuration and logging providers followed by application providers, then
+resolves the configured `LoggingManager` from that same container. Direct
+application resolution, Config and Log facades, helper access, and provider
+boot dependencies therefore share service identities.
+
+The caller can include FastAPI routers through the deliberate
+`application.asgi` integration boundary. Route dependency injection still
+uses a separate private graph adapter because the web integration owns its
+request injection protocol. The application lifespan boots optional provider
+hooks inside the active application context and closes logging, native
+container, and route graph resources if startup fails, is cancelled, or exits
+normally. Request middleware creates an application-owned scope and logging
+context. See the [backend boundary audit](docs/specifications/backend-boundaries.md)
+for the transitional raw provider interoperability input.
 
 ```mermaid
 sequenceDiagram
     participant Host as ASGI host
     participant App as Titanspan Application
-    participant DI as Dishka AsyncContainer
+    participant Container as Native service container
+    participant Providers as Component service providers
+    participant Routes as Private ASGI route graph
     participant Handler as FastAPI handler
 
+    App->>Container: construct native application registry
+    App->>Providers: register config, logging, and app services
+    App->>Container: resolve configured logging manager
     Host->>App: enter ASGI lifespan
-    App->>DI: create container from frozen providers
+    App->>Providers: boot with injected services
     Host->>Handler: HTTP request
-    Handler->>DI: resolve request dependencies
-    DI-->>Handler: scoped dependencies
+    App->>Container: create request execution scope
     Handler-->>Host: response
     Host->>App: exit ASGI lifespan
-    App->>DI: close and finalize resources
+    App->>Container: close native application resources
+    App->>Routes: close ASGI route graph resources
 ```
 
 Construct and validate production registrations before serving traffic. Do not
@@ -131,13 +178,15 @@ builder DSL, service-provider discovery, or implicit module scanning.
 
 ## Service container and execution scopes
 
-The native container owns registration metadata and task-local scope contexts.
-Its private dependency adapter composes graphs and delegates construction and
-resource finalization. Concrete class graphs can be discovered on demand and
-are cached by root until application or scope shutdown. Registration freezes
-when graph composition starts. The current adapter maps semantic scope names
-onto a finite ordered hierarchy; see the specification for equivalent-level
-and nesting limits.
+The native container owns framework service registration and task-local scope
+contexts. Its private dependency adapter composes graphs and delegates
+construction and resource finalization. Concrete class graphs can be
+discovered on demand and are cached by root until application or scope
+shutdown. Registration freezes when graph composition starts. The current
+adapter maps semantic scope names onto a finite ordered hierarchy; see the
+specification for equivalent-level and nesting limits. FastAPI route
+injection remains a separate interoperability graph until its lifecycle is
+reconciled with native request dependency injection.
 
 Application-scoped objects may be shared only when they are safe for concurrent
 use. Mutable sessions and request data belong to narrower scopes. Facades, if
@@ -149,25 +198,28 @@ resources.
 
 Contracts describe framework-owned behavior with typed protocols or small
 abstract interfaces. Adapters translate those contracts to libraries such as
-SQLAlchemy, Taskiq, Cashews, or LangGraph. Keep native library objects
-accessible so users can opt out of a Titanspan convenience API when necessary.
+SQLAlchemy, Taskiq, Cashews, or LangGraph. Ordinary application APIs use
+Titanspan-owned types; native library objects are exposed only at explicit,
+documented interoperability boundaries.
 
-The package-level contracts currently include `ConfigRepository`,
-`ServiceContainer`, `AsyncServiceContainer`, `InstanceRegistration`, and
-generic Support protocols for array conversion, JSON text, rendering, response
-conversion, and validated data. The native `config.Repository` implements the
-canonical configuration protocol and is registered through the private graph
-adapter. The native `container.Container` implements the sync-first container
-protocol. Existing HTML and message-bag contracts retain their canonical
-identities and are re-exported here. Logging contracts remain owned by
-`titanspan.logging.contracts` to avoid duplicate types and dependency cycles.
+Shared interfaces are organized under `titanspan.contracts.config`,
+`titanspan.contracts.container`, `titanspan.contracts.foundation`,
+`titanspan.contracts.logging`, and `titanspan.contracts.support`. The top-level
+contracts package re-exports those exact objects. `config.Repository`
+implements `ConfigRepository`; ConfigServiceProvider registers the selected
+repository through `ServiceRegistry`. LoggingServiceProvider builds the
+application manager from that contract and registers `LoggingManager` and
+`LogWriter`. `container.Container` implements `ServiceContainer` and is the
+registry used by Application and the shared facade base. Logging implements
+the shared generic driver, formatter, processor, and customizer contracts
+without importing concrete log records into the contracts package.
 
 The package dependency order places `titanspan.contracts` below configuration
-and the core service modules. Contracts use Python's standard typing
-facilities and do not import optional database, AI, queue, or storage adapters.
-The full pinned Laravel namespace and method inventory, including inherited
-surfaces and intentionally deferred APIs, is in
-[`docs/compatibility/laravel-contracts.md`](docs/compatibility/laravel-contracts.md).
+and core service modules. Contracts use Python's standard typing facilities
+and do not import concrete modules, optional database, AI, queue, or storage
+adapters.
+The implemented native contracts, owners, and deferred boundaries are
+recorded in [`docs/specifications/contracts.md`](docs/specifications/contracts.md).
 
 Configuration source precedence and security boundaries are recorded in
 [ADR 0013](docs/architecture/decisions/0013-native-configuration.md). The

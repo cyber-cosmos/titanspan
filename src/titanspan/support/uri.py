@@ -20,8 +20,7 @@ from urllib.parse import (
 
 from starlette.responses import RedirectResponse
 
-from titanspan.contracts import Htmlable
-from titanspan.contracts.htmlable import LaravelHtmlable
+from titanspan.contracts import HtmlRenderable
 from titanspan.support.arr import Arr
 from titanspan.support.conditionable import Conditionable
 from titanspan.support.helpers import data_get, data_has, enum_value
@@ -84,7 +83,7 @@ def _is_query_container(value: object) -> TypeGuard[_QueryContainer]:
 
 
 def _array_key(value: str) -> str | int:
-    """Apply PHP's canonical decimal-string key conversion.
+    """Convert canonical decimal query indexes to integer keys.
 
     Args:
         value: A query key token from bracket notation.
@@ -365,7 +364,7 @@ def _store_query_value(
 
 
 def _assign_query_value(data: _QueryData, key: str, value: str) -> None:
-    """Assign a query value into nested PHP-style bracket data.
+    """Assign a query value into nested bracket-notation data.
 
     Args:
         data: The root query mapping to mutate.
@@ -450,8 +449,7 @@ class Uri(
     Macroable,
     Conditionable,
     Tappable,
-    Htmlable,
-    LaravelHtmlable,
+    HtmlRenderable,
 ):
     """Represent an immutable URI with fluent component updates.
 
@@ -712,8 +710,7 @@ class Uri(
     def path(self) -> str:
         """Return the path without leading or trailing slashes.
 
-        Empty paths are represented as a single slash to match Illuminate's
-        public API.
+        Empty paths are represented as a single slash for stable URI output.
 
         Returns:
             A normalized path string.
@@ -864,7 +861,7 @@ class Uri(
         Returns:
             A new URI with RFC 3986 encoded query data.
         """
-        values: _QueryData = self.query().to_array() if merge else {}
+        values: _QueryData = self.query().all() if merge else {}
         for key, value in query.items():
             Arr.set(values, key, value)
         encoded = Arr.query(values)
@@ -886,7 +883,7 @@ class Uri(
             A new URI preserving current values for present keys.
         """
         values = dict(query)
-        current = self.query().to_array()
+        current = self.query().all()
         for key in tuple(values):
             if data_has(current, key):
                 values.pop(key)
@@ -902,14 +899,14 @@ class Uri(
         Returns:
             A new URI with the extended parameter.
         """
-        current = data_get(self.query().to_array(), key)
+        current = data_get(self.query().all(), key)
         values = Arr.wrap(value)
         if _is_query_list(current):
             combined = current + list(values)
             pushed: object = _unique_values(combined)
         elif _is_query_mapping(current):
-            # PHP array unpacking retains string keys while assigning new
-            # numeric keys after the existing sequence of entries.
+            # Preserve named keys and append numeric values after existing
+            # sequence entries.
             pushed: object = dict(current)
             next_index = (
                 max(
@@ -935,7 +932,7 @@ class Uri(
         Returns:
             A new URI with selected query values omitted.
         """
-        return self.replace_query(Arr.except_(self.query().to_array(), keys))
+        return self.replace_query(Arr.except_(self.query().all(), keys))
 
     def replace_query(self, query: Mapping[str | int, object]) -> Self:
         """Replace the query mapping instead of merging with it.
@@ -995,19 +992,8 @@ class Uri(
         """
         return Stringable(self.value())
 
-    def to_response(self, _request: object | None = None) -> RedirectResponse:
-        """Create a Starlette redirect response for framework interoperability.
-
-        Args:
-            request: Accepted for compatibility; Starlette does not require it.
-
-        Returns:
-            A redirect response pointing at this URI.
-        """
-        return self.redirect()
-
     def to_html(self) -> str:
-        """Return the URI string through the Htmlable protocol.
+        """Return the URI string through the HtmlRenderable protocol.
 
         Returns:
             The URI string without HTML escaping.
@@ -1024,7 +1010,7 @@ class Uri(
             The URI with its query percent-decoded and fragment preserved.
         """
         query = self.query()
-        if not query.to_array():
+        if not query.all():
             return self.value()
         components = self._components()
         decoded = query.decode()
@@ -1098,14 +1084,6 @@ class Uri(
         """
         return self._parsed()
 
-    def json_serialize(self) -> str:
-        """Return the URI string for JSON serialization.
-
-        Returns:
-            The URI string.
-        """
-        return self.value()
-
     def __str__(self) -> str:
         """Return the URI string through Python's string protocol.
 
@@ -1167,7 +1145,7 @@ class Uri(
         return _render(components)
 
     def _query_data(self) -> _QueryData:
-        """Decode and normalize query data using PHP-style bracket keys.
+        """Decode query data with nested bracket-notation keys.
 
         Returns:
             A nested Python mapping containing decoded string values.
@@ -1209,31 +1187,6 @@ class Uri(
         if resolver is None:
             raise RuntimeError(_RESOLVER_ERROR)
         return resolver()
-
-    pathSegments = path_segments
-    signedRoute = signed_route
-    temporarySignedRoute = temporary_signed_route
-    withScheme = with_scheme
-    withUser = with_user
-    withHost = with_host
-    withPort = with_port
-    withPath = with_path
-    withQuery = with_query
-    withQueryIfMissing = with_query_if_missing
-    pushOntoQuery = push_onto_query
-    withoutQuery = without_query
-    replaceQuery = replace_query
-    withFragment = with_fragment
-    withoutFragment = without_fragment
-    toStringable = to_stringable
-    toResponse = to_response
-    toHtml = to_html
-    toString = to_string
-    isEmpty = is_empty
-    isNotEmpty = is_not_empty
-    setUrlGeneratorResolver = set_url_generator_resolver
-    getUri = get_uri
-    jsonSerialize = json_serialize
 
 
 __all__ = ["Uri", "UriUrlGenerator"]

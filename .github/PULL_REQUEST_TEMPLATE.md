@@ -12,7 +12,7 @@ Describe module boundaries, integration changes, or write "None".
 
 ## Breaking changes
 
-Describe compatibility impact or write "None".
+Describe public API impact or write "None".
 
 ## Validation
 

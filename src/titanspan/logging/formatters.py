@@ -8,8 +8,8 @@ import json
 import sys
 from typing import TextIO
 
+from titanspan.contracts.logging import LogFormatter
 from titanspan.logging.configuration import ChannelConfiguration
-from titanspan.logging.contracts.log_formatter import LogFormatter
 from titanspan.logging.record import LogRecord
 
 
@@ -125,7 +125,7 @@ _COLORS: dict[str, str] = {
 
 def create_formatter(
     configuration: ChannelConfiguration,
-) -> LogFormatter:
+) -> LogFormatter[LogRecord]:
     """Create a native formatter from validated channel settings.
 
     Args:

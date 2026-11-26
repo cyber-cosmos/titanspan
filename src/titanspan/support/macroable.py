@@ -1,7 +1,7 @@
 """Provide explicit, typed macro registration for support classes.
 
-The API follows Laravel's Macroable lifecycle while using Python callables
-and explicit invocation methods instead of magic attribute lookup.
+The API uses Python callables and explicit invocation methods instead of
+magic attribute lookup.
 """
 
 from __future__ import annotations
@@ -214,9 +214,6 @@ class Macroable:
         if bind_instance and inspect.isfunction(callback):
             callback = cast("Macro", MethodType(callback, self))
         return callback(*args, **kwargs)
-
-    hasMacro = has_macro
-    flushMacros = flush_macros
 
 
 __all__ = ["Macro", "Macroable"]

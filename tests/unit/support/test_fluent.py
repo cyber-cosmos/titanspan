@@ -1,6 +1,6 @@
-"""Verify the Laravel-inspired Fluent object behavior.
+"""Verify the native Fluent mapping and attribute behavior.
 
-The cases cover mapping access, fluent APIs, serialization, and aliases.
+The cases cover mapping access, fluent APIs, and serialization.
 """
 
 from __future__ import annotations
@@ -36,8 +36,8 @@ def test_fluent_constructs_from_mappings_and_iterables() -> None:
 
     source["age"] = 38
 
-    assert fluent.to_array() == {"name": "Ada", "age": EXPECTED_AGE}
-    assert from_pairs.toArray() == {"name": "Lin", "active": True}
+    assert fluent.all() == {"name": "Ada", "age": EXPECTED_AGE}
+    assert from_pairs.all() == {"name": "Lin", "active": True}
     assert Fluent[str, object].make({"active": True}).active is True
 
 
@@ -72,13 +72,16 @@ def test_fluent_value_and_all_preserve_direct_and_nested_access() -> None:
 
     assert fluent.value("theme") == "dark"
     assert fluent.value("unknown", lambda: "fallback") == "fallback"
-    assert fluent.all() == fluent.to_array()
+    assert fluent.all() == {
+        "user": {"name": "Ada", "active": True},
+        "theme": "dark",
+    }
     assert fluent.all(["user.name", "theme"]) == {
         "user": {"name": "Ada"},
         "theme": "dark",
     }
-    assert fluent.all(iter(())) == fluent.to_array()
-    assert fluent.scope("user").to_array() == {
+    assert fluent.all(iter(())) == fluent.all()
+    assert fluent.scope("user").all() == {
         "name": "Ada",
         "active": True,
     }
@@ -124,20 +127,22 @@ def test_fluent_mapping_protocol_mutates_items_and_tracks_null_keys() -> None:
     """
     fluent: Fluent[str, object] = Fluent({"name": "Ada", "nullable": None})
 
-    assert "nullable" not in fluent
+    assert "nullable" in fluent
     assert fluent.has("nullable")
     assert fluent["nullable"] is None
     fluent["role"] = "admin"
     assert fluent["role"] == "admin"
     del fluent["name"]
     assert "name" not in fluent
+    with pytest.raises(KeyError):
+        del fluent["missing"]
     assert list(fluent) == ["nullable", "role"]
     assert len(fluent) == EXPECTED_COUNT
 
 
 @pytest.mark.unit
-def test_fluent_serializes_with_python_and_laravel_method_names() -> None:
-    """Serialize the same attribute data through explicit naming aliases.
+def test_fluent_serializes_attribute_data_as_json() -> None:
+    """Serialize the attribute mapping through the JSON API.
 
     Returns:
         None.
@@ -147,17 +152,18 @@ def test_fluent_serializes_with_python_and_laravel_method_names() -> None:
     expected = json.loads(EXPECTED_JSON)
 
     assert fluent.to_json() == EXPECTED_JSON
-    assert fluent.toJson() == EXPECTED_JSON
-    assert fluent.json_serialize() == expected
-    assert fluent.jsonSerialize() == expected
-    assert json.loads(fluent.toPrettyJson()) == expected
+    assert fluent.to_json() == EXPECTED_JSON
+    assert fluent.to_json(indent=2).startswith("{\n")
+    unicode_fluent: Fluent[str, object] = Fluent({"name": "Crème"})
+    assert unicode_fluent.to_json(ensure_ascii=False) == '{"name":"Crème"}'
+    assert json.loads(fluent.to_pretty_json()) == expected
     assert "\n" in fluent.to_pretty_json()
-    assert fluent.toArray() == fluent.getAttributes()
+    assert fluent.all() == expected
 
 
 @pytest.mark.unit
-def test_fluent_empty_checks_and_iterator_aliases() -> None:
-    """Expose emptiness checks and the Laravel-compatible iterator alias.
+def test_fluent_empty_checks_and_python_iteration() -> None:
+    """Expose emptiness checks and iterate mapping keys directly.
 
     Returns:
         None.
@@ -166,11 +172,11 @@ def test_fluent_empty_checks_and_iterator_aliases() -> None:
     populated: Fluent[str, object] = Fluent({"name": "Ada"})
 
     assert empty.is_empty()
-    assert empty.isEmpty()
+    assert empty.is_empty()
     assert not empty.is_not_empty()
     assert populated.is_not_empty()
-    assert populated.isNotEmpty()
-    assert list(populated.getIterator()) == list(populated.attributes.items())
+    assert populated.is_not_empty()
+    assert list(populated) == list(populated.attributes)
 
 
 @pytest.mark.unit
@@ -240,13 +246,13 @@ def test_fluent_coerces_values_objects_and_pair_iterables() -> None:
             """
             return {"name": "Ada"}
 
-    assert Fluent("value").to_array() == {0: "value"}
-    assert Fluent([1, 2]).to_array() == {0: 1, 1: 2}
-    assert Fluent([("name", "Lin")]).to_array() == {"name": "Lin"}
-    assert Fluent([["name", "Lin"]]).to_array() == {
+    assert Fluent("value").all() == {0: "value"}
+    assert Fluent([1, 2]).all() == {0: 1, 1: 2}
+    assert Fluent([("name", "Lin")]).all() == {"name": "Lin"}
+    assert Fluent([["name", "Lin"]]).all() == {
         0: ["name", "Lin"],
     }
-    assert Fluent(Model()).to_array() == {"name": "Ada"}
+    assert Fluent(Model()).all() == {"name": "Ada"}
 
 
 @pytest.mark.unit
@@ -278,4 +284,4 @@ def test_fluent_mapping_membership_handles_unhashable_keys() -> None:
     fluent: Fluent[str, object] = Fluent({"name": "Ada"})
 
     assert [] not in fluent
-    assert fluent.to_array() == {"name": "Ada"}
+    assert fluent.all() == {"name": "Ada"}

@@ -1,4 +1,4 @@
-"""Verify database URL parsing against the pinned Support behavior.
+"""Verify database URL and DSN parsing behavior.
 
 Cases cover driver aliases, native query values, SQLite paths, and SQL Server
 DSN options using only local data.
@@ -42,20 +42,19 @@ def reset_driver_aliases(monkeypatch: pytest.MonkeyPatch) -> None:
 def test_driver_aliases_are_exposed_and_can_be_extended() -> None:
     """Expose the built-in aliases and allow application-specific additions.
 
-    Both source-compatible and Python-style methods operate on one registry.
+    New schemes resolve through the same parser registry.
     """
     assert ConfigurationUrlParser.get_driver_aliases() == _DEFAULT_ALIASES
-    assert ConfigurationUrlParser.getDriverAliases() == _DEFAULT_ALIASES
 
     ConfigurationUrlParser.add_driver_alias("custom-db", "mysql")
-    ConfigurationUrlParser.addDriverAlias("custom-pg", "pgsql")
+    ConfigurationUrlParser.add_driver_alias("custom-pg", "pgsql")
 
     assert ConfigurationUrlParser.get_driver_aliases()["custom-db"] == "mysql"
-    assert ConfigurationUrlParser.getDriverAliases()["custom-pg"] == "pgsql"
+    assert ConfigurationUrlParser.get_driver_aliases()["custom-pg"] == "pgsql"
     assert ConfigurationUrlParser().parse_configuration("custom-db://null") == {
         "driver": "mysql",
     }
-    assert ConfigurationUrlParser().parseConfiguration("custom-pg://null") == {
+    assert ConfigurationUrlParser().parse_configuration("custom-pg://null") == {
         "driver": "pgsql",
     }
 
@@ -194,14 +193,14 @@ def test_database_urls_parse_primary_options(
         ),
     ],
 )
-def test_upstream_url_examples_preserve_decoding_and_options(
+def test_url_examples_preserve_decoding_and_options(
     url: str,
     expected: dict[str, object],
 ) -> None:
-    """Match pinned upstream examples for URL decoding and query options.
+    """Preserve URL decoding and typed query options.
 
     Args:
-        url: A database URL from the upstream behavior matrix.
+        url: A database URL with encoded components and query options.
         expected: The expected normalized connection options.
     """
     assert ConfigurationUrlParser().parse_configuration(url) == expected
@@ -344,9 +343,9 @@ def test_query_options_parse_native_values_and_nested_arrays() -> None:
 
 
 def test_query_arrays_handle_nested_append_and_key_normalization() -> None:
-    """Parse deeply nested PHP-style query arrays into Python containers.
+    """Parse nested bracket keys and normalize option names.
 
-    Dot and space characters in option names use PHP query-key rules.
+    Repeated bracket entries remain ordered lists in the result.
     """
     url = (
         "mysql://localhost/db?read[][host]=db-a&read[][host]=db-b"
@@ -363,7 +362,7 @@ def test_query_arrays_handle_nested_append_and_key_normalization() -> None:
 
 
 def test_query_arrays_preserve_mixed_numeric_and_string_keys() -> None:
-    """Preserve mixed PHP-style array keys in an ordered Python mapping.
+    """Preserve numeric and named keys in an ordered mapping.
 
     Contiguous append-only numeric arrays are exposed as lists separately.
     """
@@ -378,7 +377,7 @@ def test_query_arrays_preserve_mixed_numeric_and_string_keys() -> None:
 def test_malformed_bracket_notation_remains_a_literal_query_key() -> None:
     """Keep unmatched bracket text as a literal option name.
 
-    This matches the permissive behavior of PHP's query-string parser.
+    This parser keeps malformed bracket text as a literal option name.
     """
     url = "mysql://localhost/db?options[broken]tail]=value"
 
@@ -393,8 +392,8 @@ def test_malformed_bracket_notation_remains_a_literal_query_key() -> None:
 def test_invalid_json_numeric_constants_remain_strings() -> None:
     """Leave non-standard JSON constants unchanged in query options.
 
-    Python's JSON decoder accepts NaN by default, while PHP JSON decoding
-    rejects it, so the parser explicitly retains the original string.
+    Non-standard JSON constants are rejected so the original string remains
+    available to application-specific parsing.
     """
     url = "mysql://localhost/db?value=NaN"
 
@@ -415,17 +414,16 @@ def test_missing_url_returns_a_copy_without_the_url_key() -> None:
     assert config["url"] == ""
 
 
-def test_php_falsy_zero_string_is_treated_as_a_missing_url() -> None:
-    """Treat the PHP-falsy string zero as an absent URL value.
+def test_truthy_non_url_string_is_rejected_instead_of_ignored() -> None:
+    """Reject a non-empty value that cannot identify a connection target.
 
-    The remaining connection settings are returned after the URL is removed.
+    Python considers ``"0"`` truthy; parsing must not reuse foreign
+    truthiness rules to treat it as an absent setting.
     """
     config = {"url": "0", "driver": "sqlite", "database": ":memory:"}
 
-    assert ConfigurationUrlParser().parse_configuration(config) == {
-        "driver": "sqlite",
-        "database": ":memory:",
-    }
+    with pytest.raises(ValueError, match="configuration URL is malformed"):
+        ConfigurationUrlParser().parse_configuration(config)
 
 
 def test_sql_server_dsn_maps_options_and_server_port() -> None:
@@ -452,9 +450,9 @@ def test_sql_server_dsn_maps_options_and_server_port() -> None:
 
 
 def test_sql_server_dsn_maps_all_documented_options() -> None:
-    """Map the pinned upstream SQL Server options and boolean values.
+    """Map the supported SQL Server options and boolean values.
 
-    Unrecognized boolean-like options remain strings as in Illuminate.
+    Unrecognized boolean-like options remain strings.
     """
     dsn = (
         "sqlsrv:Server=localhost;Database=sample;Authentication=SqlPassword;"

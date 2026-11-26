@@ -10,7 +10,7 @@ from collections import deque
 from threading import Lock
 from typing import TYPE_CHECKING
 
-from titanspan.logging.delivery import DeliveryStatus
+from titanspan.contracts.logging import DeliveryStatus
 from titanspan.logging.exceptions import LogDeliveryError
 
 if TYPE_CHECKING:

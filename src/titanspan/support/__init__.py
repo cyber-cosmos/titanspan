@@ -1,4 +1,4 @@
-"""Expose Titanspan's shared support utilities and compatibility helpers.
+"""Expose Titanspan's shared utility and application helper APIs.
 
 The module exports array operations, nested-data helpers, null-safe optional
 values, forwarding, macro, and conditional mixins, and typed support

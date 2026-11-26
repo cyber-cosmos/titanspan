@@ -6,7 +6,7 @@ framework only adds its own version option and project help text.
 
 import json
 from pathlib import Path
-from typing import NoReturn
+from typing import TYPE_CHECKING, NoReturn
 
 import typer
 from rich.console import Console
@@ -18,6 +18,9 @@ from titanspan.config import (
     ConfigurationError,
 )
 from titanspan.support.arr import Arr
+
+if TYPE_CHECKING:
+    from titanspan.contracts.config import ConfigDiagnostics
 
 __all__ = ["app", "main", "root_command"]
 
@@ -79,11 +82,11 @@ def show_config(
         typer.Exit: If configuration loading fails or the key is missing.
     """
     try:
-        repository = ConfigManager(Path.cwd()).validate()
+        diagnostics: ConfigDiagnostics = ConfigManager(Path.cwd()).validate()
     except ConfigurationError as error:
         _configuration_error(error)
 
-    safe_values = dict(repository.redacted())
+    safe_values = dict(diagnostics.redacted())
     displayed: object = safe_values
     if key is not None:
         displayed = Arr.get(safe_values, key, _MISSING)

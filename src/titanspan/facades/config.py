@@ -9,37 +9,63 @@ from __future__ import annotations
 from collections.abc import Callable, Generator, Mapping, Sequence
 from contextlib import contextmanager
 from contextvars import ContextVar, Token
-from typing import TYPE_CHECKING, TypeVar, cast
+from typing import TYPE_CHECKING, TypeVar
 
-from titanspan.config.exceptions import ConfigContextError
-from titanspan.config.repository import ConfigArray, Repository
-
-if TYPE_CHECKING:
-    from titanspan.contracts.config_repository import ConfigRepository
+from titanspan._application_context import ApplicationContextError
+from titanspan.config.exceptions import (
+    ConfigCapabilityError,
+    ConfigContextError,
+)
+from titanspan.contracts.config import (
+    ConfigArray,
+    ConfigMacroRegistry,
+    ConfigRepository,
+    ScopedConfigOverrides,
+    TypedConfigReader,
+)
+from titanspan.facades.base import Facade
 
 Default = TypeVar("Default")
 _MISSING_CONTEXT_ERROR = (
     "Bind a configuration repository with Config.use() first."
 )
-_OVERRIDE_REPOSITORY_ERROR = (
-    "Scoped overrides require a Titanspan Repository instance."
-)
-_TYPED_REPOSITORY_ERROR = (
-    "Typed access requires a Titanspan Repository instance."
-)
-_ACTIVE_REPOSITORY: ContextVar[object | None] = ContextVar(
+_SCOPED_OVERRIDE_CAPABILITY = "scoped overrides"
+_TYPED_RETRIEVAL_CAPABILITY = "typed retrieval"
+_MACRO_CAPABILITY = "configuration macros"
+_ACTIVE_REPOSITORY: ContextVar[ConfigRepository | None] = ContextVar(
     "titanspan_active_config_repository",
     default=None,
 )
 
+if TYPE_CHECKING:
+    from titanspan.contracts.container import ServiceContainer
 
-class Config:
+
+class Config(Facade[ConfigRepository]):
     """Resolve configuration operations from an active repository binding.
 
     Bind a repository at application or test boundaries with ``use``. The
     ContextVar token restores the previous binding on normal exit, failure,
-    or asynchronous cancellation.
+    or asynchronous cancellation. Production calls resolve through the
+    canonical active application container.
     """
+
+    service_contract = ConfigRepository
+
+    @classmethod
+    def resolve_from_container(
+        cls,
+        container: ServiceContainer,
+    ) -> ConfigRepository:
+        """Resolve the canonical repository from an application container.
+
+        Args:
+            container: Active application service registry.
+
+        Returns:
+            The repository selected by the application composition root.
+        """
+        return container.make(ConfigRepository)
 
     @classmethod
     @contextmanager
@@ -56,7 +82,9 @@ class Config:
         Yields:
             Control while facade calls use the supplied repository.
         """
-        token: Token[object | None] = _ACTIVE_REPOSITORY.set(repository)
+        token: Token[ConfigRepository | None] = _ACTIVE_REPOSITORY.set(
+            repository
+        )
         try:
             yield
         finally:
@@ -73,9 +101,12 @@ class Config:
             ConfigContextError: If the caller has not bound a repository.
         """
         repository = _ACTIVE_REPOSITORY.get()
-        if repository is None:
-            raise ConfigContextError(_MISSING_CONTEXT_ERROR)
-        return cast("ConfigRepository", repository)
+        if repository is not None:
+            return repository
+        try:
+            return cls.resolve_service()
+        except ApplicationContextError as error:
+            raise ConfigContextError(_MISSING_CONTEXT_ERROR) from error
 
     @classmethod
     def has(cls, key: str) -> bool:
@@ -106,10 +137,10 @@ class Config:
         """
         repository = cls.repository()
         if isinstance(key, Mapping):
-            return cls.get_many(key)
+            return repository.get_many(key)
         if isinstance(key, str):
             return repository.get(key, default)
-        return cls.get_many(key, default)
+        return repository.get_many(key, default)
 
     @classmethod
     def get_many(
@@ -126,19 +157,7 @@ class Config:
         Returns:
             Resolved values keyed by their configuration paths.
         """
-        repository = cls.repository()
-        pairs = (
-            keys.items()
-            if isinstance(keys, Mapping)
-            else ((key, default) for key in keys)
-        )
-        result: dict[str, object] = {}
-        for key, fallback in pairs:
-            if repository.has(key):
-                result[key] = repository.get(key)
-            else:
-                result[key] = fallback() if callable(fallback) else fallback
-        return result
+        return cls.repository().get_many(keys, default)
 
     @classmethod
     def set(
@@ -185,7 +204,7 @@ class Config:
         Raises:
             ConfigValueError: If the value does not have the required type.
         """
-        return cls._repository().string(key, default)
+        return cls._typed_repository().string(key, default)
 
     @classmethod
     def integer(
@@ -202,7 +221,7 @@ class Config:
         Returns:
             The resolved integer value.
         """
-        return cls._repository().integer(key, default)
+        return cls._typed_repository().integer(key, default)
 
     @classmethod
     def float(
@@ -219,7 +238,7 @@ class Config:
         Returns:
             The resolved float value.
         """
-        return cls._repository().float(key, default)
+        return cls._typed_repository().float(key, default)
 
     @classmethod
     def boolean(
@@ -236,7 +255,7 @@ class Config:
         Returns:
             The resolved boolean value.
         """
-        return cls._repository().boolean(key, default)
+        return cls._typed_repository().boolean(key, default)
 
     @classmethod
     def array(
@@ -253,7 +272,7 @@ class Config:
         Returns:
             The resolved mapping or list.
         """
-        return cls._repository().array(key, default)
+        return cls._typed_repository().array(key, default)
 
     @classmethod
     def prepend(cls, key: str, value: object) -> None:
@@ -263,7 +282,7 @@ class Config:
             key: Dotted path to the list setting.
             value: Value inserted at the beginning.
         """
-        cls._repository().prepend(key, value)
+        cls.repository().prepend(key, value)
 
     @classmethod
     def push(cls, key: str, value: object) -> None:
@@ -273,7 +292,7 @@ class Config:
             key: Dotted path to the list setting.
             value: Value appended at the end.
         """
-        cls._repository().push(key, value)
+        cls.repository().push(key, value)
 
     @classmethod
     def macro(
@@ -281,13 +300,13 @@ class Config:
         name: str,
         callback: Callable[..., object],
     ) -> None:
-        """Register a Laravel-compatible macro on the native repository.
+        """Register a macro on the active configuration repository.
 
         Args:
             name: Public macro name used by explicit invocation.
             callback: Callable stored in the repository's shared registry.
         """
-        cls._repository().macro(name, callback)
+        cls._macro_repository().macro(name, callback)
 
     @classmethod
     def mixin(cls, mixin: object, replace: bool = True) -> None:
@@ -297,7 +316,7 @@ class Config:
             mixin: Object whose callable methods return macro callbacks.
             replace: Whether existing macro names may be replaced.
         """
-        cls._repository().mixin(mixin, replace)
+        cls._macro_repository().mixin(mixin, replace)
 
     @classmethod
     def has_macro(cls, name: str) -> bool:
@@ -309,7 +328,7 @@ class Config:
         Returns:
             Whether the repository class can resolve the macro.
         """
-        return cls._repository().has_macro(name)
+        return cls._macro_repository().has_macro(name)
 
     @classmethod
     def flush_macros(cls) -> None:
@@ -317,7 +336,7 @@ class Config:
 
         Inherited macros remain available until their owning class is flushed.
         """
-        cls._repository().flush_macros()
+        cls._macro_repository().flush_macros()
 
     @classmethod
     def call_macro(
@@ -336,7 +355,7 @@ class Config:
         Returns:
             The value returned by the macro callback.
         """
-        return cls._repository().call_macro(name, *args, **kwargs)
+        return cls._macro_repository().call_macro(name, *args, **kwargs)
 
     @classmethod
     @contextmanager
@@ -357,29 +376,40 @@ class Config:
                 Titanspan's scoped override semantics.
         """
         repository = cls.repository()
-        if not isinstance(repository, Repository):
-            raise ConfigContextError(_OVERRIDE_REPOSITORY_ERROR)
+        if not isinstance(repository, ScopedConfigOverrides):
+            raise ConfigCapabilityError(_SCOPED_OVERRIDE_CAPABILITY)
         with repository.override(values):
             yield
 
     @classmethod
-    def _repository(cls) -> Repository:
-        """Return the native repository required for typed operations.
+    def _typed_repository(cls) -> TypedConfigReader:
+        """Resolve the optional typed-access configuration capability.
 
         Returns:
-            The active Titanspan repository implementation.
+            The active typed configuration reader.
 
         Raises:
-            ConfigContextError: If another contract implementation is active.
+            ConfigCapabilityError: If the active repository lacks typed reads.
         """
         repository = cls.repository()
-        if not isinstance(repository, Repository):
-            raise ConfigContextError(_TYPED_REPOSITORY_ERROR)
+        if not isinstance(repository, TypedConfigReader):
+            raise ConfigCapabilityError(_TYPED_RETRIEVAL_CAPABILITY)
         return repository
 
-    getMany = get_many
-    hasMacro = has_macro
-    flushMacros = flush_macros
+    @classmethod
+    def _macro_repository(cls) -> ConfigMacroRegistry:
+        """Resolve the optional runtime macro capability.
+
+        Returns:
+            The active repository's macro registry.
+
+        Raises:
+            ConfigCapabilityError: If macros are not supported.
+        """
+        repository = cls.repository()
+        if not isinstance(repository, ConfigMacroRegistry):
+            raise ConfigCapabilityError(_MACRO_CAPABILITY)
+        return repository
 
 
 __all__ = ["Config"]

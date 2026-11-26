@@ -18,7 +18,6 @@ from titanspan.logging import (
     LogCustomizer,
     Logger,
     LogLifecycleError,
-    MemoryLogDriver,
     MessageLogged,
 )
 
@@ -48,7 +47,7 @@ def test_application_binds_request_context_and_closes_logging() -> None:
             """
             logger.listen(messages.append)
 
-    customizer: LogCustomizer = CaptureMessages()
+    customizer: LogCustomizer[Logger] = CaptureMessages()
     application = Application(
         logging={
             "channels": {
@@ -60,8 +59,7 @@ def test_application_binds_request_context_and_closes_logging() -> None:
         },
         logging_customizers={"capture": customizer},
     )
-    driver = application.logging.channel().channel.driver
-    assert isinstance(driver, MemoryLogDriver)
+    assert application.logging.get_default_channel() == "default"
 
     @application.asgi.get("/logging-context")
     async def read_logging_context(request: Request) -> dict[str, object]:
@@ -96,13 +94,12 @@ def test_application_binds_request_context_and_closes_logging() -> None:
         "application": "Titanspan",
         "request_id": "request-2",
     }
-    assert [record.context["request_id"] for record in driver.records] == [
+    assert [event.record.context["request_id"] for event in messages] == [
         "request-1",
         "request-2",
     ]
     assert all(
-        record.context["application"] == "Titanspan"
-        for record in driver.records
+        event.record.context["application"] == "Titanspan" for event in messages
     )
     assert len(messages) == EXPECTED_REQUEST_EVENTS
     assert all(event.record.channel == "default" for event in messages)

@@ -1,7 +1,7 @@
 """Provide epoch deadline and elapsed-time helpers.
 
-This mixin adapts Illuminate's InteractsWithTime trait to aware Python
-datetimes and ``timedelta`` values without changing process-wide clocks.
+The mixin uses aware Python datetimes and ``timedelta`` values without
+changing process-wide clocks.
 """
 
 from __future__ import annotations
@@ -42,9 +42,9 @@ class InteractsWithTime:
 
     Notes:
         Python ``timedelta`` has no calendar months or years. Longer
-        human-readable durations use Carbon's default 4-week month and
-        12-month year cascade. Naive datetimes are rejected because their
-        Unix timestamp depends on the host's local timezone.
+        Human-readable durations treat a month as four weeks and a year as
+        twelve months. Naive datetimes are rejected because their Unix
+        timestamp depends on the host's local timezone.
     """
 
     def seconds_until(self, delay: _Delay) -> int:
@@ -138,8 +138,8 @@ class InteractsWithTime:
             second; otherwise, a space-separated short duration.
 
         Notes:
-            This compatibility helper uses wall-clock timestamps like the
-            upstream API. Use a monotonic clock for new elapsed-time measures.
+            Inputs are Unix wall-clock timestamps. Use a monotonic clock for
+            measuring elapsed work within the current process.
         """
         end = time.time() if end_time is None else end_time
         milliseconds = (end - start_time) * _MILLISECONDS_PER_SECOND
@@ -173,16 +173,9 @@ class InteractsWithTime:
         if value.tzinfo is None or value.utcoffset() is None:
             raise ValueError(_TIMEZONE_ERROR)
 
-    # Keep the original Illuminate method names as explicit aliases.
-    secondsUntil = seconds_until
-    availableAt = available_at
-    parseDateInterval = parse_date_interval
-    currentTime = current_time
-    runTimeForHumans = run_time_for_humans
-
 
 def _format_milliseconds(milliseconds: float) -> str:
-    """Format short elapsed durations with PHP-like half-up rounding.
+    """Format short elapsed durations with decimal half-up rounding.
 
     Args:
         milliseconds: Elapsed duration in milliseconds.
@@ -198,7 +191,7 @@ def _format_milliseconds(milliseconds: float) -> str:
 
 
 def _format_short_duration(milliseconds: float) -> str:
-    """Cascade a positive duration into short Carbon-style time units.
+    """Cascade a positive duration into short human-readable time units.
 
     Args:
         milliseconds: A duration greater than one second.
@@ -207,9 +200,9 @@ def _format_short_duration(milliseconds: float) -> str:
         Non-zero years through seconds, joined by single spaces.
 
     Notes:
-        Carbon's default cascade treats a month as four weeks and a year as
-        twelve months. Millisecond remainders are omitted by its default
-        minimum display unit of seconds.
+        One month is treated as four weeks and one year as twelve months.
+        Millisecond remainders are omitted because seconds are the smallest
+        displayed unit.
     """
     remaining = math.floor(milliseconds)
     units = (

@@ -1,9 +1,9 @@
-"""Verify behavior of the mutable native configuration repository.
+"""Verify hierarchical configuration reads, mutation, and mapping behavior.
 
-The tests cover Laravel-compatible lookups while preserving Python's strict
-type and mapping conventions.
+The tests preserve Python's strict type and mapping conventions.
 """
 
+import asyncio
 from collections.abc import Callable, Mapping
 from types import MappingProxyType
 from typing import cast
@@ -15,6 +15,7 @@ from titanspan.config import ConfigValueError, Repository
 pytestmark = pytest.mark.unit
 CACHE_TTL = 30
 WORKER_COUNT = 4
+CHILD_TASK_COUNT = 2
 _TYPED_ACCESSORS: Mapping[str, Callable[[Repository, str], object]] = {
     "string": lambda repository, key: repository.string(key),
     "integer": lambda repository, key: repository.integer(key),
@@ -92,7 +93,7 @@ def test_repository_retrieves_many_paths_and_per_key_defaults() -> None:
         "app.name": "Titanspan",
         "queue.workers": 4,
     }
-    assert repository.getMany(["app.name"]) == {
+    assert repository.get_many(["app.name"]) == {
         "app.name": "Titanspan",
     }
     assert repository.get({"app.missing": "fallback"}) == {
@@ -191,8 +192,115 @@ def test_repository_mutates_nested_values_and_sequence_settings() -> None:
     assert repository.get("cache.ttl") == CACHE_TTL
 
 
+def test_mutations_inside_overrides_do_not_escape_into_base_configuration() -> (
+    None
+):
+    """Keep writes and deletions inside the active override layer.
+
+    Nested scopes see outer scoped writes, while leaving either scope restores
+    the previous view without changing the base repository.
+    """
+    repository = Repository(
+        {
+            "app": {"name": "base", "debug": False},
+            "middleware": ["base"],
+        }
+    )
+
+    with repository.override({"app.debug": True}):
+        repository.set("app.name", "outer")
+        repository.push("middleware", "outer")
+
+        with repository.override({"app.name": "inner"}):
+            repository.set("app.name", "inner-updated")
+            assert repository.get("app.name") == "inner-updated"
+
+        assert repository.get("app.name") == "outer"
+        assert repository.get("app.debug") is True
+        assert repository.get("middleware") == ["base", "outer"]
+        del repository["app.debug"]
+        assert not repository.has("app.debug")
+
+    assert repository.get("app.name") == "base"
+    assert repository.get("app.debug") is False
+    assert repository.get("middleware") == ["base"]
+
+
+def test_repository_owns_builtin_inputs_and_returned_mutable_values() -> None:
+    """Prevent caller mutations from bypassing repository write semantics.
+
+    Built-in mappings and lists are copied at construction, assignment, and
+    retrieval boundaries. Opaque application objects retain their identity.
+    """
+    initial = {"app": {"flags": ["initial"]}}
+    repository = Repository(initial)
+
+    initial["app"]["flags"].append("external")
+    loaded = repository.get("app")
+    assert isinstance(loaded, dict)
+    loaded_values = cast("dict[str, object]", loaded)
+    loaded_flags = cast("list[object]", loaded_values["flags"])
+    loaded_flags.append("returned")
+
+    assigned = {"workers": [1]}
+    repository.set("queue", assigned)
+    assigned["workers"].append(2)
+    retrieved = repository.get("queue")
+    assert isinstance(retrieved, dict)
+    retrieved_values = cast("dict[str, object]", retrieved)
+    retrieved_workers = cast("list[object]", retrieved_values["workers"])
+    retrieved_workers.append(3)
+
+    assert repository.get("app.flags") == ["initial"]
+    assert repository.get("queue.workers") == [1]
+
+
+@pytest.mark.anyio
+async def test_scoped_mutations_are_isolated_between_child_tasks() -> None:
+    """Keep inherited override layers independent across concurrent tasks.
+
+    Child tasks inherit the active override at creation, but their subsequent
+    writes must remain local to each task and must not change the parent view.
+    """
+    repository = Repository({"worker": {"name": "base", "tags": []}})
+    both_ready = asyncio.Event()
+    ready_count = 0
+
+    async def mutate(name: str) -> tuple[str, list[object]]:
+        """Write and read one task-local view after both tasks are ready.
+
+        Args:
+            name: Value identifying this task's configuration mutation.
+
+        Returns:
+            The task's own name and tags after its local writes.
+        """
+        nonlocal ready_count
+        repository.set("worker.name", name)
+        repository.push("worker.tags", name)
+        ready_count += 1
+        if ready_count == CHILD_TASK_COUNT:
+            both_ready.set()
+        await both_ready.wait()
+        tags = repository.get("worker.tags")
+        assert isinstance(tags, list)
+        return repository.string("worker.name"), cast("list[object]", tags)
+
+    with repository.override({"worker.name": "scope", "worker.tags": []}):
+        results = await asyncio.gather(mutate("first"), mutate("second"))
+        assert repository.get("worker.name") == "scope"
+        assert repository.get("worker.tags") == []
+
+    assert sorted(results) == [
+        ("first", ["first"]),
+        ("second", ["second"]),
+    ]
+    assert repository.get("worker.name") == "base"
+    assert repository.get("worker.tags") == []
+
+
 def test_repository_mapping_access_uses_python_missing_key_semantics() -> None:
-    """Raise for missing reads while Laravel unset stores an explicit null.
+    """Raise for missing reads and remove deleted paths.
 
     Returns:
         None.
@@ -207,8 +315,11 @@ def test_repository_mapping_access_uses_python_missing_key_semantics() -> None:
     del repository["present"]
     repository["nested.created"] = "assigned"
 
-    assert repository.has("present")
-    assert repository.get("present") is None
+    assert not repository.has("present")
+    with pytest.raises(KeyError):
+        _ = repository["present"]
+    with pytest.raises(KeyError):
+        del repository["missing"]
     assert repository.get("nested.created") == "assigned"
 
 
@@ -423,7 +534,7 @@ def test_repository_macro_methods_delegate_to_the_canonical_registry() -> None:
     repository = Repository({"app": {"name": "Titanspan"}})
 
     try:
-        assert Repository.hasMacro("hasName")
+        assert Repository.has_macro("hasName")
         assert repository.call_macro("hasName") is True
     finally:
         Repository.flush_macros()

@@ -1,6 +1,6 @@
 """Verify namespaced key parsing and parsed-value cache semantics.
 
-Exercise upstream segment rules and Python-safe cache copy behavior.
+Exercise key segmentation and Python-safe cache copy behavior.
 """
 
 from __future__ import annotations
@@ -37,24 +37,24 @@ def test_parse_key_splits_namespace_group_and_item(
     assert NamespacedItemResolver().parse_key(key) == expected
 
 
-def test_camel_case_aliases_share_the_python_implementations() -> None:
-    """Preserve source-compatible method names for the public API.
+def test_cached_key_can_be_set_and_flushed() -> None:
+    """Allow an explicit parsed value to be replaced and invalidated.
 
-    Both spellings use the same parsing and cache behavior.
+    Flushing the cache restores parsing from the updated source key.
     """
     resolver = NamespacedItemResolver()
 
-    assert resolver.parseKey("package::group.item") == [
+    assert resolver.parse_key("package::group.item") == [
         "package",
         "group",
         "item",
     ]
-    resolver.setParsedKey("cached.key", ["custom"])
+    resolver.set_parsed_key("cached.key", ["custom"])
     assert resolver.parse_key("cached.key") == ["custom"]
 
-    resolver.flushParsedKeys()
+    resolver.flush_parsed_keys()
 
-    assert resolver.parseKey("cached.key") == [None, "cached", "key"]
+    assert resolver.parse_key("cached.key") == [None, "cached", "key"]
 
 
 def test_explicitly_cached_keys_skip_parsing_and_are_copied() -> None:
@@ -77,11 +77,11 @@ def test_explicitly_cached_keys_skip_parsing_and_are_copied() -> None:
     ]
 
 
-def test_namespaced_separator_uses_the_first_two_segments() -> None:
-    """Match upstream behavior when more than one namespace separator exists.
+def test_only_the_first_namespace_separator_splits_the_key() -> None:
+    """Keep later separators inside the namespaced group segment.
 
-    The upstream destructuring keeps its first namespace and item segments.
+    Only the first separator divides the namespace from the item name.
     """
     assert NamespacedItemResolver().parse_key(
         "package::group::ignored.item"
-    ) == ["package", "group", None]
+    ) == ["package", "group::ignored", "item"]

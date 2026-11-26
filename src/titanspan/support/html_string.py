@@ -6,10 +6,10 @@ implements ``__html__`` for interoperability with HTML-aware Python tools.
 
 from __future__ import annotations
 
-from titanspan.contracts import Htmlable
+from titanspan.contracts import HtmlRenderable
 
 
-class HtmlString(Htmlable):
+class HtmlString(HtmlRenderable):
     """Wrap trusted HTML and expose explicit rendering operations.
 
     Attributes:
@@ -67,10 +67,6 @@ class HtmlString(Htmlable):
             The trusted HTML representation.
         """
         return self.to_html()
-
-    toHtml = to_html
-    isEmpty = is_empty
-    isNotEmpty = is_not_empty
 
 
 __all__ = ["HtmlString"]

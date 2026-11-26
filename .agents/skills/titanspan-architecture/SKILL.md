@@ -36,7 +36,8 @@ integration, changes package direction, or may require an ADR.
 - Adding abstractions that duplicate a mature package.
 - Creating circular imports or optional dependencies in core modules.
 - Claiming performance, support, or compatibility without evidence.
-- Converting Laravel PHP APIs directly instead of designing idiomatic Python.
+- Mechanically translating another language instead of designing idiomatic
+  Python APIs.
 
 ## Validation
 

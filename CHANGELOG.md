@@ -5,6 +5,11 @@ public release.
 
 ## Unreleased
 
+- Standardized pre-release public APIs on one Python `snake_case` spelling.
+  Removed duplicate aliases, vendor-named protocol exports, and ignored
+  string encoding and locale parameters. Empty iterable endpoints now return
+  `None`, and configuration mapping deletion removes the path. See ADR 0016
+  for the API policy.
 - Corrected the native container to resolve sync-safe graphs synchronously and
   expose explicit async resolution methods for async factories and resources.
   Application-level synchronous and asynchronous resolution share Dishka's
@@ -14,29 +19,41 @@ public release.
   application singletons, execution-scoped values, ordered tags, aliases,
   automatic concrete dependency discovery, bounded graph generations, and
   synchronous and asynchronous generator cleanup, callable injection, method
-  callback bindings, and declarative class lifetime decorators. Existing web
-  lifecycle integration remains in place; contextual injection, dynamic
-  rebinding, and application composition-root integration remain pending. See
-  `docs/specifications/container.md` and `docs/container/`.
+  callback bindings, and declarative class lifetime decorators. The native
+  container now composes framework services through application providers;
+  FastAPI route injection remains a separate adapter. Contextual injection and
+  dynamic rebinding remain pending. See `docs/specifications/container.md` and
+  `docs/container/`.
 - Added the native configuration repository, strict typed accessors, trusted
   Python/JSON/TOML source loading, isolated dotenv integration, validated
-  settings, application-scoped facade and Dishka contract binding. Added
+  settings, application-scoped facade and native contract registration. Added
   secret-safe configuration inspection, atomic JSON caching, and config CLI
-  commands. See `docs/config/` and the Laravel compatibility inventory.
+  commands. See `docs/config/` and `docs/specifications/config.md`.
 - Projected explicitly supplied custom settings fields into configuration
   paths, preserving nested sibling values and file precedence for unset
   defaults.
-- Added dependency-independent contracts for mutable configuration,
-  synchronous-first service resolution with explicit async alternatives, and
-  generic Support data/presentation interfaces. The native configuration
-  repository and service container implement their canonical contracts.
-  Existing HTML and message-bag contract identities remain canonical; see
-  `docs/contracts/` and the Laravel compatibility inventory.
+- Added domain-organized contracts for configuration, container registration,
+  foundation providers, logging, and supported Support display and message
+  boundaries. Removed fixture-only data, HTTP, and validation protocols that
+  lacked production owners. See `docs/contracts/` and
+  `docs/specifications/contracts.md`.
+- Reorganized shared contracts into `titanspan.contracts.config`,
+  `titanspan.contracts.container`, `titanspan.contracts.logging`, and
+  `titanspan.contracts.support`. Logging contracts are generic and no longer
+  import concrete logging records. Top-level and component imports re-export
+  the same objects. Direct imports from the former flat contract modules are
+  removed in this unreleased API; see `docs/specifications/contracts.md`.
 - Added a native structured logging component with RFC severity levels,
   context-local metadata, redaction, channel stacks, file and stream drivers,
   standard-library logging interoperability, bounded background dispatch,
-  application lifecycle integration, and native logging fakes. Laravel
-  compatibility remains incremental; see `docs/compatibility/laravel-logging.md`.
+  application lifecycle integration, and native logging fakes. See
+  `docs/specifications/logging.md` for implemented boundaries.
+- Unified configuration, logging, facades, native service providers, and the
+  application container. Configuration now drives the default logging
+  manager; facade resolution shares one application context; provider boot is
+  injected through the native container and cleaned up on startup failure.
+  FastAPI route dependency injection remains a separately documented adapter.
+  See ADR 0018 and `docs/architecture/contract-integration.md`.
 - Added UTC calendar-month log rotation with bounded archive retention through
   Python's standard timed file handler.
 - Added registered, once-per-channel native logging customizers with cleanup
@@ -44,9 +61,9 @@ public release.
 - Established the installable package, CLI, FastAPI application lifecycle,
   Dishka dependency integration, and typed settings.
 - Added explicit synchronous and AnyIO-based asynchronous Support sleep
-  builders with context-local fakes and upstream-compatible assertions.
-- Added Laravel-compatible environment value parsing, scoped mapping adapters,
-  and validated dotenv file updates.
+  builders with context-local fakes and native assertions.
+- Added dotenv value parsing, scoped mapping adapters, and validated dotenv
+  file updates.
 - Added synchronous and AnyIO-based asynchronous retry helpers backed by
   Tenacity.
 - Added locale-aware numeric formatting, parsing, spelling, summaries, and
@@ -58,8 +75,8 @@ public release.
   options, driver aliases, and SQL Server DSN values.
 - Added namespaced item key parsing with an instance-local cache.
 - Added wrapper call delegation with fluent identity preservation.
-- Added aware datetime and duration deadline calculations with runtime
-  formatting based on Carbon's default interval cascade.
+- Added aware datetime and duration deadline calculations with readable
+  interval formatting.
 - Added context-local random string factories and secure password generation
   as a Titanspan-specific string utility extension.
 - Added initial tests, architecture decisions, contributor documentation, and

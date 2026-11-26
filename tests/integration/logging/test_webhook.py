@@ -54,7 +54,7 @@ def webhook_server() -> Iterator[tuple[str, Queue[bytes]]]:
 
         def log_message(
             self,
-            format: str,  # noqa: A002
+            format: str,
             *args: object,
         ) -> None:
             """Suppress server diagnostics unrelated to payload assertions.

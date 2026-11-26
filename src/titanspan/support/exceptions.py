@@ -1,6 +1,6 @@
 """Define errors raised by Titanspan Support utilities.
 
-The exceptions preserve the broad categories used by Laravel while carrying
+The exceptions preserve stable operation categories while carrying
 Python-specific messages and structured details for callers.
 """
 
@@ -258,8 +258,8 @@ class InvalidRetryConfigurationTypeError(TypeError):
 class InvalidNumberValueError(TypeError):
     """Report a boolean passed where a numeric value is required.
 
-    Python treats booleans as integer subclasses, while Laravel's numeric
-    methods accept only integer and floating-point values.
+    Python treats booleans as integer subclasses, so numeric accessors
+    reject booleans explicitly.
     """
 
     def __init__(self) -> None:

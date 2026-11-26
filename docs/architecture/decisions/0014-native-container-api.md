@@ -1,7 +1,12 @@
 # ADR 0014: Native service container API
 
-- Status: Accepted for the current implementation milestone
+- Status: Accepted for container graph behavior; application composition
+  integration is superseded by ADR 0018
 - Date: 2026-11-25
+
+> Status update: The native container now composes framework services in
+> `Application`. Only FastAPI route injection retains a separate graph; see
+> ADR 0018.
 
 ## Context
 
@@ -14,9 +19,6 @@ The new API also needs to resolve concrete typed graphs discovered after the
 container is created. The selected resolver validates a graph at composition
 time and does not document in-place graph mutation. Replacing a live graph
 could invalidate singleton and scoped resources.
-
-The reference behavior is pinned to release `13.44.1` at commit
-`8a8c4a84852869e13190d89f9da873cd9a70f14c`.
 
 ## Decision
 

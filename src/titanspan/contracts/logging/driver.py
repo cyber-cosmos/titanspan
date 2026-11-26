@@ -3,20 +3,21 @@
 Drivers own one output destination and must release resources they create.
 """
 
-from typing import Protocol
+from typing import Protocol, runtime_checkable
 
-from titanspan.logging.delivery import DeliveryStatus
-from titanspan.logging.record import LogRecord
+from titanspan.contracts.logging.delivery import DeliveryStatus
 
 
-class LogDriver(Protocol):
-    """Accept structured records and manage destination resources.
+@runtime_checkable
+class LogDriver[RecordT_contra](Protocol):
+    """Accept component records and manage destination resources.
 
     Implementations may write to a stream, file, memory buffer, or composed
     set of child destinations. A driver must not mutate the supplied record.
+    ``RecordT_contra`` is the owning component's immutable record type.
     """
 
-    def write(self, record: LogRecord) -> DeliveryStatus | None:
+    def write(self, record: RecordT_contra) -> DeliveryStatus | None:
         """Deliver one immutable-by-convention native record.
 
         Args:

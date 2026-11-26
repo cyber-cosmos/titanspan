@@ -4,12 +4,14 @@ The facade and helper must resolve the same explicitly bound repository and
 must restore scoped overrides after failures.
 """
 
-from collections.abc import Callable
+from collections.abc import Callable, Generator, Mapping, Sequence
+from contextlib import contextmanager
+from typing import TYPE_CHECKING, overload
 
 import anyio
 import pytest
 
-from titanspan.config import ConfigContextError, Repository
+from titanspan.config import ConfigArray, ConfigContextError, Repository
 from titanspan.facades import Config
 from titanspan.support import config
 
@@ -18,6 +20,253 @@ _EXPECTED_FAILURE = "failure"
 _EXPECTED_CONCURRENT_TASKS = 2
 _WORKER_COUNT = 4
 _TEMPERATURE = 0.25
+
+if TYPE_CHECKING:
+    from titanspan.contracts.config import (
+        ConfigDiagnostics,
+        ConfigRepository,
+        ScopedConfigOverrides,
+        TypedConfigReader,
+    )
+
+
+class _AlternateConfigRepository:
+    """Adapt the repository behavior behind a distinct public implementation.
+
+    This object exposes supported configuration capabilities without
+    inheriting from the concrete Titanspan repository.
+    """
+
+    def __init__(self) -> None:
+        """Create isolated values for facade substitution tests.
+
+        The alternate owns an independent production repository internally
+        but exposes only the structural contract under test.
+        """
+        self._store = Repository(
+            {
+                "app": {"name": "Alternate", "debug": False},
+                "items": ["initial"],
+            }
+        )
+        self.batch_reads = 0
+
+    def has(self, key: str) -> bool:
+        """Check whether one path exists in the adapted store.
+
+        Args:
+            key: Dotted configuration path.
+
+        Returns:
+            Whether the path is present.
+        """
+        return self._store.has(key)
+
+    @overload
+    def get(self, key: str, default: object = None) -> object:
+        """Retrieve one path from the adapted store.
+
+        Args:
+            key: Dotted configuration path.
+            default: Fallback value.
+
+        Returns:
+            The value or fallback.
+        """
+
+    @overload
+    def get(
+        self,
+        key: list[str] | tuple[str, ...] | Mapping[str, object],
+        default: object = None,
+    ) -> Mapping[str, object]:
+        """Retrieve multiple paths from the adapted store.
+
+        Args:
+            key: Requested paths or per-path defaults.
+            default: Shared fallback for path sequences.
+
+        Returns:
+            Values keyed by requested paths.
+        """
+
+    def get(
+        self,
+        key: str | list[str] | tuple[str, ...] | Mapping[str, object],
+        default: object = None,
+    ) -> object:
+        """Retrieve one or multiple values through the adapted store.
+
+        Args:
+            key: Path, sequence of paths, or per-path defaults.
+            default: Shared fallback for path sequences.
+
+        Returns:
+            The selected value or mapping of values.
+        """
+        if isinstance(key, str):
+            return self._store.get(key, default)
+        return self.get_many(key, default)
+
+    def get_many(
+        self,
+        keys: Sequence[str] | Mapping[str, object],
+        default: object = None,
+    ) -> Mapping[str, object]:
+        """Retrieve multiple paths and count canonical batch delegation.
+
+        Args:
+            keys: Ordered paths or individual defaults.
+            default: Shared fallback for ordered paths.
+
+        Returns:
+            Values keyed by their requested paths.
+        """
+        self.batch_reads += 1
+        return self._store.get_many(keys, default)
+
+    def all(self) -> Mapping[str, object]:
+        """Return all adapted configuration values.
+
+        Returns:
+            A read-only snapshot from the wrapped repository.
+        """
+        return self._store.all()
+
+    def set(
+        self,
+        key: str | Mapping[str, object],
+        value: object = None,
+    ) -> None:
+        """Update one path or a batch of paths.
+
+        Args:
+            key: Dotted path or mapping of assignments.
+            value: Value assigned for a single path.
+        """
+        self._store.set(key, value)
+
+    def prepend(self, key: str, value: object) -> None:
+        """Insert one item at the start of a configured list.
+
+        Args:
+            key: Dotted list path.
+            value: Item inserted at the beginning.
+        """
+        self._store.prepend(key, value)
+
+    def push(self, key: str, value: object) -> None:
+        """Append one item to a configured list.
+
+        Args:
+            key: Dotted list path.
+            value: Item appended to the end.
+        """
+        self._store.push(key, value)
+
+    def string(
+        self,
+        key: str,
+        default: str | Callable[[], str] | None = None,
+    ) -> str:
+        """Return a strictly validated string value.
+
+        Args:
+            key: Dotted configuration path.
+            default: Optional value or lazy fallback.
+
+        Returns:
+            The validated string.
+        """
+        return self._store.string(key, default)
+
+    def integer(
+        self,
+        key: str,
+        default: int | Callable[[], int] | None = None,
+    ) -> int:
+        """Return a strictly validated integer value.
+
+        Args:
+            key: Dotted configuration path.
+            default: Optional value or lazy fallback.
+
+        Returns:
+            The validated integer.
+        """
+        return self._store.integer(key, default)
+
+    def float(
+        self,
+        key: str,
+        default: float | Callable[[], float] | None = None,
+    ) -> float:
+        """Return a strictly validated floating-point value.
+
+        Args:
+            key: Dotted configuration path.
+            default: Optional value or lazy fallback.
+
+        Returns:
+            The validated float.
+        """
+        return self._store.float(key, default)
+
+    def boolean(
+        self,
+        key: str,
+        default: bool | Callable[[], bool] | None = None,
+    ) -> bool:
+        """Return a strictly validated boolean value.
+
+        Args:
+            key: Dotted configuration path.
+            default: Optional value or lazy fallback.
+
+        Returns:
+            The validated boolean.
+        """
+        return self._store.boolean(key, default)
+
+    def array(
+        self,
+        key: str,
+        default: ConfigArray | Callable[[], ConfigArray] | None = None,
+    ) -> ConfigArray:
+        """Return a validated mapping or list value.
+
+        Args:
+            key: Dotted configuration path.
+            default: Optional value or lazy fallback.
+
+        Returns:
+            The configured mapping or list.
+        """
+        return self._store.array(key, default)
+
+    @contextmanager
+    def override(
+        self,
+        values: Mapping[str, object],
+    ) -> Generator[None, None, None]:
+        """Expose the wrapped repository's task-local override behavior.
+
+        Args:
+            values: Temporary path values.
+
+        Yields:
+            Control while the override is active.
+        """
+        with self._store.override(values):
+            yield
+
+    def redacted(self) -> Mapping[str, object]:
+        """Return a secret-safe diagnostic snapshot.
+
+        Returns:
+            The wrapped repository's redacted mapping.
+        """
+        return self._store.redacted()
 
 
 def test_config_facade_requires_an_explicit_repository_context() -> None:
@@ -58,7 +307,7 @@ def test_config_facade_and_helper_share_one_repository() -> None:
             "name": "Titanspan",
             "debug": False,
         }
-        assert Config.getMany(["app.name", "app.debug"]) == {
+        assert Config.get_many(["app.name", "app.debug"]) == {
             "app.name": "Titanspan",
             "app.debug": False,
         }
@@ -118,50 +367,36 @@ def test_config_override_is_restored_after_exceptions() -> None:
         assert Config.boolean("app.debug") is False
 
 
-def test_typed_facade_operations_reject_other_contract_implementations(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """Keep native typed helpers and overrides tied to Repository semantics.
+def test_facade_uses_alternate_capabilities_without_concrete_checks() -> None:
+    """Delegate batch, typed, mutation, and override behavior by contract.
 
-    Args:
-        monkeypatch: Fixture replacing repository access with another
-            structural implementation.
-
-    Returns:
-        None.
+    The adapted repository has a distinct concrete identity but implements
+    the same supported configuration capabilities.
     """
+    repository = _AlternateConfigRepository()
+    base_contract: ConfigRepository = repository
+    typed_contract: TypedConfigReader = repository
+    scoped_contract: ScopedConfigOverrides = repository
+    diagnostic_contract: ConfigDiagnostics = repository
 
-    def external_repository(_cls: type[Config]) -> object:
-        """Return a structural contract implementation without extensions.
+    assert base_contract is repository
+    assert typed_contract is repository
+    assert scoped_contract is repository
+    assert diagnostic_contract is repository
 
-        Args:
-            _cls: Config facade class receiving the class method call.
+    with Config.use(repository):
+        assert Config.repository() is repository
+        assert Config.string("app.name") == "Alternate"
+        assert Config.get_many(["app.name"]) == {
+            "app.name": "Alternate",
+        }
+        assert repository.batch_reads == 1
 
-        Returns:
-            An opaque object representing an alternate repository.
-        """
-        return object()
+        with Config.override({"app.name": "scoped"}):
+            Config.set("app.name", "mutated")
+            assert Config.get("app.name") == "mutated"
 
-    monkeypatch.setattr(
-        Config,
-        "repository",
-        classmethod(external_repository),
-    )
-
-    with pytest.raises(ConfigContextError, match="Typed access"):
-        Config.string("app.name")
-
-    def enter_unsupported_override() -> None:
-        """Attempt the scoped extension on a structural repository.
-
-        Returns:
-            None if the context could be entered.
-        """
-        with Config.override({"app.debug": True}):
-            pass
-
-    with pytest.raises(ConfigContextError, match="Scoped overrides"):
-        enter_unsupported_override()
+        assert Config.get("app.name") == "Alternate"
 
 
 @pytest.mark.anyio
@@ -246,9 +481,9 @@ def test_config_facade_delegates_macro_lifecycle_to_repository() -> None:
         Config.flush_macros()
         try:
             Config.macro("configuredName", configured_name)
-            assert Config.hasMacro("configuredName")
+            assert Config.has_macro("configuredName")
             assert Config.call_macro("configuredName") == "Titanspan"
             Config.mixin(ApplicationMixin())
             assert Config.call_macro("application_name") == "Mixin"
         finally:
-            Config.flushMacros()
+            Config.flush_macros()

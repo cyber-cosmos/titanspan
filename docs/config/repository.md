@@ -15,8 +15,8 @@ values = repository.get_many({"app.name": "Fallback", "queue.workers": 4})
 ```
 
 `get()` accepts one dotted path, an ordered sequence of paths, or a mapping
-from paths to defaults. `get_many()` and the Laravel-compatible `getMany()`
-are also available. Defaults may be values or zero-argument callbacks.
+from paths to defaults. `get_many()` is also available. Defaults may be
+values or zero-argument callbacks.
 
 An existing literal key such as `{"app.name": "literal"}` takes priority
 over traversing `{"app": {"name": "nested"}}`. Presence checks distinguish
@@ -54,15 +54,14 @@ list. Existing incompatible values raise `TypeError`.
 
 `all()` returns a read-only top-level mapping containing copied built-in
 containers. Custom leaf objects retain identity. Python `__getitem__` raises
-`KeyError` for absent paths. `del repository[key]` follows Laravel's
-`offsetUnset` behavior and writes explicit `None`; it does not remove the
-path.
+`KeyError` for absent paths. `del repository[key]` removes the path and
+raises `KeyError` when it does not exist.
 
 ## Macros
 
 Repository macros use the shared Support `Macroable` registry. Register with
-`Repository.macro()` or `Repository.mixin()`, inspect with `has_macro()` or
-`hasMacro()`, and clean up with `flush_macros()` or `flushMacros()`. Dynamic
-attribute lookup is intentionally absent; use `repository.call_macro()` for
-typed, explicit invocation. Macro registration is class-level and shared
-between repository instances.
+`Repository.macro()` or `Repository.mixin()`, inspect with
+`Repository.has_macro()`, and clean up with `Repository.flush_macros()`.
+Dynamic attribute lookup is intentionally absent; use
+`repository.call_macro()` for typed, explicit invocation. Macro registration
+is class-level and shared between repository instances.

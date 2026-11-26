@@ -6,6 +6,7 @@ their implementation details remain behind component modules.
 
 from titanspan.config.cache import ConfigCache
 from titanspan.config.exceptions import (
+    ConfigCapabilityError,
     ConfigContextError,
     ConfigurationCacheError,
     ConfigurationError,
@@ -22,6 +23,7 @@ from titanspan.config.settings import Settings
 __all__ = [
     "ConfigArray",
     "ConfigCache",
+    "ConfigCapabilityError",
     "ConfigContextError",
     "ConfigLoader",
     "ConfigManager",

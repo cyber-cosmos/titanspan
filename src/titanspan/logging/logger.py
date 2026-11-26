@@ -18,6 +18,8 @@ from titanspan.logging.level import LogLevel
 from titanspan.logging.record import LogRecord
 
 if TYPE_CHECKING:
+    from types import TracebackType
+
     from titanspan.logging.channel import LogChannel
     from titanspan.logging.events import MessageLogged
 
@@ -79,23 +81,6 @@ class Logger:
             return
         record = self._make_record(parsed, message, context, values)
         self.channel.write(record)
-
-    def write(
-        self,
-        level: LogLevel | str | int,
-        message: str,
-        context: Mapping[str, object] | None = None,
-        **values: object,
-    ) -> None:
-        """Write a record using Laravel-compatible ``write`` terminology.
-
-        Args:
-            level: A native level, case-insensitive name, or RFC number.
-            message: The message to write.
-            context: Optional positional structured context mapping.
-            **values: Additional structured context values.
-        """
-        self.log(level, message, context, **values)
 
     def emergency(
         self,
@@ -545,48 +530,24 @@ class Logger:
             )
         return self
 
-    def __exit__(self, *_: object) -> None:
+    def __exit__(
+        self,
+        exception_type: type[BaseException] | None,
+        exception: BaseException | None,
+        traceback: TracebackType | None,
+    ) -> None:
         """Close an on-demand channel when its context manager exits.
 
         Raises:
             LogLifecycleError: If the logger does not own the shared channel.
         """
+        del exception_type, exception, traceback
         if not self._owns_channel:
             msg = "Only on-demand loggers own their channels"
             raise LogLifecycleError(
                 msg,
             )
         self.channel.close()
-
-    def withContext(  # noqa: N802
-        self,
-        context: Mapping[str, object] | None = None,
-        **values: object,
-    ) -> Logger:
-        """Return a bound logger using Laravel-compatible method spelling.
-
-        Args:
-            context: Optional mapping of bound values.
-            **values: Additional values overriding mapping keys.
-
-        Returns:
-            A new logger sharing this instance's channel.
-        """
-        return self.with_context(context, **values)
-
-    def withoutContext(  # noqa: N802
-        self,
-        keys: tuple[str, ...] | list[str] | None = None,
-    ) -> Logger:
-        """Return a logger without values using Laravel-compatible spelling.
-
-        Args:
-            keys: Values to remove, or ``None`` to clear all bound context.
-
-        Returns:
-            A new logger preserving this logger's channel.
-        """
-        return self.without_context(*(keys or ()))
 
 
 def _empty_context() -> Mapping[str, object]:

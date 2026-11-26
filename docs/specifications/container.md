@@ -1,17 +1,10 @@
 # Native service container specification
 
-This document is the implementation inventory for the current container
-milestone. It distinguishes verified behavior from APIs that still require
-implementation. The compatibility reference is pinned in the existing
-compatibility inventory; this file records Titanspan-owned behavior and
-decisions.
+This document records Titanspan's native service-container behavior, current
+implementation status, and architectural limits. It is the behavioral
+specification for the public API.
 
-## Reference baseline
-
-The behavior audit is pinned to release `13.44.1`, commit
-`8a8c4a84852869e13190d89f9da873cd9a70f14c`. This inventory describes
-operations using Titanspan terminology and records implementation status
-without copying upstream implementation code.
+## Resolution backend
 
 The private resolution adapter is verified against Dishka `1.10.1`, the exact
 version in `uv.lock`. That release publicly exposes `AsyncContainer.get_sync`
@@ -29,28 +22,26 @@ and generator cleanup to the selected dependency engine.
 | --- | --- | --- |
 | `Container()` | Verified | Creates an application-owned registry. |
 | `bind` | Verified | Registers a transient class or typed factory. |
-| `bind_if` / `bindIf` | Verified | Registers only when the key is absent. |
+| `bind_if` | Verified | Registers only when the key is absent. |
 | `singleton` | Verified | Caches one application-owned instance. |
-| `singleton_if` / `singletonIf` | Verified | Conditionally registers a singleton. |
+| `singleton_if` | Verified | Conditionally registers a singleton. |
 | `scoped` | Verified | Caches in the selected active execution scope. |
-| `scoped_if` / `scopedIf` | Verified | Conditionally registers a scoped value. |
+| `scoped_if` | Verified | Conditionally registers a scoped value. |
 | `@singleton` | Verified | Declares application-owned lifetime metadata on a class. |
 | `@scoped(scope)` | Verified | Declares execution-scope metadata on a class. |
 | `instance` | Verified | Registers an externally owned value. |
 | `make` / `get` | Verified | Synchronously resolves sync-safe graphs; an initialized cached service remains accessible. |
 | `make_async` / `get_async` | Verified | Explicitly resolves graphs with async factories or resources. |
-| `resolve` / `resolve_async` | Verified | Typed aliases for sync and async resolution. |
-| `build` / `build_async` | Adapted | Uses configured lifetime caching; it does not bypass shared bindings. |
 | `make_with` / `make_with_async` | Verified | Constructs a root with explicit values and resolves remaining dependencies through `call` or `call_async`. |
 | `bound` | Verified | Checks explicit registration without resolution. |
 | `has` | Adapted | Checks explicit keys, aliases, and non-abstract classes; it does not
   prove that a concrete graph can be constructed. |
 | `resolved` | Adapted | Reports only cached values observed through this API. |
-| `is_shared` / `isShared` | Verified | Reports registered or class-declared cached lifetimes. |
-| `is_alias` / `isAlias` | Verified | Checks a registered string alias. |
+| `is_shared` | Verified | Reports registered or class-declared cached lifetimes. |
+| `is_alias` | Verified | Checks a registered string alias. |
 | `alias` | Verified | Maps a string key to one canonical type; alias chains are not used. |
-| `get_alias` / `getAlias` | Verified | Returns the first registered alias. |
-| `get_bindings` / `getBindings` | Verified | Returns a shallow registry snapshot. |
+| `get_alias` | Verified | Returns the first registered alias. |
+| `get_bindings` | Verified | Returns a shallow registry snapshot. |
 | `tag` | Verified | Stores service keys in insertion order without instantiating them. |
 | `tagged` / `tagged_async` | Verified | Resolves tagged services in registration order using the selected mode. |
 | `scope` | Adapted | Supports `with` for sync-only graphs and `async with` for async lifecycles. Scope context objects are one-shot. |
@@ -64,7 +55,7 @@ and generator cleanup to the selected dependency engine.
 | Shared initialization | Verified | Concurrent graph roots coordinate registered and decorated shared values with per-service locks. |
 | Application resource ownership | Verified | Application singletons in a scoped graph are initialized through application-owned generations and remain open until container shutdown. |
 | Callable injection | Verified | `call` invokes sync callbacks immediately; `call_async` awaits async callbacks and dependencies. |
-| Method callback registration | Verified | `bind_method` and its camelCase alias dispatch through callable injection. |
+| Method callback registration | Verified | `bind_method` dispatches through callable injection. |
 | Lazy resolver factory | Verified | `factory` returns a sync resolver; `factory_async` returns an async resolver. |
 | Shared root graph cache | Verified | Application-level sync and async operations use the same Dishka async graph and its shared cache. |
 | Async-only preflight | Verified | Sync resolution identifies native async factories from annotations before invocation and reports the dependency path. |
@@ -75,6 +66,13 @@ and generator cleanup to the selected dependency engine.
 | Graph generation bound | Verified | `max_graph_generations` limits retained global and active-scope graphs. |
 | Backend provider interop | Advanced | `providers` accepts explicit integration objects. It is an escape hatch,
   not the ordinary registration API. |
+
+The remaining provider escape hatch belongs to `foundation.Application`,
+whose `providers` parameter passes non-native registration values to the
+private adapter. Ordinary registration through the native `Container` uses
+Titanspan bindings and contracts. Replacing this input is deferred until that
+container becomes the application composition root; see the
+[backend boundary audit](./backend-boundaries).
 
 Focused evidence is in `tests/unit/container/test_container.py`,
 `tests/unit/container/test_execution_modes.py`, and
@@ -135,71 +133,24 @@ close the sync resource before the scope completes.
     mode, while tracked singleton and scoped instances preserve identity across
     newly composed roots.
 
-## Public operation inventory
+## Canonical API names
 
-The following reference operations are individually accounted for. A pending
-entry is not an advertised Titanspan capability.
+Use `make` and `make_async` for service resolution, `make_with` and
+`make_with_async` when constructor values must be supplied, and `get` or
+`get_async` when consuming the `ServiceContainer` contract. The contract
+retrieval names are intentionally retained for native Titanspan services.
+Redundant `resolve` and `build` forwarding methods are not part of the public
+API.
 
-| Reference operation | Native operation | Status |
-| --- | --- | --- |
-| `when` | Contextual binding builder | Pending |
-| `whenHasAttribute` | Attribute-sensitive contextual binding | Pending |
-| `bound` | `bound` | Verified |
-| `has` | `has` | Adapted |
-| `resolved` | `resolved` | Adapted |
-| `isShared` | `is_shared`, `isShared` | Verified |
-| `isAlias` | `is_alias`, `isAlias` | Verified |
-| `bind` | `bind` | Verified |
-| `hasMethodBinding` | `has_method_binding`, `hasMethodBinding` | Verified |
-| `bindMethod` | `bind_method`, `bindMethod` | Verified |
-| `callMethodBinding` | `call_method_binding`, `callMethodBinding` | Verified |
-| `addContextualBinding` | Contextual registration | Pending |
-| `bindIf` | `bind_if`, `bindIf` | Verified |
-| `singleton` | `singleton` | Verified |
-| `singletonIf` | `singleton_if`, `singletonIf` | Verified |
-| `scoped` | `scoped` | Verified |
-| `scopedIf` | `scoped_if`, `scopedIf` | Verified |
-| `extend` | Service extension | Pending |
-| `instance` | `instance` | Verified |
-| `tag` | `tag` | Verified |
-| `tagged` | `tagged` | Verified |
-| `alias` | `alias` | Verified |
-| `rebinding` | Rebinding callback | Pending |
-| `refresh` | Refresh dependent service | Pending |
-| `wrap` | Callable wrapper | Pending |
-| `call` | `call` | Verified |
-| `call` asynchronous counterpart | `call_async` | Verified |
-| `factory` | `factory` | Verified |
-| `factory` asynchronous counterpart | `factory_async` | Verified |
-| `makeWith` | `make_with`, `makeWith` | Verified |
-| `makeWith` asynchronous counterpart | `make_with_async`, `makeWithAsync` | Verified |
-| `make` | `make` | Verified |
-| `make` asynchronous counterpart | `make_async`, `makeAsync` | Verified |
-| `get` | `get` | Verified |
-| `get` asynchronous counterpart | `get_async`, `getAsync` | Verified |
-| `resolve` | `resolve` / `resolve_async` | Adapted |
-| `build` | `build` / `build_async` | Adapted |
-| `resolveFromAttribute` | Native injection attributes | Pending |
-| `beforeResolving` | Resolution callbacks | Pending |
-| `resolving` | Resolution callbacks | Pending |
-| `afterResolving` | Resolution callbacks | Pending |
-| `afterResolvingAttribute` | Attribute callbacks | Pending |
-| `fireAfterResolvingAttributeCallbacks` | Attribute callbacks | Pending |
-| `currentlyResolving` | Resolution diagnostic context | Pending |
-| `getBindings` | `get_bindings`, `getBindings` | Verified |
-| `getAlias` | `get_alias`, `getAlias` | Verified |
-| `forgetExtenders` | Extension reset | Pending |
-| `forgetInstance` | Instance reset | Pending |
-| `forgetInstances` | Instance reset | Pending |
-| `forgetScopedInstances` | Scope reset | Pending |
-| `resolveEnvironmentUsing` | Environment selector | Pending |
-| `currentEnvironmentIs` | Environment selector | Pending |
-| `flush` | Container reset | Pending |
-| `offsetExists` | Mapping membership | Not applicable |
-| `offsetGet` | Mapping retrieval | Not applicable |
-| `offsetSet` | Mapping mutation | Not applicable |
-| `offsetUnset` | Mapping deletion | Not applicable |
-| Dynamic property access | Python object attributes | Not applicable |
+All methods use `snake_case`. Sync and async methods are distinct operations;
+neither returns an awaitable conditionally.
+
+## Planned capabilities
+
+Contextual binding, attribute-based injection, service extensions, rebinding,
+resolution callbacks, and temporary override stacks are not implemented.
+They remain outside the advertised API until their registration and lifecycle
+semantics are specified and tested.
 
 ## Known limits for this milestone
 
@@ -208,17 +159,18 @@ entry is not an advertised Titanspan capability.
 - `make_with`, primitive contextual bindings, configuration injection, and
   custom injection attributes are not implemented. `call` accepts explicit
   named values and resolves only class-typed service parameters.
-- The native ASGI `Application` composition root still uses the existing
-  explicit web integration provider boundary. It does not yet expose this
-  registry as its single application container, and no module-level `app()`
-  helper is available. `Container` APIs are usable directly.
+- `Application` uses this registry as the composition root for framework
+  services. FastAPI route dependencies still use the explicit private web
+  integration provider boundary and a separate request graph. The raw
+  `Application.providers` input remains a transitional interoperability
+  surface. No module-level `app()` helper is available.
 - Synchronous and asynchronous generator resource factories have lifecycle
   tests, including cleanup when the active task is cancelled. Direct
   context-manager factory forms are not implemented.
 - The scope names adapt to one backend hierarchy and do not represent
   independent request, job, and workflow branches.
 - Container-level tests verify the native adapter behavior. They do not yet
-  establish the full upstream API surface or the requested coverage target.
+  establish every planned capability or the requested coverage target.
 - Task-group tests verify sync and async operations share one application
   singleton cache and scope tests verify a scoped instance is shared across
   both modes. Cross-thread access to one Dishka graph is not declared safe or
@@ -228,9 +180,7 @@ entry is not an advertised Titanspan capability.
   dependency graph is sync-safe; it delegates to synchronous resolution.
   Async-only resources require an asynchronous scope.
 
-## Compatibility provenance
+## Scope of this specification
 
-The exact reference pin is recorded above. Every operation in the public API
-audit is classified here or in the method inventory. Pending operations are
-not advertised as available, and this specification does not claim complete
-one-to-one compatibility.
+This specification records supported behavior and pending work.
+Unimplemented capabilities are not advertised as available.

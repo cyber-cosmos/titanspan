@@ -5,17 +5,15 @@ Processors enrich or transform a record before dispatch to any driver.
 
 from typing import Protocol
 
-from titanspan.logging.record import LogRecord
 
-
-class LogProcessor(Protocol):
+class LogProcessor[RecordT](Protocol):
     """Transform one native record before any output side effect.
 
     Processors run in configured order. They must not emit log messages from
     inside a transformation because that can cause recursive dispatch.
     """
 
-    def process(self, record: LogRecord) -> LogRecord:
+    def process(self, record: RecordT) -> RecordT:
         """Return the processed record.
 
         Args:

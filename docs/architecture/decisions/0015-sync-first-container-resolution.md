@@ -3,6 +3,11 @@
 - Status: Accepted
 - Date: 2026-11-25
 - Supersedes: Resolution-mode details in ADR 0014
+- Application composition and facade integration are updated by ADR 0018.
+
+> Status update: At acceptance, `Application` still used a separate native
+> service graph. ADR 0018 subsequently made `Container` the composition root
+> for framework services. FastAPI route injection still uses its own adapter.
 
 ## Context
 
@@ -25,11 +30,10 @@ module-level `app()` helper in this milestone.
 
 ## Decision
 
-- Make `Container.make`, `get`, `resolve`, `build`, `make_with`, and `call`
-  synchronous when the requested graph is sync-safe.
-- Provide explicit `make_async`, `get_async`, `resolve_async`, `build_async`,
-  `make_with_async`, and `call_async` operations. Provide compatibility
-  camelCase aliases for the named resolution operations.
+- Make `Container.make`, `get`, `make_with`, and `call` synchronous when the
+  requested graph is sync-safe.
+- Provide explicit `make_async`, `get_async`, `make_with_async`, and
+  `call_async` operations.
 - Never dynamically return an instance or awaitable from one method. Never
   start an event loop, block an active loop, or move arbitrary constructors to
   unmanaged threads.
@@ -53,8 +57,9 @@ module-level `app()` helper in this milestone.
 - Keep shutdown asynchronous because application graphs may own async
   resources, even when ordinary service construction is synchronous.
 - Keep facade operations synchronous when their own operation is in-memory.
-  The current `Config` and `Log` facades use explicit execution-local bindings;
-  they do not resolve their manager services through the native container.
+  Config and Log now resolve declared contracts through the shared typed
+  facade base and active application container; their explicit `use`
+  contexts remain temporary execution-local overrides.
 
 ## Consequences
 
@@ -72,12 +77,13 @@ and scoped identities. Task-group tests verify mixed-mode application
 singleton access and mixed-mode scoped access; cross-thread resolution remains
 unsupported and unverified.
 
-The native container is still not the ASGI `Application`'s composition root,
-and `app()` is not available as a container helper. Async factories supplied
-through external provider integrations may not be statically inspectable; a
-sync backend failure at that boundary is reported as a native
-`BindingResolutionError` with an async-resolution recommendation, rather than
-misclassified as a verified async-only graph.
+The native container is the composition root for framework services, while
+FastAPI route injection remains a separate adapter. A module-level `app()`
+helper is not available. Async factories supplied through external provider
+integrations may not be statically inspectable; a sync backend failure at
+that boundary is reported as a native `BindingResolutionError` with an
+async-resolution recommendation, rather than misclassified as a verified
+async-only graph.
 
 ## Verification
 

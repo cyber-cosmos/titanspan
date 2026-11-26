@@ -45,7 +45,7 @@ class Timebox:
             The same instance can be reused, but early-return state is
             mutable and should not be shared across concurrent operations.
         """
-        self.early_return = False
+        self._early_return = False
 
     def call(
         self,
@@ -130,22 +130,22 @@ class Timebox:
         return self
 
     @property
-    def earlyReturn(self) -> bool:
-        """Expose the public Laravel-compatible early-return flag.
+    def early_return(self) -> bool:
+        """Expose whether the current operation may return early.
 
         Returns:
             Whether the current operation may finish before its minimum time.
         """
-        return self.early_return
+        return self._early_return
 
-    @earlyReturn.setter
-    def earlyReturn(self, value: bool) -> None:
+    @early_return.setter
+    def early_return(self, value: bool) -> None:
         """Set whether the callback may skip the remaining minimum duration.
 
         Args:
             value: Whether early return is allowed.
         """
-        self.early_return = value
+        self._early_return = value
 
     def _wait_remaining(self, started_ns: int, microseconds: int) -> None:
         """Wait synchronously for any remaining portion of the timebox.
@@ -251,9 +251,6 @@ class Timebox:
         if inspect.iscoroutine(result):
             result.close()
         raise TypeError(_ASYNC_CALLBACK_ERROR)
-
-    returnEarly = return_early
-    dontReturnEarly = dont_return_early
 
 
 __all__ = ["Timebox"]

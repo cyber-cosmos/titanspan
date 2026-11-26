@@ -14,10 +14,8 @@ from enum import Enum
 from typing import TYPE_CHECKING, ClassVar
 
 from titanspan.contracts import (
-    DeferringDisplayableValue,
-    Htmlable,
-    LaravelDeferringDisplayableValue,
-    LaravelHtmlable,
+    DeferredDisplayValue,
+    HtmlRenderable,
 )
 from titanspan.support.html_string import HtmlString
 
@@ -31,10 +29,8 @@ type HtmlEncodable = (
     | bool
     | None
     | Enum
-    | Htmlable
-    | LaravelHtmlable
-    | DeferringDisplayableValue
-    | LaravelDeferringDisplayableValue
+    | HtmlRenderable
+    | DeferredDisplayValue
 )
 type HtmlEncoder = Callable[[str, bool], str]
 
@@ -48,7 +44,7 @@ _ENCODER_CONTEXT: ContextVar[HtmlEncoder | None] = ContextVar(
 
 
 class EncodedHtmlString(HtmlString):
-    """Escape scalar content while preserving explicitly Htmlable values.
+    """Escape scalar content while preserving explicitly HtmlRenderable values.
 
     Attributes:
         _encoded_value: The original input awaiting conversion.
@@ -120,14 +116,10 @@ class EncodedHtmlString(HtmlString):
             The escaped value, or existing trusted HTML unchanged.
         """
         value = self._encoded_value
-        if isinstance(value, DeferringDisplayableValue):
+        if isinstance(value, DeferredDisplayValue):
             value = value.resolve_displayable_value()
-        elif isinstance(value, LaravelDeferringDisplayableValue):
-            value = value.resolveDisplayableValue()
-        if isinstance(value, Htmlable):
+        if isinstance(value, HtmlRenderable):
             return value.to_html()
-        if isinstance(value, LaravelHtmlable):
-            return value.toHtml()
         if isinstance(value, Enum):
             enum_value = value.value
             if isinstance(enum_value, (str, int, float, bool)):
@@ -154,9 +146,7 @@ class EncodedHtmlString(HtmlString):
         """
         return self._encoded_value is None or self._encoded_value == ""
 
-    toHtml = to_html
-    isEmpty = is_empty
-    isNotEmpty = HtmlString.is_not_empty
+    is_not_empty = HtmlString.is_not_empty
 
     @classmethod
     def encode_using(cls, factory: HtmlEncoder | None = None) -> None:
@@ -175,9 +165,6 @@ class EncodedHtmlString(HtmlString):
         The standard-library HTML encoder is used after this call.
         """
         cls._encoder_context.set(None)
-
-    encodeUsing = encode_using
-    flushState = flush_state
 
 
 __all__ = ["EncodedHtmlString", "HtmlEncodable", "HtmlEncoder"]

@@ -1,7 +1,7 @@
 """Represent decoded query data for a Titanspan URI.
 
-The type preserves the encoded query for string conversion while exposing
-Laravel-inspired nested access through Titanspan's existing data helpers.
+The type preserves the encoded query for string conversion and exposes
+structured access through Titanspan's shared data helpers.
 """
 
 from __future__ import annotations
@@ -25,8 +25,8 @@ class UriQueryString:
         _uri: The URI whose raw query this view reads.
 
     Notes:
-        Query values are strings, nested mappings, or lists. PHP-specific
-        scalar coercion is intentionally left to explicit typed accessors.
+        Query values are strings, nested mappings, or lists. Scalar coercion
+        is left to explicit typed accessors.
     """
 
     def __init__(self, uri: Uri) -> None:
@@ -49,7 +49,7 @@ class UriQueryString:
         Returns:
             A new mapping containing the selected values.
         """
-        values = self.to_array()
+        values = self._query_mapping()
         if keys is None or keys == "":
             return values
         selected = [keys] if isinstance(keys, str) else list(keys)
@@ -71,7 +71,7 @@ class UriQueryString:
         Returns:
             The selected value, complete query mapping, or resolved default.
         """
-        return data_get(self.to_array(), key, default)
+        return data_get(self._query_mapping(), key, default)
 
     def decode(self) -> str:
         """Percent-decode the raw query without treating plus as a space.
@@ -89,7 +89,7 @@ class UriQueryString:
         """
         return str(self)
 
-    def to_array(self) -> dict[str | int, object]:
+    def _query_mapping(self) -> dict[str | int, object]:
         """Parse the query string into nested Python data.
 
         Returns:
@@ -106,8 +106,6 @@ class UriQueryString:
             The query string, or an empty string when absent.
         """
         return urlsplit(self._uri.value()).query
-
-    toArray = to_array
 
 
 __all__ = ["UriQueryString"]

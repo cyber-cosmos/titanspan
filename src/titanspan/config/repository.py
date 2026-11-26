@@ -1,7 +1,7 @@
 """Provide a mutable, typed repository for application configuration.
 
-The API follows the Laravel repository's observable lookup and mutation
-conventions while using Titanspan's nested-data helpers and Python protocols.
+Nested lookups delegate to Titanspan's shared data helpers; mapping access
+uses standard Python missing-key and deletion behavior.
 """
 
 from __future__ import annotations
@@ -10,10 +10,19 @@ import math
 from collections.abc import Callable, Generator, Mapping, Sequence
 from contextlib import contextmanager
 from contextvars import ContextVar, Token
+from dataclasses import dataclass
 from types import MappingProxyType
 from typing import TypeGuard, cast, overload
 
 from titanspan.config.exceptions import ConfigValueError
+from titanspan.contracts.config import (
+    ConfigArray,
+    ConfigDiagnostics,
+    ConfigKeySequence,
+    ConfigRepository,
+    ScopedConfigOverrides,
+    TypedConfigReader,
+)
 from titanspan.support.arr import Arr
 from titanspan.support.macroable import Macroable
 
@@ -22,10 +31,22 @@ _CONFIG_MAPPING_ERROR = "Configuration keys must be strings."
 _BATCH_VALUE_ERROR = "A batch update does not accept a value."
 _LIST_VALUE_ERROR = "Configuration value [{key}] must be a list."
 _MAX_DIAGNOSTIC_DEPTH = 32
-type ConfigArray = Mapping[str, object] | list[object]
 type _DiagnosticSequence = (
     list[object] | tuple[object, ...] | set[object] | frozenset[object]
 )
+
+
+@dataclass(frozen=True, slots=True)
+class _OverrideLayer:
+    """Store one patch layer or a complete scoped mutation snapshot.
+
+    Attributes:
+        values: Immutable-by-convention configuration values for the layer.
+        replace: Whether the layer replaces the accumulated view entirely.
+    """
+
+    values: Mapping[str, object]
+    replace: bool
 
 
 def _is_exact_type[TValue](
@@ -193,31 +214,37 @@ def _safe_diagnostic(value: object, depth: int = 0) -> object:
     return f"<{type(value).__name__}>"
 
 
-class Repository(Macroable):
+class Repository(
+    Macroable,
+    ConfigRepository,
+    TypedConfigReader,
+    ScopedConfigOverrides,
+    ConfigDiagnostics,
+):
     """Store and retrieve nested application configuration values.
 
     The repository implements the canonical Titanspan ``ConfigRepository``
-    protocol and adds Laravel-compatible typed accessors and mapping syntax.
-    Reads are synchronous. Configure values before serving traffic; concurrent
-    mutation is not guaranteed to be safe.
+    protocol and provides strict typed accessors and mapping syntax. Reads are
+    synchronous. Configure values before serving traffic; concurrent mutation
+    is not guaranteed to be safe.
 
     Attributes:
-        _items: Mutable root mapping owned by the repository.
+        _items: Structurally copied root mapping owned by the repository.
         _overrides: Context-local stack of temporary configuration layers.
 
     Notes:
         Literal mapping keys containing dots take precedence during reads.
-        Mapping-style deletion follows Laravel and stores ``None`` instead of
-        physically removing the path. Python ``__getitem__`` still raises
-        ``KeyError`` for a missing key.
+        Mapping deletion removes the path and raises ``KeyError`` when it is
+        absent.
     """
 
     def __init__(self, items: Mapping[str, object] | None = None) -> None:
         """Create a repository from a mapping of configuration namespaces.
 
         Args:
-            items: Optional initial mapping. Its top-level mapping is copied;
-                nested values remain owned by the application.
+            items: Optional initial mapping. Built-in container values are
+                structurally copied; opaque leaf objects retain their
+                identity.
 
         Raises:
             TypeError: If the supplied root is not a mapping of string keys.
@@ -226,9 +253,10 @@ class Repository(Macroable):
             self._items: dict[str, object] = {}
         else:
             self._validate_mapping(items)
-            self._items = dict(items)
-        self._overrides: ContextVar[tuple[Mapping[str, object], ...]] = (
-            ContextVar(f"titanspan_config_overrides_{id(self)}", default=())
+            self._items = cast("dict[str, object]", _clone(items))
+        self._overrides: ContextVar[tuple[_OverrideLayer, ...]] = ContextVar(
+            f"titanspan_config_overrides_{id(self)}",
+            default=(),
         )
 
     @staticmethod
@@ -256,8 +284,40 @@ class Repository(Macroable):
             return self._items
         snapshot = cast("dict[str, object]", _clone(self._items))
         for layer in layers:
-            _merge_override(snapshot, layer)
+            if layer.replace:
+                snapshot = cast("dict[str, object]", _clone(layer.values))
+            else:
+                _merge_override(snapshot, layer.values)
         return snapshot
+
+    def _store_updates(self, updates: Mapping[str, object]) -> None:
+        """Apply validated assignments to base or execution-local state.
+
+        Scoped writes materialize the effective view and replace only the
+        current ContextVar layer. The tuple and its mappings are never mutated
+        in place, so child tasks cannot alter a parent's configuration view.
+
+        Args:
+            updates: Dotted paths and values to assign.
+        """
+        layers = self._overrides.get()
+        target = (
+            cast("dict[str, object]", _clone(self._effective_items()))
+            if layers
+            else cast("dict[str, object]", _clone(self._items))
+        )
+        for path, value in updates.items():
+            Arr.set(target, path, _clone(value))
+
+        if not layers:
+            self._items = target
+            return
+
+        replacement = _OverrideLayer(
+            values=MappingProxyType(target),
+            replace=True,
+        )
+        self._overrides.set((*layers[:-1], replacement))
 
     def has(self, key: str) -> bool:
         """Check whether a configuration path exists.
@@ -289,7 +349,7 @@ class Repository(Macroable):
     @overload
     def get(
         self,
-        key: list[str] | tuple[str, ...],
+        key: ConfigKeySequence,
         default: object = None,
     ) -> Mapping[str, object]:
         """Retrieve several paths using one fallback value.
@@ -306,13 +366,11 @@ class Repository(Macroable):
     def get(
         self,
         key: Mapping[str, object],
-        default: object = None,
     ) -> Mapping[str, object]:
         """Retrieve paths with an individual fallback for each path.
 
         Args:
             key: Paths mapped to their respective fallback values.
-            default: Unused compatibility argument.
 
         Returns:
             A mapping from requested paths to resolved values.
@@ -320,7 +378,7 @@ class Repository(Macroable):
 
     def get(
         self,
-        key: str | list[str] | tuple[str, ...] | Mapping[str, object],
+        key: str | Sequence[str] | Mapping[str, object],
         default: object = None,
     ) -> object:
         """Retrieve one path or multiple configured paths.
@@ -336,7 +394,7 @@ class Repository(Macroable):
             TypeError: If a requested path is not text.
         """
         if isinstance(key, str):
-            return Arr.get(self._effective_items(), key, default)
+            return _clone(Arr.get(self._effective_items(), key, default))
         if isinstance(key, Mapping):
             return self.get_many(key)
         return self.get_many(key, default)
@@ -366,7 +424,7 @@ class Repository(Macroable):
         result: dict[str, object] = {}
         items = self._effective_items()
         for key, fallback in pairs:
-            result[key] = Arr.get(items, key, fallback)
+            result[key] = _clone(Arr.get(items, key, fallback))
         return result
 
     def all(self) -> Mapping[str, object]:
@@ -401,13 +459,10 @@ class Repository(Macroable):
             if value is not _UNSET:
                 raise TypeError(_BATCH_VALUE_ERROR)
             self._validate_mapping(key)
-            updated = cast("dict[str, object]", _clone(self._items))
-            for path, item in key.items():
-                Arr.set(updated, path, item)
-            self._items = updated
+            self._store_updates(key)
             return
         assigned = None if value is _UNSET else value
-        Arr.set(self._items, key, assigned)
+        self._store_updates({key: assigned})
 
     def prepend(self, key: str, value: object) -> None:
         """Insert a value before an existing list-valued setting.
@@ -591,12 +646,10 @@ class Repository(Macroable):
             Control while this context sees the effective override.
         """
         self._validate_mapping(values)
-        layer = _clone(values)
-        # Mapping inputs become dictionaries through _copy_structure.
-        override_layer = cast("Mapping[str, object]", layer)
+        layer = cast("Mapping[str, object]", _clone(values))
         previous = self._overrides.get()
-        token: Token[tuple[Mapping[str, object], ...]] = self._overrides.set(
-            (*previous, override_layer)
+        token: Token[tuple[_OverrideLayer, ...]] = self._overrides.set(
+            (*previous, _OverrideLayer(values=layer, replace=False))
         )
         try:
             yield
@@ -652,16 +705,27 @@ class Repository(Macroable):
         return isinstance(key, str) and self.has(key)
 
     def __delitem__(self, key: str) -> None:
-        """Apply Laravel's offset-unset behavior by storing explicit null.
+        """Remove a configured path using mapping deletion semantics.
 
         Args:
-            key: Direct key or dotted path to unset.
+            key: Direct key or dotted path to remove.
 
-        Notes:
-            Presence is retained because upstream ``offsetUnset`` assigns
-            null. Use ``set`` with a replacement value to change the path.
+        Raises:
+            KeyError: If the path does not exist in the base configuration.
         """
-        self.set(key, None)
+        target = self._effective_items()
+        if not Arr.has(target, key):
+            raise KeyError(key)
+        Arr.forget(target, key)
+        layers = self._overrides.get()
+        if not layers:
+            self._items = target
+            return
+        replacement = _OverrideLayer(
+            values=MappingProxyType(target),
+            replace=True,
+        )
+        self._overrides.set((*layers[:-1], replacement))
 
     def __repr__(self) -> str:
         """Render a safe representation without exposing secret values.
@@ -670,8 +734,6 @@ class Repository(Macroable):
             A redacted structural representation.
         """
         return f"Repository({dict(self.redacted())!r})"
-
-    getMany = get_many
 
 
 __all__ = ["ConfigArray", "Repository"]

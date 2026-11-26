@@ -12,8 +12,8 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import TextIO, override
 
+from titanspan.contracts.logging import LogFormatter
 from titanspan.logging._backends.standard import StandardHandlerBackend
-from titanspan.logging.contracts.log_formatter import LogFormatter
 from titanspan.logging.record import LogRecord
 
 _MONTH_SUFFIX = re.compile(r"^\d{4}-\d{2}$", re.ASCII)
@@ -141,7 +141,7 @@ class StandardHandlerLogDriver:
     def __init__(
         self,
         handler: logging.Handler,
-        formatter: LogFormatter,
+        formatter: LogFormatter[LogRecord],
     ) -> None:
         """Create a destination adapter.
 
@@ -175,7 +175,7 @@ class StandardHandlerLogDriver:
 
 
 def create_console_driver(
-    formatter: LogFormatter,
+    formatter: LogFormatter[LogRecord],
     *,
     stream: TextIO,
 ) -> StandardHandlerLogDriver:
@@ -192,7 +192,7 @@ def create_console_driver(
 
 
 def create_single_file_driver(
-    formatter: LogFormatter,
+    formatter: LogFormatter[LogRecord],
     path: Path,
 ) -> StandardHandlerLogDriver:
     """Create a single append-only file driver.
@@ -215,7 +215,7 @@ def create_single_file_driver(
 
 
 def create_daily_file_driver(
-    formatter: LogFormatter,
+    formatter: LogFormatter[LogRecord],
     path: Path,
     days: int,
 ) -> StandardHandlerLogDriver:
@@ -243,7 +243,7 @@ def create_daily_file_driver(
 
 
 def create_monthly_file_driver(
-    formatter: LogFormatter,
+    formatter: LogFormatter[LogRecord],
     path: Path,
     max_files: int,
 ) -> StandardHandlerLogDriver:
@@ -266,7 +266,7 @@ def create_monthly_file_driver(
 
 
 def create_rotating_file_driver(
-    formatter: LogFormatter,
+    formatter: LogFormatter[LogRecord],
     path: Path,
     max_bytes: int,
     backup_count: int,
@@ -294,7 +294,7 @@ def create_rotating_file_driver(
 
 
 def create_syslog_driver(
-    formatter: LogFormatter,
+    formatter: LogFormatter[LogRecord],
     address: str | tuple[str, int],
 ) -> StandardHandlerLogDriver:
     """Create a syslog driver using the platform handler implementation.

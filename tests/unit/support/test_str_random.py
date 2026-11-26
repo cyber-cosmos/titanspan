@@ -1,7 +1,7 @@
 """Verify secure random string generation and its scoped test controls.
 
-The tests cover the Laravel-compatible public aliases, deterministic factory
-overrides, and isolation between copied execution contexts.
+The tests cover native generation methods, deterministic factory overrides,
+and isolation between copied execution contexts.
 """
 
 from collections.abc import Callable, Iterator
@@ -53,7 +53,7 @@ def test_random_returns_requested_alphanumeric_length(length: int) -> None:
 
 @pytest.mark.unit
 def test_random_defaults_to_sixteen_characters() -> None:
-    """Use Laravel's default length when the caller omits it.
+    """Use the documented default length when the caller omits it.
 
     Returns:
         None.
@@ -63,7 +63,7 @@ def test_random_defaults_to_sixteen_characters() -> None:
 
 @pytest.mark.unit
 def test_random_with_negative_length_returns_an_empty_string() -> None:
-    """Preserve the upstream empty result for a negative length.
+    """Return an empty result for a negative requested length.
 
     Returns:
         None.
@@ -139,22 +139,15 @@ def test_password_rejects_boolean_lengths() -> None:
 
 
 @pytest.mark.unit
-def test_random_uses_a_factory_override_and_camel_case_aliases() -> None:
-    """Apply the active context's factory through either public spelling.
+def test_random_uses_the_active_context_factory_override() -> None:
+    """Use an injected factory for deterministic random strings.
 
     Returns:
         None.
     """
-    Str.createRandomStringsUsing(lambda length: f"size:{length}")
+    Str.create_random_strings_using(lambda length: f"size:{length}")
 
     assert Str.random(7) == "size:7"
-    assert Str.createRandomStringsUsing is Str.create_random_strings_using
-    assert Str.createRandomStringsUsingSequence is (
-        Str.create_random_strings_using_sequence
-    )
-    assert Str.createRandomStringsNormally is (
-        Str.create_random_strings_normally
-    )
 
 
 @pytest.mark.unit

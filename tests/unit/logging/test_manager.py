@@ -130,24 +130,21 @@ def test_manager_exposes_resolved_channels_and_forgets_one() -> None:
     assert len(created) == EXPECTED_CHANNEL_INSTANCES
 
 
-def test_manager_exposes_laravel_compatible_channel_and_context_methods() -> (
-    None
-):
-    """Keep camel-case manager methods explicit and statically discoverable.
+def test_manager_exposes_channel_and_context_operations() -> None:
+    """Expose channel selection and execution-local context operations.
 
-    The aliases share the same manager-owned cache and execution context as
-    their Python snake-case counterparts.
+    These operations must use the configured channel manager.
     """
     manager = LogManager(
         {"channels": {"default": {"driver": "memory"}}},
         drivers={"memory": lambda _: MemoryLogDriver()},
     )
     logger = manager.channel()
-    manager.shareContext(tenant_id="tenant-a")
+    manager.share_context(tenant_id="tenant-a")
 
-    assert manager.getDefaultDriver() == "default"
-    assert manager.sharedContext() == {"tenant_id": "tenant-a"}
-    assert manager.getChannels()["default"] is logger
+    assert manager.get_default_channel() == "default"
+    assert manager.shared_context() == {"tenant_id": "tenant-a"}
+    assert manager.get_channels()["default"] is logger
 
 
 def test_manager_methods_write_using_the_default_channel() -> None:

@@ -109,8 +109,8 @@ class Conditionable:
     they are ``None``, in which case fluent chaining continues with self.
 
     Notes:
-        Laravel's higher-order proxy form (for example ``when().method``)
-        is not part of this initial Python implementation.
+        Higher-order attribute proxies are not provided; explicit callbacks
+        keep fluent behavior visible to static analysis.
     """
 
     def when(
@@ -210,9 +210,6 @@ class Conditionable:
             return self
         result = await _async_result(selected(self, resolved))
         return self if result is None else result
-
-    whenAsync = when_async
-    unlessAsync = unless_async
 
 
 __all__ = ["Condition", "Conditionable"]

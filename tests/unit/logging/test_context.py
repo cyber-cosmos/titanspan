@@ -140,9 +140,9 @@ def test_facade_supports_contextual_logging_and_native_fake_assertions() -> (
     manager = _manager_with_driver(original_driver)
 
     with Log.use(manager), Log.fake() as fake:
-        Log.withContext(request_id="request-1")
+        Log.with_context(request_id="request-1")
         Log.info("completed", workflow_id="flow-1")
-        captured = Log.assertLogged(
+        captured = Log.assert_logged(
             "info",
             "completed",
             context={"request_id": "request-1"},

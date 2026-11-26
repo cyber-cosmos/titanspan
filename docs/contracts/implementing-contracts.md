@@ -3,10 +3,11 @@
 ## Define a real boundary
 
 Add a contract when it enables substitution, a meaningful test seam, or an
-explicit resource lifecycle. First check existing module-owned contracts.
-Logging contracts, for example, belong to `titanspan.logging.contracts`.
-Do not define another protocol with a different identity for the same
-behavior.
+explicit resource lifecycle. First check existing domain packages under
+`titanspan.contracts`. Logging contracts belong to
+`titanspan.contracts.logging`; `titanspan.logging` re-exports those exact
+objects. Do not define another protocol with a different identity for the
+same behavior.
 
 Use `Protocol` for structural behavior. Use an abstract base class only when
 nominal inheritance, shared behavior, or runtime abstract-method enforcement
@@ -20,10 +21,8 @@ types and Titanspan-owned domain values. Keep backend classes and exceptions
 out of public signatures. Describe missing values, mutation, ordering,
 cancellation, concurrency, errors, and resource ownership when they apply.
 
-Use Python snake_case as the canonical spelling. If a Laravel-compatible
-spelling is needed, define a distinct compatibility protocol or an explicit
-adapter. Do not force implementers to duplicate methods just to offer both
-spellings.
+Use Python `snake_case` as the one canonical spelling. Do not add aliases or
+protocols solely to imitate an external framework's names.
 
 ## Keep implementations separate
 
@@ -46,5 +45,5 @@ substitute for signature checks or behavioral tests.
 Run `uv run --locked ruff check .`,
 `uv run --locked ruff format --check .`, `uv run --locked pyright`,
 `make architecture-check`, and the applicable unit and integration tests.
-Update the compatibility inventory and public documentation when a contract
-or its guarantees change.
+Update the native component specification and public documentation when a
+contract or its guarantees change.

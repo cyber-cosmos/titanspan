@@ -243,7 +243,7 @@ class Benchmark(Macroable):
         Returns:
             The operation result and elapsed milliseconds.
         """
-        # Match Laravel's sample setup before starting the monotonic clock.
+        # Exclude setup from the measured operation duration.
         gc.collect()
         started = perf_counter_ns()
         result = await callback()

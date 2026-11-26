@@ -18,6 +18,10 @@ nearest implemented module. This file governs runtime package code only.
   Add comments for non-obvious rationale and invariants, not line-by-line
   narration.
 - Preserve lifecycle, cancellation, failure cleanup, and concurrency safety.
+- A component is complete only when it satisfies its canonical contracts,
+  participates in the owning application lifecycle, and has real cross-module
+  integration tests for implemented dependencies. Record unavailable
+  dependencies as blockers; do not simulate them with disconnected types.
 - Do not put skills, agent settings, development scripts, credentials, or
   non-runtime assets in this package. Scoped Markdown instructions are
   development guidance and must not appear in built wheels.

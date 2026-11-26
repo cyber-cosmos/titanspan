@@ -80,9 +80,7 @@ and [lazy factories](factories.md) for current APIs and limits.
 See [resource management](resource-management.md) for factory ownership,
 scope cleanup, cancellation, and shutdown behavior.
 
-## Compatibility status
+## Implementation status
 
-The native method inventory, implemented operations, and pending work are
+The native operation inventory, implemented behavior, and pending work are
 listed in [the container specification](../specifications/container.md).
-The API is incremental; the inventory does not claim full parity with its
-reference component.

@@ -1,7 +1,6 @@
 """Delegate wrapper method calls to a composed object.
 
-This mixin provides the forwarding behavior of Illuminate's ForwardsCalls
-trait with Python method lookup and exception conventions.
+The mixin uses Python method lookup and exception conventions.
 """
 
 from __future__ import annotations
@@ -105,13 +104,8 @@ class ForwardsCalls:
         Raises:
             AttributeError: Always, naming the wrapper and missing method.
         """
-        message = f"Call to undefined method {cls.__qualname__}::{method}()"
+        message = f"{cls.__qualname__} has no delegated method {method!r}"
         raise AttributeError(message)
-
-    # Keep the original Illuminate method names as explicit aliases.
-    forwardCallTo = forward_call_to
-    forwardDecoratedCallTo = forward_decorated_call_to
-    throwBadMethodCallException = throw_bad_method_call_exception
 
 
 __all__ = ["ForwardsCalls"]

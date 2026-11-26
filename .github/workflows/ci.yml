@@ -160,8 +160,63 @@ jobs:
       - name: Enforce dependency direction
         run: make architecture-check
 
+  cross-component:
+    name: "Architecture: Cross-component integration"
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    needs:
+      - lint
+      - format
+      - docblocks
+      - comments
+      - line-length
+      - syntax
+      - typecheck
+      - architecture
+      - public-api
+      - agent-configurations
+      - lockfile
+      - workflows
+    env:
+      COVERAGE: collect
+    steps:
+      - name: Check out source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Set up Python tools
+        uses: ./.github/actions/setup-python
+        with:
+          python-version: "3.12"
+      - name: Install locked dependencies
+        run: uv sync --locked --all-groups
+      - name: Verify contracts through application lifecycle
+        run: make architecture-integration-test
+      - name: Summarize test results
+        if: always()
+        run: >-
+          uv run --locked python -m scripts.ci.summarize_junit
+          test-results/architecture-integration.xml
+      - name: Upload JUnit results
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: junit-cross-component
+          path: test-results/architecture-integration.xml
+          if-no-files-found: warn
+          retention-days: 7
+      - name: Upload coverage data
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: coverage-cross-component
+          path: .coverage
+          if-no-files-found: error
+          include-hidden-files: true
+          retention-days: 7
+
   public-api:
-    name: "Architecture: Public API contracts"
+    name: "Quality: Native public API conventions"
     runs-on: ubuntu-latest
     timeout-minutes: 20
     env:
@@ -177,7 +232,7 @@ jobs:
           python-version: "3.12"
       - name: Install locked dependencies
         run: uv sync --locked --all-groups
-      - name: Verify public imports and contracts
+      - name: Verify native public API conventions and contracts
         run: make public-api-check
       - name: Summarize test results
         if: always()
@@ -584,8 +639,8 @@ jobs:
           include-hidden-files: true
           retention-days: 7
 
-  compatibility-tests:
-    name: "Compatibility: Support and logging"
+  component-api-tests:
+    name: "Tests: Support and logging APIs"
     runs-on: ubuntu-latest
     timeout-minutes: 30
     needs:
@@ -614,25 +669,25 @@ jobs:
           python-version: "3.12"
       - name: Install locked dependencies
         run: uv sync --locked --all-groups --all-extras
-      - name: Run translated Laravel compatibility tests
+      - name: Run Support and logging behavior tests
         id: tests
-        run: make compatibility-test
+        run: make component-api-test
       - name: Summarize test results
         if: always()
-        run: uv run --locked python -m scripts.ci.summarize_junit test-results/compatibility.xml
+        run: uv run --locked python -m scripts.ci.summarize_junit test-results/component-api.xml
       - name: Upload JUnit results
         if: always()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
-          name: junit-compatibility
-          path: test-results/compatibility.xml
+          name: junit-component-api
+          path: test-results/component-api.xml
           if-no-files-found: warn
           retention-days: 7
       - name: Upload canonical coverage data
         if: always()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
-          name: coverage-compatibility
+          name: coverage-component-api
           path: .coverage
           if-no-files-found: error
           include-hidden-files: true
@@ -985,11 +1040,12 @@ jobs:
     needs:
       - unit-tests
       - integration-tests
+      - cross-component
       - feature-tests
       - regression-tests
       - concurrency-tests
       - security-tests
-      - compatibility-tests
+      - component-api-tests
       - public-api
     steps:
       - name: Check out source
@@ -1084,6 +1140,7 @@ jobs:
       - syntax
       - typecheck
       - architecture
+      - cross-component
       - public-api
       - agent-configurations
       - lockfile
@@ -1094,7 +1151,7 @@ jobs:
       - regression-tests
       - concurrency-tests
       - security-tests
-      - compatibility-tests
+      - component-api-tests
       - platform-smoke
       - coverage
       - dependency-audit

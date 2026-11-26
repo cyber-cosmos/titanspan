@@ -383,7 +383,11 @@ def _compose_providers(
             provides=binding.service,
             scope=engine_scope,
             cache=binding.lifetime != "transient",
-            recursive=isinstance(implementation, type),
+            # Titanspan already discovers and registers this dependency
+            # closure below. Backend recursion would try to construct native
+            # Protocol keys before context and explicit binding providers are
+            # available to the composed graph.
+            recursive=False,
         )
 
     explicit_keys = {binding.service for binding in bindings}

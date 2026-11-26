@@ -14,7 +14,7 @@ from uuid import uuid4
 import structlog
 from structlog.stdlib import BoundLogger, render_to_log_kwargs
 
-from titanspan.logging.delivery import DeliveryStatus
+from titanspan.contracts.logging import DeliveryStatus
 from titanspan.logging.exceptions import LogBackendError, LogLifecycleError
 from titanspan.logging.level import to_python_level
 from titanspan.logging.record import LogRecord

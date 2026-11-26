@@ -74,26 +74,26 @@ def test_facade_resolves_channels_builds_stacks_and_bridges_records(
 ) -> None:
     """Resolve destinations and route native and standard records.
 
-    The facade must keep manager-owned logger identity across its aliases.
+    The facade must preserve manager-owned logger identity.
     """
     manager, drivers = active_manager
     default_logger = Log.channel()
     assert Log.manager() is manager
-    assert Log.driver() is default_logger
-    worker_logger = Log.driver("worker")
+    assert Log.channel() is default_logger
+    worker_logger = Log.channel("worker")
     assert worker_logger is manager.channel("worker")
 
-    Log.set_default_driver("worker")
-    assert Log.get_default_driver() == "worker"
-    Log.setDefaultDriver("default")
-    assert Log.getDefaultDriver() == "default"
+    Log.set_default_channel("worker")
+    assert Log.get_default_channel() == "worker"
+    Log.set_default_channel("default")
+    assert Log.get_default_channel() == "default"
     Log.log(LogLevel.NOTICE, "facade log", origin="facade")
     Log.exception(
         "facade exception",
         exception=ValueError(_EXCEPTION_MESSAGE),
     )
     assert Log.get_channels()["default"] is default_logger
-    assert Log.getChannels()["default"] is default_logger
+    assert Log.get_channels()["default"] is default_logger
 
     built = Log.build({"driver": "memory", "name": "on-demand"})
     with built:
@@ -121,7 +121,7 @@ def test_facade_resolves_channels_builds_stacks_and_bridges_records(
 def test_facade_context_fakes_and_cache_lifecycle(
     active_manager: tuple[LogManager, list[MemoryLogDriver]],
 ) -> None:
-    """Restore context and expose compatibility assertion aliases.
+    """Restore context and capture records through fake assertions.
 
     Fake assertions must observe records written through the active manager.
     """
@@ -132,14 +132,14 @@ def test_facade_context_fakes_and_cache_lifecycle(
         "request_id": "request-1",
         "tenant_id": "tenant-1",
     }
-    Log.withContext(trace_id="trace-1")
-    assert Log.getContext()["trace_id"] == "trace-1"
+    Log.with_context(trace_id="trace-1")
+    assert Log.get_context()["trace_id"] == "trace-1"
     Log.without_context("trace_id")
-    Log.withoutContext("request_id")
+    Log.without_context("request_id")
     assert Log.get_context() == {"tenant_id": "tenant-1"}
     Log.flush_shared_context()
-    Log.flushContext()
-    Log.flushSharedContext()
+    Log.flush_context()
+    Log.flush_shared_context()
     assert Log.shared_context() == {}
 
     with Log.context(workflow_id="workflow-1"):
@@ -148,16 +148,16 @@ def test_facade_context_fakes_and_cache_lifecycle(
     assert Log.get_context() == {}
 
     Log.forget_channel("worker")
-    Log.forgetChannel("first")
+    Log.forget_channel("first")
     Log.forget_channels()
-    Log.forgetChannels()
+    Log.forget_channels()
     assert Log.get_channels() == {}
     Log.channel().info("fresh channel")
     Log.flush()
 
     with Log.fake() as fake:
         Log.assert_nothing_logged()
-        Log.assertNothingLogged()
+        Log.assert_nothing_logged()
         Log.info("captured", test_case="facade")
         record = Log.assert_logged(
             "info",
@@ -165,11 +165,11 @@ def test_facade_context_fakes_and_cache_lifecycle(
             context={"test_case": "facade"},
         )
         assert record.message == "captured"
-        assert Log.assertLogged("info", "captured") is record
+        assert Log.assert_logged("info", "captured") is record
         Log.assert_logged_times(1, "info", "captured")
-        Log.assertLoggedTimes(1, "info", "captured")
+        Log.assert_logged_times(1, "info", "captured")
         Log.assert_not_logged("error")
-        Log.assertNotLogged("error")
+        Log.assert_not_logged("error")
         assert fake.driver.records == (record,)
 
     Log.flush()

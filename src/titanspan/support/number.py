@@ -1,9 +1,9 @@
 """Format, parse, and summarize numeric values for application code.
 
-The API follows Laravel Support's Number component while using Babel for
-locale-sensitive formatting and parsing. Number-to-word conversions delegate
-to the optional num2words package. Scoped locale and currency values use
-context variables so concurrent tasks do not share temporary overrides.
+Babel provides locale-sensitive formatting and parsing. Number-to-word
+conversions delegate to the optional num2words package. Scoped locale and
+currency values use context variables so concurrent tasks do not share
+temporary overrides.
 """
 
 from __future__ import annotations
@@ -131,14 +131,14 @@ class Number(Macroable):
     def parse(
         cls,
         string: str,
-        type: NumberParseType | int = NumberParseType.DOUBLE,
+        parse_type: NumberParseType | int = NumberParseType.DOUBLE,
         locale: str | None = None,
     ) -> float | int | ParseFailure:
         """Parse a localized decimal string into a numeric value.
 
         Args:
             string: The text to parse.
-            type: ICU-compatible integer or double result mode.
+            parse_type: Integer or floating-point result mode.
             locale: Optional locale identifier; defaults to the active locale.
 
         Returns:
@@ -152,10 +152,10 @@ class Number(Macroable):
         Notes:
             Python integer results are not limited to a fixed machine width.
         """
-        if isinstance(type, bool):
+        if isinstance(parse_type, bool):
             raise InvalidNumberParseTypeError
         try:
-            parse_type = NumberParseType(type)
+            selected_type = NumberParseType(parse_type)
         except (TypeError, ValueError) as exc:
             raise InvalidNumberParseTypeError from exc
 
@@ -169,7 +169,7 @@ class Number(Macroable):
             parsed = parse_decimal(string, locale=active_locale)
         except NumberFormatError:
             return False
-        if parse_type is NumberParseType.DOUBLE:
+        if selected_type is NumberParseType.DOUBLE:
             return float(parsed)
         return int(parsed)
 
@@ -367,8 +367,8 @@ class Number(Macroable):
             ImportError: If the optional numbers extra is unavailable.
 
         Notes:
-            Python reserves ``in`` as a keyword, so the upstream parameter is
-            exposed as ``in_``.
+            ``in_`` names the keyword-like option without using a reserved
+            identifier.
         """
         cls._validate_number(number)
         cls._validate_precision(precision, None)
@@ -410,14 +410,14 @@ class Number(Macroable):
     @classmethod
     def file_size(
         cls,
-        bytes: NumberValue,
+        byte_count: NumberValue,
         precision: int = 0,
         max_precision: int | None = None,
     ) -> str:
         """Format a byte count using powers of 1024.
 
         Args:
-            bytes: The byte count to format.
+            byte_count: The byte count to format.
             precision: Exact fraction digit count, defaulting to zero.
             max_precision: Optional maximum fraction digit count.
 
@@ -429,13 +429,13 @@ class Number(Macroable):
             ValueError: If a precision is invalid.
             ImportError: If the optional numbers extra is unavailable.
         """
-        cls._validate_number(bytes)
+        cls._validate_number(byte_count)
         cls._validate_precision(precision, max_precision)
-        if type(bytes) is float and not math.isfinite(bytes):
-            return f"{cls.format(bytes, precision, max_precision)} B"
+        if type(byte_count) is float and not math.isfinite(byte_count):
+            return f"{cls.format(byte_count, precision, max_precision)} B"
 
         units = ("B", "KB", "MB", "GB", "TB", "PB", "EB", "ZB", "YB")
-        scaled = Decimal(str(bytes))
+        scaled = Decimal(str(byte_count))
         unit_index = 0
         while (
             abs(scaled) / _FILE_SIZE_BASE > Decimal("0.9")
@@ -523,8 +523,7 @@ class Number(Macroable):
         was_negative = value < 0
         magnitude = abs(value)
         suffix = ""
-        # Divide in 10^15 steps to mirror Laravel's repeated quadrillion
-        # suffix behavior without recursive calls on very large integers.
+        # Divide in 10^15 steps to handle large values without recursion.
         while magnitude >= _MAGNITUDE_BLOCK:
             magnitude /= _MAGNITUDE_BLOCK
             suffix += "Q" if abbreviate else " quadrillion"
@@ -574,24 +573,24 @@ class Number(Macroable):
     def clamp(
         cls,
         number: NumberValue,
-        min: NumberValue,
-        max: NumberValue,
+        minimum: NumberValue,
+        maximum: NumberValue,
     ) -> NumberValue:
         """Clamp a numeric value to the inclusive supplied bounds.
 
         Args:
             number: The input value.
-            min: The lower bound.
-            max: The upper bound.
+            minimum: The lower bound.
+            maximum: The upper bound.
 
         Returns:
             The nearest bound when the value is outside the interval, or the
             original value when it is inside.
         """
         cls._validate_number(number)
-        cls._validate_number(min)
-        cls._validate_number(max)
-        return builtins.min(builtins.max(number, min), max)
+        cls._validate_number(minimum)
+        cls._validate_number(maximum)
+        return builtins.min(builtins.max(number, minimum), maximum)
 
     @classmethod
     def pairs(
@@ -1037,22 +1036,6 @@ class Number(Macroable):
             result.close()
         source = "Number scope callback"
         raise AsyncCallbackUsageError(source, async_api)
-
-    # These aliases are explicit descriptors so IDEs and type checkers can
-    # discover the original Illuminate method spellings.
-    parseInt = parse_int
-    parseFloat = parse_float
-    spellOrdinal = spell_ordinal
-    fileSize = file_size
-    forHumans = for_humans
-    withLocale = with_locale
-    withLocaleAsync = with_locale_async
-    withCurrency = with_currency
-    withCurrencyAsync = with_currency_async
-    useLocale = use_locale
-    useCurrency = use_currency
-    defaultLocale = default_locale
-    defaultCurrency = default_currency
 
 
 __all__ = ["Number", "NumberParseType", "NumberValue"]

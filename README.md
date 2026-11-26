@@ -6,9 +6,9 @@
 [![Security](https://github.com/titanspan/titanspan/actions/workflows/security.yml/badge.svg?branch=main)](https://github.com/titanspan/titanspan/actions/workflows/security.yml)
 [![Documentation](https://github.com/titanspan/titanspan/actions/workflows/docs.yml/badge.svg?branch=main)](https://github.com/titanspan/titanspan/actions/workflows/docs.yml)
 
-Titanspan is an open-source, async-first Python application framework for
-building intelligent systems at scale. It is inspired by Laravel's expressive
-developer experience and builds on established Python libraries.
+Titanspan is an independent, open-source, async-first Python application
+framework for building intelligent systems at scale. It provides expressive
+Python APIs on top of established libraries.
 
 The project is at the beginning of **Phase 0: Engineering foundation**. The
 current implementation includes a FastAPI-backed application lifecycle, an
@@ -17,8 +17,8 @@ tested Support utilities, and an initial native logging component with
 structured records, named channels, standard severity levels, context-local
 metadata, file and stream drivers, and bounded background dispatch.
 Numeric locale formatting and number spelling use the optional `numbers`
-extra. Laravel logging compatibility is incremental; deprecation routing
-and full context repository features remain planned.
+extra. Logging capabilities and planned work are listed in the native
+[logging specification](docs/specifications/logging.md).
 The project is not production-ready.
 
 ## Install
@@ -41,7 +41,11 @@ Run the example ASGI application from the repository root:
 uv run uvicorn --app-dir examples/hello-world app:app --reload
 ```
 
-Open `http://127.0.0.1:8000/` to see the JSON greeting.
+Open `http://127.0.0.1:8000/` to see a configured JSON greeting. The example
+registers a service through a provider, injects configuration and logging
+contracts, and binds request context through the ASGI lifecycle. FastAPI
+provides the routing interoperability boundary; see the
+[Hello World guide](docs/getting-started/hello-world.md) for details.
 
 ## Development
 

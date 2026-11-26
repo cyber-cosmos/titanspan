@@ -447,7 +447,7 @@ async def test_scope_context_cannot_be_reentered_after_cleanup() -> None:
 
 
 @pytest.mark.anyio
-async def test_scope_validates_entry_and_exposes_get_alias() -> None:
+async def test_scope_validates_entry_and_typed_resolution() -> None:
     """Validate scope hierarchy and the concise typed resolution method.
 
     Reject application-owned and same-level nested scopes while allowing a
@@ -514,11 +514,11 @@ async def test_conditional_bindings_keep_the_first_registration() -> None:
 
     async with Container() as container:
         container.bind_if(FirstImplementation)
-        container.bindIf(FirstImplementation, SecondImplementation)
+        container.bind_if(FirstImplementation, SecondImplementation)
         container.singleton_if(SharedService)
-        container.singletonIf(SharedService, TaggedService)
+        container.singleton_if(SharedService, TaggedService)
         container.scoped_if(ScopedService)
-        container.scopedIf(ScopedService, TaggedService)
+        container.scoped_if(ScopedService, TaggedService)
 
         transient = await container.make_async(FirstImplementation)
         assert isinstance(transient, FirstImplementation)
@@ -1112,9 +1112,9 @@ async def test_method_bindings_dispatch_through_callable_injection() -> None:
         return label
 
     async with Container() as container:
-        container.bindMethod("worker.process", process)
-        assert container.hasMethodBinding("worker.process")
-        result = await container.callMethodBindingAsync(
+        container.bind_method("worker.process", process)
+        assert container.has_method_binding("worker.process")
+        result = await container.call_method_binding_async(
             "worker.process",
             {"label": "ready"},
         )
@@ -1136,22 +1136,22 @@ async def test_unbound_abstract_dependency_raises_native_error() -> None:
 
 
 @pytest.mark.anyio
-async def test_compatibility_aliases_share_native_registration_state() -> None:
-    """Expose alternate method spelling without duplicate behavior.
+async def test_registered_alias_resolves_tagged_singleton() -> None:
+    """Resolve a service by alias and reuse it in its registered tag.
 
     Verify the behavior through results visible from the container API.
     """
     async with Container() as container:
-        container.singletonIf(TaggedService)
+        container.singleton_if(TaggedService)
         container.alias(TaggedService, "tagged")
         container.tag(TaggedService, "workers")
 
         assert container.bound(TaggedService)
         assert container.has("tagged")
-        assert container.isAlias("tagged")
-        assert container.isShared("tagged")
-        assert container.getAlias(TaggedService) == "tagged"
-        assert TaggedService in container.getBindings()
+        assert container.is_alias("tagged")
+        assert container.is_shared("tagged")
+        assert container.get_alias(TaggedService) == "tagged"
+        assert TaggedService in container.get_bindings()
 
         resolved = await container.make_async("tagged")
         tagged = await container.tagged_async("workers")

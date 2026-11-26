@@ -7,7 +7,6 @@
 
 Titanspan needs structured, contextual logging for asynchronous applications
 while keeping its application API independent of one Python logging backend.
-Laravel's channel-oriented API is a useful developer-experience reference.
 Python's standard logging package provides mature stream, file, rotation, and
 syslog handlers. Structlog provides structured dispatch and standard logging
 interoperability.
@@ -59,9 +58,8 @@ delivery status, and close logger resources during application shutdown.
   explicit async method that offloads work.
 - Background delivery is in-process and does not promise durable or exactly
   once delivery.
-- Deprecation routing, the full
-  context repository, and global event-dispatcher integration remain open
-  compatibility work.
+- Deprecation routing, the full context repository, and global
+  event-dispatcher integration remain pending.
 - Backend-specific interoperability is an explicit extension boundary and
   must not leak into ordinary logging tutorials.
 
@@ -77,8 +75,6 @@ delivery status, and close logger resources during application shutdown.
 
 ## References
 
-- [Laravel 13 logging documentation](https://laravel.com/docs/13.x/logging)
-- [Pinned Laravel LogManager source](https://github.com/laravel/framework/blob/8a8c4a84852869e13190d89f9da873cd9a70f14c/src/Illuminate/Log/LogManager.php)
 - [Python logging handlers](https://docs.python.org/3/library/logging.handlers.html)
 - [Structlog standard-library integration](https://www.structlog.org/en/stable/standard-library.html)
 - [RFC 5424](https://www.rfc-editor.org/rfc/rfc5424)

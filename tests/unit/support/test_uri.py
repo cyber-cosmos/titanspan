@@ -1,7 +1,6 @@
 """Verify immutable URI construction and query data behavior.
 
-The tests adapt Laravel's URI scenarios to Python's standard-library URI
-types and Titanspan's existing array and nested-data utilities.
+The tests exercise Python URI types and Titanspan's nested-data utilities.
 """
 
 from __future__ import annotations
@@ -11,7 +10,7 @@ from urllib.parse import urlsplit
 
 import pytest
 
-from titanspan.contracts import Htmlable, LaravelHtmlable
+from titanspan.contracts import HtmlRenderable
 from titanspan.support import Stringable, Uri, UriQueryString
 
 if TYPE_CHECKING:
@@ -34,16 +33,16 @@ def test_uri_exposes_components_and_preserves_the_original_value() -> None:
         None.
     """
     original = (
-        "https://taylor:secret@EXAMPLE.com:443/"  # pragma: allowlist secret
+        "https://service:secret@EXAMPLE.com:443/"  # pragma: allowlist secret
         "docs/installation"
         "?version=1#intro"
     )
     uri = Uri.of(original)
 
     assert uri.scheme() == "https"
-    assert uri.authority() == "taylor:secret@EXAMPLE.com:443"
-    assert uri.user() == "taylor"
-    assert uri.user(with_password=True) == "taylor:secret"
+    assert uri.authority() == "service:secret@EXAMPLE.com:443"
+    assert uri.user() == "service"
+    assert uri.user(with_password=True) == "service:secret"
     assert uri.password() == "secret"
     assert uri.host() == "example.com"
     assert uri.port() == _HTTPS_DEFAULT_PORT
@@ -53,7 +52,6 @@ def test_uri_exposes_components_and_preserves_the_original_value() -> None:
     assert uri.fragment() == "intro"
     assert uri.value() == original
     assert str(uri) == original
-    assert uri.json_serialize() == original
     assert Uri("https://example.com/").password() is None
     assert repr(Uri("https://example.com/")) == "Uri('https://example.com/')"
 
@@ -146,7 +144,7 @@ def test_uri_parses_nested_query_values_and_preserves_duplicate_keys() -> None:
         "&tags[]=ai&flag&filter[name]=Grace"
     )
 
-    assert uri.query().to_array() == {
+    assert uri.query().all() == {
         "filter": {"name": ["Ada", "Grace"]},
         "tags": ["async", "ai"],
         "flag": "",
@@ -180,17 +178,17 @@ def test_uri_query_changes_merge_replace_push_and_remove_nested_values() -> (
     )
     assert merged.with_query_if_missing(
         {"filter.name": "Grace", "locale": "en"}
-    ).query().to_array() == {
+    ).query().all() == {
         "filter": {"name": "Ada", "role": "admin"},
         "page": "2",
         "tags": ["python"],
         "locale": "en",
     }
-    assert merged.push_onto_query("tags", "ai").query().to_array()["tags"] == [
+    assert merged.push_onto_query("tags", "ai").query().all()["tags"] == [
         "python",
         "ai",
     ]
-    assert merged.without_query("filter.role").query().to_array() == {
+    assert merged.without_query("filter.role").query().all() == {
         "page": "2",
         "tags": ["python"],
         "filter": {"name": "Ada"},
@@ -198,7 +196,7 @@ def test_uri_query_changes_merge_replace_push_and_remove_nested_values() -> (
     assert merged.replace_query({"only": "new"}).query().decode() == (
         "only=new"
     )
-    assert original.query().to_array() == {
+    assert original.query().all() == {
         "filter": {"name": "Ada"},
         "tags": ["python"],
     }
@@ -215,15 +213,15 @@ def test_uri_decode_and_html_adapters_only_change_query_escaping() -> None:
 
     assert uri.decode() == ("https://example.test/a%20b?q=hello world#kept")
     assert uri.to_html() == uri.value()
-    assert uri.toHtml() == uri.value()
+    assert uri.to_html() == uri.value()
     assert uri.to_stringable().to_string() == uri.value()
-    assert uri.toStringable().to_string() == uri.value()
+    assert uri.to_stringable().to_string() == uri.value()
     assert uri.is_empty() is False
-    assert uri.isEmpty() is False
+    assert uri.is_empty() is False
     assert Uri.of("  ").is_empty()
-    assert Uri.of("  ").isEmpty()
+    assert Uri.of("  ").is_empty()
     assert Uri.of("  ").is_not_empty() is False
-    assert Uri.of("  ").isNotEmpty() is False
+    assert Uri.of("  ").is_not_empty() is False
     uri_with_credentials = Uri.of(
         "https://alice:secret@example.test"  # pragma: allowlist secret
     )
@@ -343,20 +341,20 @@ def test_uri_resolver_supports_url_generation_helpers() -> None:
             return f"https://example.test/actions/{action}"
 
     builder = UrlBuilder()
-    Uri.setUrlGeneratorResolver(lambda: builder)
+    Uri.set_url_generator_resolver(lambda: builder)
     try:
         assert Uri.to("/docs").value() == "https://example.test/to"
         assert Uri.route("home").value() == "https://example.test/routes/home"
         assert Uri.signed_route("home").value() == (
             "https://example.test/signed/home"
         )
-        assert Uri.signedRoute("home").value() == (
+        assert Uri.signed_route("home").value() == (
             "https://example.test/signed/home"
         )
         assert Uri.temporary_signed_route("home", 60).value() == (
             "https://example.test/signed/home"
         )
-        assert Uri.temporarySignedRoute("home", 60).value() == (
+        assert Uri.temporary_signed_route("home", 60).value() == (
             "https://example.test/signed/home"
         )
         assert Uri.action("HomeController@index").value() == (
@@ -404,7 +402,7 @@ def test_uri_query_parses_nested_and_sparse_numeric_keys() -> None:
         "&x=scalar&x[name]=nested&[root]=literal&bad[key]tail[end]=value"
     ).query()
 
-    assert query.to_array() == {
+    assert query.all() == {
         "list": {
             9: "nine",
             10: "ten",
@@ -434,7 +432,7 @@ def test_uri_query_preserves_numeric_keys_at_the_root() -> None:
     """
     query = Uri.of("https://example.test/?0=first&1=second").query()
 
-    assert query.to_array() == {0: "first", 1: "second"}
+    assert query.all() == {0: "first", 1: "second"}
 
 
 @pytest.mark.unit
@@ -473,7 +471,7 @@ def test_uri_query_if_missing_treats_wildcard_characters_literally() -> None:
 
     updated = uri.with_query_if_missing({"*": "admin"})
 
-    assert updated.query().to_array() == {
+    assert updated.query().all() == {
         "role": "user",
         "tenant": "10",
         "*": "admin",
@@ -530,7 +528,7 @@ def test_uri_construction_accepts_python_and_fluent_string_values() -> None:
 
 
 @pytest.mark.unit
-def test_uri_parses_the_full_nested_query_shape_from_laravel_examples() -> None:
+def test_uri_parses_nested_query_values() -> None:
     """Parse bracketed query arrays while preserving dotted literal keys.
 
     Returns:
@@ -555,7 +553,7 @@ def test_uri_parses_the_full_nested_query_shape_from_laravel_examples() -> None:
 
 
 @pytest.mark.unit
-def test_uri_builder_matches_laravel_query_composition_rules() -> None:
+def test_uri_builder_preserves_query_composition_rules() -> None:
     """Build nested query values and preserve merge and replacement rules.
 
     Returns:
@@ -597,13 +595,11 @@ def test_uri_exposes_path_segments_and_framework_interop_protocols() -> None:
     uri = Uri.of("https://example.test/one/two/three/?foo=bar#section")
 
     assert uri.path_segments() == ("one", "two", "three")
-    assert uri.pathSegments() == ("one", "two", "three")
-    assert isinstance(uri, Htmlable)
-    assert isinstance(uri, LaravelHtmlable)
-    assert uri.toHtml() == uri.to_html() == uri.value()
-    assert uri.toString() == uri.to_string() == uri.value()
-    assert uri.getUri().path == "/one/two/three/"
-    assert uri.jsonSerialize() == uri.json_serialize() == uri.value()
+    assert uri.path_segments() == ("one", "two", "three")
+    assert isinstance(uri, HtmlRenderable)
+    assert uri.to_html() == uri.to_html() == uri.value()
+    assert uri.to_string() == uri.to_string() == uri.value()
+    assert uri.get_uri().path == "/one/two/three/"
 
 
 @pytest.mark.unit
@@ -661,15 +657,15 @@ def test_uri_uses_conditionable_tappable_and_explicit_macros() -> None:
         """
         return current.with_path("macro")
 
-    Uri.flushMacros()
+    Uri.flush_macros()
     Uri.macro("with_test_path", with_test_path)
     try:
         macro_result = Uri.of("https://example.test").call_macro(
             "with_test_path"
         )
-        assert Uri.hasMacro("with_test_path")
+        assert Uri.has_macro("with_test_path")
     finally:
-        Uri.flushMacros()
+        Uri.flush_macros()
 
     assert isinstance(changed, Uri)
     assert tapped is changed
@@ -694,8 +690,8 @@ def test_uri_requires_a_context_local_url_generator_for_route_factories() -> (
 
 
 @pytest.mark.unit
-def test_uri_query_adapter_exposes_laravel_and_python_string_methods() -> None:
-    """Expose query data through the wrapper and its Laravel alias.
+def test_uri_query_adapter_exposes_python_string_methods() -> None:
+    """Expose encoded and decoded query strings through Python methods.
 
     Returns:
         None.
@@ -706,14 +702,13 @@ def test_uri_query_adapter_exposes_laravel_and_python_string_methods() -> None:
     assert query.value() == "lang=en&empty="
     assert query.decode() == "lang=en&empty="
     assert query.get() == {"lang": "en", "empty": ""}
-    assert query.toArray() == query.to_array()
     assert query.all("lang") == {"lang": "en"}
     assert query.all() == {"lang": "en", "empty": ""}
 
 
 @pytest.mark.unit
-def test_uri_response_adapter_uses_the_current_value() -> None:
-    """Return Starlette redirects through both response entry points.
+def test_uri_redirect_uses_the_current_value() -> None:
+    """Return a Starlette redirect for the current URI value.
 
     Returns:
         None.
@@ -721,12 +716,8 @@ def test_uri_response_adapter_uses_the_current_value() -> None:
     uri = Uri("https://example.test/next?source=docs")
 
     direct = uri.redirect()
-    adapted = uri.to_response(object())
-
     assert direct.status_code == _DEFAULT_REDIRECT_STATUS
     assert direct.headers["location"] == uri.value()
-    assert adapted.status_code == _DEFAULT_REDIRECT_STATUS
-    assert adapted.headers["location"] == uri.value()
 
 
 @pytest.mark.unit
@@ -750,8 +741,8 @@ def test_uri_dump_writes_a_readable_value_and_returns_self(
 
 
 @pytest.mark.unit
-def test_uri_camel_case_query_aliases_share_python_implementations() -> None:
-    """Keep Laravel aliases behaviorally identical to Python spellings.
+def test_uri_query_mutation_operations() -> None:
+    """Update query keys and URI components through immutable operations.
 
     Returns:
         None.
@@ -759,21 +750,18 @@ def test_uri_camel_case_query_aliases_share_python_implementations() -> None:
     uri = Uri("https://example.test/?existing=1")
 
     assert (
-        uri.withQuery({"added": "2"}).value()
-        == uri.with_query({"added": "2"}).value()
+        uri.with_query_if_missing({"existing": "3"}).query().get("existing")
+        == "1"
     )
-    assert (
-        uri.withQueryIfMissing({"existing": "3"}).query().get("existing") == "1"
-    )
-    assert uri.pushOntoQuery("existing", "2").query().get("existing") == [
+    assert uri.push_onto_query("existing", "2").query().get("existing") == [
         "1",
         "2",
     ]
-    assert uri.withoutQuery("existing").query().all() == {}
-    assert uri.replaceQuery({"only": "value"}).query().all() == {
+    assert uri.without_query("existing").query().all() == {}
+    assert uri.replace_query({"only": "value"}).query().all() == {
         "only": "value"
     }
-    assert uri.withFragment("section").withoutFragment().fragment() is None
+    assert uri.with_fragment("section").without_fragment().fragment() is None
 
 
 @pytest.mark.unit

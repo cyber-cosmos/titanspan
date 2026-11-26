@@ -5,20 +5,17 @@ Customizers receive Titanspan loggers before they are cached or returned.
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Protocol
-
-if TYPE_CHECKING:
-    from titanspan.logging.logger import Logger
+from typing import Protocol
 
 
-class LogCustomizer(Protocol):
+class LogCustomizer[LoggerT_contra](Protocol):
     """Customize one newly constructed native logger.
 
     Implementations can attach native listeners or apply application-owned
     setup while avoiding access to third-party backend logger objects.
     """
 
-    def customize(self, logger: Logger) -> None:
+    def customize(self, logger: LoggerT_contra) -> None:
         """Apply synchronous setup before the logger is published.
 
         Args:

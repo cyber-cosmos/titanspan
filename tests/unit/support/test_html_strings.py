@@ -1,7 +1,7 @@
 """Verify trusted and encoded HTML string behavior.
 
-The cases port the pinned HtmlString examples and test escaping, custom
-encoding isolation, and Python HTML-rendering interoperability.
+The cases test escaping, context-local encoder isolation, and Python
+HTML-rendering interoperability.
 """
 
 from __future__ import annotations
@@ -26,7 +26,7 @@ class HtmlToken(str, Enum):
 
 
 class StructuredHtmlToken(Enum):
-    """Represent a Python enum without a Laravel-style backing scalar.
+    """Represent an enum without a scalar value.
 
     This value exercises the Python-specific fallback for arbitrary enums.
     """
@@ -37,8 +37,8 @@ class StructuredHtmlToken(Enum):
 class DeferredHtmlValue:
     """Defer display rendering until an HTML string is requested.
 
-    The class returns trusted HTML to exercise Laravel's display-value
-    contract without coupling the runtime to a template engine.
+    The class returns trusted HTML through the native display-value protocol
+    without coupling the runtime to a template engine.
     """
 
     def resolve_displayable_value(self) -> HtmlString:
@@ -49,32 +49,29 @@ class DeferredHtmlValue:
         """
         return HtmlString("<em>deferred</em>")
 
-    resolveDisplayableValue = resolve_displayable_value
 
+class CustomHtmlValue:
+    """Expose the trusted HTML protocol from an application class.
 
-class LaravelHtmlValue:
-    """Expose the upstream camelCase trusted HTML protocol only.
-
-    This fixture verifies interoperation with implementations that do not
-    define a Python-named alias.
+    This fixture verifies that the runtime accepts structural implementations.
     """
 
-    def toHtml(self) -> str:
+    def to_html(self) -> str:
         """Return explicitly trusted markup.
 
         Returns:
             The trusted HTML representation.
         """
-        return "<strong>upstream</strong>"
+        return "<strong>custom</strong>"
 
 
-class LaravelDeferredText:
-    """Expose only the upstream deferred display method name.
+class CustomDeferredText:
+    """Expose deferred display behavior from an application class.
 
-    This fixture verifies compatibility with the original contract shape.
+    This fixture verifies structural protocol use without a base class.
     """
 
-    def resolveDisplayableValue(self) -> str:
+    def resolve_displayable_value(self) -> str:
         """Resolve plain text when the value is rendered.
 
         Returns:
@@ -107,7 +104,7 @@ def test_html_string_preserves_trusted_content(
     html = HtmlString(value)
 
     assert html.to_html() == expected
-    assert html.toHtml() == expected
+    assert html.to_html() == expected
     assert html.__html__() == expected
     assert str(html) == expected
     assert html.is_empty() is (expected == "")
@@ -176,14 +173,14 @@ def test_encoded_html_resolves_deferred_display_values() -> None:
     assert EncodedHtmlString(DeferredHtmlValue()).to_html() == (
         "<em>deferred</em>"
     )
-    assert EncodedHtmlString(LaravelDeferredText()).to_html() == (
+    assert EncodedHtmlString(CustomDeferredText()).to_html() == (
         "&lt;strong&gt;delayed&lt;/strong&gt;"
     )
-    assert EncodedHtmlString(LaravelHtmlValue()).to_html() == (
-        "<strong>upstream</strong>"
+    assert EncodedHtmlString(CustomHtmlValue()).to_html() == (
+        "<strong>custom</strong>"
     )
-    assert e(LaravelDeferredText()) == "&lt;strong&gt;delayed&lt;/strong&gt;"
-    assert e(LaravelHtmlValue()) == "<strong>upstream</strong>"
+    assert e(CustomDeferredText()) == "&lt;strong&gt;delayed&lt;/strong&gt;"
+    assert e(CustomHtmlValue()) == "<strong>custom</strong>"
 
 
 @pytest.mark.unit

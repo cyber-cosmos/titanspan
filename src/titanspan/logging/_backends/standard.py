@@ -6,7 +6,7 @@ receives Titanspan drivers and never has to configure handler instances.
 
 import logging
 
-from titanspan.logging.contracts.log_formatter import LogFormatter
+from titanspan.contracts.logging import LogFormatter
 from titanspan.logging.level import to_python_level
 from titanspan.logging.record import LogRecord
 
@@ -21,7 +21,7 @@ class StandardHandlerBackend:
     def __init__(
         self,
         handler: logging.Handler,
-        formatter: LogFormatter,
+        formatter: LogFormatter[LogRecord],
     ) -> None:
         """Attach a Titanspan formatter to an owned standard handler.
 

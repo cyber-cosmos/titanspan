@@ -40,7 +40,6 @@ class Lottery:
     independent asynchronous execution contexts isolated.
 
     Notes:
-        Laravel's static test factory is adapted to context-local state.
         ``always_win(callback)`` and ``always_lose(callback)`` restore the
         outer factory after the callback, including when it raises.
     """
@@ -269,16 +268,6 @@ class Lottery:
         _RESULT_FACTORY.set(factory)
 
     @staticmethod
-    def determine_results_normally() -> None:
-        """Clear forced results and restore randomized draw behavior.
-
-        Notes:
-            The alias is retained for compatibility with the original
-            Laravel method spelling.
-        """
-        Lottery.determine_result_normally()
-
-    @staticmethod
     def determine_result_normally() -> None:
         """Clear forced results in the active execution context.
 
@@ -442,13 +431,6 @@ class Lottery:
             Lottery._reject_awaitable(callback_result)
         finally:
             _RESULT_FACTORY.reset(token)
-
-    alwaysWin = always_win
-    alwaysLose = always_lose
-    forceResultWithSequence = force_result_with_sequence
-    determineResultsNormally = determine_results_normally
-    determineResultNormally = determine_result_normally
-    setResultFactory = set_result_factory
 
 
 __all__ = ["Lottery", "ResultFactory"]

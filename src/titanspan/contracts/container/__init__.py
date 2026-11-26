@@ -4,6 +4,7 @@ The sync-first protocol keeps ordinary construction synchronous while making
 asynchronous dependency acquisition an explicit operation.
 """
 
+from collections.abc import Callable
 from typing import Protocol, runtime_checkable
 
 
@@ -35,7 +36,55 @@ class InstanceRegistration(Protocol):
 
 
 @runtime_checkable
-class ServiceContainer(Protocol):
+class ServiceRegistry(Protocol):
+    """Describe application registration operations used by providers.
+
+    Providers depend on this narrow surface and do not construct or configure
+    a dependency-engine backend directly.
+    """
+
+    def instance[ServiceT](
+        self,
+        service: type[ServiceT],
+        value: ServiceT,
+    ) -> None:
+        """Register an already constructed application service.
+
+        Args:
+            service: Canonical contract or service type.
+            value: The shared object returned for this key.
+        """
+        ...
+
+    def bind[ServiceT](
+        self,
+        service: type[ServiceT],
+        implementation: type[ServiceT] | Callable[..., ServiceT] | None = None,
+    ) -> None:
+        """Register a transient class or synchronous factory.
+
+        Args:
+            service: Canonical service contract.
+            implementation: Type or factory used to construct the service.
+        """
+        ...
+
+    def singleton[ServiceT](
+        self,
+        service: type[ServiceT],
+        implementation: type[ServiceT] | Callable[..., ServiceT] | None = None,
+    ) -> None:
+        """Register one application-owned service instance.
+
+        Args:
+            service: Canonical service contract.
+            implementation: Type or synchronous factory for the service.
+        """
+        ...
+
+
+@runtime_checkable
+class ServiceContainer(ServiceRegistry, Protocol):
     """Describe synchronous and explicit asynchronous service resolution.
 
     Implementations resolve synchronous graphs without an event-loop bridge,
@@ -132,4 +181,5 @@ __all__ = [
     "AsyncServiceContainer",
     "InstanceRegistration",
     "ServiceContainer",
+    "ServiceRegistry",
 ]

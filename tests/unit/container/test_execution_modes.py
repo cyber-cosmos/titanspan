@@ -199,8 +199,8 @@ async def test_inactive_scopes_reject_sync_and_async_resolution() -> None:
 
 
 @pytest.mark.anyio
-async def test_scope_get_aliases_and_async_sync_safe_resolution() -> None:
-    """Resolve sync-safe values from either scope API spelling.
+async def test_scope_resolution_methods_handle_sync_safe_values() -> None:
+    """Resolve sync-safe values through both explicit execution modes.
 
     An async scope may invoke its async method for a graph that needs no async
     initialization, while a sync scope owns the same safe capability.
@@ -289,29 +289,24 @@ async def test_container_matches_the_sync_first_contract() -> None:
 
 
 @pytest.mark.anyio
-async def test_sync_aliases_share_the_canonical_resolution_methods() -> None:
-    """Resolve through native camel and snake method spellings.
+async def test_resolution_methods_share_singleton_instances() -> None:
+    """Keep synchronous and asynchronous access on one singleton identity.
 
-    All aliases must preserve the same generic result and binding lifetime.
+    This protects callers from separate caches for each resolution mode.
     """
     async with Container() as container:
         container.singleton(ConstructorService)
-        first = container.resolve(ConstructorService)
+        first = container.make(ConstructorService)
         second = container.get(ConstructorService)
-        third = container.build(ConstructorService)
 
-        assert first is second is third
-        assert container.makeWith(ConstructorService, {}) is not first
+        assert first is second
+        assert container.make_with(ConstructorService, {}) is not first
 
-        async_first = await container.makeAsync(ConstructorService)
-        async_second = await container.getAsync(ConstructorService)
-        async_third = await container.resolveAsync(ConstructorService)
-        async_fourth = await container.buildAsync(ConstructorService)
+        async_first = await container.make_async(ConstructorService)
+        async_second = await container.get_async(ConstructorService)
 
     assert async_first is first
     assert async_second is first
-    assert async_third is first
-    assert async_fourth is first
 
 
 @pytest.mark.anyio
@@ -339,7 +334,7 @@ async def test_sync_factory_and_tagged_resolution_are_lazy_and_ordered() -> (
 
 
 @pytest.mark.anyio
-async def test_sync_make_with_and_its_async_alias_preserve_types() -> None:
+async def test_sync_and_async_make_with_preserve_result_types() -> None:
     """Construct typed objects with explicit dependencies in each mode.
 
     Explicit values override automatic constructor resolution without changing
@@ -352,7 +347,7 @@ async def test_sync_make_with_and_its_async_alias_preserve_types() -> None:
             ConstructorService,
             {"dependency": dependency},
         )
-        asynchronous: ConstructorService = await container.makeWithAsync(
+        asynchronous: ConstructorService = await container.make_with_async(
             ConstructorService,
             {"dependency": dependency},
         )
@@ -787,7 +782,7 @@ async def test_sync_call_rejects_async_callbacks_before_invocation() -> None:
 
         assert callback_calls == 0
         result = await container.call_async(consume)
-        alias_result = await container.callAsync(consume)
+        alias_result = await container.call_async(consume)
 
     assert isinstance(result, SyncService)
     assert alias_result is not result
@@ -946,8 +941,8 @@ async def test_sync_callable_injection_translates_dependency_failures() -> None:
 
 
 @pytest.mark.anyio
-async def test_sync_method_binding_aliases_dispatch_and_fail_natively() -> None:
-    """Use sync callback bindings with explicit native and compatibility names.
+async def test_sync_method_bindings_dispatch_and_fail_natively() -> None:
+    """Use sync callback bindings and report missing keys natively.
 
     Missing keys raise a native binding error before callback execution.
     """
@@ -968,10 +963,6 @@ async def test_sync_method_binding_aliases_dispatch_and_fail_natively() -> None:
         assert container.has_method_binding("worker.process")
         assert isinstance(
             container.call_method_binding("worker.process"),
-            SyncService,
-        )
-        assert isinstance(
-            container.callMethodBinding("worker.process"),
             SyncService,
         )
         with pytest.raises(BindingError):

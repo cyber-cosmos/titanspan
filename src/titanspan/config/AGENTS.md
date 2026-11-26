@@ -5,19 +5,29 @@ native configuration repository, trusted source loading, typed settings,
 safe cache lifecycle, and application integration.
 
 - `Repository` is the canonical implementation of
-  `titanspan.contracts.ConfigRepository`. Preserve that contract identity and
-  keep the protocol dependency-independent.
+  `titanspan.contracts.config.ConfigRepository`. Preserve that contract
+  identity and keep the protocol dependency-independent.
+- `ConfigServiceProvider` registers the selected repository under its base
+  reader/writer contracts and only registers optional typed, scoped, macro,
+  and diagnostic capabilities when they are supported. Keep the Config facade
+  dependent on these protocols, never on `Repository` identity.
 - `Arr` owns dot-path traversal and `Macroable` owns macro registration.
   Delegate to those canonical Support implementations.
-- Pydantic Settings is isolated under `_backends/`; public APIs and errors
-  belong to Titanspan. Do not expose backend validation exceptions.
+- Pydantic Settings construction and export are isolated under `_backends/`;
+  public methods and errors belong to Titanspan. `Settings` currently derives
+  from a private backend base, so inherited backend methods may be visible but
+  are not a supported Titanspan API. Keep all internal operations on native
+  methods such as `to_dict`; the boundary audit records this remaining
+  encapsulation limit. Do not expose backend validation exceptions.
 - `ConfigManager` owns source precedence and cache lifecycle. `ConfigLoader`
   executes only trusted project configuration files and is not a sandbox.
 - Cache only validated JSON-compatible values. Never use pickle or execute a
   generated cache file. Treat snapshots as sensitive because they may contain
   credentials.
-- The active Config facade is context-bound. Do not add process-global
-  repositories or resolve the async service container from synchronous reads.
+- The active Config facade resolves `ConfigRepository` through the shared
+  application context. Its explicit `use` helper is a temporary test override.
+  Do not add process-global repositories or resolve async services from
+  synchronous reads.
 
 - Validate environment and file input at configuration boundaries.
 - Preserve the distinction between missing values, explicit `None`, false,
@@ -38,6 +48,6 @@ safe cache lifecycle, and application integration.
   Comments should explain validation or precedence decisions that are not
   evident from Pydantic's field declarations.
 - Consult `ARCHITECTURE.md`, ADRs 0003, 0009, 0010, and 0013, and
-  `docs/compatibility/laravel-config.md`. Run focused config tests, then
+  `docs/specifications/config.md`. Run focused config tests, then
   `make lint`, `make format-check`, `make types`, `make coverage`, and
   `make check` for applicable changes.

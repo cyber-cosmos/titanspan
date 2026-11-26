@@ -4,20 +4,20 @@ Application code uses Titanspan records, channels, formatters, processors,
 drivers, and manager abstractions. Backend packages stay private.
 """
 
+from titanspan.contracts.logging import (
+    AsyncLogDriver,
+    DeliveryStatus,
+    LogCustomizer,
+    LogDriver,
+    LogFormatter,
+    LogProcessor,
+)
 from titanspan.logging.bridge import StandardLogBridge
 from titanspan.logging.channel import LogChannel
 from titanspan.logging.configuration import (
     ChannelConfiguration,
     LoggingConfiguration,
 )
-from titanspan.logging.contracts import (
-    AsyncLogDriver,
-    LogCustomizer,
-    LogDriver,
-    LogFormatter,
-    LogProcessor,
-)
-from titanspan.logging.delivery import DeliveryStatus
 from titanspan.logging.drivers import (
     BackgroundLogDriver,
     EmergencyLogDriver,
@@ -54,6 +54,7 @@ from titanspan.logging.logger import Logger
 from titanspan.logging.manager import LogManager
 from titanspan.logging.processors import RedactionProcessor
 from titanspan.logging.record import LogRecord, LogValue
+from titanspan.logging.service_provider import LoggingServiceProvider
 
 __all__ = [
     "AsyncLogDriver",
@@ -86,6 +87,7 @@ __all__ = [
     "Logger",
     "LoggingConfiguration",
     "LoggingError",
+    "LoggingServiceProvider",
     "MemoryLogDriver",
     "MessageLogged",
     "NullLogDriver",

@@ -65,8 +65,8 @@ class BinaryCodec:
         _custom_codecs: Class-scoped codec overrides and extensions.
 
     Notes:
-        Registration is process-wide for this class, matching Laravel's
-        static registry. Registry access is protected for concurrent threads.
+        Registration is shared by this class and its subclasses. Registry
+        access is protected for concurrent threads.
     """
 
     _custom_codecs: ClassVar[dict[str, _Codec]] = {}
@@ -92,13 +92,14 @@ class BinaryCodec:
     def encode(
         cls,
         value: BinaryCodecValue,
-        format: str,
+        codec_name: str,
     ) -> bytes | None:
         """Encode a UUID or ULID value to its 16-byte representation.
 
         Args:
             value: A UUID object, canonical string, or binary byte sequence.
-            format: Built-in ``uuid`` or ``ulid`` format, or a registered name.
+            codec_name: Built-in ``uuid`` or ``ulid`` codec or a registered
+                name.
 
         Returns:
             ``None`` for blank input; otherwise the encoded binary value.
@@ -108,34 +109,35 @@ class BinaryCodec:
 
         Notes:
             Existing binary input is returned unchanged. Python uses ``bytes``
-            for binary values rather than PHP's byte-bearing string type.
+            for byte sequences rather than Unicode text values.
         """
         if cls._is_blank(value):
             return None
 
         with cls._registry_lock:
-            codec = cls._custom_codecs.get(format)
+            codec = cls._custom_codecs.get(codec_name)
         if codec is not None:
             return codec[0](value)
 
-        if format == "uuid":
+        if codec_name == "uuid":
             return cls._encode_uuid(value)
-        if format == "ulid":
+        if codec_name == "ulid":
             return cls._encode_ulid(value)
-        message = f"Format [{format}] is invalid."
+        message = f"Format [{codec_name}] is invalid."
         raise ValueError(message)
 
     @classmethod
     def decode(
         cls,
         value: str | bytes | None,
-        format: str,
+        codec_name: str,
     ) -> str | None:
         """Decode binary or textual UUID and ULID values to canonical text.
 
         Args:
             value: A canonical text identifier, binary bytes, or ``None``.
-            format: Built-in ``uuid`` or ``ulid`` format, or a registered name.
+            codec_name: Built-in ``uuid`` or ``ulid`` codec or a registered
+                name.
 
         Returns:
             ``None`` for blank input; otherwise the canonical text identifier.
@@ -149,15 +151,15 @@ class BinaryCodec:
             return None
 
         with cls._registry_lock:
-            codec = cls._custom_codecs.get(format)
+            codec = cls._custom_codecs.get(codec_name)
         if codec is not None:
             return codec[1](value)
 
-        if format == "uuid":
+        if codec_name == "uuid":
             return cls._decode_uuid(value)
-        if format == "ulid":
+        if codec_name == "ulid":
             return cls._decode_ulid(value)
-        message = f"Format [{format}] is invalid."
+        message = f"Format [{codec_name}] is invalid."
         raise ValueError(message)
 
     @classmethod
@@ -366,7 +368,7 @@ class BinaryCodec:
 
     @staticmethod
     def _is_blank(value: object) -> bool:
-        """Apply Laravel's blank semantics to supported codec input values.
+        """Check whether a supported codec input is empty.
 
         Args:
             value: A UUID, string, byte sequence, or ``None``.
@@ -377,9 +379,6 @@ class BinaryCodec:
         return value is None or (
             isinstance(value, (str, bytes)) and not value.strip()
         )
-
-    # Preserve Laravel's public method spelling for compatibility.
-    isBinary = is_binary
 
 
 __all__ = ["BinaryCodec", "BinaryCodecValue"]

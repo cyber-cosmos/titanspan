@@ -15,7 +15,7 @@ from typing import TYPE_CHECKING, Literal
 
 import anyio
 
-from titanspan.logging.delivery import DeliveryStatus
+from titanspan.contracts.logging import DeliveryStatus
 from titanspan.logging.exceptions import (
     LogDeliveryError,
     LogLifecycleError,
@@ -23,7 +23,7 @@ from titanspan.logging.exceptions import (
 )
 
 if TYPE_CHECKING:
-    from titanspan.logging.contracts.log_driver import LogDriver
+    from titanspan.contracts.logging import LogDriver
     from titanspan.logging.drivers.core import EmergencyLogDriver
     from titanspan.logging.record import LogRecord
 
@@ -62,7 +62,7 @@ class BackgroundLogDriver:
 
     def __init__(
         self,
-        driver: LogDriver,
+        driver: LogDriver[LogRecord],
         *,
         channel: str,
         capacity: int,
@@ -120,7 +120,7 @@ class BackgroundLogDriver:
             return self._dropped_count
 
     @property
-    def inner_driver(self) -> LogDriver:
+    def inner_driver(self) -> LogDriver[LogRecord]:
         """Return the native destination wrapped by background dispatch.
 
         Returns:

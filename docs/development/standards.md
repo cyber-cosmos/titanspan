@@ -5,20 +5,26 @@ do not replace enforcement: `pyproject.toml`, repository scripts, pre-commit,
 Make, and GitHub Actions implement the checks. A failed required check must be
 fixed; contributors must not bypass or weaken a policy to finish sooner.
 
-## Architecture and compatibility
+## Architecture and native APIs
 
 - Read `ARCHITECTURE.md`, the nearest scoped `AGENTS.md`, and applicable ADRs
   before changing module boundaries, public APIs, lifecycle, or integrations.
 - Build on maintained libraries. Keep Titanspan wrappers thin, domain-named,
   typed, and interoperable with native APIs. Do not duplicate their engines.
-- Use idiomatic Python and Laravel as a developer-experience reference. Do
-  not translate PHP syntax mechanically.
+- Titanspan is an independent Python framework. Follow native Titanspan API
+  specifications and Python conventions; external framework compatibility is
+  not a requirement.
 - Keep optional integrations out of core dependency direction. Avoid cycles,
   global mutable state, speculative abstractions, and unrelated refactors.
 - Preserve documented public behavior where applicable. Record consequential
   decisions as ADRs and explain breaking changes.
 - Verify unfamiliar and version-sensitive APIs through official docs and the
   installed, locked package before relying on them.
+- A component is not complete because its API exists or isolated unit tests
+  pass. It must satisfy its canonical contracts, participate in the owning
+  application lifecycle, and have real integration tests with implemented
+  dependencies. Record unavailable dependencies as limitations rather than
+  simulating completion with disconnected abstractions.
 
 ## Python source policy
 
@@ -29,6 +35,10 @@ repository-maintained Python scripts:
   characters per physical line.
 - PEP 8 names: `snake_case` for functions, methods, and variables;
   `PascalCase` for classes; `UPPER_SNAKE_CASE` for constants.
+- Keep Ruff's naming rules active for all first-party files. Do not suppress
+  N802, N803, N806, N815, N816, A001, A002, or A003 to preserve external
+  framework spellings. Permit only a narrowly reviewed exception required by
+  an external Python protocol, with an exact file and rule allowlist.
 - Use explicit, descriptive names, absolute imports, and explicit public
   exports. Do not use wildcard imports, unused names, dead code, or commented
   out implementations.
@@ -56,6 +66,13 @@ and the source checker enforces it; S101 is allowed only in tests and
 benchmarks because assertions are their test contract. Any new exception
 requires a focused explanation and review. Do not add blanket exclusions or
 type ignores.
+
+Two integration overrides retain names required by the Python standard
+library: the monthly log handler must override `computeRollover(currentTime)`,
+and its local HTTP test server must match `BaseHTTPRequestHandler`'s
+`log_message(format, ...)` signature. The exact Ruff rule and file allowlist
+is tested in `tests/unit/test_native_api_names.py`; adding another naming
+exception requires the same focused review.
 
 Run the canonical checks:
 

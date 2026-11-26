@@ -40,6 +40,6 @@ values. The `Log.context(...)` scope restores its previous values in a
 `finally` block, including when application code raises or is cancelled.
 
 The facade must be bound with `Log.use(manager)` for standalone use. Titanspan
-does not keep a global mutable manager or global context repository. Laravel's
-hidden context, dehydration/hydration, and persistent context repository APIs
-are not implemented yet.
+does not keep a global mutable manager or context repository. Workflow, agent,
+tool, job, and trace metadata remain the responsibility of their owning
+execution-scope integrations.

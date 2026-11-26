@@ -1,7 +1,6 @@
 """Verify time calculations and runtime formatting for Support mixins.
 
-Cover epoch deadlines, timedelta conversion, time injection, and source
-compatible method aliases.
+Cover epoch deadlines, timedelta conversion, and injected time sources.
 """
 
 from __future__ import annotations
@@ -56,7 +55,7 @@ class _FixedClock(InteractsWithTime):
 def test_seconds_until_preserves_integer_delays() -> None:
     """Return integer delays unchanged, including negative values.
 
-    Integer delays are not clamped by the upstream trait.
+    Integer delays preserve their supplied signed value.
     """
     clock = _FixedClock()
 
@@ -67,7 +66,7 @@ def test_seconds_until_preserves_integer_delays() -> None:
 def test_seconds_until_clamps_past_datetime_to_zero() -> None:
     """Clamp expired datetime deadlines but retain future epoch seconds.
 
-    This matches the upstream distinction between integer and date delays.
+    Integer delays are retained while expired absolute times clamp to zero.
     """
     clock = _FixedClock()
     past = _NOW - timedelta(seconds=2)
@@ -138,16 +137,15 @@ def test_available_at_returns_datetime_timestamp_without_rebasing() -> None:
     assert _FixedClock().available_at(deadline) == int(deadline.timestamp())
 
 
-def test_current_time_aliases_return_the_clock_timestamp() -> None:
-    """Expose the source-compatible method alias over the injected clock.
+def test_injected_clock_returns_current_epoch_seconds() -> None:
+    """Read whole-second epoch time from the injected clock.
 
-    Both method names return the same whole-second epoch value.
+    The clock abstraction must avoid dependence on current wall time.
     """
     clock = _FixedClock()
     expected = int(_NOW.timestamp())
 
     assert clock.current_time() == expected
-    assert clock.currentTime() == expected
 
 
 def test_default_clock_returns_current_epoch_seconds() -> None:
@@ -244,16 +242,3 @@ def test_runtime_for_humans_rejects_nonfinite_durations(
     """
     with pytest.raises(ValueError, match="finite duration"):
         _FixedClock().run_time_for_humans(start_time, end_time)
-
-
-def test_camel_case_time_aliases_share_python_implementations() -> None:
-    """Expose all source-compatible spellings on the mixin.
-
-    Each alias returns the same value as its Python-named implementation.
-    """
-    clock = _FixedClock()
-
-    assert clock.secondsUntil(4) == clock.seconds_until(4)
-    assert clock.availableAt(4) == clock.available_at(4)
-    assert clock.parseDateInterval(-1) == clock.parse_date_interval(-1)
-    assert clock.runTimeForHumans(1.0, 1.5) == "500.00ms"

@@ -1,7 +1,7 @@
 """Resolve named channels and own their logging resource lifecycles.
 
-The manager follows Laravel's channel-oriented API while using validated
-Titanspan configuration, typed driver factories, and context-local metadata.
+The manager uses validated configuration, typed driver factories, and
+context-local metadata.
 """
 
 from __future__ import annotations
@@ -12,11 +12,16 @@ from contextlib import contextmanager
 from contextvars import ContextVar
 from threading import RLock
 from types import MappingProxyType
-from typing import TYPE_CHECKING, TextIO, cast
+from typing import TYPE_CHECKING, TextIO, TypeGuard, cast
 from uuid import uuid4
 
 import anyio
 
+from titanspan.contracts.logging import (
+    LogCustomizer,
+    LogDriver,
+    LogFormatter,
+)
 from titanspan.logging._backends.bridge import StandardLibraryBridgeBackend
 from titanspan.logging.bridge import StandardLogBridge
 from titanspan.logging.channel import LogChannel
@@ -24,9 +29,6 @@ from titanspan.logging.configuration import (
     ChannelConfiguration,
     LoggingConfiguration,
 )
-from titanspan.logging.contracts.log_customizer import LogCustomizer
-from titanspan.logging.contracts.log_driver import LogDriver
-from titanspan.logging.contracts.log_formatter import LogFormatter
 from titanspan.logging.drivers import (
     BackgroundLogDriver,
     EmergencyLogDriver,
@@ -52,19 +54,66 @@ from titanspan.logging.exceptions import (
 from titanspan.logging.formatters import create_formatter
 from titanspan.logging.logger import Logger
 from titanspan.logging.processors import RedactionProcessor
+from titanspan.logging.record import LogRecord
 
 if TYPE_CHECKING:
     from collections.abc import Sequence
 
-    from titanspan.logging.contracts.log_processor import LogProcessor
+    from titanspan.contracts.logging import LogProcessor
     from titanspan.logging.level import LogLevel
 
-DriverFactory = Callable[[ChannelConfiguration], LogDriver]
-FormatterFactory = Callable[[ChannelConfiguration], LogFormatter]
-CustomizerRegistry = Mapping[str, LogCustomizer]
+DriverFactory = Callable[[ChannelConfiguration], LogDriver[LogRecord]]
+FormatterFactory = Callable[[ChannelConfiguration], LogFormatter[LogRecord]]
+CustomizerRegistry = Mapping[str, LogCustomizer[Logger]]
 _EMPTY_CONTEXT: Mapping[str, object] = MappingProxyType({})
 _SYSLOG_ADDRESS_PARTS = 2
 _BUILTIN_FORMATTERS = frozenset({"console", "text", "json"})
+
+
+def _is_native_driver(value: object) -> TypeGuard[LogDriver[LogRecord]]:
+    """Check the required native driver operations at registration time.
+
+    Args:
+        value: Result returned by an application-defined driver factory.
+
+    Returns:
+        Whether the value implements the required driver methods.
+    """
+    return isinstance(value, LogDriver)
+
+
+def _adapt_driver_factory(
+    factory: Callable[..., object],
+) -> DriverFactory:
+    """Narrow an extensibility callback at the logging boundary.
+
+    Args:
+        factory: Developer callback returning a native driver value.
+
+    Returns:
+        A typed factory validated when a channel resolves the driver.
+    """
+
+    def create(configuration: ChannelConfiguration) -> LogDriver[LogRecord]:
+        """Call and validate one application driver factory.
+
+        Args:
+            configuration: Validated native channel configuration.
+
+        Returns:
+            A driver implementing Titanspan's native driver contract.
+
+        Raises:
+            LogConfigurationError: If the factory returns an incompatible
+                value.
+        """
+        driver = factory(configuration)
+        if not _is_native_driver(driver):
+            message = "A custom driver must implement write, flush, and close."
+            raise LogConfigurationError(message)
+        return driver
+
+    return create
 
 
 def _channel_depends_on(
@@ -88,7 +137,7 @@ def _channel_depends_on(
     if id(channel) in inspected:
         return False
     inspected.add(id(channel))
-    driver: LogDriver = channel.driver
+    driver: LogDriver[LogRecord] = channel.driver
     if isinstance(driver, BackgroundLogDriver):
         driver = driver.inner_driver
     if not isinstance(driver, StackLogDriver):
@@ -118,7 +167,7 @@ class LogManager:
         drivers: Mapping[str, DriverFactory] | None = None,
         formatters: Mapping[str, FormatterFactory] | None = None,
         customizers: CustomizerRegistry | None = None,
-        processors: tuple[LogProcessor, ...] = (),
+        processors: tuple[LogProcessor[LogRecord], ...] = (),
         emergency_stream: TextIO | None = None,
     ) -> None:
         """Validate configuration and register built-in plus custom drivers.
@@ -189,17 +238,6 @@ class LogManager:
             self._resolved_drivers[channel_name] = configuration.driver
             self._resolved_formatters[channel_name] = configuration.formatter
             return logger
-
-    def driver(self, name: str | None = None) -> Logger:
-        """Resolve a channel using Laravel-compatible manager terminology.
-
-        Args:
-            name: A declared channel name or the configured default.
-
-        Returns:
-            The cached native logger for that channel.
-        """
-        return self.channel(name)
 
     def log(
         self,
@@ -338,17 +376,6 @@ class LogManager:
         """
         self.channel().debug(message, context, **values)
 
-    def resolve(self, name: str | None = None) -> Logger:
-        """Resolve a channel through an explicit manager method.
-
-        Args:
-            name: A declared channel name or the configured default.
-
-        Returns:
-            The cached native logger for that channel.
-        """
-        return self.channel(name)
-
     def build(self, configuration: Mapping[str, object]) -> Logger:
         """Build an independently owned on-demand logging channel.
 
@@ -448,12 +475,12 @@ class LogManager:
             },
         )
 
-    def extend(self, name: str, factory: DriverFactory) -> None:
+    def extend(self, name: str, factory: Callable[..., object]) -> None:
         """Register or replace a named Titanspan driver factory.
 
         Args:
             name: The application-defined driver identifier.
-            factory: A factory returning a native ``LogDriver``.
+            factory: Callback expected to return a native ``LogDriver``.
 
         Raises:
             LogConfigurationError: If the name is blank or already active.
@@ -469,7 +496,7 @@ class LogManager:
                 raise LogConfigurationError(
                     msg,
                 )
-            self._factories[name] = factory
+            self._factories[name] = _adapt_driver_factory(factory)
             self._validate_configuration()
 
     def extend_formatter(
@@ -499,7 +526,7 @@ class LogManager:
             self._formatters[name] = factory
             self._validate_configuration()
 
-    def get_default_driver(self) -> str:
+    def get_default_channel(self) -> str:
         """Return the currently selected default channel name.
 
         Returns:
@@ -532,18 +559,7 @@ class LogManager:
         channel_name = self._default_channel if name is None else name
         self.purge(channel_name)
 
-    def get(self, name: str | None = None) -> Logger:
-        """Resolve a logger using Laravel-compatible manager terminology.
-
-        Args:
-            name: A declared channel or the currently selected default.
-
-        Returns:
-            The cached Titanspan logger for that channel.
-        """
-        return self.channel(name)
-
-    def set_default_driver(self, name: str) -> None:
+    def set_default_channel(self, name: str) -> None:
         """Select a declared channel as the default destination.
 
         Args:
@@ -932,7 +948,7 @@ class LogManager:
         self,
         name: str,
         configuration: ChannelConfiguration,
-    ) -> LogDriver:
+    ) -> LogDriver[LogRecord]:
         """Create a native driver, resolving stack children when needed.
 
         Args:
@@ -947,7 +963,7 @@ class LogManager:
                 self.channel(channel_name).channel
                 for channel_name in configuration.channels
             )
-            driver: LogDriver = StackLogDriver(
+            driver: LogDriver[LogRecord] = StackLogDriver(
                 children,
                 ignore_exceptions=configuration.ignore_exceptions,
             )
@@ -1035,7 +1051,7 @@ class LogManager:
     def _create_formatter(
         self,
         configuration: ChannelConfiguration,
-    ) -> LogFormatter:
+    ) -> LogFormatter[LogRecord]:
         """Create the selected native formatter from channel settings.
 
         Args:
@@ -1339,122 +1355,6 @@ class LogManager:
             webhook_options(configuration.options),
             style="slack",
         )
-
-    def getDefaultDriver(self) -> str:  # noqa: N802
-        """Return the configured default channel name.
-
-        Returns:
-            The name selected as the manager's default channel.
-        """
-        return self.get_default_driver()
-
-    def setDefaultDriver(self, name: str) -> None:  # noqa: N802
-        """Select a default channel using Laravel-compatible spelling.
-
-        Args:
-            name: A declared channel name.
-        """
-        self.set_default_driver(name)
-
-    def withContext(  # noqa: N802
-        self,
-        context: Mapping[str, object] | None = None,
-        **values: object,
-    ) -> None:
-        """Merge values into local context using Laravel method spelling.
-
-        Args:
-            context: Optional positional structured mapping.
-            **values: Context values overriding matching mapping keys.
-        """
-        self.with_context(context, **values)
-
-    def shareContext(  # noqa: N802
-        self,
-        context: Mapping[str, object] | None = None,
-        **values: object,
-    ) -> None:
-        """Merge values into shared context using Laravel method spelling.
-
-        Args:
-            context: Optional positional structured mapping.
-            **values: Context values overriding matching mapping keys.
-        """
-        self.share_context(context, **values)
-
-    def withoutContext(  # noqa: N802
-        self,
-        keys: str | Sequence[str] | None = None,
-        *additional: str,
-    ) -> None:
-        """Remove selected values using Laravel-compatible spelling.
-
-        Args:
-            keys: Context key or keys to remove, or ``None`` to clear all.
-            *additional: Additional context keys to remove.
-        """
-        self.without_context(keys, *additional)
-
-    def getContext(self) -> dict[str, object]:  # noqa: N802
-        """Return a context snapshot using Laravel-compatible spelling.
-
-        Returns:
-            A detached merged context mapping.
-        """
-        return self.get_context()
-
-    def sharedContext(self) -> dict[str, object]:  # noqa: N802
-        """Return shared values using the Laravel-compatible method name.
-
-        Returns:
-            A detached mapping of context shared across channels.
-        """
-        return self.shared_context()
-
-    def getChannels(self) -> Mapping[str, Logger]:  # noqa: N802
-        """Return cached channels using Laravel-compatible spelling.
-
-        Returns:
-            A read-only snapshot of resolved native loggers.
-        """
-        return self.get_channels()
-
-    def forgetChannel(self, name: str | None = None) -> None:  # noqa: N802
-        """Forget a resolved channel using Laravel-compatible spelling.
-
-        Args:
-            name: Channel to forget, defaulting to the selected channel.
-        """
-        self.forget_channel(name)
-
-    def flushContext(self) -> None:  # noqa: N802
-        """Clear active context using Laravel-compatible spelling.
-
-        The operation remains isolated to the current execution context.
-        """
-        self.flush_context()
-
-    def flushSharedContext(self) -> None:  # noqa: N802
-        """Clear shared values using Laravel-compatible spelling.
-
-        Local logger-bound values remain unchanged.
-        """
-        self.flush_shared_context()
-
-    def forgetChannels(self) -> None:  # noqa: N802
-        """Close cached channels using Laravel-compatible spelling.
-
-        A later resolution creates fresh drivers from current configuration.
-        """
-        self.forget_channels()
-
-    def forgetDriver(self, name: str) -> None:  # noqa: N802
-        """Close one cached destination using Laravel-compatible spelling.
-
-        Args:
-            name: The configured channel to forget.
-        """
-        self.purge(name)
 
     def __enter__(self) -> LogManager:
         """Enter a manager resource scope.

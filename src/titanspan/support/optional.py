@@ -1,8 +1,8 @@
 """Provide a typed null-safe wrapper over Python values.
 
-The wrapper adapts Laravel's ``Optional`` to Python mappings, sequences,
-objects, and asynchronous methods without introducing magic event-loop
-creation or a second dependency-resolution mechanism.
+The wrapper supports Python mappings, sequences, objects, and asynchronous
+methods without introducing hidden event-loop creation or a second
+dependency-resolution mechanism.
 """
 
 from __future__ import annotations

@@ -1,8 +1,8 @@
 """Provide shared value, nested-data, and exception helpers.
 
-The functions adapt Laravel's global Support and Collections helpers to
-Python mappings, sequences, enums, and object attributes. Mutating helpers
-operate on mutable objects and return the resulting root value.
+The functions operate on Python mappings, sequences, enums, and object
+attributes. Mutating helpers operate on mutable objects and return the
+resulting root value.
 """
 
 from __future__ import annotations
@@ -50,7 +50,7 @@ from titanspan.support.exceptions import (
 if TYPE_CHECKING:
     from concurrent.futures import Future
 
-    from titanspan.contracts.config_repository import ConfigRepository
+    from titanspan.contracts.config import ConfigRepository
 
 T = TypeVar("T")
 R = TypeVar("R")
@@ -75,8 +75,8 @@ _RETRY_PREDICATE_EXPECTED = "a callable"
 class _RetryWait(wait_base):
     """Translate retry timing values into Tenacity wait durations.
 
-    The schedule stores delays in milliseconds, matching the upstream helper.
-    A callable delay receives the one-based failed attempt and its exception.
+    The schedule stores delays in milliseconds. A callable delay receives the
+    one-based failed attempt and its exception.
     """
 
     def __init__(
@@ -166,7 +166,7 @@ def _retry_delay_seconds(delay: object) -> float:
 def _retry_configuration(
     times: object,
 ) -> tuple[int, tuple[int, ...]]:
-    """Resolve Laravel-style attempt limits and delay schedules.
+    """Resolve attempt limits and delay schedules.
 
     Args:
         times: A total attempt count or delays between attempts.
@@ -184,7 +184,7 @@ def _retry_configuration(
             _RETRY_LIMIT_EXPECTED,
         )
     if isinstance(times, int):
-        # Laravel invokes the callback before checking the remaining count.
+        # A count describes total attempts, including the initial call.
         return max(1, times), ()
     if isinstance(times, (str, bytes)) or not isinstance(times, Sequence):
         raise InvalidRetryConfigurationTypeError(
@@ -356,7 +356,7 @@ def blank(candidate: object) -> bool:
         candidate: The value to inspect.
 
     Returns:
-        Whether the value is blank under Titanspan's Laravel adaptation.
+        Whether the value is blank under the documented Titanspan rules.
     """
     if candidate is None:
         return True
@@ -487,9 +487,8 @@ def retry[T](
         Exception: The final or non-retryable callback exception.
 
     Notes:
-        Counts below one still execute once, matching the upstream helper's
-        initial-call behavior. Cancellation and process-control exceptions
-        are never retried.
+        Counts below one still execute once. Cancellation and process-control
+        exceptions are never retried.
     """
     attempts, schedule = _retry_configuration(times)
     if when is not None and not callable(when):
@@ -622,8 +621,8 @@ def value[T](candidate: T, *args: object) -> T:
 def value(candidate: object, *args: object) -> object:
     """Resolve a callable value or return a constant unchanged.
 
-    Unlike PHP, Python has many callable objects. Titanspan therefore treats
-    any callable as a deferred value and invokes it with ``args``.
+    Python callables are treated as deferred values and invoked with
+    ``args``.
 
     Args:
         candidate: A constant or callable value.
@@ -750,33 +749,31 @@ def transform[T, R, D](
     return default
 
 
-def head[T](items: Iterable[T]) -> T | bool:
-    """Return the first iterable item, or ``False`` when empty.
+def head[T](items: Iterable[T]) -> T | None:
+    """Return the first iterable item, or ``None`` when empty.
 
     Args:
         items: The iterable to inspect.
 
     Returns:
-        Its first item, or ``False`` for an empty iterable.
+        Its first item, or ``None`` for an empty iterable.
     """
-    return next(iter(items), False)
+    return next(iter(items), None)
 
 
-def last[T](items: Iterable[T]) -> T | bool:
+def last[T](items: Iterable[T]) -> T | None:
     """Return the last iterable item using constant auxiliary memory.
 
     Args:
         items: The iterable to consume.
 
     Returns:
-        Its last item, or ``False`` for an empty iterable.
+        Its last item, or ``None`` for an empty iterable.
     """
-    found = False
-    result: T | bool = False
+    result: T | None = None
     for item in items:
         result = item
-        found = True
-    return result if found else False
+    return result
 
 
 def data_get[T, D](
@@ -838,7 +835,7 @@ def data_has(target: object, key: _Path) -> bool:
     """Return whether every segment in a nested path exists.
 
     Explicit ``None`` values count as existing values. Wildcard characters
-    are treated as ordinary path segments, matching Laravel's ``data_has``.
+    are treated as ordinary path segments.
 
     Args:
         target: The root value to inspect.
@@ -961,15 +958,15 @@ def e(
     """Escape HTML special characters with quote-safe output.
 
     Deferred display values are resolved before escaping. Values implementing
-    the explicit Htmlable contract are trusted and returned without another
-    escaping pass.
+    the explicit HtmlRenderable contract are trusted and returned without
+    another escaping pass.
 
     Args:
         candidate: The scalar value to escape.
         double_encode: Whether existing character references are escaped.
 
     Returns:
-        HTML-escaped text using PHP-compatible apostrophe references.
+        HTML-escaped text using the standard library's character references.
     """
     return EncodedHtmlString(candidate, double_encode).to_html()
 
@@ -1103,7 +1100,7 @@ def _iter_values(target: object) -> list[object] | None:
 
 
 def _resolve_special_segment(target: object, segment: _Segment) -> _Segment:
-    """Resolve Laravel wildcard escapes and endpoint selectors.
+    """Resolve Titanspan wildcard escapes and endpoint selectors.
 
     Args:
         target: The current container.

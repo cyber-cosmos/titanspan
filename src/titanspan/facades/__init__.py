@@ -1,10 +1,11 @@
-"""Expose explicitly context-bound facades for application services.
+"""Expose shared facade infrastructure and service entrypoints.
 
-The logging facade uses execution-local bindings rather than global service
-instances. Other service facades will be added with their owning components.
+The facade base resolves services through the active application container;
+component facades retain explicit, statically discoverable methods.
 """
 
+from titanspan.facades.base import Facade
 from titanspan.facades.config import Config
 from titanspan.facades.log import Log
 
-__all__ = ["Config", "Log"]
+__all__ = ["Config", "Facade", "Log"]

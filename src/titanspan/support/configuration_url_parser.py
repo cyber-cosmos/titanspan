@@ -1,7 +1,6 @@
 """Parse connection URLs into application configuration mappings.
 
-The parser follows Illuminate Support's configuration URL behavior while
-using Python's standard URI, query-string, and JSON facilities.
+The parser uses Python's standard URI, query-string, and JSON facilities.
 """
 
 from __future__ import annotations
@@ -93,7 +92,7 @@ class ConfigurationUrlParser:
             {"url": config} if isinstance(config, str) else dict(config)
         )
         url = values.pop("url", None)
-        if not url or (isinstance(url, str) and url == "0"):
+        if url is None or url == "":
             return values
         if not isinstance(url, str):
             raise TypeError(_URL_TYPE_ERROR)
@@ -175,11 +174,6 @@ class ConfigurationUrlParser:
             key: value for key, value in options.items() if value is not None
         }
 
-    # Keep the original Illuminate method names as explicit aliases.
-    parseConfiguration = parse_configuration
-    getDriverAliases = get_driver_aliases
-    addDriverAlias = add_driver_alias
-
 
 def _parse_url_components(url: str) -> dict[str, object]:
     """Parse and normalize standard URL components.
@@ -195,6 +189,13 @@ def _parse_url_components(url: str) -> dict[str, object]:
     """
     try:
         parsed = urlsplit(url)
+    except ValueError as error:
+        raise ValueError(_MALFORMED_URL_ERROR) from error
+
+    if not parsed.scheme and not parsed.netloc:
+        raise ValueError(_MALFORMED_URL_ERROR)
+
+    try:
         host = _decode_component(parsed.hostname)
         port = parsed.port
         user = _decode_component(parsed.username)
@@ -263,7 +264,7 @@ def _parse_query_options(query: object) -> dict[str, object]:
 
 
 def _query_tokens(key: str) -> list[str]:
-    """Split a PHP-style bracket key into a root and child keys.
+    """Split a bracketed query key into root and child keys.
 
     Args:
         key: A decoded query option name.
@@ -316,7 +317,7 @@ def _query_array_key(node: _QueryNode, token: str) -> str:
     """Resolve a bracket token to an explicit key or append index.
 
     Args:
-        node: The current PHP-style array represented as an ordered mapping.
+        node: The current nested query value represented as an ordered map.
         token: The current bracket token, empty for append notation.
 
     Returns:
@@ -388,7 +389,7 @@ def _is_consecutive_numeric_array(values: dict[str, object]) -> bool:
 
 
 def _native_array_key(key: str) -> str | int:
-    """Convert canonical PHP numeric array keys to Python integer keys.
+    """Convert canonical non-negative numeric query keys to integers.
 
     Args:
         key: A string key from a parsed query array.

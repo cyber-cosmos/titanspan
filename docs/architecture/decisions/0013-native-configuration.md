@@ -7,10 +7,9 @@
 
 Applications need a cohesive way to discover configuration, validate typed
 settings, read dotted paths, scope test overrides, and reuse precomputed
-configuration in deployments. Titanspan needs a Laravel-inspired developer
-experience without making third-party settings types part of its public API.
-Python configuration files are executable code, and cached settings may
-contain secrets.
+configuration in deployments. Titanspan needs an application-owned API that
+does not expose third-party settings types. Python configuration files are
+executable code, and cached settings may contain secrets.
 
 ## Decision
 
@@ -48,6 +47,10 @@ objects. Cache files remain sensitive, unencrypted artifacts.
 ## Consequences
 
 - Configuration reads remain synchronous and lightweight.
+- `Settings` methods documented by Titanspan remain the supported API. Its
+  current private validation base still makes inherited backend methods
+  visible; the boundary and a possible composition-based follow-up are
+  recorded in `docs/specifications/backend-boundaries.md`.
 - Application files are trusted code; callers must keep the config root
   trusted.
 - Source precedence is explicit and tested. Unmapped process variables do not
@@ -60,8 +63,5 @@ objects. Cache files remain sensitive, unencrypted artifacts.
 
 ## References
 
-- [Pinned Laravel Repository](https://github.com/laravel/framework/blob/8a8c4a84852869e13190d89f9da873cd9a70f14c/src/Illuminate/Config/Repository.php)
-- [Pinned Laravel Config contract](https://github.com/laravel/framework/blob/8a8c4a84852869e13190d89f9da873cd9a70f14c/src/Illuminate/Contracts/Config/Repository.php)
-- [Laravel configuration documentation](https://laravel.com/docs/13.x/configuration)
 - [Pydantic Settings](https://docs.pydantic.dev/latest/concepts/pydantic_settings/)
 - [Python `contextvars`](https://docs.python.org/3/library/contextvars.html)

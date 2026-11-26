@@ -52,8 +52,8 @@ return awaitables. The synchronous methods reject awaitables instead of
 silently leaving coroutines unawaited. Cancellation propagates from awaited
 callbacks.
 
-Laravel's zero- and one-argument higher-order proxy forms are not implemented
-yet. `when()` therefore requires an explicit condition in Titanspan.
+`when()` requires an explicit condition. The callback API keeps condition
+handling visible to type checkers and readers.
 
 ## Macroable
 
@@ -93,9 +93,9 @@ closures that retain their normal Python closure binding. Macro registries
 are isolated per class, inherited through the class hierarchy, and guarded
 during updates with a thread lock.
 
-Unlike Laravel, Titanspan does not implement magic `__call` or
-`__callStatic` dispatch. Static wrappers should be declared for macros that
-form part of a stable public API.
+Macro invocation is explicit through `call_macro()` or `invoke_macro()`.
+Declare static wrappers for macros that form part of a stable public API so
+type checkers can discover their signatures.
 
 ## Tappable
 

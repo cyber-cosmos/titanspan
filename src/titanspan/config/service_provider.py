@@ -4,7 +4,16 @@ The private container adapter translates this native registration into its
 dependency graph while preserving the repository's contract identity.
 """
 
-from titanspan.contracts.config_repository import ConfigRepository
+from titanspan.contracts.config import (
+    ConfigDiagnostics,
+    ConfigMacroRegistry,
+    ConfigReader,
+    ConfigRepository,
+    ConfigWriter,
+    ScopedConfigOverrides,
+    TypedConfigReader,
+)
+from titanspan.contracts.container import ServiceRegistry
 
 
 class ConfigServiceProvider:
@@ -24,6 +33,26 @@ class ConfigServiceProvider:
             repository: Application-specific contract implementation.
         """
         self.repository_instance = repository
+
+    def register(self, container: ServiceRegistry) -> None:
+        """Register this repository with the native application container.
+
+        Args:
+            container: Application registry shared by all components.
+        """
+        # Each key points at the same object. Optional services are exposed
+        # only when the selected implementation supports that capability.
+        container.instance(ConfigRepository, self.repository_instance)
+        container.instance(ConfigReader, self.repository_instance)
+        container.instance(ConfigWriter, self.repository_instance)
+        if isinstance(self.repository_instance, TypedConfigReader):
+            container.instance(TypedConfigReader, self.repository_instance)
+        if isinstance(self.repository_instance, ScopedConfigOverrides):
+            container.instance(ScopedConfigOverrides, self.repository_instance)
+        if isinstance(self.repository_instance, ConfigDiagnostics):
+            container.instance(ConfigDiagnostics, self.repository_instance)
+        if isinstance(self.repository_instance, ConfigMacroRegistry):
+            container.instance(ConfigMacroRegistry, self.repository_instance)
 
     @property
     def service(self) -> type[object]:

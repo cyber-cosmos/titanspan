@@ -7,15 +7,17 @@ the native driver contract visible to custom integrations.
 from collections.abc import Iterable
 from contextvars import ContextVar
 from threading import Lock
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, cast
 
 import anyio
 
+from titanspan.contracts.logging import (
+    AsyncLogDriver,
+    DeliveryStatus,
+    LogDriver,
+    LogProcessor,
+)
 from titanspan.logging._backends.structured import StructuredBackend
-from titanspan.logging.contracts.async_log_driver import AsyncLogDriver
-from titanspan.logging.contracts.log_driver import LogDriver
-from titanspan.logging.contracts.log_processor import LogProcessor
-from titanspan.logging.delivery import DeliveryStatus
 from titanspan.logging.drivers.core import EmergencyLogDriver
 from titanspan.logging.events import MessageLogged
 from titanspan.logging.exceptions import (
@@ -51,10 +53,10 @@ class LogChannel:
     def __init__(
         self,
         name: str,
-        driver: LogDriver,
+        driver: LogDriver[LogRecord],
         *,
         level: LogLevel,
-        processors: Iterable[LogProcessor] = (),
+        processors: Iterable[LogProcessor[LogRecord]] = (),
         emergency_driver: EmergencyLogDriver | None = None,
     ) -> None:
         """Create a channel around one native destination driver.
@@ -86,7 +88,7 @@ class LogChannel:
         return self._closed
 
     @property
-    def driver(self) -> LogDriver:
+    def driver(self) -> LogDriver[LogRecord]:
         """Return this channel's Titanspan-owned driver abstraction.
 
         Returns:
@@ -171,9 +173,10 @@ class LogChannel:
                 record,
                 abandon_on_cancel=False,
             )
+        async_driver = cast("AsyncLogDriver[LogRecord]", self._driver)
         try:
             processed = process_record(record, self._processors)
-            outcome = await self._driver.write_async(processed)
+            outcome = await async_driver.write_async(processed)
         except LogDeliveryError:
             raise
         except Exception as error:

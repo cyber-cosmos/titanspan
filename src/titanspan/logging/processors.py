@@ -6,7 +6,7 @@ copied into queues or sent to output drivers in plaintext.
 
 from collections.abc import Iterable
 
-from titanspan.logging.contracts.log_processor import LogProcessor
+from titanspan.contracts.logging import LogProcessor
 from titanspan.logging.record import LogRecord
 
 
@@ -67,7 +67,7 @@ class RedactionProcessor:
 
 def process_record(
     record: LogRecord,
-    processors: Iterable[LogProcessor],
+    processors: Iterable[LogProcessor[LogRecord]],
 ) -> LogRecord:
     """Apply native processors in their declared order.
 

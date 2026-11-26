@@ -8,11 +8,17 @@ adapters. Do not maintain a competing copy of these rules.
 
 ## Project identity and status
 
-Titanspan is an open-source, async-first Python application framework for
-building intelligent systems at scale. It combines Laravel-inspired
-developer experience with asynchronous web development, stateful AI workflow
-orchestration, agents and tools, structured concurrency, CPU parallelism,
-distributed execution, and streaming data processing.
+Titanspan is an independent, open-source, async-first Python application
+framework for building intelligent systems at scale. It provides
+asynchronous web development, stateful AI workflow orchestration, agents and
+tools, structured concurrency, CPU parallelism, distributed execution, and
+streaming data processing through idiomatic Python APIs.
+
+Titanspan is an independent Python application framework. All public and
+internal APIs must follow idiomatic Python conventions and established
+Titanspan behavioural specifications. External frameworks may serve as
+architectural inspiration, but compatibility with their APIs, naming
+conventions and language-specific behaviours is not a project requirement.
 
 The framework owns expressive APIs, conventions, lifecycle, integration
 coordination, and testing support. Mature libraries own their underlying
@@ -36,6 +42,16 @@ specification.
 Use [the agent workflow](docs/development/agent-workflow.md) and
 [engineering standards](docs/development/standards.md) for details.
 
+## Component integration requirement
+
+A component is not complete merely because its classes and methods exist or
+its isolated unit tests pass. It must implement its established contracts,
+participate in the appropriate application lifecycle, expose consistent
+native APIs, and demonstrate genuine integration with the framework
+components on which it depends. When a dependency is not implemented, record
+the limitation explicitly instead of simulating completion with disconnected
+abstractions.
+
 ## Architecture and library choices
 
 Respect accepted ADRs and the current implementation. Preferred foundations
@@ -54,24 +70,27 @@ or architectural decision without verified evidence, a focused proposal, and
 an ADR when the change is significant.
 
 - Prefer mature libraries; keep Titanspan wrappers thin, typed, and useful.
-- Preserve access to the underlying library APIs and identify delegated
-  behavior transparently in code and documentation.
+- Keep ordinary Titanspan APIs independent of backend types. Provide explicit
+  interoperability at documented boundaries and identify delegated behavior
+  transparently in code and documentation.
 - Use composition and protocols where they establish a real contract or test
   seam. Avoid speculative abstractions, deep inheritance, and metaprogramming.
 - Keep core modules independent of optional AI, database, queue, and
   infrastructure adapters. Prevent circular dependencies.
-- Put shared, dependency-independent protocols in `titanspan.contracts` only
-  when they establish a real boundary. Preserve existing module-owned contract
-  identities, especially `titanspan.logging.contracts`; re-export canonical
-  types instead of redeclaring them. Contracts do not imply implementations.
-- Keep APIs idiomatic Python while using Laravel as a reference for
-  conventions, lifecycle, and developer experience. Never translate PHP
-  syntax mechanically.
+- Put shared, dependency-independent protocols in domain packages under
+  `titanspan.contracts` only when they establish a real boundary. Component
+  packages may re-export canonical contract objects, but must not redeclare
+  them. Keep implementation-private protocols with their owning component.
+  Contracts do not imply implementations.
+- Keep APIs idiomatic Python and follow native Titanspan specifications.
+  Never translate another language's syntax or naming mechanically.
 - Use Titanspan domain-oriented filenames for public modules. For example,
   use `container/container.py`, not a vendor-named public file such as
   `container/dishka.py`. Be clear that an implementation delegates to Dishka;
   do not imply Titanspan reimplemented its internals.
-- Preserve existing public APIs. Record major architectural changes in ADRs.
+- Preserve established Titanspan behavior. This pre-release project does not
+  retain compatibility-only aliases. Record consequential API changes and
+  major architectural decisions in ADRs.
 
 The current technology foundation is recorded in
 [`ARCHITECTURE.md`](ARCHITECTURE.md) and
@@ -107,6 +126,10 @@ The current technology foundation is recorded in
 - Python 3.12+; UTF-8; LF; four-space indentation; strict 80-column maximum;
   PEP 8 naming; absolute imports; explicit public exports; no wildcard imports,
   dead code, commented-out implementations, or unexplained magic numbers.
+- Keep Ruff's `N` naming rules enabled. Rename non-idiomatic API names and
+  update callers instead of adding compatibility aliases. Permit a narrowly
+  reviewed exception only when an external Python protocol requires an exact
+  spelling; track each exact file and rule in the native API policy test.
 - Use comprehensive annotations and explicit returns for production, tests,
   examples, benchmarks, and development scripts. Pyright must remain strict.
   Keep `Any`, unsafe casts, and type suppressions at narrow, documented

@@ -169,7 +169,7 @@ def test_missing_method_raises_an_attribute_error_for_wrapper_class(
     """
     with pytest.raises(
         AttributeError,
-        match=rf"Call to undefined method _Wrapper::{method}\(\)",
+        match=rf"_Wrapper has no delegated method '{method}'",
     ):
         _Wrapper().call(_Target(), method)
 
@@ -216,25 +216,25 @@ def test_non_callable_target_attribute_raises_type_error() -> None:
         _Wrapper().call(TargetWithValue(), "action")
 
 
-def test_camel_case_aliases_delegate_to_python_methods() -> None:
-    """Keep Illuminate method aliases behaviorally identical.
+def test_forwarding_methods_preserve_wrapper_identity() -> None:
+    """Forward composed calls and preserve fluent wrapper identity.
 
-    Both source-compatible aliases reach the same forwarding implementations.
+    Returned wrapped values should retain the existing proxy instance.
     """
     wrapper = _Wrapper()
     target = _Target()
 
-    assert wrapper.forwardCallTo(target, "combine", ["a", "b"]) == "a:b"
-    assert wrapper.forwardDecoratedCallTo(target, "fluent", []) is wrapper
+    assert wrapper.forward_call_to(target, "combine", ["a", "b"]) == "a:b"
+    assert wrapper.forward_decorated_call_to(target, "fluent", []) is wrapper
 
 
-def test_bad_method_exception_alias_names_the_consuming_class() -> None:
-    """Expose the source-compatible static error helper.
+def test_bad_method_exception_names_the_consuming_class() -> None:
+    """Name the consuming wrapper in missing-method diagnostics.
 
     The diagnostic names the consuming wrapper class rather than the mixin.
     """
     with pytest.raises(
         AttributeError,
-        match=r"Call to undefined method _Wrapper::missing\(\)",
+        match=r"_Wrapper has no delegated method 'missing'",
     ):
-        _Wrapper.throwBadMethodCallException("missing")
+        _Wrapper.throw_bad_method_call_exception("missing")

@@ -90,6 +90,26 @@ class ConfigContextError(ConfigurationError):
     """
 
 
+class ConfigCapabilityError(ConfigurationError):
+    """Report an optional repository capability that is not implemented.
+
+    Attributes:
+        capability: Native configuration capability required by the operation.
+    """
+
+    def __init__(self, capability: str) -> None:
+        """Create an actionable error without exposing configured values.
+
+        Args:
+            capability: Typed capability name required by the caller.
+        """
+        self.capability = capability
+        super().__init__(
+            f"The active configuration repository does not provide "
+            f"[{capability}]."
+        )
+
+
 class SettingsValidationError(ConfigurationError):
     """Report invalid typed settings without exposing backend error objects.
 
@@ -109,6 +129,7 @@ class SettingsValidationError(ConfigurationError):
 
 
 __all__ = [
+    "ConfigCapabilityError",
     "ConfigContextError",
     "ConfigValueError",
     "ConfigurationCacheError",

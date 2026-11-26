@@ -1,4 +1,4 @@
-"""Verify Laravel-inspired process environment access and dotenv writing.
+"""Verify process environment access and safe dotenv writing.
 
 The cases cover value normalization, adapter lifecycle, and safe file edits.
 """
@@ -64,7 +64,7 @@ def test_get_normalizes_dotenv_tokens_and_balanced_quotes(
     raw: str,
     expected: object,
 ) -> None:
-    """Convert Laravel dotenv literals while preserving other strings.
+    """Convert supported dotenv literals while preserving other strings.
 
     Args:
         monkeypatch: Fixture that restores process environment changes.
@@ -130,7 +130,7 @@ def test_get_or_fail_returns_values_and_reports_missing_keys(
     """
     monkeypatch.setenv("TITANSPAN_REQUIRED_VALUE", "available")
     assert Env.get_or_fail("TITANSPAN_REQUIRED_VALUE") == "available"
-    assert Env.getOrFail("TITANSPAN_REQUIRED_VALUE") == "available"
+    assert Env.get_or_fail("TITANSPAN_REQUIRED_VALUE") == "available"
 
     monkeypatch.delenv("TITANSPAN_REQUIRED_VALUE")
     with pytest.raises(RuntimeError, match=_REQUIRED_ENV_ERROR_PATTERN):
@@ -156,7 +156,7 @@ def test_repository_prefers_process_environment_and_is_cached(
     monkeypatch.setenv("TITANSPAN_ENV_SOURCE", "process")
     repository = Env.get_repository()
 
-    assert Env.getRepository() is repository
+    assert Env.get_repository() is repository
     assert repository.get("TITANSPAN_ENV_SOURCE") == "process"
 
     monkeypatch.setenv("TITANSPAN_ENV_SOURCE", "updated")
@@ -210,7 +210,7 @@ def test_named_adapters_are_lazy_replaceable_and_fallback_sources(
 
 
 @pytest.mark.unit
-def test_disable_putenv_skips_process_environment_but_keeps_adapters(
+def test_disabling_process_environment_keeps_custom_adapters(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """Disable native environment reads without disabling extensions.
@@ -223,20 +223,20 @@ def test_disable_putenv_skips_process_environment_but_keeps_adapters(
     """
     monkeypatch.setenv("TITANSPAN_NATIVE_VALUE", "native")
     Env.extend(lambda: {"TITANSPAN_CUSTOM_VALUE": "adapter"})
-    Env.disable_putenv()
+    Env.disable_process_environment()
 
     assert Env.get("TITANSPAN_NATIVE_VALUE") is None
     assert Env.get("TITANSPAN_CUSTOM_VALUE") == "adapter"
 
-    Env.enablePutenv()
+    Env.enable_process_environment()
     assert Env.get("TITANSPAN_NATIVE_VALUE") == "native"
-    Env.disablePutenv()
+    Env.disable_process_environment()
     assert Env.get("TITANSPAN_NATIVE_VALUE") is None
-    Env.enable_putenv()
+    Env.enable_process_environment()
 
 
 @pytest.mark.unit
-def test_write_variables_matches_laravel_grouping_and_overwrite_rules(
+def test_write_variables_groups_names_and_applies_overwrite_rules(
     tmp_path: Path,
 ) -> None:
     """Group new variables by prefix and replace blank values safely.
@@ -284,7 +284,7 @@ def test_write_variables_matches_laravel_grouping_and_overwrite_rules(
     Env.write_variables({"APP_MODE": "changed"}, path)
     assert "APP_MODE=safe" in path.read_text(encoding="utf-8")
 
-    Env.writeVariables({"APP_MODE": "changed"}, path, overwrite=True)
+    Env.write_variables({"APP_MODE": "changed"}, path, overwrite=True)
     assert "APP_MODE=changed" in path.read_text(encoding="utf-8")
 
 
@@ -303,7 +303,7 @@ def test_write_variable_preserves_newline_style_and_trailing_newline(
     path = tmp_path / ".env"
     path.write_bytes(b"APP_NAME=Titanspan\r\n")
 
-    Env.writeVariable("APP_ENV", "testing", path)
+    Env.write_variable("APP_ENV", "testing", path)
 
     assert path.read_bytes() == b"APP_NAME=Titanspan\r\nAPP_ENV=testing\r\n"
 

@@ -1,4 +1,4 @@
-"""Verify Laravel-inspired sleep builders and context-local test fakes.
+"""Verify duration builders and context-local fake sleep behavior.
 
 Tests replace real waiting with fakes unless they explicitly verify AnyIO
 task scheduling in the integration suite.
@@ -73,7 +73,7 @@ def test_singular_units_and_static_factories_match_plural_units() -> None:
 
 @pytest.mark.unit
 def test_fractional_microseconds_truncate_to_python_time_resolution() -> None:
-    """Keep CarbonInterval's truncation at the smallest supported unit.
+    """Truncate fractional microseconds at Python's supported resolution.
 
     Returns:
         None.
@@ -100,7 +100,7 @@ def test_constructor_rejects_unsupported_duration_values(
 
 @pytest.mark.unit
 def test_negative_duration_is_clamped_to_zero() -> None:
-    """Preserve Laravel's non-blocking behavior for negative durations.
+    """Clamp negative durations to zero without waiting.
 
     Returns:
         None.
@@ -278,7 +278,7 @@ def test_duration_builder_accepts_and_clamps_timedelta_instances() -> None:
 
 @pytest.mark.unit
 def test_public_duration_and_repeat_properties_can_be_replaced() -> None:
-    """Keep upstream public property mutation available in Python form.
+    """Allow callers to update documented duration and repeat properties.
 
     Returns:
         None.
@@ -319,14 +319,14 @@ def test_explicit_sleep_fake_records_duration_without_blocking() -> None:
     sleep = Sleep.for_(5).seconds()
 
     sleep.sleep_sync()
-    Sleep.assertSlept(lambda duration: duration == timedelta(seconds=5))
-    Sleep.assertSleptTimes(1)
-    Sleep.assertSequence([Sleep.for_(5).seconds()])
+    Sleep.assert_slept(lambda duration: duration == timedelta(seconds=5))
+    Sleep.assert_slept_times(1)
+    Sleep.assert_sequence([Sleep.for_(5).seconds()])
 
 
 @pytest.mark.unit
-def test_sleep_fake_aliases_and_callback_property_are_context_local() -> None:
-    """Expose Laravel spellings while isolating independent contexts.
+def test_sleep_fake_callbacks_are_context_local() -> None:
+    """Keep fake callbacks isolated across copied execution contexts.
 
     Returns:
         None.
@@ -345,8 +345,8 @@ def test_sleep_fake_aliases_and_callback_property_are_context_local() -> None:
         """
         observed.append(duration)
 
-    Sleep.whenFakingSleep(record)
-    Sleep.fakeSleepCallbacks.append(record)
+    Sleep.when_faking_sleep(record)
+    Sleep.fake_sleep_callbacks.append(record)
     Sleep.for_(2).seconds().sleep_sync()
 
     assert observed == [timedelta(seconds=2), timedelta(seconds=2)]
@@ -354,10 +354,11 @@ def test_sleep_fake_aliases_and_callback_property_are_context_local() -> None:
     assert other_context.run(lambda: Sleep.fake_sleep_callbacks) == []
 
     callbacks: list[Callable[[timedelta], object]] = [record]
-    Sleep.fakeSleepCallbacks = callbacks
+    Sleep.fake_sleep_callbacks = callbacks
     assert Sleep.fake_sleep_callbacks == [record]
-    Sleep.fake_sleep_callbacks = []
-    assert Sleep.fakeSleepCallbacks == []
+    empty_callbacks: list[Callable[[timedelta], object]] = []
+    Sleep.fake_sleep_callbacks = empty_callbacks
+    assert Sleep.fake_sleep_callbacks == []
 
 
 @pytest.mark.unit
@@ -368,11 +369,11 @@ def test_assertions_report_sleep_count_duration_and_insomniac_state() -> None:
         None.
     """
     Sleep.fake()
-    Sleep.assertNeverSlept()
-    Sleep.assertInsomniac()
+    Sleep.assert_never_slept()
+    Sleep.assert_insomniac()
     Sleep.for_(0).seconds().sleep_sync()
-    Sleep.assertInsomniac()
-    Sleep.assertSleptTimes(1)
+    Sleep.assert_insomniac()
+    Sleep.assert_slept_times(1)
     Sleep.assert_slept(
         lambda duration: duration == timedelta(0),
         times=1,
@@ -380,7 +381,7 @@ def test_assertions_report_sleep_count_duration_and_insomniac_state() -> None:
     Sleep.for_(1).seconds().sleep_sync()
 
     with pytest.raises(AssertionError, match="Unexpected sleep"):
-        Sleep.assertInsomniac()
+        Sleep.assert_insomniac()
 
 
 @pytest.mark.unit
@@ -415,7 +416,7 @@ def test_sleep_assertions_reject_invalid_counts() -> None:
     with pytest.raises(TypeError, match="boolean"):
         Sleep.fake(cast("bool", 1))
     with pytest.raises(AssertionError, match=r"Expected \[1\] sleeps"):
-        Sleep.assertSleptTimes(1)
+        Sleep.assert_slept_times(1)
 
 
 @pytest.mark.unit
@@ -433,7 +434,7 @@ def test_assert_sequence_checks_count_and_skips_none_entries() -> None:
     with pytest.raises(AssertionError, match=r"Expected \[2\] sleeps"):
         Sleep.assert_sequence(expected)
     expected[0].sleep_sync()
-    Sleep.assertSleptTimes(1)
+    Sleep.assert_slept_times(1)
 
 
 @pytest.mark.unit
@@ -448,10 +449,10 @@ def test_assert_sequence_cleans_expected_builders_on_failure() -> None:
     expected = Sleep.for_(2).seconds()
 
     with pytest.raises(AssertionError, match="Expected sleep duration"):
-        Sleep.assertSequence([expected])
+        Sleep.assert_sequence([expected])
 
     assert expected.sleep_sync() is None
-    Sleep.assertSleptTimes(1)
+    Sleep.assert_slept_times(1)
 
 
 @pytest.mark.unit
@@ -517,7 +518,7 @@ def test_while_builders_reject_non_callable_values() -> None:
 
 @pytest.mark.unit
 def test_fake_sleep_skips_while_callback_and_records_once() -> None:
-    """Match Laravel fake semantics without executing repeat predicates.
+    """Record one fake operation without executing repeat predicates.
 
     Returns:
         None.
@@ -538,7 +539,7 @@ def test_fake_sleep_skips_while_callback_and_records_once() -> None:
     Sleep.for_(1).milliseconds().while_(should_repeat).sleep_sync()
 
     assert not while_called
-    Sleep.assertSleptTimes(1)
+    Sleep.assert_slept_times(1)
 
 
 @pytest.mark.unit
@@ -554,7 +555,7 @@ def test_condition_methods_skip_or_enable_sleep() -> None:
     Sleep.for_(1).second().unless(True).sleep_sync()
     Sleep.for_(1).second().unless(lambda _sleep: False).sleep_sync()
 
-    Sleep.assertSleptTimes(2)
+    Sleep.assert_slept_times(2)
 
 
 @pytest.mark.unit
@@ -618,7 +619,7 @@ def test_then_executes_after_sync_sleep_and_does_not_sleep_twice() -> None:
 
     assert sleep.then(lambda: "finished") == "finished"
     sleep.sleep_sync()
-    Sleep.assertSleptTimes(1)
+    Sleep.assert_slept_times(1)
 
 
 @pytest.mark.unit

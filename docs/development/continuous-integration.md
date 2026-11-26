@@ -14,9 +14,10 @@ the same request supersedes them.
    docstrings, comments, line length, Python syntax, strict Pyright,
    architecture boundaries, public API checks, agent configuration, lockfile,
    and Actions workflow policy and syntax.
-2. **Tests and verification** run after static checks: unit and integration
-   suites on Python 3.12 through 3.15, plus separately visible feature,
-   regression, concurrency, security, and Laravel compatibility suites.
+2. **Tests and verification** run after static checks: a dedicated
+   cross-component architecture integration job, unit and integration suites
+   on Python 3.12 through 3.15, plus separately visible feature, regression,
+   concurrency, security, and component API suites.
    Separate dependency audit, secret scan, license audit, CodeQL, package
    build, Docker/Compose, and documentation jobs verify other boundaries.
 3. **Runtime checks** install the exact wheel produced by the build job into
@@ -49,13 +50,14 @@ flowchart TD
   end
 
   subgraph Tests[Tests on Linux, Python 3.12 to 3.15]
+    crossComponent[Contract and lifecycle integration]
     unit[Unit matrix]
     integration[Integration matrix]
     feature[Feature tests]
     regression[Regression tests]
     concurrency[Concurrency tests]
     security[Security tests]
-    compatibility[Laravel compatibility]
+    componentApi[Support and logging component APIs]
   end
 
   staticSummary[All 12 static jobs succeed]
@@ -73,11 +75,12 @@ flowchart TD
   workflows --> staticSummary
   staticSummary --> unit
   staticSummary --> integration
+  staticSummary --> crossComponent
   staticSummary --> feature
   staticSummary --> regression
   staticSummary --> concurrency
   staticSummary --> security
-  staticSummary --> compatibility
+  staticSummary --> componentApi
 
   lock --> platform[macOS and Windows API smoke]
   lock --> dependencies[Dependency audit]
@@ -97,8 +100,9 @@ flowchart TD
   regression --> coverage
   concurrency --> coverage
   security --> coverage
-  compatibility --> coverage
+  componentApi --> coverage
   api --> coverage
+  crossComponent --> coverage
 
   unit --> gate[Gate: All mandatory CI checks]
   integration --> gate
@@ -106,7 +110,8 @@ flowchart TD
   regression --> gate
   concurrency --> gate
   security --> gate
-  compatibility --> gate
+  componentApi --> gate
+  crossComponent --> gate
   coverage --> gate
   platform --> gate
   dependencies --> gate
@@ -145,9 +150,9 @@ dependency's actual capabilities.
 ## Test groups and coverage
 
 Pytest markers separate unit, integration, feature, regression, concurrency,
-security, compatibility, performance, and stress checks. Primary test jobs
-emit JUnit summaries and artifacts. Compatibility tests use the repository's
-translated behavioral tests; PHP is not a runtime or default CI dependency.
+security, performance, and stress checks. The Support and logging API job
+runs their focused component suites. Primary test jobs emit JUnit summaries
+and artifacts.
 
 Coverage is collected for each required test group on Linux/Python 3.12 and
 uploaded separately. The aggregate job validates the exact artifact
@@ -212,11 +217,12 @@ make line-length-check
 make syntax-check
 make types
 make architecture-check
+make architecture-integration-test
 make agents-check
 make workflows-check
 make unit-test
 make integration-test
-make compatibility-test
+make component-api-test
 make coverage
 make check
 make ci
