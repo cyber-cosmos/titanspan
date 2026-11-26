@@ -4,10 +4,14 @@ The facade delegates registrations to the Router that Foundation later
 compiles for incoming requests.
 """
 
+import pytest
+
 from titanspan.contracts.http import HttpRequest, HttpResponse, RequestHandler
 from titanspan.facades import Route
 from titanspan.foundation import Application
 from titanspan.routing import RouteDefinition
+
+pytestmark = pytest.mark.unit
 
 
 class Middleware:

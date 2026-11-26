@@ -7,6 +7,8 @@ import pytest
 
 from titanspan.routing import InvalidRouteError, Router, RouterFrozenError
 
+pytestmark = pytest.mark.unit
+
 _CREATED_STATUS = 201
 
 

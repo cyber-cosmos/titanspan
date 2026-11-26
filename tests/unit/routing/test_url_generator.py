@@ -13,6 +13,8 @@ from titanspan.routing import (
     UrlGenerator,
 )
 
+pytestmark = pytest.mark.unit
+
 _PRIVATE_BACKEND_DETAIL = "private backend detail"
 
 
@@ -97,7 +99,7 @@ def test_absolute_generation_requires_a_trusted_origin() -> None:
     "origin",
     [
         "javascript:alert(1)",
-        "https://user:secret@example.test",
+        "https://user@example.test",
         "https://example.test/path",
         "https://example.test/?host=evil",
         "https://example.test:99999",

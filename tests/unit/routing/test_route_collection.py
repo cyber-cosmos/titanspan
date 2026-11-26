@@ -14,6 +14,8 @@ from titanspan.routing import (
 from titanspan.routing.route import RouteDefinition, RouteMetadata
 from titanspan.routing.route_collection import RouteCollection
 
+pytestmark = pytest.mark.unit
+
 _TWO_ROUTES = 2
 _SIX_ROUTES = 6
 

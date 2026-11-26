@@ -12,6 +12,8 @@ from titanspan.contracts.http import (
 )
 from titanspan.routing import DuplicateRouteError, InvalidRouteError, Router
 
+pytestmark = pytest.mark.unit
+
 _REGISTRATION_FAILURE = "registration failed"
 _THREE_ROUTES = 3
 _TWO_ROUTES = 2

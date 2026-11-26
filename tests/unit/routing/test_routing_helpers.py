@@ -15,6 +15,8 @@ from titanspan.routing import (
 )
 from titanspan.routing.helpers import current_route, current_route_name
 
+pytestmark = pytest.mark.unit
+
 
 def endpoint() -> str:
     """Provide an endpoint for named redirect generation.
