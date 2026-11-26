@@ -1,13 +1,37 @@
 import { defineConfig } from "vitepress";
 
 const isGitHubPages = process.env.GITHUB_ACTIONS === "true";
+const base = isGitHubPages ? "/titanspan/" : "/";
 
 export default defineConfig({
   title: "Titanspan",
   description: "Engineer beyond limits.",
-  base: isGitHubPages ? "/titanspan/" : "/",
+  base,
   cleanUrls: true,
+  appearance: true,
+  head: [
+    [
+      "link",
+      {
+        rel: "icon",
+        type: "image/png",
+        href: `${base}titanspan-mark.png`,
+      },
+    ],
+  ],
   themeConfig: {
+    logo: {
+      light: "/titanspan-mark.png",
+      dark: "/titanspan-mark.png",
+      alt: "Titanspan",
+    },
+    search: {
+      provider: "local",
+    },
+    editLink: {
+      pattern: "https://github.com/titanspan/titanspan/edit/main/docs/:path",
+      text: "Edit this page",
+    },
     nav: [
       { text: "Guide", link: "/getting-started/installation" },
       { text: "Architecture", link: "/architecture/" },
@@ -51,6 +75,7 @@ export default defineConfig({
     sidebar: [
       {
         text: "Getting started",
+        collapsed: true,
         items: [
           { text: "Installation", link: "/getting-started/installation" },
           { text: "Hello World", link: "/getting-started/hello-world" },
@@ -58,6 +83,7 @@ export default defineConfig({
       },
       {
         text: "Architecture",
+        collapsed: true,
         items: [
           { text: "Overview", link: "/architecture/" },
           { text: "Basics", link: "/basics/" },
@@ -67,6 +93,7 @@ export default defineConfig({
           },
           {
             text: "Architecture Decision Records",
+            collapsed: true,
             items: [
               { text: "Index", link: "/architecture/decisions/" },
               {
@@ -155,6 +182,7 @@ export default defineConfig({
       },
       {
         text: "Planned modules",
+        collapsed: true,
         items: [
           { text: "Database", link: "/database/" },
           { text: "Concurrency", link: "/concurrency/" },
@@ -165,6 +193,7 @@ export default defineConfig({
       },
       {
         text: "Service Container",
+        collapsed: true,
         items: [
           { text: "Overview", link: "/container/" },
           {
@@ -221,6 +250,7 @@ export default defineConfig({
       },
       {
         text: "Configuration",
+        collapsed: true,
         items: [
           { text: "Overview", link: "/config/" },
           { text: "Repository", link: "/config/repository" },
@@ -244,6 +274,7 @@ export default defineConfig({
       },
       {
         text: "Logging",
+        collapsed: true,
         items: [
           { text: "Overview", link: "/logging/" },
           { text: "Configuration", link: "/logging/configuration" },
@@ -266,6 +297,7 @@ export default defineConfig({
       },
       {
         text: "Support",
+        collapsed: true,
         items: [
           { text: "Overview", link: "/support/" },
           { text: "Arrays", link: "/support/arrays" },
@@ -303,6 +335,7 @@ export default defineConfig({
       },
       {
         text: "Contracts",
+        collapsed: true,
         items: [
           { text: "Overview", link: "/contracts/" },
           {
@@ -322,6 +355,7 @@ export default defineConfig({
       },
       {
         text: "Project",
+        collapsed: true,
         items: [
           { text: "Testing", link: "/testing/" },
           { text: "Deployment", link: "/deployment/" },
