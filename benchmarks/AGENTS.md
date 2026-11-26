@@ -1,7 +1,7 @@
 # Benchmark instructions
 
 Follow root `AGENTS.md` and
-[`docs/development/standards.md`](../docs/development/standards.md). Benchmarks
+[`docs/src/content/docs/development/standards.md`](../docs/src/content/docs/development/standards.md). Benchmarks
 provide reproducible evidence; they do not make unsupported product claims.
 
 - State the workload, data shape, warm-up, concurrency, and measured

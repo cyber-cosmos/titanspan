@@ -1,6 +1,6 @@
 # Test suite instructions
 
-Follow root `AGENTS.md` and `docs/development/standards.md`. This tree verifies
+Follow root `AGENTS.md` and `docs/src/content/docs/development/standards.md`. This tree verifies
 implemented Titanspan behavior; it does not make planned APIs real.
 
 - Use Pytest and test-driven development for meaningful behavior. Add a

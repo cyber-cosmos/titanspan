@@ -1,9 +1,9 @@
 # Logging component instructions
 
 Follow the root `AGENTS.md`, `ARCHITECTURE.md`,
-`docs/development/standards.md`, and
-`docs/architecture/decisions/0012-native-logging.md` before changing this
-component. Consult `docs/specifications/logging.md` for native API ownership
+`docs/src/content/docs/development/standards.md`, and
+`docs/src/content/docs/architecture/decisions/0012-native-logging.md` before changing this
+component. Consult `docs/src/content/docs/specifications/logging.md` for native API ownership
 and current implementation limits.
 
 ## Responsibility and dependencies

@@ -48,6 +48,6 @@ safe cache lifecycle, and application integration.
   Comments should explain validation or precedence decisions that are not
   evident from Pydantic's field declarations.
 - Consult `ARCHITECTURE.md`, ADRs 0003, 0009, 0010, and 0013, and
-  `docs/specifications/config.md`. Run focused config tests, then
+  `docs/src/content/docs/specifications/config.md`. Run focused config tests, then
   `make lint`, `make format-check`, `make types`, `make coverage`, and
   `make check` for applicable changes.

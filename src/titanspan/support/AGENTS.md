@@ -1,7 +1,7 @@
 # Support module instructions
 
 Follow the root `AGENTS.md`, `ARCHITECTURE.md`, and
-`docs/development/standards.md`.
+`docs/src/content/docs/development/standards.md`.
 
 - Keep Support independent of optional database, queue, AI, and web
   integrations.

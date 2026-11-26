@@ -13,7 +13,8 @@ resource lifecycles, or concurrency changes.
 ## References
 
 - Root and `tests/AGENTS.md`
-- `docs/development/standards.md`
+- `docs/src/content/docs/development/standards.md`
+- `docs/src/content/docs/development/writing-standards.md`
 - Existing tests for the affected module
 - `pyproject.toml` for markers and coverage rules
 

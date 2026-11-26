@@ -11,5 +11,6 @@ Read root and docs-scoped `AGENTS.md`, `README.md`, `ARCHITECTURE.md`,
 consistent with working code and verified tests. Clearly label planned work.
 Verify examples use existing public APIs; describe delegated library behavior
 accurately and link version-sensitive claims to official documentation.
-Update VitePress navigation when needed and run `make docs-build` when it is
-available. Do not invent adoption, performance, API, or test claims.
+Update the Starlight sidebar when needed. Run `make docs-build` and
+`make docs-test` for documentation changes. Do not invent adoption,
+performance, API, or test claims.

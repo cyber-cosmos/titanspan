@@ -10,14 +10,24 @@ public release.
   dependency-injected middleware, and pooled synchronous/asynchronous outgoing
   clients. Request scope and context remain active through response
   transmission. HTTP fakes, bounded request pools, outgoing multipart, and
-  SSRF enforcement remain pending; see `docs/http/` and
-  `docs/specifications/http.md`.
+  SSRF enforcement remain pending; see `docs/src/content/docs/http/` and
+  `docs/src/content/docs/specifications/http.md`.
+- Added a technical writing standard and canonical glossary. Vale checks
+  maintained Markdown, Python comments, and docstrings with pinned rules and
+  regression cases. Objective terminology errors block CI; other writing
+  findings remain advisory. See `docs/src/content/docs/development/writing-standards.md`.
+- Added typed eager and lazy collection APIs over Python iterables. Eager
+  collections provide stable transformations and grouping; lazy pipelines use
+  iterator factories and preserve one-shot sources without caching. Support
+  integration reuses `Arr` and `Tappable`; the component has no runtime
+  dependencies. See `docs/src/content/docs/collections/` and
+  `docs/src/content/docs/specifications/collections.md`.
 - Reject nested overrides that would be hidden by an inherited singleton,
   while preserving unaffected singleton identity and resource ownership.
   Configuration injection checks collection values against bare or
   parameterized `list`, `dict`, and `Mapping` annotations through the existing
   typed accessor. Application shutdown can be retried after active scopes or
-  overrides exit. See `docs/specifications/container.md` for behavior and
+  overrides exit. See `docs/src/content/docs/specifications/container.md` for behavior and
   limits.
 - Standardized pre-release public APIs on one Python `snake_case` spelling.
   Removed duplicate aliases, vendor-named protocol exports, and ignored
@@ -28,7 +38,7 @@ public release.
   expose explicit async resolution methods for async factories and resources.
   Application-level synchronous and asynchronous resolution share Dishka's
   graph cache; sync and async scopes close their owned resources through their
-  matching lifecycle. See ADR 0015 and `docs/specifications/container.md`.
+  matching lifecycle. See ADR 0015 and `docs/src/content/docs/specifications/container.md`.
 - Added an incremental native asynchronous container API with typed bindings,
   application singletons, execution-scoped values, ordered tags, aliases,
   automatic concrete dependency discovery, bounded graph generations, and
@@ -39,37 +49,37 @@ public release.
   with matching synchronous or asynchronous resource cleanup. Framework
   services resolve through the application container; FastAPI route injection
   remains a separate adapter. Registrations freeze after graph composition.
-  See `docs/specifications/container.md` and `docs/container/`.
+  See `docs/src/content/docs/specifications/container.md` and `docs/src/content/docs/container/`.
 - Added the native configuration repository, strict typed accessors, trusted
   Python/JSON/TOML source loading, isolated dotenv integration, validated
   settings, application-scoped facade and native contract registration. Added
   secret-safe configuration inspection, atomic JSON caching, and config CLI
-  commands. See `docs/config/` and `docs/specifications/config.md`.
+  commands. See `docs/src/content/docs/config/` and `docs/src/content/docs/specifications/config.md`.
 - Projected explicitly supplied custom settings fields into configuration
   paths, preserving nested sibling values and file precedence for unset
   defaults.
 - Added domain-organized contracts for configuration, container registration,
   foundation providers, logging, and supported Support display and message
   boundaries. Removed fixture-only data, HTTP, and validation protocols that
-  lacked production owners. See `docs/contracts/` and
-  `docs/specifications/contracts.md`.
+  lacked production owners. See `docs/src/content/docs/contracts/` and
+  `docs/src/content/docs/specifications/contracts.md`.
 - Reorganized shared contracts into `titanspan.contracts.config`,
   `titanspan.contracts.container`, `titanspan.contracts.logging`, and
   `titanspan.contracts.support`. Logging contracts are generic and no longer
   import concrete logging records. Top-level and component imports re-export
   the same objects. Direct imports from the former flat contract modules are
-  removed in this unreleased API; see `docs/specifications/contracts.md`.
+  removed in this unreleased API; see `docs/src/content/docs/specifications/contracts.md`.
 - Added a native structured logging component with RFC severity levels,
   context-local metadata, redaction, channel stacks, file and stream drivers,
   standard-library logging interoperability, bounded background dispatch,
   application lifecycle integration, and native logging fakes. See
-  `docs/specifications/logging.md` for implemented boundaries.
+  `docs/src/content/docs/specifications/logging.md` for implemented boundaries.
 - Unified configuration, logging, facades, native service providers, and the
   application container. Configuration now drives the default logging
   manager; facade resolution shares one application context; provider boot is
   injected through the native container and cleaned up on startup failure.
   FastAPI route dependency injection remains a separately documented adapter.
-  See ADR 0018 and `docs/architecture/contract-integration.md`.
+  See ADR 0018 and `docs/src/content/docs/architecture/contract-integration.md`.
 - Added UTC calendar-month log rotation with bounded archive retention through
   Python's standard timed file handler.
 - Added registered, once-per-channel native logging customizers with cleanup

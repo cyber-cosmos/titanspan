@@ -11,7 +11,7 @@ Use when selecting, adding, upgrading, or wrapping a third-party package.
 
 ## References
 
-- `AGENTS.md` and `docs/development/standards.md`
+- `AGENTS.md` and `docs/src/content/docs/development/standards.md`
 - `ARCHITECTURE.md` and ADR 0010
 - Official package docs, source repository, changelog, license, and advisories
 - `pyproject.toml` and `uv.lock`

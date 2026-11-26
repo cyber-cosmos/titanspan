@@ -1,0 +1,16 @@
+extends: Std.Readability.SentenceLength
+message: "This procedure has %d words; target 20 words or fewer."
+level: warning
+scope: sentence & list
+max: 20
+tests:
+  - name: flags a procedural sentence over 20 words
+    input: |
+      1. Before you submit each local change, install the tool, synchronize its
+         rules, and run the prose and terminology checks from the repository
+         root.
+    contains: "This procedure has 23 words"
+  - name: accepts short procedural sentences
+    input: |
+      1. Install Vale before running the prose checks.
+    want: ''

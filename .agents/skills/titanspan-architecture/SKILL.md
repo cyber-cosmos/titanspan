@@ -15,8 +15,9 @@ integration, changes package direction, or may require an ADR.
 - `AGENTS.md`
 - `ARCHITECTURE.md`
 - `ROADMAP.md`
-- Relevant files in `docs/architecture/decisions/`
-- `docs/development/standards.md`
+- Relevant files in `docs/src/content/docs/architecture/decisions/`
+- `docs/src/content/docs/development/standards.md`
+- `docs/src/content/docs/development/writing-standards.md`
 
 ## Procedure
 
@@ -43,7 +44,7 @@ integration, changes package direction, or may require an ADR.
 
 For code changes, use the relevant focused tests and `make check`. For an ADR,
 verify the decision file has context, alternatives, consequences, risks, and
-official references. Run `make docs-build` when VitePress pages change.
+official references. Run `make docs-build` and `make docs-test` when docs change.
 
 ## Completion criteria
 

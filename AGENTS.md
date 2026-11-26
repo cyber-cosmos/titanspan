@@ -156,7 +156,8 @@ Dependency replacement requires verified evidence, a focused architectural
 proposal, maintainer review, and an ADR when the decision is consequential.
 
 The authoritative technology decisions are maintained in `ARCHITECTURE.md`
-and the accepted ADRs under `docs/architecture/decisions/`.
+and the accepted ADRs under
+`docs/src/content/docs/architecture/decisions/`.
 
 ## 5. Framework architecture
 
@@ -434,8 +435,8 @@ Do not turn minor corrections into large architectural refactors.
 
 Use the existing agent workflow and engineering standards:
 
-- [Agent workflow](docs/development/agent-workflow.md)
-- [Engineering standards](docs/development/standards.md)
+- [Agent workflow](docs/src/content/docs/development/agent-workflow.md)
+- [Engineering standards](docs/src/content/docs/development/standards.md)
 
 ## 11. Python and package standards
 
@@ -487,6 +488,23 @@ Comments must explain why the implementation behaves as it does rather
 than merely restating the code.
 
 Meaningful comment quality remains subject to human review.
+
+### Technical writing
+
+Follow [the writing standard](docs/src/content/docs/development/writing-standards.md)
+and the canonical terms in
+[the glossary](docs/src/content/docs/development/glossary.md).
+
+Use clear, concise American English. Prefer active voice and one primary idea
+per sentence. Keep procedural sentences near 20 words and descriptive
+sentences near 25 words. These limits are targets, not substitutes for
+technical accuracy.
+
+Write direct procedural instructions and explain non-obvious design choices.
+Preserve exact Python identifiers, commands, URLs, and technical meaning.
+Vale findings at warning and suggestion levels are advisory. Error-level
+terminology, capitalization, and prohibited-expression findings must be
+corrected.
 
 ### Dependency and package management
 
@@ -612,8 +630,8 @@ Use accurate, executable Python examples.
 Do not invent APIs, performance measurements, dependency capabilities, or
 verification results.
 
-When adding, renaming, or removing documentation pages, update the VitePress
-navigation accordingly.
+When adding, renaming, or removing documentation pages, update the Starlight
+sidebar in `docs/navigation.mjs` accordingly.
 
 Run the actual navigation consistency validator against the documentation
 site, its regression tests, and the applicable documentation build.
@@ -728,11 +746,11 @@ for their respective responsibilities:
 - [`CONTRIBUTING.md`](CONTRIBUTING.md): repository contribution process.
 - [`SECURITY.md`](SECURITY.md): security and vulnerability reporting.
 - [`CHANGELOG.md`](CHANGELOG.md): recorded framework changes.
-- [`docs/development/standards.md`](docs/development/standards.md):
+- [`docs/src/content/docs/development/standards.md`](docs/src/content/docs/development/standards.md):
   detailed engineering standards.
-- [`docs/development/agent-workflow.md`](docs/development/agent-workflow.md):
+- [`docs/src/content/docs/development/agent-workflow.md`](docs/src/content/docs/development/agent-workflow.md):
   required agent development workflow.
-- [`docs/architecture/decisions/`](docs/architecture/decisions/):
+- [`docs/src/content/docs/architecture/decisions/`](docs/src/content/docs/architecture/decisions/):
   accepted and proposed architectural decisions.
 - [`pyproject.toml`](pyproject.toml): executable package and tool
   configuration.

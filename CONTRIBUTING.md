@@ -18,7 +18,7 @@ or a focused proposal.
 ## Development setup
 
 Requirements: Python 3.12+, [uv](https://docs.astral.sh/uv/), GNU Make, and
-Node.js/npm for documentation work. Docker is optional.
+Node.js 22.23.4+ with npm for documentation work. Docker is optional.
 
 ```sh
 uv sync --locked
@@ -32,12 +32,20 @@ validator, strict Pyright, YAML and lockfile checks, architecture boundaries,
 agent configuration validation, the full applicable test suite, and separate
 95% statement and 90% branch coverage thresholds.
 
-Run `make docs-build` when changing documentation. Use `make ci` for the
-complete local CI suite, including dependency and secret audits, documentation
-build, packaging audit, and stress checks. Do not skip, weaken, or bypass a
-required check to complete a contribution sooner.
+Run `make docs-build` when changing documentation and `make docs-test` to
+verify the rendered site in Playwright. Use `make ci` for the complete local CI
+suite, including dependency and secret audits, documentation build and browser
+verification, packaging, Docker, and hook checks. Do not skip, weaken, or
+bypass a required check to complete a contribution sooner.
 
-See the [CI architecture](docs/development/continuous-integration.md) for the
+Follow the [technical writing standards](docs/src/content/docs/development/writing-standards.md)
+and canonical [glossary](docs/src/content/docs/development/glossary.md) when
+adding prose. Install the pinned Vale release with `make vale-install`, fetch
+its reviewed rules with `make vale-sync`, then run `make prose-check`,
+`make terminology-check`, and `make prose-test` before submitting content.
+`make check` also includes the prose and terminology gates.
+
+See the [CI architecture](docs/src/content/docs/development/continuous-integration.md) for the
 required job inventory, compatibility matrices, artifact flow, and fail-closed
 gate. Changes to CI policy must explain why each affected status remains
 mandatory and preserve independent verification.

@@ -2,7 +2,7 @@
 
 Use root [`AGENTS.md`](../AGENTS.md) as the canonical development policy.
 Read the relevant scoped instructions, `ARCHITECTURE.md`, ADRs, and
-[`docs/development/standards.md`](../docs/development/standards.md) before
+[`docs/src/content/docs/development/standards.md`](../docs/src/content/docs/development/standards.md) before
 changing code or repository policy.
 
 For meaningful behavior, use test-driven development and verify the initial

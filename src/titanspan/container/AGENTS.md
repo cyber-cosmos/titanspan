@@ -31,7 +31,7 @@ Dishka.
   registrations after boot; avoid shared mutable runtime mutation.
 - Contextual rules, injection metadata, extensions, callbacks, and temporary
   overrides must preserve the precedence and lifecycle documented in
-  `docs/specifications/container.md`. Synchronous overrides must use sync
+  `docs/src/content/docs/specifications/container.md`. Synchronous overrides must use sync
   graph owners and cleanup; asynchronous overrides must await async resource
   finalization. Neither form may cross those lifecycle boundaries silently.
 - Keep injection-source selection shared between public callable resolution

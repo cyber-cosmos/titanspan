@@ -17,6 +17,7 @@ EXPECTED_JOBS = (
     "format",
     "docblocks",
     "comments",
+    "technical-documentation",
     "line-length",
     "syntax",
     "typecheck",

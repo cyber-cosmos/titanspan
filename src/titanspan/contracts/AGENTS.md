@@ -1,7 +1,7 @@
 # Contracts module instructions
 
 Follow the repository root `AGENTS.md`, `ARCHITECTURE.md`, and the native
-guides under `docs/contracts/` before changing public interfaces.
+guides under `docs/src/content/docs/contracts/` before changing public interfaces.
 
 - Keep this package dependency-independent and limited to contracts.
 - Use structural `Protocol` types by default. Use `ABC` only for a
@@ -23,5 +23,5 @@ guides under `docs/contracts/` before changing public interfaces.
 - Start meaningful behavior changes with a failing test. Run targeted tests,
   Ruff, formatting, Pyright, architecture checks, and `make check` when
   applicable. Never weaken repository quality policies.
-- Update `docs/specifications/contracts.md` when native interfaces, ownership,
+- Update `docs/src/content/docs/specifications/contracts.md` when native interfaces, ownership,
   or implementation status changes. Never report pending work as complete.

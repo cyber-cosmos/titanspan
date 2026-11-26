@@ -1,7 +1,7 @@
 # Titanspan repository guidelines
 
 Read the root `AGENTS.md`, relevant scoped instructions, `ARCHITECTURE.md`,
-applicable ADRs, and `docs/development/standards.md`. `AGENTS.md` is the
+applicable ADRs, and `docs/src/content/docs/development/standards.md`. `AGENTS.md` is the
 canonical source; this file is a short Tabnine adapter.
 
 Titanspan is early-stage, async-first Python. Verify implementation before

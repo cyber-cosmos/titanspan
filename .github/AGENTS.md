@@ -12,7 +12,7 @@ contains repository governance and CI, not framework runtime code.
   A policy validator, test, matrix, or security job cannot be made optional to
   accommodate an implementation.
 - Verify changes with `make workflows-check` and update
-  `docs/development/continuous-integration.md` when the job graph, gate
+  `docs/src/content/docs/development/continuous-integration.md` when the job graph, gate
   inventory, compatibility range, or artifact flow changes.
 - Do not weaken required CI, dependency auditing, secret detection, or
   repository protection to make a change pass. Policy edits need explicit

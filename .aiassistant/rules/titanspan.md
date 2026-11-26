@@ -5,7 +5,7 @@ project rule settings to apply automatically. The repository cannot encode
 that UI selection in this Markdown file.
 
 Read and follow root `AGENTS.md`, relevant scoped instructions, `ARCHITECTURE.md`,
-ADRs, and `docs/development/standards.md`. Titanspan is an early-stage,
+ADRs, and `docs/src/content/docs/development/standards.md`. Titanspan is an early-stage,
 async-first Python framework. Verify implementation before describing a
 feature as available. Prefer mature libraries and thin, typed integrations.
 Preserve module boundaries, cancellation, bounded concurrency, explicit

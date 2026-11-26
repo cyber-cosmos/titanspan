@@ -15,7 +15,8 @@ uncommitted diff.
 - Root and nearest scoped `AGENTS.md`
 - `ARCHITECTURE.md`, relevant ADRs, and `SECURITY.md`
 - Tests and documentation for affected behavior
-- `docs/development/standards.md`
+- `docs/src/content/docs/development/standards.md`
+- `docs/src/content/docs/development/writing-standards.md` for prose and docstring findings
 
 ## Procedure
 

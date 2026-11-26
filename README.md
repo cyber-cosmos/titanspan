@@ -18,7 +18,7 @@ structured records, named channels, standard severity levels, context-local
 metadata, file and stream drivers, and bounded background dispatch.
 Numeric locale formatting and number spelling use the optional `numbers`
 extra. Logging capabilities and planned work are listed in the native
-[logging specification](docs/specifications/logging.md).
+[logging specification](docs/src/content/docs/specifications/logging.md).
 The project is not production-ready.
 
 ## Install
@@ -45,7 +45,7 @@ Open `http://127.0.0.1:8000/` to see a configured JSON greeting. The example
 registers a service through a provider, injects configuration and logging
 contracts, and binds request context through the ASGI lifecycle. FastAPI
 provides the routing interoperability boundary; see the
-[Hello World guide](docs/getting-started/hello-world.md) for details.
+[Hello World guide](docs/src/content/docs/getting-started/hello-world.md) for details.
 
 ## Development
 
@@ -55,8 +55,9 @@ make help
 make check
 ```
 
-Use `make docs` to serve the VitePress documentation locally and
-`make docs-build` to build it. Docker is optional; see the local
+Use `make docs` to serve the Starlight documentation locally, `make docs-build`
+to build it, and `make docs-test` to verify it in Playwright. Docker is
+optional; see the local
 infrastructure section in the project documentation.
 
 The current runtime foundation uses FastAPI and Starlette for ASGI, Dishka for
@@ -76,9 +77,9 @@ Run `make docker-down` to stop services; named development data is retained.
 Titanspan owns its application APIs, lifecycle, integration conventions, and
 testing experience. It delegates web serving to FastAPI, dependency resolution
 to Dishka, typed configuration to Pydantic Settings, and structured logging
-dispatch to a private adapter. See the [logging guide](docs/logging/),
+dispatch to a private adapter. See the [logging guide](docs/src/content/docs/logging/),
 [ARCHITECTURE.md](ARCHITECTURE.md), the
-[architecture decision records](docs/architecture/decisions/), and the
+[architecture decision records](docs/src/content/docs/architecture/decisions/), and the
 [roadmap](ROADMAP.md) for the intended module boundaries and future direction.
 
 ## Project philosophy

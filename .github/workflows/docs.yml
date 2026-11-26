@@ -41,10 +41,15 @@ jobs:
         run: npm audit --prefix docs --audit-level=moderate
       - name: Build documentation
         run: npm --prefix docs run docs:build
+      - name: Install Playwright browser
+        working-directory: docs
+        run: npx playwright install --with-deps chromium
+      - name: Verify rendered documentation
+        run: npm --prefix docs run docs:test:e2e
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@7b1f4a764d45c48632c6b24a0339c27f5614fb0b # v4
         with:
-          path: docs/.vitepress/dist
+          path: docs/dist
 
   deploy:
     name: deploy-pages

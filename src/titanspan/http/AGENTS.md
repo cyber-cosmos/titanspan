@@ -20,6 +20,6 @@ Follow the repository root instructions and `ARCHITECTURE.md`.
 - Add focused unit tests and real ASGI or loopback integration tests for
   behavior at each implemented boundary. Do not mock HTTPX2 when verifying
   transport integration.
-- Update the HTTP specification and VitePress sidebar when documentation
+- Update the HTTP specification and Starlight sidebar when documentation
   changes. Do not advertise features marked pending in
-  `docs/specifications/http.md`.
+  `docs/src/content/docs/specifications/http.md`.

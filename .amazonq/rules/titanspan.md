@@ -2,7 +2,7 @@
 
 Read and follow the repository root `AGENTS.md` and relevant architecture
 documents before making changes. The canonical project instructions and
-engineering standards are in `AGENTS.md` and `docs/development/`.
+engineering standards are in `AGENTS.md` and `docs/src/content/docs/development/`.
 
 Titanspan is an early-stage, async-first Python framework. Verify the current
 implementation before describing or extending a feature. Prefer mature

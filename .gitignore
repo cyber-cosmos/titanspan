@@ -26,9 +26,14 @@ benchmark-results/
 htmlcov/
 site/
 node_modules/
-docs/.vitepress/cache/
-docs/.vitepress/dist/
+docs/.astro/
+docs/dist/
+docs/playwright-report/
+docs/test-results/
+docs/screenshots/
 .cache/
+.vale/styles/Std/
+.vale/styles/config/grammars/
 .aider.chat.history.md
 .aider.input.history
 .DS_Store

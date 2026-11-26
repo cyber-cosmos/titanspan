@@ -1,6 +1,6 @@
 # Example application instructions
 
-Follow root `AGENTS.md`, `docs/development/standards.md`, and the nearest
+Follow root `AGENTS.md`, `docs/src/content/docs/development/standards.md`, and the nearest
 framework module instructions. Examples demonstrate only implemented APIs.
 
 - Keep each example runnable, minimal, typed, and explicit about required

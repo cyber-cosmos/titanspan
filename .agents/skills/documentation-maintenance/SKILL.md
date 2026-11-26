@@ -14,7 +14,9 @@ commands, or repository instructions change.
 
 - Root and nearest scoped `AGENTS.md`
 - `README.md`, `ARCHITECTURE.md`, `ROADMAP.md`, and `CHANGELOG.md`
-- `docs/development/standards.md`
+- `docs/src/content/docs/development/standards.md`
+- `docs/src/content/docs/development/writing-standards.md` and
+  `docs/src/content/docs/development/glossary.md`
 - Relevant implementation, tests, and official dependency documentation
 
 ## Procedure
@@ -25,8 +27,10 @@ commands, or repository instructions change.
 3. Update the smallest set of pages and navigation needed.
 4. Check every command, file path, public API, and relative link.
 5. Label planned behavior and limitations explicitly.
-6. Build the VitePress site and run the agent configuration checker when
+6. Build the Starlight site and run the agent configuration checker when
    those areas change.
+7. Run the Vale prose, terminology, and rule regression targets after prose
+   changes.
 
 ## Failure modes
 
@@ -38,9 +42,11 @@ commands, or repository instructions change.
 
 ## Validation
 
-Run `make docs-build` for VitePress changes and `make agents-check` for
-instructions, skills, profiles, and adapters. Run relevant framework checks
-for examples that execute Python code.
+Run `make docs-build` and `make docs-test` for Starlight changes. Run
+`make agents-check` for instructions, skills, profiles, and adapters. Run
+`make prose-check`, `make terminology-check`, and `make prose-test` after
+prose changes. Run relevant framework checks for examples that execute Python
+code.
 
 ## Completion criteria
 

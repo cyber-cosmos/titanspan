@@ -15,9 +15,9 @@ explicit async interfaces.
 The current package is intentionally small. The implemented foundation is a
 FastAPI-backed ASGI application, a Dishka-backed container, a native
 configuration repository with Pydantic Settings validation, a Typer CLI,
-selected Support utilities, native logging, and an initial native HTTP
-component. Other modules below remain planned boundaries unless marked as
-implemented in the table.
+selected Support utilities, standalone eager and lazy Collections, native
+logging, and an initial native HTTP component. Other modules below remain
+planned boundaries unless marked as implemented in the table.
 
 ## Architectural principles
 
@@ -60,23 +60,23 @@ service contract they resolve, and keep explicit methods for static
 discoverability. Their `use` and fake helpers are temporary execution-local
 test overrides; production resolution uses the active application container.
 Known public interoperability boundaries and remaining backend exposure are
-tracked in [`docs/specifications/backend-boundaries.md`](docs/specifications/backend-boundaries.md).
+tracked in [`docs/src/content/docs/specifications/backend-boundaries.md`](docs/src/content/docs/specifications/backend-boundaries.md).
 
 ## Module boundaries
 
 | Module | Responsibility | Status |
 | --- | --- | --- |
 | `foundation` | Application lifecycle, bootstrapping, kernels, shutdown, and provider lifecycle. | `Application` owns native startup and shutdown independently of its ASGI adapter. |
-| `container` | Dependency injection, bindings, concrete graph discovery, scopes, and resource management. | Native sync-first container composes framework services and supplies request-scoped HTTP dependencies; a private adapter remains for explicit external route providers. See `docs/specifications/container.md`. |
+| `container` | Dependency injection, bindings, concrete graph discovery, scopes, and resource management. | Native sync-first container composes framework services and supplies request-scoped HTTP dependencies; a private adapter remains for explicit external route providers. See `docs/src/content/docs/specifications/container.md`. |
 | `contracts` | Dependency-independent typed protocols and shared abstraction boundaries. | Initial configuration, sync-first and async container, and Support contracts implemented; many component contracts remain pending. |
-| `support` | Shared utilities, managers, and lightweight helpers. | Selected native utilities implemented; see `docs/specifications/support.md`. |
-| `config` | Typed configuration, trusted sources, environment integration, and safe snapshots. | Native repository, settings, source loader, cache, commands, and application provider implemented; see `docs/config/`. |
+| `support` | Shared utilities, managers, and lightweight helpers. | Selected native utilities implemented; see `docs/src/content/docs/specifications/support.md`. |
+| `config` | Typed configuration, trusted sources, environment integration, and safe snapshots. | Native repository, settings, source loader, cache, commands, and application provider implemented; see `docs/src/content/docs/config/`. |
 | `facades` | Context-aware access to application-owned services. | Shared typed facade base and execution-local `Config` and `Log` facades implemented. |
 | `routing` | Fluent routing, route groups, controllers, and workflow endpoints. | Planned; FastAPI routers remain directly accessible. |
-| `http` | Incoming ASGI requests, native responses, middleware, streaming, and pooled outgoing clients. | Initial component implemented and application-integrated; pending behavior is listed in `docs/specifications/http.md`. |
+| `http` | Incoming ASGI requests, native responses, middleware, streaming, and pooled outgoing clients. | Initial component implemented and application-integrated; pending behavior is listed in `docs/src/content/docs/specifications/http.md`. |
 | `auth` | Authentication, authorization, guards, gates, and policies. | Planned. |
 | `database` | SQLAlchemy-backed models, queries, transactions, migrations, and persistence. | Planned. |
-| `collections` | Eager, lazy, and asynchronous fluent collections. | Planned. |
+| `collections` | Typed eager and lazy APIs over ordinary Python iterables. | Eager and lazy value APIs are implemented. The component depends on Support and does not require Application or Container. Async iteration remains planned elsewhere. |
 | `cache` | Caching, locks, expiration, and backend adapters. | Planned. |
 | `concurrency` | Structured asynchronous concurrency, bounded pools, and cancellation. | Planned. |
 | `parallel` | CPU-bound multiprocessing and parallel computation. | Planned. |
@@ -86,7 +86,7 @@ tracked in [`docs/specifications/backend-boundaries.md`](docs/specifications/bac
 | `mail` | Mailables, delivery, templates, and attachments. | Planned. |
 | `notifications` | Multi-channel application notifications. | Planned. |
 | `filesystem` | Local and cloud storage abstractions. | Planned. |
-| `logging` | Native records, channels, drivers, redaction, context, async dispatch, and lifecycle. | Initial component implemented; see `docs/logging/` and its specification for limits. |
+| `logging` | Native records, channels, drivers, redaction, context, async dispatch, and lifecycle. | Initial component implemented; see `docs/src/content/docs/logging/` and its specification for limits. |
 | `scheduling` | Recurring tasks, cron expressions, and coordination. | Planned. |
 | `console` | CLI commands, generators, and scaffolding. | Initial help and version options implemented. |
 | `ai` | Model providers, prompts, embeddings, and structured output. | Planned. |
@@ -111,6 +111,8 @@ flowchart TD
     Foundation[Foundation]
     Container[Container adapter]
     Config[Configuration]
+    Collections[Collections]
+    Support[Support]
     Contracts[Contracts]
     Web[FastAPI integration]
     Optional[Optional adapters]
@@ -122,6 +124,7 @@ flowchart TD
     Foundation --> Container
     Foundation --> Config
     Foundation --> Web
+    Collections --> Support
     Optional --> Contracts
     Optional --> Libraries
     App --> Optional
@@ -148,7 +151,7 @@ graph remains for explicitly supplied external route providers. Native
 the ASGI lifespan delegates to them. Pure ASGI request middleware keeps
 application context, request scope, and logging context active through the
 complete response send, including streaming bodies. See the [backend boundary
-audit](docs/specifications/backend-boundaries.md) for the remaining raw
+audit](docs/src/content/docs/specifications/backend-boundaries.md) for the remaining raw
 provider interoperability input.
 
 ```mermaid
@@ -221,10 +224,10 @@ and core service modules. Contracts use Python's standard typing facilities
 and do not import concrete modules, optional database, AI, queue, or storage
 adapters.
 The implemented native contracts, owners, and deferred boundaries are
-recorded in [`docs/specifications/contracts.md`](docs/specifications/contracts.md).
+recorded in [`docs/src/content/docs/specifications/contracts.md`](docs/src/content/docs/specifications/contracts.md).
 
 Configuration source precedence and security boundaries are recorded in
-[ADR 0013](docs/architecture/decisions/0013-native-configuration.md). The
+[ADR 0013](docs/src/content/docs/architecture/decisions/0013-native-configuration.md). The
 Pydantic Settings backend stays private; trusted file loading, source
 precedence, secret-safe diagnostics, and JSON cache behavior are owned by
 Titanspan.

@@ -88,6 +88,31 @@ jobs:
       - name: Validate rationale comments
         run: make comments-check
 
+  technical-documentation:
+    name: "Quality: Technical documentation"
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Check out source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Set up Python tools
+        uses: ./.github/actions/setup-python
+        with:
+          python-version: "3.12"
+      - name: Install locked dependencies
+        run: uv sync --locked --all-groups
+      - name: Install pinned Vale release
+        run: make vale-install
+      - name: Sync pinned Vale styles and grammar
+        run: make vale-sync
+      - name: Validate prose, terminology, and Vale rules
+        run: |
+          make prose-check
+          make terminology-check
+          make prose-test
+
   line-length:
     name: "Quality: 80-column limit"
     runs-on: ubuntu-latest
@@ -169,6 +194,7 @@ jobs:
       - format
       - docblocks
       - comments
+      - technical-documentation
       - line-length
       - syntax
       - typecheck
@@ -316,6 +342,7 @@ jobs:
       - format
       - docblocks
       - comments
+      - technical-documentation
       - line-length
       - syntax
       - typecheck
@@ -374,6 +401,7 @@ jobs:
       - format
       - docblocks
       - comments
+      - technical-documentation
       - line-length
       - syntax
       - typecheck
@@ -432,6 +460,7 @@ jobs:
       - format
       - docblocks
       - comments
+      - technical-documentation
       - line-length
       - syntax
       - typecheck
@@ -486,6 +515,7 @@ jobs:
       - format
       - docblocks
       - comments
+      - technical-documentation
       - line-length
       - syntax
       - typecheck
@@ -540,6 +570,7 @@ jobs:
       - format
       - docblocks
       - comments
+      - technical-documentation
       - line-length
       - syntax
       - typecheck
@@ -594,6 +625,7 @@ jobs:
       - format
       - docblocks
       - comments
+      - technical-documentation
       - line-length
       - syntax
       - typecheck
@@ -648,6 +680,7 @@ jobs:
       - format
       - docblocks
       - comments
+      - technical-documentation
       - line-length
       - syntax
       - typecheck
@@ -1003,7 +1036,7 @@ jobs:
           retention-days: 7
 
   docs-build:
-    name: "Docs: VitePress build"
+    name: "Docs: Starlight build"
     runs-on: ubuntu-latest
     timeout-minutes: 25
     needs: [lockfile]
@@ -1024,11 +1057,16 @@ jobs:
         run: npm audit --prefix docs --audit-level=moderate
       - name: Build and validate documentation
         run: make docs-build
+      - name: Install Playwright browser
+        working-directory: docs
+        run: npx playwright install --with-deps chromium
+      - name: Verify rendered documentation
+        run: npm --prefix docs run docs:test:e2e
       - name: Upload built documentation
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
-          name: vitepress-site
-          path: docs/.vitepress/dist
+          name: starlight-site
+          path: docs/dist
           if-no-files-found: error
           retention-days: 7
 
@@ -1136,6 +1174,7 @@ jobs:
       - format
       - docblocks
       - comments
+      - technical-documentation
       - line-length
       - syntax
       - typecheck

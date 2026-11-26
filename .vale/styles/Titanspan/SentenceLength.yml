@@ -1,0 +1,17 @@
+extends: Std.Readability.SentenceLength
+message: "This sentence has %d words; keep it under 26 words."
+level: warning
+max: 25
+tests:
+  - name: flags a sentence over 25 words
+    input: >-
+      Keep this descriptive sentence below twenty five words to make each
+      instruction easy to read and understand across the entire framework
+      safely with clarity for every reader.
+    contains: "This sentence has 27 words"
+  - name: accepts a sentence at the 25 word target
+    input: >-
+      Keep this descriptive sentence below twenty five words to make each
+      instruction easy to read and understand across the entire framework
+      safely.
+    want: ''
