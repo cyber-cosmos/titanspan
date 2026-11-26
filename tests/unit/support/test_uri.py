@@ -11,7 +11,16 @@ from urllib.parse import urlsplit
 import pytest
 
 from titanspan.contracts import HtmlRenderable
-from titanspan.support import Stringable, Uri, UriQueryString
+from titanspan.contracts.routing import UriUrlGenerator as RoutingUrlGenerator
+from titanspan.http.response_factory import NativeResponseFactory
+from titanspan.support import (
+    Stringable,
+    Uri,
+    UriContextError,
+    UriQueryString,
+    UriUrlGenerator,
+)
+from titanspan.support.uri import bind_uri_services
 
 if TYPE_CHECKING:
     from collections.abc import Mapping, Sequence
@@ -230,18 +239,22 @@ def test_uri_decode_and_html_adapters_only_change_query_escaping() -> None:
 
 @pytest.mark.unit
 def test_uri_redirects_with_status_and_headers() -> None:
-    """Create a Starlette redirect response from the URI value.
+    """Create a native redirect response from a local URI value.
 
     Returns:
         None.
     """
-    response = Uri.of("https://example.test/done").redirect(
-        301,
-        {"X-Redirect-Reason": "complete"},
-    )
+    with bind_uri_services(
+        None,
+        NativeResponseFactory,
+    ):
+        response = Uri.of("/done").redirect(
+            301,
+            {"X-Redirect-Reason": "complete"},
+        )
 
     assert response.status_code == _PERMANENT_REDIRECT_STATUS
-    assert response.headers["location"] == "https://example.test/done"
+    assert response.headers["location"] == "/done"
     assert response.headers["x-redirect-reason"] == "complete"
 
 
@@ -341,8 +354,10 @@ def test_uri_resolver_supports_url_generation_helpers() -> None:
             return f"https://example.test/actions/{action}"
 
     builder = UrlBuilder()
-    Uri.set_url_generator_resolver(lambda: builder)
-    try:
+    with bind_uri_services(
+        lambda: builder,
+        NativeResponseFactory,
+    ):
         assert Uri.to("/docs").value() == "https://example.test/to"
         assert Uri.route("home").value() == "https://example.test/routes/home"
         assert Uri.signed_route("home").value() == (
@@ -369,8 +384,6 @@ def test_uri_resolver_supports_url_generation_helpers() -> None:
             ("signed_route", "home", {}, 60, True),
             ("action", "HomeController@index", {}, True),
         ]
-    finally:
-        Uri.set_url_generator_resolver(None)
 
 
 @pytest.mark.unit
@@ -683,10 +696,30 @@ def test_uri_requires_a_context_local_url_generator_for_route_factories() -> (
     Returns:
         None.
     """
-    Uri.set_url_generator_resolver(None)
-
-    with pytest.raises(RuntimeError, match="resolver is not configured"):
+    with pytest.raises(UriContextError, match="active application context"):
         Uri.to("/home")
+
+
+@pytest.mark.unit
+def test_uri_url_generator_is_reexported_from_canonical_contract() -> None:
+    """Keep the Support import identical to the routing contract object.
+
+    Re-exporting preserves one structural contract identity in the framework.
+    """
+    assert UriUrlGenerator is RoutingUrlGenerator
+
+
+@pytest.mark.unit
+def test_uri_parsing_does_not_require_an_application_context() -> None:
+    """Keep ordinary URI construction usable without routing services.
+
+    Only factories that resolve application services require active context.
+    """
+    uri = Uri.of("https://example.test/docs?version=2#overview")
+
+    assert uri.host() == "example.test"
+    assert uri.query().get("version") == "2"
+    assert uri.fragment() == "overview"
 
 
 @pytest.mark.unit
@@ -708,14 +741,18 @@ def test_uri_query_adapter_exposes_python_string_methods() -> None:
 
 @pytest.mark.unit
 def test_uri_redirect_uses_the_current_value() -> None:
-    """Return a Starlette redirect for the current URI value.
+    """Return a native redirect for the current local URI value.
 
     Returns:
         None.
     """
-    uri = Uri("https://example.test/next?source=docs")
+    uri = Uri("/next?source=docs")
 
-    direct = uri.redirect()
+    with bind_uri_services(
+        None,
+        NativeResponseFactory,
+    ):
+        direct = uri.redirect()
     assert direct.status_code == _DEFAULT_REDIRECT_STATUS
     assert direct.headers["location"] == uri.value()
 

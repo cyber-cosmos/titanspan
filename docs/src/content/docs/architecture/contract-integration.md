@@ -102,7 +102,7 @@ by the logging component's own manager and channel lifecycles.
 | `DeferredDisplayValue` | `contracts/support/deferred_display_value.py` | Application-defined display values; `EncodedHtmlString` consumes it before escaping | Unit fixtures cover deferred trusted markup and plain-text escaping | Implemented extension point |
 | `MessageBagProtocol` | `contracts/support/message_bag.py` | `support.MessageBag` structurally implements it; message consumers may depend on the read/write surface | Strict assignment in `test_contract_organization.py`; MessageBag behavior tests | Implemented and statically verified |
 | `MessageProvider` | `contracts/support/message_bag.py` | `support.MessageBag.merge` consumes application-defined message providers | Structural fixture and merge behavior tests in `tests/unit/support/test_message_bag.py`; no built-in provider class | Implemented extension point |
-| `UriUrlGenerator` | `support/uri.py` | `support.Uri` route and URL factories consume an application router adapter | Alternate generator fixtures exercise route, origin, and signature behavior in `tests/unit/support/test_uri.py` | Implemented public integration extension point |
+| `UriUrlGenerator` | `contracts/routing/url_generator.py` | `RoutingServiceProvider` registers `UrlGenerator`; `support.Uri` factories and Routing helpers consume the same application service | Strict contract injection and real application URI integration tests in `tests/integration/routing/test_uri_integration.py` | Implemented and consumed; signed operations intentionally reject until key management exists |
 
 `MessageKey` is a public shared type alias. `Scope` and `ServiceFactory` are
 container domain values in `contracts/container`; `titanspan.container`

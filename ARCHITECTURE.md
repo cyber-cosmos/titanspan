@@ -72,7 +72,7 @@ tracked in [`docs/src/content/docs/specifications/backend-boundaries.md`](docs/s
 | `support` | Shared utilities, managers, and lightweight helpers. | Selected native utilities implemented; see `docs/src/content/docs/specifications/support.md`. |
 | `config` | Typed configuration, trusted sources, environment integration, and safe snapshots. | Native repository, settings, source loader, cache, commands, and application provider implemented; see `docs/src/content/docs/config/`. |
 | `facades` | Context-aware access to application-owned services. | Shared typed facade base and execution-local `Config` and `Log` facades implemented. |
-| `routing` | Fluent routing, route groups, controllers, and workflow endpoints. | Planned; FastAPI routers remain directly accessible. |
+| `routing` | Application-owned route registration, groups, matching, controller dispatch, URL generation, and HTTP integration. | Initial component implemented against one route catalog; see `docs/src/content/docs/specifications/routing.md` for verified and pending capabilities. |
 | `http` | Incoming ASGI requests, native responses, middleware, streaming, and pooled outgoing clients. | Initial component implemented and application-integrated; pending behavior is listed in `docs/src/content/docs/specifications/http.md`. |
 | `auth` | Authentication, authorization, guards, gates, and policies. | Planned. |
 | `database` | SQLAlchemy-backed models, queries, transactions, migrations, and persistence. | Planned. |

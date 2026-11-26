@@ -4,6 +4,7 @@ The sync-first protocol keeps ordinary construction synchronous while making
 asynchronous dependency acquisition an explicit operation.
 """
 
+from collections.abc import Awaitable, Callable, Mapping
 from types import TracebackType
 from typing import Literal, Protocol, runtime_checkable
 
@@ -123,6 +124,38 @@ class ServiceContainer(ServiceRegistry, Protocol):
 
         Returns:
             An instance compatible with the requested service type.
+        """
+        ...
+
+    def call[ReturnT](
+        self,
+        callback: Callable[..., ReturnT],
+        parameters: Mapping[str, object] | None = None,
+    ) -> ReturnT:
+        """Invoke a synchronous callable with container-resolved arguments.
+
+        Args:
+            callback: Synchronous endpoint, provider, or service method.
+            parameters: Explicit values keyed by callable parameter name.
+
+        Returns:
+            The callback result.
+        """
+        ...
+
+    async def call_async[ReturnT](
+        self,
+        callback: (Callable[..., ReturnT] | Callable[..., Awaitable[ReturnT]]),
+        parameters: Mapping[str, object] | None = None,
+    ) -> ReturnT:
+        """Invoke sync or async callables through explicit async resolution.
+
+        Args:
+            callback: Callable whose annotated dependencies are resolved.
+            parameters: Explicit values keyed by callable parameter name.
+
+        Returns:
+            The callback result, awaiting it when necessary.
         """
         ...
 

@@ -7,8 +7,9 @@ title: "Hello World"
 The example composes a native application configuration, service provider,
 contract-based service, and logger. The greeting implementation receives its
 configuration repository and logger through automatic constructor injection.
-FastAPI currently supplies the routing boundary; Titanspan owns the shared
-container, request context, startup, and shutdown lifecycle.
+This example uses FastAPI's explicit routing interoperability API. The
+native Routing component provides Titanspan-owned route registration and
+dispatch.
 
 Run it from the repository root:
 
@@ -36,5 +37,5 @@ async with application:
     print(greeter.greet("worker"))
 ```
 
-FastAPI routing remains the HTTP integration boundary; this example does not
-imply a native Titanspan routing component.
+The example keeps its explicit FastAPI route and dependency bridge. See the
+[native Routing guide](/titanspan/routing/) for application-owned routes.

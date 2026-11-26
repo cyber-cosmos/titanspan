@@ -15,8 +15,8 @@ hero:
 
 Titanspan is an async-first Python application framework for building
 intelligent systems. Its implemented foundation brings application lifecycle,
-service composition, configuration, logging, and dependency resolution under
-one cohesive application API.
+service composition, configuration, logging, dependency resolution, and
+native routing under one cohesive application API.
 
 ## Install from source
 
@@ -50,7 +50,8 @@ app = application.asgi
 ```
 
 The application owns its native container, provider lifecycle, and shared
-execution context. FastAPI supplies HTTP routing and ASGI hosting.
+execution context. Titanspan Routing owns route definitions and dispatch;
+FastAPI and Starlette provide the underlying ASGI adapter.
 
 ## Understand the foundation
 
@@ -61,9 +62,9 @@ facades, and request handling. Established Python libraries provide the
 underlying dependency resolution, HTTP hosting, settings validation, and
 structured logging mechanisms.
 
-Configuration, the service container, contracts, HTTP, logging, Collections,
-and Support are implemented. Database, framework-owned routing, AI workflows,
-distributed jobs, and high-throughput data processing remain planned. See the
+Configuration, the service container, contracts, HTTP, Routing, logging,
+Collections, and Support are implemented. Database, AI workflows, distributed
+jobs, and high-throughput data processing remain planned. See the
 [roadmap](https://github.com/titanspan/titanspan/blob/main/ROADMAP.md) for
 current status.
 
@@ -75,8 +76,9 @@ current status.
   application context, and lifecycle ownership.
 - Explore [configuration](/titanspan/config/), the [service
   container](/titanspan/container/), [contracts](/titanspan/contracts/),
-  [HTTP](/titanspan/http/), [logging](/titanspan/logging/),
-  [Collections](/titanspan/collections/), and [Support](/titanspan/support/).
+  [HTTP](/titanspan/http/), [Routing](/titanspan/routing/),
+  [logging](/titanspan/logging/), [Collections](/titanspan/collections/),
+  and [Support](/titanspan/support/).
 - Read the [architecture guide](/titanspan/architecture/) and
   [engineering specifications](/titanspan/specifications/backend-boundaries/).
 - Contributors can read the

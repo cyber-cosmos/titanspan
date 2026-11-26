@@ -7,6 +7,14 @@ Python-specific messages and structured details for callers.
 from __future__ import annotations
 
 
+class UriContextError(RuntimeError):
+    """Report URI operations that require absent application services.
+
+    URI parsing remains available without an Application. Route factories and
+    native redirects need an explicitly active application context.
+    """
+
+
 class ArrayValueError(ValueError):
     """Report a value that does not satisfy a typed array accessor.
 
@@ -391,4 +399,5 @@ __all__ = [
     "NoMatchingArrayItemError",
     "NonAdvancingNumberRangeError",
     "RandomSelectionError",
+    "UriContextError",
 ]

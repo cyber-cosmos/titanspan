@@ -7,9 +7,10 @@ nested mutation and RFC 3986 query encoding to Titanspan's Arr helpers.
 from __future__ import annotations
 
 import sys
+from contextlib import contextmanager
 from contextvars import ContextVar
 from dataclasses import dataclass, replace
-from typing import TYPE_CHECKING, ClassVar, Protocol, Self, TypeGuard
+from typing import TYPE_CHECKING, Self, TypeGuard
 from urllib.parse import (
     SplitResult,
     quote,
@@ -18,11 +19,11 @@ from urllib.parse import (
     urlunsplit,
 )
 
-from starlette.responses import RedirectResponse
-
 from titanspan.contracts import HtmlRenderable
+from titanspan.contracts.routing import UriUrlGenerator
 from titanspan.support.arr import Arr
 from titanspan.support.conditionable import Conditionable
+from titanspan.support.exceptions import UriContextError
 from titanspan.support.helpers import data_get, data_has, enum_value
 from titanspan.support.macroable import Macroable
 from titanspan.support.stringable import Stringable
@@ -30,8 +31,10 @@ from titanspan.support.tappable import Tappable
 from titanspan.support.uri_query_string import UriQueryString
 
 if TYPE_CHECKING:
-    from collections.abc import Callable, Iterable, Mapping, Sequence
+    from collections.abc import Callable, Generator, Iterable, Mapping, Sequence
     from enum import Enum
+
+    from titanspan.contracts.http import HttpResponse, ResponseFactory
 
 type _UriText = str | Stringable
 type _QueryData = dict[str | int, object]
@@ -42,7 +45,11 @@ _USERINFO_AFTER_SEPARATOR_SAFE = "!$&'()*+,;=:"
 _MAX_PORT = 65535
 _MAX_INTEGER_KEY_LENGTH = len(str(sys.maxsize))
 _PORT_ERROR = "URI port must be between 0 and 65535"
-_RESOLVER_ERROR = "URI URL generator resolver is not configured"
+_RESOLVER_ERROR = "URI factories require an active application context."
+_RESPONSE_FACTORY_ERROR = "URI redirects require an active application context."
+_REDIRECT_HEADER_OVERRIDE_ERROR = (
+    "Redirect headers cannot replace the validated Location value."
+)
 _QUERY_INDEX_ERROR = "URI query list indexes must be contiguous"
 
 
@@ -117,81 +124,6 @@ def _unique_values(values: Iterable[object]) -> list[object]:
         if not any(value == existing for existing in unique):
             unique.append(value)
     return unique
-
-
-class UriUrlGenerator(Protocol):
-    """Define the route URL operations used by :class:`Uri` factories.
-
-    Implementations adapt an application's routing service to the URI
-    factories without coupling this Support module to a router.
-    """
-
-    def to(self, path: str) -> str:
-        """Build an absolute URL for a path.
-
-        Args:
-            path: The application path to resolve.
-
-        Returns:
-            The generated URL.
-        """
-        ...
-
-    def route(
-        self,
-        name: str,
-        parameters: Mapping[str, object],
-        absolute: bool,
-    ) -> str:
-        """Build an URL for a named route.
-
-        Args:
-            name: The registered route name.
-            parameters: Values used to fill route placeholders.
-            absolute: Whether the generated URL includes an origin.
-
-        Returns:
-            The generated route URL.
-        """
-        ...
-
-    def signed_route(
-        self,
-        name: str,
-        parameters: Mapping[str, object],
-        expiration: object,
-        absolute: bool,
-    ) -> str:
-        """Build a signed URL for a named route.
-
-        Args:
-            name: The registered route name.
-            parameters: Values used to fill route placeholders.
-            expiration: The signature expiration value.
-            absolute: Whether the generated URL includes an origin.
-
-        Returns:
-            The generated signed route URL.
-        """
-        ...
-
-    def action(
-        self,
-        action: str | Sequence[str],
-        parameters: Mapping[str, object],
-        absolute: bool,
-    ) -> str:
-        """Build a URL for a controller action.
-
-        Args:
-            action: The controller action name or descriptor.
-            parameters: Values used to fill action placeholders.
-            absolute: Whether the generated URL includes an origin.
-
-        Returns:
-            The generated action URL.
-        """
-        ...
 
 
 @dataclass(frozen=True, slots=True)
@@ -443,6 +375,38 @@ _URL_GENERATOR: ContextVar[Callable[[], UriUrlGenerator] | None] = ContextVar(
     "titanspan_uri_url_generator",
     default=None,
 )
+_RESPONSE_FACTORY: ContextVar[Callable[[], ResponseFactory] | None] = (
+    ContextVar(
+        "titanspan_uri_response_factory",
+        default=None,
+    )
+)
+
+
+@contextmanager
+def bind_uri_services(
+    url_generator: Callable[[], UriUrlGenerator] | None,
+    response_factory: Callable[[], ResponseFactory] | None,
+) -> Generator[None, None, None]:
+    """Bind URI integrations for one application execution context.
+
+    Foundation enters this context alongside its canonical application
+    context. ContextVar tokens restore nested apps and concurrent tasks.
+
+    Args:
+        url_generator: Optional resolver for route-aware URI factories.
+        response_factory: Optional resolver for native URI redirects.
+
+    Yields:
+        Control while both application-owned services remain addressable.
+    """
+    generator_token = _URL_GENERATOR.set(url_generator)
+    factory_token = _RESPONSE_FACTORY.set(response_factory)
+    try:
+        yield
+    finally:
+        _RESPONSE_FACTORY.reset(factory_token)
+        _URL_GENERATOR.reset(generator_token)
 
 
 class Uri(
@@ -454,18 +418,14 @@ class Uri(
     """Represent an immutable URI with fluent component updates.
 
     URL parsing and component composition use :mod:`urllib.parse`. Query
-    serialization delegates to :class:`Arr`; route generation uses an
-    explicitly configured callback.
+    serialization delegates to :class:`Arr`; route generation uses the
+    active application's native URL generator.
 
     Notes:
         The string value retains credentials by design. ``repr`` removes
         user information so accidental diagnostic output does not expose it.
         This class parses URLs but does not validate destinations for SSRF.
     """
-
-    _url_generator: ClassVar[
-        ContextVar[Callable[[], UriUrlGenerator] | None]
-    ] = _URL_GENERATOR
 
     def __init__(self, uri: _UriText | SplitResult = "") -> None:
         """Create a URI from a string, Stringable, or parsed standard value.
@@ -511,7 +471,7 @@ class Uri(
             A URI containing the generated absolute or relative URL.
 
         Raises:
-            RuntimeError: If no URL generator resolver is configured.
+            UriContextError: If no application context is active.
         """
         return cls(cls._generator().to(path))
 
@@ -533,7 +493,7 @@ class Uri(
             A URI containing the generated route.
 
         Raises:
-            RuntimeError: If no URL generator resolver is configured.
+            UriContextError: If no application context is active.
         """
         route_name = enum_value(name)
         return cls(
@@ -968,21 +928,29 @@ class Uri(
         self,
         status: int = 302,
         headers: Mapping[str, str] | None = None,
-    ) -> RedirectResponse:
-        """Create a Starlette redirect response for this URI.
+    ) -> HttpResponse:
+        """Create a redirect through the active native response factory.
 
         Args:
             status: The HTTP redirect status code.
             headers: Optional response headers.
 
         Returns:
-            A Starlette redirect response with this URI as its location.
+            Native response with a validated Location header.
+
+        Raises:
+            UriContextError: If no application response factory is active.
+            ValueError: If the destination violates redirect policy.
         """
-        return RedirectResponse(
-            self.value(),
-            status_code=status,
-            headers=dict(headers or {}),
-        )
+        resolver = _RESPONSE_FACTORY.get()
+        if resolver is None:
+            raise UriContextError(_RESPONSE_FACTORY_ERROR)
+        response = resolver().redirect(self.value(), status=status)
+        for name, value in (headers or {}).items():
+            if name.casefold() == "location":
+                raise ValueError(_REDIRECT_HEADER_OVERRIDE_ERROR)
+            response.with_header(name, value)
+        return response
 
     def to_stringable(self) -> Stringable:
         """Wrap the URI string in Titanspan's fluent string type.
@@ -1063,18 +1031,6 @@ class Uri(
         for value in values:
             sys.stdout.write(f"{value!r}\n")
         return self
-
-    @classmethod
-    def set_url_generator_resolver(
-        cls,
-        resolver: Callable[[], UriUrlGenerator] | None,
-    ) -> None:
-        """Set or clear the active context's URL generator resolver.
-
-        Args:
-            resolver: A factory returning a URL generator, or ``None``.
-        """
-        cls._url_generator.set(resolver)
 
     def get_uri(self) -> SplitResult:
         """Return Python's parsed URI representation.
@@ -1181,11 +1137,11 @@ class Uri(
             The configured URL generator.
 
         Raises:
-            RuntimeError: If no resolver was configured.
+            UriContextError: If no application context is active.
         """
-        resolver = cls._url_generator.get()
+        resolver = _URL_GENERATOR.get()
         if resolver is None:
-            raise RuntimeError(_RESOLVER_ERROR)
+            raise UriContextError(_RESOLVER_ERROR)
         return resolver()
 
 

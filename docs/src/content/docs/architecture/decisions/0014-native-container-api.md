@@ -9,7 +9,7 @@ title: "ADR 0014: Native service container API"
 - Date: 2026-11-25
 
 > Status update: The native container now composes framework services in
-> `Application`. Only FastAPI route injection retains a separate graph; see
+> `Application`. Explicit FastAPI dependency injection retains an interoperability bridge; see
 > ADR 0018. Contextual injection, service extensions, resolution callbacks,
 > and sync/async task-local overrides were subsequently implemented with the
 > constraints recorded in ADR 0019.

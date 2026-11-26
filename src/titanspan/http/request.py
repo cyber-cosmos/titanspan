@@ -39,6 +39,7 @@ _BODY_ALREADY_CONSUMED_ERROR = "The request body stream was already consumed."
 _INVALID_FORM_ERROR = "The request form is invalid."
 _OBJECT_JSON_REQUIRED_ERROR = "Object-shaped JSON is required for input."
 _REQUEST_LIFECYCLE_ENDED_ERROR = "The request lifecycle has already ended."
+_EMPTY_ATTRIBUTE_NAME_ERROR = "Request attribute names cannot be empty."
 
 
 class RequestBackend(Protocol):
@@ -232,6 +233,7 @@ class Request(HttpRequest):
         self._cached_body: bytes | None = None
         self._cached_json: JsonValue | _Missing = _MISSING
         self._cached_form: Mapping[str, object] | None = None
+        self._attributes: dict[str, object] = {}
         self._stream_started = False
         self._closed = False
 
@@ -385,6 +387,38 @@ class Request(HttpRequest):
         return tuple(
             value for name, value in self._backend.query_items if name == key
         )
+
+    def attribute(self, key: str, default: object = None) -> object:
+        """Read one request-local attribute without consuming the body.
+
+        Args:
+            key: Middleware or routing metadata name.
+            default: Value returned when the attribute is absent.
+
+        Returns:
+            The stored request-local value or default.
+
+        Raises:
+            RequestError: If the owning request scope has already closed.
+        """
+        self._ensure_open()
+        return self._attributes.get(key, default)
+
+    def set_attribute(self, key: str, value: object) -> None:
+        """Store execution-local metadata for middleware and dispatch.
+
+        Args:
+            key: Non-empty attribute name.
+            value: Metadata value owned by the active request scope.
+
+        Raises:
+            RequestError: If the owning request scope has already closed.
+            ValueError: If the attribute key is empty.
+        """
+        self._ensure_open()
+        if not key:
+            raise ValueError(_EMPTY_ATTRIBUTE_NAME_ERROR)
+        self._attributes[key] = value
 
     def cookie(self, key: str, default: str | None = None) -> str | None:
         """Return one parsed cookie value.
@@ -884,6 +918,7 @@ class Request(HttpRequest):
     _cached_body: bytes | None
     _cached_json: JsonValue | _Missing
     _cached_form: Mapping[str, object] | None
+    _attributes: dict[str, object]
     _stream_started: bool
     _closed: bool
 

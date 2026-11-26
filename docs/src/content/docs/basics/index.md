@@ -15,5 +15,6 @@ The supported foundation currently includes:
 - The initial `titanspan.support` array utilities and reusable conditional
   and macro registration primitives.
 
-Use native FastAPI APIs for routes and middleware. Service-provider discovery,
-facades, fluent routing, and configuration repositories are planned.
+Use Titanspan Routing for application-owned route definitions and dispatch.
+FastAPI remains available for explicit interoperability. Service providers,
+facades, and the configuration repository are also implemented.

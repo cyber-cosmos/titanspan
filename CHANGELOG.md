@@ -5,6 +5,12 @@ public release.
 
 ## Unreleased
 
+- Added initial native routing integration with the application container,
+  controller dispatch, request scopes, route helpers, and a canonical URL
+  generator. URI route factories and redirects now resolve from the active
+  application context and use the same route catalog and native response
+  validation. Signed URLs remain explicitly unavailable until secure key
+  management and verification are implemented.
 - Added the initial native HTTP component: scoped ASGI requests, bounded body
   and multipart parsing, native responses, SSE and streaming, ordered
   dependency-injected middleware, and pooled synchronous/asynchronous outgoing

@@ -7,7 +7,16 @@ metadata; planned framework modules remain unavailable as supported APIs.
 from importlib.metadata import version
 
 from titanspan.foundation import Application, app
+from titanspan.routing.helpers import Redirector, redirect, route, url
 
 __version__ = version("titanspan")
 
-__all__ = ["Application", "__version__", "app"]
+__all__ = [
+    "Application",
+    "Redirector",
+    "__version__",
+    "app",
+    "redirect",
+    "route",
+    "url",
+]

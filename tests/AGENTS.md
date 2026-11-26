@@ -10,6 +10,8 @@ implemented Titanspan behavior; it does not make planned APIs real.
   multi-line Google-style docstring and complete annotations. Use comments to
   explain tricky setup, synchronization, and assertions rather than narrate
   ordinary test code.
+- Follow the root technical writing standard for test docstrings and comments.
+  Keep them concise and preserve exact identifiers and failure details.
 - Assert public contracts and observable behavior. Mocks may isolate external
   boundaries but must not replace the behavior under test.
 - Write genuine integration tests for implemented library boundaries. A

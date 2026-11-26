@@ -13,7 +13,7 @@ title: "ADR 0015: Synchronous-first container resolution"
 > service graph. ADR 0018 subsequently made `Container` the composition root
 > for framework services and added the context-local `app()` helper.
 > Contextual sources, callbacks, extensions, and temporary overrides are
-> described in ADR 0019. FastAPI route injection still uses its native bridge;
+> described in ADR 0019. Explicit FastAPI dependency injection still uses its native bridge;
 > the separate raw provider graph is reserved for explicit interoperability.
 
 ## Context

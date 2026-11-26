@@ -48,6 +48,10 @@ export const documentationSidebar = [
         items: [{ autogenerate: { directory: "http" } }],
       },
       {
+        label: "Routing",
+        items: [{ autogenerate: { directory: "routing" } }],
+      },
+      {
         label: "Logging",
         items: [{ autogenerate: { directory: "logging" } }],
       },

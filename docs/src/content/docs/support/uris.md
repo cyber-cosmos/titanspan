@@ -6,7 +6,8 @@ title: "URI utilities"
 
 `Uri` provides an immutable interface over Python's `urllib.parse`. It
 exposes URI components, fluent component changes, nested query data, and
-Starlette redirect responses.
+application-aware route factories. Parsing and ordinary URI manipulation do
+not require an active application.
 
 ## Construct and inspect
 
@@ -26,9 +27,8 @@ assert uri.fragment() == "overview"
 
 `Uri` accepts a string, Titanspan `Stringable`, or `urllib.parse.SplitResult`.
 `get_uri()` returns that standard-library parsed representation. It does not
-expose League URI objects. `path_segments()` returns a native tuple that
-preserves the ordered path segments without coupling URI parsing to the
-Collections component.
+expose third-party URI objects. `path_segments()` returns a native tuple that
+preserves ordered path segments without coupling URI parsing to Collections.
 
 Values are immutable: component methods return a new `Uri` and leave the
 original unchanged.
@@ -82,31 +82,63 @@ keys. Use `replace_query()` to replace the full query mapping, and
 `with_query_if_missing()` to keep existing paths. `push_onto_query()` appends
 values and removes duplicate list values in first-seen order.
 
-## Route URL generation
+## Application URLs
 
 `Uri.to`, `Uri.route`, `Uri.signed_route`, `Uri.temporary_signed_route`, and
-`Uri.action` delegate URL generation to a caller-provided
-`UriUrlGenerator` protocol. Install a factory in the current execution
-context with `set_url_generator_resolver()`:
+`Uri.action` resolve the active application's registered `UriUrlGenerator`
+contract. Foundation binds the resolver together with the application
+ContextVar, so nested and concurrent application contexts restore correctly.
+Application developers do not install a separate resolver.
 
 ```python
-Uri.set_url_generator_resolver(lambda: application_url_generator)
-profile_url = Uri.route("profiles.show", {"profile": "ada"})
+from titanspan import Application
+from titanspan.support import Uri
+
+application = Application(
+    config={"app": {"url": "https://docs.example.test"}},
+)
+application.router.get(
+    "/profiles/{profile}",
+    show_profile,
+).name("profiles.show")
+
+with application.context():
+    profile_url = Uri.route("profiles.show", {"profile": "ada"})
+    relative_url = Uri.route(
+        "profiles.show",
+        {"profile": "ada"},
+        absolute=False,
+    )
 ```
 
-The protocol is an integration seam; Titanspan does not yet provide a
-framework URL generator. These factories raise `RuntimeError` if no resolver
-is active. The resolver is held in a `ContextVar`, so separate async contexts
-do not share a mutable process-global generator.
+The same route catalog powers `Uri.route`, `Uri.action`, the Routing helpers,
+and named redirects. Named route path values are percent-encoded; remaining
+values become query parameters. Lists use repeated query keys. After startup,
+ordinary named paths use the supported ASGI router path-reversal operation.
+Absolute URLs require an explicit trusted `routing.origin` or `app.url`; the
+request Host and forwarded headers are never used as an origin.
+
+Action lookup accepts a dotted callable identity such as
+`"ProfileController.show"`. It fails if no registered route matches or if
+the action appears at distinct paths. Prefer a route name when several paths
+intentionally share an action.
+
+Signed URLs are unavailable until Titanspan has an application key-management
+contract that supports both signing and verification. `Uri.signed_route` and
+`Uri.temporary_signed_route` raise `RouteUrlError` instead of returning an
+unsigned URL.
 
 ## Web interoperability
 
-`redirect()` returns Starlette's `RedirectResponse`, and `to_stringable()`
-returns Titanspan's fluent `Stringable`. `to_html()` returns the raw URI
-string. That value is not escaped for an HTML attribute or validated as a
-safe redirect destination.
-Escape it for the destination context and apply an application allowlist when
-URI input is untrusted.
+`Uri.redirect()` resolves the active native `ResponseFactory`. It accepts
+local destinations and passes them through the HTTP component's redirect
+validation. Protocol-relative and external destinations remain rejected by
+default. Use the native Routing `redirect()` helper for named-route redirects;
+it generates a relative URL from the same application route catalog.
+
+`to_stringable()` returns Titanspan's fluent `Stringable`. `to_html()` returns
+the raw URI string and does not escape it for an HTML attribute. URI parsing
+does not validate a destination for SSRF or other network access.
 
 `value()` and `to_string()` preserve user information in the URI string.
 `repr(uri)` omits credentials to reduce accidental disclosure in diagnostics,
@@ -119,9 +151,12 @@ but callers should avoid logging `value()` when it may contain secrets.
 - `path_segments()` returns `tuple[str, ...]`.
 - Parsed query values remain strings; nested values use Python lists and
   mappings.
-- Route methods require an injected URL generator; a routing integration is
-  not implemented yet.
-- `redirect()` returns Starlette's redirect response.
+- Route factories and redirects require an active Titanspan Application;
+  ordinary parsing and component changes do not.
+- `UriUrlGenerator` is canonically defined in `contracts.routing` and
+  re-exported from Support as the same object.
+- `redirect()` returns the native `HttpResponse` contract after validation by
+  the application-owned `ResponseFactory`.
 - URI parsing does not validate an address for SSRF or open redirect safety.
 
 See the [Support specification](/titanspan/specifications/support/) for component

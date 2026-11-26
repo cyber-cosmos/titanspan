@@ -8,5 +8,6 @@ from titanspan.facades.base import Facade
 from titanspan.facades.config import Config
 from titanspan.facades.http import Http
 from titanspan.facades.log import Log
+from titanspan.facades.route import Route
 
-__all__ = ["Config", "Facade", "Http", "Log"]
+__all__ = ["Config", "Facade", "Http", "Log", "Route"]
