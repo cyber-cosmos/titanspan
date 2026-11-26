@@ -8,12 +8,14 @@ Use `Repository.override()` or `Config.override()` for temporary execution
 context values:
 
 ```python
+from titanspan import Application
 from titanspan.config import Repository
 from titanspan.facades import Config
 
+application = Application(config={"app": {"debug": False}})
 repository = Repository({"app": {"debug": False}})
 
-with Config.use(repository):
+with application.context(), Config.use(repository):
     with Config.override({"app.debug": True}):
         assert Config.boolean("app.debug") is True
     assert Config.boolean("app.debug") is False
@@ -29,7 +31,8 @@ when an effective snapshot is created. Custom leaf objects retain identity.
 The base repository is not mutated. These scopes do not make simultaneous
 mutation of the base repository thread-safe.
 
-`Config.use()` binds a repository only to the current execution context. The
-application binds it around HTTP request middleware. For background or CLI
-code outside that scope, bind it explicitly or inject the canonical
-`ConfigRepository` contract.
+`Config.use()` temporarily substitutes the repository contract through the
+application Container. The application context must be active. Normal
+application work uses the registered repository without an extra binding.
+Background and CLI execution must establish the application context or inject
+the canonical `ConfigRepository` contract.

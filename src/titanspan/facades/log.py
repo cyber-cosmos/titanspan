@@ -26,14 +26,9 @@ from titanspan.logging.testing import FakeLog
 if TYPE_CHECKING:
     from collections.abc import Callable, Generator, Mapping
 
-    from titanspan.contracts.container import ServiceContainer
     from titanspan.contracts.logging import LogDriver
     from titanspan.logging.record import LogRecord
 
-_ACTIVE_MANAGER: ContextVar[LoggingManager | None] = ContextVar(
-    "titanspan_active_log_manager",
-    default=None,
-)
 _ACTIVE_FAKE: ContextVar[FakeLog | None] = ContextVar(
     "titanspan_active_log_fake",
     default=None,
@@ -44,64 +39,29 @@ _FAKE_CONFIGURATION_ERROR = (
 
 
 class Log(Facade[LoggingManager]):
-    """Resolve logging operations from an explicitly active manager.
+    """Resolve logging operations from the active application manager.
 
-    Use ``with Log.use(manager):`` around application code or bind the
-    manager within an application execution scope. The context variable is
-    isolated across asynchronous tasks and restored on scope exit.
+    The facade resolves its manager through the active application
+    container. Use :meth:`Facade.use` for temporary, container-owned service
+    replacement in tests and execution-local customization.
     """
 
     service_contract = LoggingManager
-
-    @classmethod
-    def resolve_from_container(
-        cls,
-        container: ServiceContainer,
-    ) -> LoggingManager:
-        """Resolve the canonical manager from an application container.
-
-        Args:
-            container: Active application service registry.
-
-        Returns:
-            The manager registered by the logging service provider.
-        """
-        return container.make(LoggingManager)
-
-    @classmethod
-    @contextmanager
-    def use(cls, manager: LoggingManager) -> Generator[None, None, None]:
-        """Bind a manager to the current execution context.
-
-        Args:
-            manager: The application manager providing native channels.
-
-        Yields:
-            Control while facade operations use the manager.
-        """
-        token = _ACTIVE_MANAGER.set(manager)
-        try:
-            yield
-        finally:
-            _ACTIVE_MANAGER.reset(token)
 
     @classmethod
     def manager(cls) -> LoggingManager:
         """Return the active manager for this execution context.
 
         Returns:
-            The manager explicitly bound through :meth:`use`.
+            The manager registered by the active application.
 
         Raises:
-            LogContextError: If no manager is active.
+            LogContextError: If no application context is active.
         """
-        manager = _ACTIVE_MANAGER.get()
-        if manager is not None:
-            return manager
         try:
             return cls.resolve_service()
         except ApplicationContextError as error:
-            message = "Bind an application context before facade logging"
+            message = "Bind an application context before using the Log facade."
             raise LogContextError(message) from error
 
     @classmethod
@@ -697,13 +657,12 @@ class Log(Facade[LoggingManager]):
             drivers={"memory": lambda _: fake_driver},
         )
         fake = FakeLog(fake_driver)
-        manager_token = _ACTIVE_MANAGER.set(fake_manager)
         fake_token = _ACTIVE_FAKE.set(fake)
         try:
-            yield fake
+            with cls.use(fake_manager):
+                yield fake
         finally:
             _ACTIVE_FAKE.reset(fake_token)
-            _ACTIVE_MANAGER.reset(manager_token)
             fake_manager.close()
 
     @classmethod

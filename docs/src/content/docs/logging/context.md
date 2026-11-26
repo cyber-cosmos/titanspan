@@ -43,7 +43,8 @@ Use `without_context`, `flush_shared_context`, and `flush_context` to remove
 values. The `Log.context(...)` scope restores its previous values in a
 `finally` block, including when application code raises or is cancelled.
 
-The facade must be bound with `Log.use(manager)` for standalone use. Titanspan
-does not keep a global mutable manager or context repository. Workflow, agent,
-tool, job, and trace metadata remain the responsibility of their owning
-execution-scope integrations.
+`Log.use(manager)` temporarily replaces the manager through the active
+application Container. The replacement follows Container override rules and
+remains caller-owned. Titanspan does not keep a global mutable manager or
+context repository. Workflow, agent, tool, job, and trace metadata remain the
+responsibility of their owning execution-scope integrations.

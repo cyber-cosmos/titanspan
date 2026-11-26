@@ -14,7 +14,6 @@ from titanspan.routing.router import Router
 if TYPE_CHECKING:
     from collections.abc import Callable, Sequence
 
-    from titanspan.contracts.container import ServiceContainer
     from titanspan.contracts.http import HttpMiddleware
     from titanspan.contracts.routing import (
         RouteAction,
@@ -35,18 +34,6 @@ class Route(Facade[Router]):
     """
 
     service_contract = Router
-
-    @classmethod
-    def resolve_from_container(cls, container: ServiceContainer) -> Router:
-        """Resolve the application-owned Router through the active registry.
-
-        Args:
-            container: Active native service container.
-
-        Returns:
-            The Router used to compile incoming ASGI routes.
-        """
-        return container.make(Router)
 
     @classmethod
     @overload

@@ -11,6 +11,7 @@ from typing import TYPE_CHECKING, overload
 import anyio
 import pytest
 
+from titanspan import Application
 from titanspan.config import ConfigArray, ConfigContextError, Repository
 from titanspan.facades import Config
 from titanspan.support import config
@@ -285,6 +286,7 @@ def test_config_facade_and_helper_share_one_repository() -> None:
     Returns:
         None.
     """
+    application = Application()
     repository = Repository(
         {
             "app": {"name": "Titanspan", "debug": False},
@@ -295,7 +297,7 @@ def test_config_facade_and_helper_share_one_repository() -> None:
         }
     )
 
-    with Config.use(repository):
+    with application.context(), Config.use(repository):
         assert Config.repository() is repository
         assert Config.has("app.name")
         assert Config.get("app.name") == "Titanspan"
@@ -342,6 +344,7 @@ def test_config_override_is_restored_after_exceptions() -> None:
     Returns:
         None.
     """
+    application = Application()
     repository = Repository({"app": {"debug": False}})
 
     def fail_inside_override() -> None:
@@ -355,6 +358,7 @@ def test_config_override_is_restored_after_exceptions() -> None:
             raise RuntimeError(_EXPECTED_FAILURE)
 
     with (
+        application.context(),
         Config.use(repository),
         pytest.raises(
             RuntimeError,
@@ -363,7 +367,7 @@ def test_config_override_is_restored_after_exceptions() -> None:
     ):
         fail_inside_override()
 
-    with Config.use(repository):
+    with application.context(), Config.use(repository):
         assert Config.boolean("app.debug") is False
 
 
@@ -373,6 +377,7 @@ def test_facade_uses_alternate_capabilities_without_concrete_checks() -> None:
     The adapted repository has a distinct concrete identity but implements
     the same supported configuration capabilities.
     """
+    application = Application()
     repository = _AlternateConfigRepository()
     base_contract: ConfigRepository = repository
     typed_contract: TypedConfigReader = repository
@@ -384,7 +389,7 @@ def test_facade_uses_alternate_capabilities_without_concrete_checks() -> None:
     assert scoped_contract is repository
     assert diagnostic_contract is repository
 
-    with Config.use(repository):
+    with application.context(), Config.use(repository):
         assert Config.repository() is repository
         assert Config.string("app.name") == "Alternate"
         assert Config.get_many(["app.name"]) == {
@@ -407,6 +412,7 @@ async def test_config_overrides_are_isolated_between_concurrent_tasks() -> None:
     A synchronization event holds both tasks inside their override scopes at
     once, so this tests context-local state rather than sequential behavior.
     """
+    application = Application()
     repository = Repository({"app": {"name": "base"}})
     both_started = anyio.Event()
     arrivals = 0
@@ -426,7 +432,7 @@ async def test_config_overrides_are_isolated_between_concurrent_tasks() -> None:
             await both_started.wait()
             observed[name] = Config.get("app.name")
 
-    with Config.use(repository):
+    with application.context(), Config.use(repository):
         async with anyio.create_task_group() as group:
             group.start_soon(read_override, "task-a")
             group.start_soon(read_override, "task-b")
@@ -441,6 +447,7 @@ def test_config_facade_delegates_macro_lifecycle_to_repository() -> None:
     The facade keeps the repository as the single canonical macro owner and
     uses explicit invocation to preserve static discoverability.
     """
+    application = Application()
     repository = Repository({"app": {"name": "Titanspan"}})
 
     class ApplicationMixin:
@@ -477,7 +484,7 @@ def test_config_facade_delegates_macro_lifecycle_to_repository() -> None:
         """
         return target.get("app.name")
 
-    with Config.use(repository):
+    with application.context(), Config.use(repository):
         Config.flush_macros()
         try:
             Config.macro("configuredName", configured_name)

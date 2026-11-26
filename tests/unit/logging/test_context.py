@@ -7,6 +7,7 @@ leaking between independent application and workflow executions.
 import anyio
 import pytest
 
+from titanspan import Application
 from titanspan.facades import Log
 from titanspan.logging import LogManager, MemoryLogDriver
 from titanspan.logging.exceptions import LogContextError
@@ -136,10 +137,11 @@ def test_facade_supports_contextual_logging_and_native_fake_assertions() -> (
 
     Fake assertions inspect native records and do not expose backend objects.
     """
+    application = Application()
     original_driver = MemoryLogDriver()
     manager = _manager_with_driver(original_driver)
 
-    with Log.use(manager), Log.fake() as fake:
+    with application.context(), Log.use(manager), Log.fake() as fake:
         Log.with_context(request_id="request-1")
         Log.info("completed", workflow_id="flow-1")
         captured = Log.assert_logged(
@@ -159,10 +161,11 @@ async def test_facade_supports_explicit_async_logging() -> None:
 
     The resulting native record retains structured keyword context.
     """
+    application = Application()
     driver = MemoryLogDriver()
     manager = _manager_with_driver(driver)
 
-    with Log.use(manager):
+    with application.context(), Log.use(manager):
         await Log.info_async("workflow completed", workflow_id="flow-2")
 
     assert driver.records[0].message == "workflow completed"

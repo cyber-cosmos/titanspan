@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import pytest
 
+from titanspan import Application
 from titanspan.facades import Log
 from titanspan.logging import (
     ChannelConfiguration,
@@ -175,6 +176,7 @@ def test_facade_levels_and_context_resolve_the_active_manager() -> None:
 
     Log operations resolve only from the bound manager context.
     """
+    application = Application()
     driver = MemoryLogDriver()
     manager = _manager_with_memory(
         driver,
@@ -184,7 +186,7 @@ def test_facade_levels_and_context_resolve_the_active_manager() -> None:
         },
     )
 
-    with Log.use(manager):
+    with application.context(), Log.use(manager):
         Log.emergency("emergency")
         Log.alert("alert")
         Log.critical("critical")
@@ -221,10 +223,11 @@ async def test_facade_exposes_all_eight_asynchronous_level_methods() -> None:
 
     The facade preserves the active manager's native level values.
     """
+    application = Application()
     driver = MemoryLogDriver()
     manager = _manager_with_memory(driver)
 
-    with Log.use(manager):
+    with application.context(), Log.use(manager):
         await Log.emergency_async("emergency")
         await Log.alert_async("alert")
         await Log.critical_async("critical")

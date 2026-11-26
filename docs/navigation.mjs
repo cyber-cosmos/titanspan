@@ -44,6 +44,10 @@ export const documentationSidebar = [
         items: [{ autogenerate: { directory: "config" } }],
       },
       {
+        label: "Facades",
+        items: [{ autogenerate: { directory: "facades" } }],
+      },
+      {
         label: "Contracts",
         items: [{ autogenerate: { directory: "contracts" } }],
       },

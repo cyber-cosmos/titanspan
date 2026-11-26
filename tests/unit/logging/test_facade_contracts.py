@@ -10,6 +10,7 @@ from typing import TYPE_CHECKING
 
 import pytest
 
+from titanspan import Application
 from titanspan.facades import Log
 from titanspan.logging import (
     ChannelConfiguration,
@@ -61,9 +62,10 @@ def active_manager() -> Iterator[tuple[LogManager, list[MemoryLogDriver]]]:
     Yields:
         The bound manager and all separately owned memory destinations.
     """
+    application = Application()
     manager, drivers = _facade_manager()
     try:
-        with Log.use(manager):
+        with application.context(), Log.use(manager):
             yield manager, drivers
     finally:
         manager.close()
@@ -181,12 +183,51 @@ def test_facade_rejects_assertions_outside_a_fake_scope() -> None:
 
     Calling an assertion without an active fake fails explicitly.
     """
+    application = Application()
     manager, _ = _facade_manager()
 
-    with Log.use(manager), pytest.raises(RuntimeError):
+    with (
+        application.context(),
+        Log.use(manager),
+        pytest.raises(RuntimeError),
+    ):
         Log.assert_nothing_logged()
 
     manager.close()
+
+
+def test_log_fake_restores_the_container_manager_after_failure() -> None:
+    """Restore the application manager when fake usage raises.
+
+    The fake owns its temporary manager and leaves the original service
+    available for later resolutions.
+    """
+    application = Application(
+        config={
+            "logging": {
+                "default": "memory",
+                "channels": {"memory": {"driver": "memory"}},
+            },
+        }
+    )
+    failure = "fake scope failed"
+
+    with application.context():
+        original = Log.manager()
+
+        def fail_in_fake() -> None:
+            """Raise after resolving the temporary fake manager.
+
+            The outer scope verifies that the original manager is restored.
+            """
+            with Log.fake():
+                assert Log.manager() is not original
+                raise RuntimeError(failure)
+
+        with pytest.raises(RuntimeError, match=failure):
+            fail_in_fake()
+
+        assert Log.manager() is original
 
 
 @pytest.mark.anyio
@@ -195,9 +236,10 @@ async def test_facade_async_flush_and_close_methods_are_available() -> None:
 
     Callers await completion instead of relying on unmanaged tasks.
     """
+    application = Application()
     manager, _ = _facade_manager()
 
-    with Log.use(manager):
+    with application.context(), Log.use(manager):
         await Log.log_async("info", "async record")
         await Log.exception_async(
             "async exception record",

@@ -20,7 +20,11 @@ from titanspan._application_context import (
     ApplicationContextError,
     active_application_context,
 )
-from titanspan.config import ConfigCapabilityError, ConfigValueError
+from titanspan.config import (
+    ConfigCapabilityError,
+    ConfigValueError,
+    Repository,
+)
 from titanspan.container import (
     BindingResolutionError,
     FromConfig,
@@ -40,6 +44,7 @@ from titanspan.contracts.container import (
     AsyncServiceContainer,
     ServiceContainer,
 )
+from titanspan.contracts.events import EventDispatcher
 
 # Exception dispatch resolves these postponed annotations through Container.
 from titanspan.contracts.http import (
@@ -48,7 +53,7 @@ from titanspan.contracts.http import (
     ResponseFactory,  # noqa: TC001
 )
 from titanspan.contracts.logging import LoggingManager, LogWriter
-from titanspan.facades import Config, Facade, Log
+from titanspan.facades import Config, Event, Facade, Log
 from titanspan.foundation.exceptions import ApplicationLifecycleError
 from titanspan.logging import LogLifecycleError
 from titanspan.support import config
@@ -693,15 +698,59 @@ def test_facades_resolve_declared_contracts_from_the_shared_base() -> None:
 
     assert Config.service_contract is ConfigRepository
     assert Log.service_contract is LoggingManager
+    assert Event.service_contract is EventDispatcher
 
     with application.context():
         config_repository: ConfigRepository = Config.resolve_service()
         logging_manager: LoggingManager = Log.resolve_service()
+        event_dispatcher: EventDispatcher = Event.resolve_service()
 
     assert config_repository is application.config
     assert logging_manager is application.logging
+    assert event_dispatcher is application.make(EventDispatcher)
     assert issubclass(Config, Facade)
     assert issubclass(Log, Facade)
+
+
+def test_config_facade_replacement_is_visible_to_container_and_helpers() -> (
+    None
+):
+    """Route facade substitutions through the application container.
+
+    The facade, direct resolution, and Support helper must observe one
+    replacement instance inside the same application context.
+    """
+    application = Application(config={"app": {"name": "Original"}})
+    replacement = Repository({"app": {"name": "Replacement"}})
+
+    with application.context(), Config.use(replacement):
+        assert application.make(ConfigRepository) is replacement
+        assert Config.repository() is replacement
+        assert config() is replacement
+        assert Config.string("app.name") == "Replacement"
+
+
+def test_log_fake_replaces_the_container_visible_logger() -> None:
+    """Keep logger injection and facade calls on one fake manager.
+
+    A fake must replace the application contract so injected services and
+    facade calls resolve the same logger during the fake scope.
+    """
+    application = Application(
+        config={
+            "logging": {
+                "default": "memory",
+                "channels": {"memory": {"driver": "memory"}},
+            },
+        }
+    )
+
+    with application.context(), Log.fake() as fake:
+        injected_logger = application.make(LogWriter)
+
+        assert injected_logger is Log.channel()
+        injected_logger.info("shared fake service")
+        fake.assert_logged("info", "shared fake service")
 
 
 @pytest.mark.anyio

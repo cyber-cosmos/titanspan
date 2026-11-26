@@ -31,7 +31,7 @@ Component-private protocols remain in their owning component.
 | Contract | Purpose | Owner or evidence |
 | --- | --- | --- |
 | `ConfigRepository` | Typed hierarchical configuration access and mutation | `titanspan.config.Repository`; `tests/unit/config/` |
-| `ServiceContainer`, `AsyncServiceContainer` | Typed sync-safe and async dependency resolution | `titanspan.container.Container`; `tests/unit/container/` |
+| `ServiceContainer`, `AsyncServiceContainer` | Typed resolution and temporary context-local overrides | `titanspan.container.Container`; `tests/unit/container/`, `tests/unit/facades/` |
 | `ServiceRegistry` | Native instance, transient, singleton, and scoped registration | `titanspan.container.Container`; provider conformance tests |
 | `InstanceRegistration` | Explicit instance registration | `titanspan.container` |
 | `HtmlRenderable`, `DeferredDisplayValue` | Trusted and deferred HTML boundaries | Support implementation and tests |

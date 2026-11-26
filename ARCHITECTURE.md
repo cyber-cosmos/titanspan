@@ -52,10 +52,12 @@ in `_internal/`. Move shared values or contracts to dependency-safe locations
 to prevent cycles.
 
 Facades are context-bound entry points for application-owned services.
-`Config` and `Log` inherit one typed `Facade` base, declare the canonical
-service contract they resolve, and keep explicit methods for static
-discoverability. Their `use` and fake helpers are temporary execution-local
-test overrides; production resolution uses the active application container.
+`Config`, `Log`, `Http`, `Route`, and `Event` inherit one typed `Facade` base,
+declare the canonical service contract they resolve, and keep explicit methods
+for static discoverability. The base resolves each contract through the active
+application Container. `Facade.use` delegates temporary replacement to the
+Container override lifecycle. Component fakes retain their own testing state
+and must not create a second production service registry.
 Known public interoperability boundaries and remaining backend exposure are
 tracked in [`docs/src/content/docs/specifications/backend-boundaries.md`](docs/src/content/docs/specifications/backend-boundaries.md).
 
@@ -68,7 +70,7 @@ tracked in [`docs/src/content/docs/specifications/backend-boundaries.md`](docs/s
 | `contracts` | Dependency-independent typed protocols and shared abstraction boundaries. | Configuration, container, foundation, HTTP, logging, routing, and Support domains are implemented; some component contracts remain pending. See `docs/src/content/docs/specifications/contracts.md`. |
 | `support` | Shared utilities, managers, and lightweight helpers. | Selected native utilities implemented; see `docs/src/content/docs/specifications/support.md`. |
 | `config` | Typed configuration, trusted sources, environment integration, and safe snapshots. | Native repository, settings, source loader, cache, commands, and application provider implemented; see `docs/src/content/docs/config/`. |
-| `facades` | Context-aware access to application-owned services. | Shared typed facade base and execution-local `Config` and `Log` facades implemented. |
+| `facades` | Typed access to application-owned services through the active application context. | Shared typed base and `Config`, `Log`, `Http`, `Route`, and `Event` facades implemented. Temporary replacements delegate to Container overrides. |
 | `routing` | Application-owned route registration, groups, matching, controller dispatch, URL generation, and HTTP integration. | Initial component implemented against one route catalog; see `docs/src/content/docs/specifications/routing.md` for verified and pending capabilities. |
 | `http` | Incoming ASGI requests, native responses, middleware, streaming, and pooled outgoing clients. | Initial component implemented and application-integrated; pending behavior is listed in `docs/src/content/docs/specifications/http.md`. |
 | `auth` | Authentication, authorization, guards, gates, and policies. | Planned. |

@@ -15,7 +15,6 @@ if TYPE_CHECKING:
     from collections.abc import Sequence
     from contextlib import AbstractAsyncContextManager, AbstractContextManager
 
-    from titanspan.contracts.container import ServiceContainer
     from titanspan.contracts.events import EventSelector
     from titanspan.events.dispatcher import ListenerRegistration
     from titanspan.events.testing import EventFake
@@ -28,21 +27,6 @@ class Event(Facade[EventDispatcher]):
     """
 
     service_contract = EventDispatcher
-
-    @classmethod
-    def resolve_from_container(
-        cls,
-        container: ServiceContainer,
-    ) -> EventDispatcher:
-        """Resolve the dispatcher registered by the Events provider.
-
-        Args:
-            container: Active application registry.
-
-        Returns:
-            The application-owned dispatcher contract.
-        """
-        return container.make(EventDispatcher)
 
     @classmethod
     def dispatcher(cls) -> EventDispatcher:

@@ -8,6 +8,11 @@ public release.
 - Added an ordered sync and async Pipeline for transforms, continuation
   middleware, class stages, conditional inclusion, and native Container
   resolution. Pipeline owns no task scheduler or workflow state.
+- Facade service resolution now uses one shared typed implementation.
+  Temporary `Config.use()` and `Log.use()` replacements use the active
+  application Container and restore its graph after normal, exceptional,
+  or cancelled execution. Calls without an application context now fail
+  explicitly.
 - Added a typed Application builder, trusted provider entry points, path and
   environment helpers, and standalone execution. Lifecycle callbacks and
   native exception rendering use the application Container. Unhandled request

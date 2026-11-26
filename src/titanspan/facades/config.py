@@ -8,8 +8,7 @@ from __future__ import annotations
 
 from collections.abc import Callable, Generator, Mapping, Sequence
 from contextlib import contextmanager
-from contextvars import ContextVar, Token
-from typing import TYPE_CHECKING, TypeVar
+from typing import TypeVar
 
 from titanspan._application_context import ApplicationContextError
 from titanspan.config.exceptions import (
@@ -27,82 +26,33 @@ from titanspan.facades.base import Facade
 
 Default = TypeVar("Default")
 _MISSING_CONTEXT_ERROR = (
-    "Bind a configuration repository with Config.use() first."
+    "Bind an application context before using the Config facade."
 )
 _SCOPED_OVERRIDE_CAPABILITY = "scoped overrides"
 _TYPED_RETRIEVAL_CAPABILITY = "typed retrieval"
 _MACRO_CAPABILITY = "configuration macros"
-_ACTIVE_REPOSITORY: ContextVar[ConfigRepository | None] = ContextVar(
-    "titanspan_active_config_repository",
-    default=None,
-)
-
-if TYPE_CHECKING:
-    from titanspan.contracts.container import ServiceContainer
 
 
 class Config(Facade[ConfigRepository]):
-    """Resolve configuration operations from an active repository binding.
+    """Resolve configuration operations from the active application.
 
-    Bind a repository at application or test boundaries with ``use``. The
-    ContextVar token restores the previous binding on normal exit, failure,
-    or asynchronous cancellation. Production calls resolve through the
-    canonical active application container.
+    The facade resolves its repository through the active application
+    container. Use :meth:`Facade.use` for temporary, container-owned service
+    replacement in tests and execution-local customization.
     """
 
     service_contract = ConfigRepository
 
     @classmethod
-    def resolve_from_container(
-        cls,
-        container: ServiceContainer,
-    ) -> ConfigRepository:
-        """Resolve the canonical repository from an application container.
-
-        Args:
-            container: Active application service registry.
-
-        Returns:
-            The repository selected by the application composition root.
-        """
-        return container.make(ConfigRepository)
-
-    @classmethod
-    @contextmanager
-    def use(
-        cls,
-        repository: ConfigRepository,
-    ) -> Generator[None, None, None]:
-        """Bind one repository for the current execution context.
-
-        Args:
-            repository: Application-owned implementation of the config
-                repository protocol.
-
-        Yields:
-            Control while facade calls use the supplied repository.
-        """
-        token: Token[ConfigRepository | None] = _ACTIVE_REPOSITORY.set(
-            repository
-        )
-        try:
-            yield
-        finally:
-            _ACTIVE_REPOSITORY.reset(token)
-
-    @classmethod
     def repository(cls) -> ConfigRepository:
-        """Return the repository bound to this execution context.
+        """Return the repository owned by the active application.
 
         Returns:
             The active repository implementation.
 
         Raises:
-            ConfigContextError: If the caller has not bound a repository.
+            ConfigContextError: If no application context is active.
         """
-        repository = _ACTIVE_REPOSITORY.get()
-        if repository is not None:
-            return repository
         try:
             return cls.resolve_service()
         except ApplicationContextError as error:

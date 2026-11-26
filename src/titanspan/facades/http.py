@@ -32,8 +32,6 @@ if TYPE_CHECKING:
     from collections.abc import Mapping, Sequence
     from contextlib import AbstractAsyncContextManager, AbstractContextManager
 
-    from titanspan.contracts.container import ServiceContainer
-
 
 class Http(Facade[HttpClient]):
     """Resolve the application HTTP client and immutable request builders.
@@ -151,21 +149,6 @@ class Http(Facade[HttpClient]):
         """
         _ = cls
         require_http_fake().assert_sent_count(count, matcher)
-
-    @classmethod
-    def resolve_from_container(
-        cls,
-        container: ServiceContainer,
-    ) -> HttpClient:
-        """Resolve the application-owned pooled client contract.
-
-        Args:
-            container: Active application service registry.
-
-        Returns:
-            The same client used by dependency injection and providers.
-        """
-        return container.make(HttpClient)
 
     @classmethod
     def client(cls) -> HttpClient:

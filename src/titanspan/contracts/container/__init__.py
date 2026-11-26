@@ -133,6 +133,21 @@ class ServiceContainer(ServiceRegistry, Protocol):
         """
         ...
 
+    def override(
+        self,
+        bindings: Mapping[type[object], object],
+    ) -> "ServiceOverride":
+        """Create a temporary, context-local service replacement.
+
+        Args:
+            bindings: Service keys mapped to replacement values, classes,
+                or factories.
+
+        Returns:
+            A context manager that restores this container after exit.
+        """
+        ...
+
     def make[ServiceT](self, service: type[ServiceT]) -> ServiceT:
         """Synchronously resolve a sync-safe dependency graph.
 

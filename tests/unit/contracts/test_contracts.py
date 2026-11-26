@@ -9,6 +9,7 @@ from typing import overload
 
 import pytest
 
+from titanspan import Application
 from titanspan.config import ConfigCapabilityError
 from titanspan.contracts import (
     AsyncServiceContainer,
@@ -280,9 +281,10 @@ def test_basic_config_contract_does_not_require_typed_extensions() -> None:
     The fixture implements only the canonical read/write contract. A facade
     operation requiring typed validation reports the missing capability.
     """
+    application = Application()
     repository = _configuration_repository(RepositoryFixture())
 
-    with Config.use(repository):
+    with application.context(), Config.use(repository):
         assert Config.get("app.name") == "Titanspan"
         with pytest.raises(ConfigCapabilityError):
             Config.string("app.name")

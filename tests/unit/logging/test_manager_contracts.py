@@ -488,10 +488,5 @@ def test_facade_lifecycle_errors_are_titanspan_owned() -> None:
 
     The facade does not use a global active manager as a fallback.
     """
-    manager, _ = _make_manager()
-
-    with Log.use(manager):
-        assert Log.manager() is manager
     with pytest.raises(LogContextError):
         Log.manager()
-    manager.close()

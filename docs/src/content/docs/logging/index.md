@@ -21,6 +21,7 @@ handlers.
 scope. Standalone use can bind a manager explicitly:
 
 ```python
+from titanspan import Application
 from titanspan.facades import Log
 from titanspan.logging import LogManager
 
@@ -37,11 +38,16 @@ manager = LogManager(
     },
 )
 
-with Log.use(manager):
+application = Application()
+with application.context(), Log.use(manager):
     Log.info("Application started", component="api")
 
 manager.close()
 ```
+
+`Log.use()` replaces the application manager through the Container. It is
+useful for isolated tests and explicit execution-local substitution. Normal
+application code resolves the configured manager without a replacement.
 
 The configured severity uses RFC 5424 values. `LogLevel` defines `emergency`,
 `alert`, `critical`, `error`, `warning`, `notice`, `info`, and `debug`.
