@@ -9,6 +9,7 @@ source; this document defines the working sequence.
 - Read the request and inspect `git status` before editing. Preserve user work.
 - Read root `AGENTS.md`, applicable scoped instructions, and relevant parts of
   `ARCHITECTURE.md`, `ROADMAP.md`, `CONTRIBUTING.md`, `SECURITY.md`, and ADRs.
+- Read the writing standard and glossary when changing maintained prose.
 - Inspect the implementation, tests, package configuration, and current
   commands. Do not infer support from a placeholder module or roadmap entry.
 
@@ -80,8 +81,9 @@ packaging. Verify that a built wheel contains only intended runtime files.
 ## 7. Document
 
 Update user-facing docs, changelog, ADRs, and roadmap status as needed. Verify
-all examples against the current implementation. Keep planned functionality
-clearly marked as planned.
+all examples against the current implementation. Run `make prose-check`,
+`make terminology-check`, and `make prose-test` after prose changes. Keep
+planned functionality clearly marked as planned.
 
 ## 8. Report
 

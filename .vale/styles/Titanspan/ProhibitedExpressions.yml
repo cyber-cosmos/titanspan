@@ -1,0 +1,39 @@
+extends: existence
+message: "Avoid '%s'. State the action or result directly."
+level: error
+ignorecase: true
+scope: ~frontmatter
+# The policy includes punctuation in labels and canned question framing.
+nonword: true
+tokens:
+  - '\bdelve\b'
+  - '\bfoster\b'
+  - '\bleverage\b'
+  - '\bgenuinely\b'
+  - "it's worth noting"
+  - 'it is worth noting'
+  - '\bbottom line:'
+  - '\bsignificance:'
+  - '\bperspective:'
+  - '\bquestion\?'
+  - '(?:this isn''t about|this is not about)'
+  - 'it''s about .{1,80}\bnot about'
+tests:
+  - name: rejects an explicitly prohibited word
+    input: "Delve into the container lifecycle."
+    contains: "Avoid 'Delve'."
+  - name: rejects an explicitly prohibited phrase
+    input: "It is worth noting that shutdown is asynchronous."
+    contains: "worth noting"
+  - name: rejects a canned conclusion heading
+    input: "Bottom Line: the application has stopped."
+    contains: "Avoid 'Bottom Line:'"
+  - name: rejects question-answer framing
+    input: "Question? Answer. The service is unavailable."
+    contains: "Avoid 'Question?'"
+  - name: rejects contrastive framing
+    input: "This isn't about the container. It's about the provider."
+    contains: "isn't about"
+  - name: accepts direct wording
+    input: "Explain the container lifecycle."
+    want: ''

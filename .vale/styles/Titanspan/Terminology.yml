@@ -1,0 +1,22 @@
+extends: substitution
+message: "Use '%s' instead of '%s'."
+level: error
+ignorecase: true
+scope: ~frontmatter
+swap:
+  async first: async-first
+  sync first: sync-first
+  async only: async-only
+tests:
+  - name: enforces the async-first term
+    input: "Titanspan is async first."
+    contains: "Use 'async-first' instead of 'async first'."
+  - name: enforces the synchronous-first term
+    input: "Resolution is sync first."
+    contains: "Use 'sync-first' instead of 'sync first'."
+  - name: enforces the asynchronous-only term
+    input: "This component is async only."
+    contains: "Use 'async-only' instead of 'async only'."
+  - name: accepts canonical terms
+    input: "Titanspan is async-first and sync-first."
+    want: ''

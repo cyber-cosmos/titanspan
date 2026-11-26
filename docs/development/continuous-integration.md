@@ -11,9 +11,9 @@ the same request supersedes them.
 `.github/workflows/ci.yml` contains four stages:
 
 1. **Independent static checks** run in parallel: Ruff lint, Ruff format,
-   docstrings, comments, line length, Python syntax, strict Pyright,
-   architecture boundaries, public API checks, agent configuration, lockfile,
-   and Actions workflow policy and syntax.
+   docstrings, comments, technical documentation, line length, Python syntax,
+   strict Pyright, architecture boundaries, public API checks, agent
+   configuration, lockfile, and Actions workflow policy and syntax.
 2. **Tests and verification** run after static checks: a dedicated
    cross-component architecture integration job, unit and integration suites
    on Python 3.12 through 3.15, plus separately visible feature, regression,
@@ -39,6 +39,7 @@ flowchart TD
     format[Format]
     docs[Docblocks]
     comments[Comments]
+    technical[Technical documentation]
     lines[Line length]
     syntax[Syntax]
     types[Strict types]
@@ -60,11 +61,12 @@ flowchart TD
     componentApi[Support and logging component APIs]
   end
 
-  staticSummary[All 12 static jobs succeed]
+  staticSummary[All 13 static jobs succeed]
   lint --> staticSummary
   format --> staticSummary
   docs --> staticSummary
   comments --> staticSummary
+  technical --> staticSummary
   lines --> staticSummary
   syntax --> staticSummary
   types --> staticSummary
@@ -191,7 +193,14 @@ database or Redis services.
 
 ## Documentation and additional workflows
 
-The primary CI workflow validates and builds VitePress documentation.
+The primary CI workflow checks maintained Markdown, Python comments, and
+docstrings in the independently visible technical-documentation job. It
+installs Vale v3.28.1 with a verified SHA-256 digest, then syncs the pinned
+Std rules and Python grammar. Terminology errors fail the job. Passive voice,
+sentence length, spelling, word choice, and repeated words remain advisory.
+The job reports those findings and fails on tool or configuration errors.
+
+The primary CI workflow also validates and builds VitePress documentation.
 `docs.yml` separately audits the documentation npm lockfile and deploys Pages
 only for configured main-branch events. No custom domain is assumed.
 
@@ -209,6 +218,11 @@ Install the locked development environment with `uv sync --locked --all-groups`
 and use GNU Make for the same checks used by CI:
 
 ```bash
+make vale-install
+make vale-sync
+make prose-check
+make terminology-check
+make prose-test
 make lint
 make format-check
 make docs-check

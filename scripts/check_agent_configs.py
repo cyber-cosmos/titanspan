@@ -572,6 +572,9 @@ def _validate_makefile(root: Path) -> list[str]:
         "lock-check",
         "architecture-check",
         "agents-check",
+        "prose-check",
+        "terminology-check",
+        "prose-test",
         "coverage",
     )
     missing_checks = [

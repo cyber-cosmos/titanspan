@@ -29,6 +29,8 @@ node_modules/
 docs/.vitepress/cache/
 docs/.vitepress/dist/
 .cache/
+.vale/styles/Std/
+.vale/styles/config/grammars/
 .aider.chat.history.md
 .aider.input.history
 .DS_Store

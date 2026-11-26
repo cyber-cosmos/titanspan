@@ -1,0 +1,17 @@
+extends: substitution
+message: "Use '%s' instead of '%s'."
+level: error
+ignorecase: true
+scope: ~frontmatter
+swap:
+  titanspan: Titanspan
+tests:
+  - name: flags an incorrectly capitalized framework name
+    input: "TitanSpan is a Python framework."
+    contains: "Use 'Titanspan' instead of 'TitanSpan'."
+  - name: accepts the canonical framework name
+    input: "Titanspan is a Python framework."
+    want: ''
+  - name: skips inline code
+    input: "Use `TitanSpan` only when an identifier requires it."
+    want: ''

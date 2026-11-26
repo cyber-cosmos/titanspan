@@ -16,6 +16,7 @@ uncommitted diff.
 - `ARCHITECTURE.md`, relevant ADRs, and `SECURITY.md`
 - Tests and documentation for affected behavior
 - `docs/development/standards.md`
+- `docs/development/writing-standards.md` for prose and docstring findings
 
 ## Procedure
 

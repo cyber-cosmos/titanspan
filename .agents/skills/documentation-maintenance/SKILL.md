@@ -15,6 +15,7 @@ commands, or repository instructions change.
 - Root and nearest scoped `AGENTS.md`
 - `README.md`, `ARCHITECTURE.md`, `ROADMAP.md`, and `CHANGELOG.md`
 - `docs/development/standards.md`
+- `docs/development/writing-standards.md` and `docs/development/glossary.md`
 - Relevant implementation, tests, and official dependency documentation
 
 ## Procedure
@@ -27,6 +28,8 @@ commands, or repository instructions change.
 5. Label planned behavior and limitations explicitly.
 6. Build the VitePress site and run the agent configuration checker when
    those areas change.
+7. Run the Vale prose, terminology, and rule regression targets after prose
+   changes.
 
 ## Failure modes
 

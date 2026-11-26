@@ -88,6 +88,31 @@ jobs:
       - name: Validate rationale comments
         run: make comments-check
 
+  technical-documentation:
+    name: "Quality: Technical documentation"
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Check out source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Set up Python tools
+        uses: ./.github/actions/setup-python
+        with:
+          python-version: "3.12"
+      - name: Install locked dependencies
+        run: uv sync --locked --all-groups
+      - name: Install pinned Vale release
+        run: make vale-install
+      - name: Sync pinned Vale styles and grammar
+        run: make vale-sync
+      - name: Validate prose, terminology, and Vale rules
+        run: |
+          make prose-check
+          make terminology-check
+          make prose-test
+
   line-length:
     name: "Quality: 80-column limit"
     runs-on: ubuntu-latest
@@ -169,6 +194,7 @@ jobs:
       - format
       - docblocks
       - comments
+      - technical-documentation
       - line-length
       - syntax
       - typecheck
@@ -316,6 +342,7 @@ jobs:
       - format
       - docblocks
       - comments
+      - technical-documentation
       - line-length
       - syntax
       - typecheck
@@ -374,6 +401,7 @@ jobs:
       - format
       - docblocks
       - comments
+      - technical-documentation
       - line-length
       - syntax
       - typecheck
@@ -432,6 +460,7 @@ jobs:
       - format
       - docblocks
       - comments
+      - technical-documentation
       - line-length
       - syntax
       - typecheck
@@ -486,6 +515,7 @@ jobs:
       - format
       - docblocks
       - comments
+      - technical-documentation
       - line-length
       - syntax
       - typecheck
@@ -540,6 +570,7 @@ jobs:
       - format
       - docblocks
       - comments
+      - technical-documentation
       - line-length
       - syntax
       - typecheck
@@ -594,6 +625,7 @@ jobs:
       - format
       - docblocks
       - comments
+      - technical-documentation
       - line-length
       - syntax
       - typecheck
@@ -648,6 +680,7 @@ jobs:
       - format
       - docblocks
       - comments
+      - technical-documentation
       - line-length
       - syntax
       - typecheck
@@ -1136,6 +1169,7 @@ jobs:
       - format
       - docblocks
       - comments
+      - technical-documentation
       - line-length
       - syntax
       - typecheck

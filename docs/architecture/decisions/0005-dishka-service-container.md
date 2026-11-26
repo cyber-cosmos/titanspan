@@ -12,7 +12,7 @@ resource cleanup without a Titanspan-owned resolution engine.
 
 Use Dishka's async container and FastAPI integration. Keep the
 Titanspan-facing construction boundary in
-src/titanspan/container/container.py. Dishka owns dependency graph resolution
+`src/titanspan/container/container.py`. Dishka owns dependency graph resolution
 and resource finalization; the filename names the framework module, not a
 competing container engine.
 

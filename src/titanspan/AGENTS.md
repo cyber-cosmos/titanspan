@@ -17,6 +17,8 @@ nearest implemented module. This file governs runtime package code only.
 - Keep all declarations strictly typed and physically multi-line documented.
   Add comments for non-obvious rationale and invariants, not line-by-line
   narration.
+- Follow the root technical writing standard for docstrings and comments.
+  Preserve exact identifiers and keep comments concise and factual.
 - Preserve lifecycle, cancellation, failure cleanup, and concurrency safety.
 - A component is complete only when it satisfies its canonical contracts,
   participates in the owning application lifecycle, and has real cross-module

@@ -12,6 +12,10 @@ public release.
   transmission. HTTP fakes, bounded request pools, outgoing multipart, and
   SSRF enforcement remain pending; see `docs/http/` and
   `docs/specifications/http.md`.
+- Added a technical writing standard and canonical glossary. Vale checks
+  maintained Markdown, Python comments, and docstrings with pinned rules and
+  regression cases. Objective terminology errors block CI; other writing
+  findings remain advisory. See `docs/development/writing-standards.md`.
 - Reject nested overrides that would be hidden by an inherited singleton,
   while preserving unaffected singleton identity and resource ownership.
   Configuration injection checks collection values against bare or

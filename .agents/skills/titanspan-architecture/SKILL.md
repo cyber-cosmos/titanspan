@@ -17,6 +17,7 @@ integration, changes package direction, or may require an ADR.
 - `ROADMAP.md`
 - Relevant files in `docs/architecture/decisions/`
 - `docs/development/standards.md`
+- `docs/development/writing-standards.md`
 
 ## Procedure
 

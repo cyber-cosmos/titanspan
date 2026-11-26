@@ -1,0 +1,10 @@
+extends: Std.Grammar.PassiveVoice
+message: "'%s' uses passive voice; name the actor when it matters."
+level: warning
+tests:
+  - name: flags passive voice
+    input: "The configuration is loaded by the application."
+    contains: "uses passive voice"
+  - name: accepts active voice
+    input: "The application loads the configuration."
+    want: ''

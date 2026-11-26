@@ -58,6 +58,11 @@ export default defineConfig({
             link: "/development/agent-workflow",
           },
           {
+            text: "Technical writing",
+            link: "/development/writing-standards",
+          },
+          { text: "Glossary", link: "/development/glossary" },
+          {
             text: "Continuous integration",
             link: "/development/continuous-integration",
           },
@@ -364,6 +369,11 @@ export default defineConfig({
             link: "/development/agent-workflow",
           },
           { text: "Development standards", link: "/development/standards" },
+          {
+            text: "Technical writing",
+            link: "/development/writing-standards",
+          },
+          { text: "Glossary", link: "/development/glossary" },
           {
             text: "Continuous integration",
             link: "/development/continuous-integration",

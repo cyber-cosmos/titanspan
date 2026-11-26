@@ -3,6 +3,10 @@
 Follow root `AGENTS.md` and `docs/development/standards.md`. Keep claims tied
 to implementation and verified tests.
 
+Follow [the writing standard](development/writing-standards.md) and use
+[the glossary](development/glossary.md) for canonical terms. Keep examples
+direct and preserve exact API names.
+
 - Clearly label planned capabilities; do not describe a roadmap item as
   available.
 - Verify code examples against the current package and use no nonexistent
@@ -21,3 +25,5 @@ to implementation and verified tests.
   invent results, external API details, or performance evidence.
 - Run `make docs-build` after documentation or VitePress configuration
   changes. Run `make agents-check` for instruction, adapter, or skill changes.
+- Run `make prose-check`, `make terminology-check`, and `make prose-test`
+  after changing documentation or source comments.

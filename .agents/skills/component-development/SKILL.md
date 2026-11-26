@@ -14,6 +14,7 @@ Use when implementing or extending a real module capability or public API.
 - `AGENTS.md` and the nearest scoped `AGENTS.md`
 - `ARCHITECTURE.md` and relevant ADRs
 - `docs/development/standards.md`
+- `docs/development/writing-standards.md`
 - `docs/development/agent-workflow.md`
 
 ## Procedure

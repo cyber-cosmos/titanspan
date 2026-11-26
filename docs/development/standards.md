@@ -100,6 +100,27 @@ explains. Do not narrate simple statements or add comments to inflate a
 comment count. Ruff and the source checker enforce docstring form; meaningful
 comment content requires code review because a linter cannot judge intent.
 
+## Technical writing
+
+Follow the permanent rules in
+[`writing-standards.md`](writing-standards.md) and use
+[`glossary.md`](glossary.md) for canonical Titanspan terms. Write clear,
+concise American English. Prefer active voice and one primary idea per
+sentence. Target 20 words for procedural sentences and 25 words for
+descriptive sentences.
+
+Treat those limits as editing targets. Technical accuracy takes precedence.
+Preserve exact identifiers, commands, URLs, and code examples. Use direct
+instructions and explain why non-obvious implementation choices exist.
+Vale reports objective terminology errors at error level. Passive voice,
+sentence length, and spelling remain advisory warnings during initial
+adoption. Word choice and repetition remain suggestions.
+
+The writing standard draws on ASD-STE100 Issue 9 and Diátaxis. Titanspan does
+not claim formal ASD-STE100 compliance. Organize user documentation as
+tutorials, how-to guides, reference, and explanation where those categories
+fit the material.
+
 ## Test-driven development and test quality
 
 For every meaningful behavior change, use Red-Green-Refactor:

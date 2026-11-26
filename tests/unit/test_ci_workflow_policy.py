@@ -14,6 +14,8 @@ from scripts.ci.check_gate import EXPECTED_JOBS
 from scripts.ci.check_workflow_policy import (
     COVERAGE_INPUT_JOBS,
     PYTHON_MATRIX,
+    TECHNICAL_DOCUMENTATION_JOB,
+    TECHNICAL_DOCUMENTATION_NAME,
     validate_action_references,
     validate_ci_workflow,
     validate_repository,
@@ -48,6 +50,9 @@ def _workflow() -> dict[str, object]:
         }
         for job_id in EXPECTED_JOBS
     }
+    _mapping(jobs[TECHNICAL_DOCUMENTATION_JOB])["name"] = (
+        TECHNICAL_DOCUMENTATION_NAME
+    )
     jobs["cross-component"] = {
         "name": "Architecture: Cross-component integration",
         "runs-on": "ubuntu-latest",
@@ -132,6 +137,22 @@ def test_workflow_policy_accepts_complete_mandatory_graph() -> None:
     Every primary-workflow job must be a required dependency of ``ci-gate``.
     """
     assert validate_ci_workflow(_workflow()) == []
+
+
+def test_workflow_policy_requires_technical_documentation_job_name() -> None:
+    """Keep technical writing as an independently named mandatory job.
+
+    Returns:
+        None.
+    """
+    workflow = _workflow()
+    jobs = _mapping(workflow["jobs"])
+    job = _mapping(jobs[TECHNICAL_DOCUMENTATION_JOB])
+    job["name"] = "Quality: Prose"
+
+    errors = validate_ci_workflow(workflow)
+
+    assert any("technical-documentation" in error for error in errors)
 
 
 def test_workflow_policy_rejects_job_missing_from_gate() -> None:

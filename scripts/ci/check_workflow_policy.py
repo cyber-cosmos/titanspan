@@ -18,6 +18,8 @@ import yaml
 from scripts.ci.check_gate import EXPECTED_JOBS
 
 GATE_JOB_ID = "ci-gate"
+TECHNICAL_DOCUMENTATION_JOB = "technical-documentation"
+TECHNICAL_DOCUMENTATION_NAME = "Quality: Technical documentation"
 PYTHON_MATRIX = ("3.12", "3.13", "3.14", "3.15")
 PLATFORM_MATRIX = ("macos-latest", "windows-latest")
 COVERAGE_INPUT_JOBS = (
@@ -298,6 +300,13 @@ def _validate_job_inventory(jobs: dict[str, object]) -> list[str]:
         if mapping.get("continue-on-error") in (True, "true"):
             errors.append(
                 f"mandatory job {job_id} must not use continue-on-error"
+            )
+        if (
+            job_id == TECHNICAL_DOCUMENTATION_JOB
+            and mapping.get("name") != TECHNICAL_DOCUMENTATION_NAME
+        ):
+            errors.append(
+                "technical-documentation must use the stable quality name"
             )
         dependencies = _job_dependencies(job)
         if dependencies is None:

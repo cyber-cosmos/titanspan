@@ -4,6 +4,7 @@
 	docblocks-check comments-check line-length-check syntax-check types \
 	python-standards typecheck architecture-check public-api-check agents-check lock-check \
 	workflows-check yaml-check unit-test integration-test \
+	vale-install vale-sync prose-check terminology-check prose-test \
 	architecture-integration-test feature-test \
 	regression-test concurrency-test security-test component-api-test test \
 	coverage audit license-check security benchmark stress-test build \
@@ -41,6 +42,21 @@ format-check: ## Verify Python formatting without changing files
 
 docs-check: ## Verify multiline Python docstrings without changing files
 	uv run --locked python scripts/check_python_standards.py --docblocks-only
+
+vale-install: ## Install the pinned Vale release with a verified checksum
+	sh scripts/install_vale.sh
+
+vale-sync: ## Install the pinned Vale styles and source grammar
+	uv run --locked python -m scripts.ci.check_prose sync
+
+prose-check: ## Lint maintained Markdown and Python comments/docstrings
+	uv run --locked python -m scripts.ci.check_prose prose
+
+terminology-check: ## Enforce canonical Titanspan terms and capitalization
+	uv run --locked python -m scripts.ci.check_prose terminology
+
+prose-test: ## Test Vale rules, configuration, and Python prose extraction
+	uv run --locked python -m scripts.ci.check_prose test
 
 docblocks-check: docs-check ## Alias for the Python docblock check
 
@@ -226,7 +242,8 @@ docker-check: ## Smoke-test isolated Compose services and the non-root image
 
 check: lint format-check python-standards comments-check types \
 	architecture-check public-api-check agents-check lock-check \
-	workflows-check yaml-check coverage ## Run the read-only local quality gate
+	workflows-check yaml-check prose-check terminology-check prose-test \
+	coverage ## Run the read-only local quality gate
 
 ci: check security docs-build build docker-check hooks-check ## Run all CI-equivalent checks without duplicating tests
 

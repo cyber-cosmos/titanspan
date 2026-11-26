@@ -488,6 +488,22 @@ than merely restating the code.
 
 Meaningful comment quality remains subject to human review.
 
+### Technical writing
+
+Follow [the writing standard](docs/development/writing-standards.md) and the
+canonical terms in [the glossary](docs/development/glossary.md).
+
+Use clear, concise American English. Prefer active voice and one primary idea
+per sentence. Keep procedural sentences near 20 words and descriptive
+sentences near 25 words. These limits are targets, not substitutes for
+technical accuracy.
+
+Write direct procedural instructions and explain non-obvious design choices.
+Preserve exact Python identifiers, commands, URLs, and technical meaning.
+Vale findings at warning and suggestion levels are advisory. Error-level
+terminology, capitalization, and prohibited-expression findings must be
+corrected.
+
 ### Dependency and package management
 
 Use `uv` exclusively for Python dependency management, environments,

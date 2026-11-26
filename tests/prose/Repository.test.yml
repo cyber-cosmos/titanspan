@@ -1,0 +1,121 @@
+- name: warns on passive voice
+  input: "The configuration is loaded by the application."
+  contains: "Titanspan.PassiveVoice"
+
+- name: accepts active voice
+  input: "The application loads the configuration."
+  absent: "Titanspan.PassiveVoice"
+
+- name: warns on a sentence over 25 words
+  input: >-
+    This sentence uses enough words to pass the advisory target that the
+    technical writing standard sets for descriptive material in framework
+    documentation for every implemented component.
+  contains: "Titanspan.SentenceLength"
+
+- name: accepts a descriptive sentence at the target
+  input: >-
+    This sentence stays within the target for descriptive material in the
+    framework documentation.
+  absent: "Titanspan.SentenceLength"
+
+- name: reports spelling as advisory
+  input: "The term qzxqwrd appears only to verify spelling feedback."
+  contains: "Vale.Spelling"
+
+- name: accepts words in the project vocabulary
+  input: "Titanspan integrates with Pydantic and SQLAlchemy."
+  absent: "Vale.Spelling"
+
+- name: suggests simpler word choice
+  input: "Utilize the iterator in order to process records."
+  contains: "Titanspan.WordChoice"
+
+- name: accepts preferred word choice
+  input: "Use the iterator to process records."
+  absent: "Titanspan.WordChoice"
+
+- name: suggests against repeated words
+  input: "Use the same same value."
+  contains: "Vale.Repetition"
+
+- name: accepts non-repeated words
+  input: "Use the same value twice."
+  absent: "Vale.Repetition"
+
+- name: skips fenced code and URL targets
+  input: |
+    The prose remains clear.
+
+    ```text
+    TitanSpan utilize qzxqwrd same same
+    ```
+
+    [Guide](https://example.invalid/TitanSpan)
+  absent:
+    - "Titanspan.Capitalization"
+    - "Titanspan.WordChoice"
+    - "Vale.Spelling"
+    - "Vale.Repetition"
+
+- name: skips Markdown front matter
+  input: |
+    ---
+    name: titanspan-architecture
+    ---
+
+    The framework uses Titanspan.
+  absent: "Titanspan.Capitalization"
+
+- name: reads Python module docstrings
+  format: .py
+  view: Python
+  input: |
+    """Describe TitanSpan module behavior."""
+  contains: "Titanspan.Capitalization"
+
+- name: reads Python class docstrings
+  format: .py
+  view: Python
+  input: |
+    class Example:
+        """Describe TitanSpan class behavior."""
+  contains: "Titanspan.Capitalization"
+
+- name: reads Python function docstrings
+  format: .py
+  view: Python
+  input: |
+    def example() -> None:
+        """Describe TitanSpan function behavior."""
+  contains: "Titanspan.Capitalization"
+
+- name: reads Python async function docstrings
+  format: .py
+  view: Python
+  input: |
+    async def example() -> None:
+        """Describe TitanSpan async behavior."""
+  contains: "Titanspan.Capitalization"
+
+- name: reads Python comments
+  format: .py
+  view: Python
+  input: |
+    # Describe TitanSpan behavior.
+  contains: "Titanspan.Capitalization"
+
+- name: ignores ordinary Python string literals
+  format: .py
+  view: Python
+  input: |
+    message = "TitanSpan"
+  absent: "Titanspan.Capitalization"
+
+- name: flags prohibited words
+  input: "Leverage the container to delve into dependency resolution."
+  contains: "Titanspan.ProhibitedExpressions"
+
+- name: accepts direct language
+  input: "Use the container to explain dependency resolution."
+  absent: "Titanspan.ProhibitedExpressions"

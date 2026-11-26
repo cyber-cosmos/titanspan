@@ -1,0 +1,15 @@
+extends: substitution
+message: "Prefer '%s' to '%s'."
+level: suggestion
+ignorecase: true
+scope: ~frontmatter
+swap:
+  utilize: use
+  in order to: to
+tests:
+  - name: suggests a simpler verb
+    input: "Utilize the built-in iterator."
+    contains: "Prefer 'use' to 'Utilize'."
+  - name: accepts the preferred verb
+    input: "Use the built-in iterator."
+    want: ''

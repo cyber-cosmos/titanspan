@@ -4,6 +4,7 @@ ignore: |
   /.venv/
   /docs/node_modules/
   /.cache/
+  /.vale/styles/Std/
 
 rules:
   document-start: disable

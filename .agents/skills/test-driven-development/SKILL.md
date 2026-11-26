@@ -14,6 +14,7 @@ resource lifecycles, or concurrency changes.
 
 - Root and `tests/AGENTS.md`
 - `docs/development/standards.md`
+- `docs/development/writing-standards.md`
 - Existing tests for the affected module
 - `pyproject.toml` for markers and coverage rules
 
