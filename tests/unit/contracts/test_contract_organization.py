@@ -8,7 +8,15 @@ import pytest
 
 from titanspan import contracts
 from titanspan.config import ConfigServiceProvider, Repository
-from titanspan.container import Container
+from titanspan.container import (
+    Container,
+)
+from titanspan.container import (
+    Scope as ContainerScope,
+)
+from titanspan.container import (
+    ServiceFactory as ContainerServiceFactory,
+)
 from titanspan.contracts import (
     AsyncLogDriver,
     AsyncServiceContainer,
@@ -50,9 +58,11 @@ from titanspan.contracts.container import (
 from titanspan.contracts.container import (
     InstanceRegistration as DomainInstanceRegistration,
 )
+from titanspan.contracts.container import Scope as DomainScope
 from titanspan.contracts.container import (
     ServiceContainer as DomainServiceContainer,
 )
+from titanspan.contracts.container import ServiceFactory as DomainServiceFactory
 from titanspan.contracts.foundation import (
     BootableServiceProvider as DomainBootableServiceProvider,
 )
@@ -142,6 +152,8 @@ def test_top_level_contract_exports_keep_canonical_type_identity() -> None:
         (LoggingManager, DomainLoggingManager),
         (ServiceContainer, DomainServiceContainer),
         (ServiceProvider, DomainServiceProvider),
+        (contracts.Scope, DomainScope),
+        (contracts.ServiceFactory, DomainServiceFactory),
         (AsyncLogDriver, DomainAsyncLogDriver),
         (DeliveryStatus, DomainDeliveryStatus),
         (LogCustomizer, DomainLogCustomizer),
@@ -164,6 +176,8 @@ def test_top_level_contract_exports_keep_canonical_type_identity() -> None:
     assert LogCustomizer is PublicLogCustomizer
     assert AsyncLogDriver is PublicAsyncLogDriver
     assert DeliveryStatus is PublicDeliveryStatus
+    assert ContainerScope is DomainScope
+    assert ContainerServiceFactory is DomainServiceFactory
 
 
 def test_contract_classes_are_declared_in_their_domain_packages() -> None:

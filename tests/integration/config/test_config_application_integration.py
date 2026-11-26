@@ -1,14 +1,15 @@
-"""Verify configuration is shared across application boundaries.
+"""Verify configuration is shared across native application boundaries.
 
-The tests use real FastAPI routing and Dishka resolution rather than mocks.
+The tests use real FastAPI routing and the application's native dependency
+bridge rather than mocked configuration resolution.
 """
 
 from http import HTTPStatus
 from pathlib import Path
+from typing import Annotated
 
 import pytest
-from dishka.integrations.fastapi import DishkaRoute, FromDishka
-from fastapi import APIRouter
+from fastapi import APIRouter, Depends
 from fastapi.testclient import TestClient
 
 from titanspan.config import ConfigManager, Repository
@@ -38,16 +39,19 @@ def test_application_loads_config_and_shares_it_with_facade_and_container(
     )
 
     application = Application(base_path=tmp_path)
-    router = APIRouter(route_class=DishkaRoute)
+    router = APIRouter()
 
     @router.get("/config")
     def read_config(
-        repository: FromDishka[ConfigRepository],
+        repository: Annotated[
+            ConfigRepository,
+            Depends(application.dependency(ConfigRepository)),
+        ],
     ) -> dict[str, object]:
-        """Return the shared repository values from both public access paths.
+        """Return config values from the active native application graph.
 
         Args:
-            repository: Native contract resolved by the active Dishka scope.
+            repository: Native contract resolved by the request scope.
 
         Returns:
             Configuration values observed by the facade and injected service.

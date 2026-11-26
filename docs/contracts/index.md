@@ -30,8 +30,9 @@ The configuration component provides the native `Repository` implementation
 of `ConfigRepository`. Application startup registers it through the
 application-owned `titanspan.container.Container`. Framework service
 resolution, provider registration, facades, configuration, and logging share
-that native application container. The ASGI route integration remains a
-separate private graph adapter.
+that native application container. FastAPI handlers use
+`Application.dependency` for native services; explicit external route
+providers remain behind a separate private graph adapter.
 Domain packages own each protocol: `config`, `container`, `logging`, and
 `support`. `titanspan.contracts` re-exports the same objects for convenience;
 component packages may also expose those objects without creating new

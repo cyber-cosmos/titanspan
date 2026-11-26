@@ -605,6 +605,19 @@ class Container(ServiceContainer):
             generation_created=self._scope_generation_created,
         )
 
+    @property
+    def active_scope_count(self) -> int:
+        """Return the number of execution scopes that have not finalized.
+
+        Returns:
+            The container-wide active scope count.
+
+        Notes:
+            This supports same-event-loop lifecycle coordination. It does not
+            establish cross-thread synchronization.
+        """
+        return self._active_scope_count
+
     async def __aenter__(self) -> Container:
         """Return this container for deterministic asynchronous ownership.
 
@@ -2119,6 +2132,7 @@ class Container(ServiceContainer):
         """
         self._ensure_mutable()
         self._dependency_types_by_root.clear()
+        self._shared_instances.pop(service, None)
         self._bindings[service] = Binding(
             service=service,
             implementation=implementation,

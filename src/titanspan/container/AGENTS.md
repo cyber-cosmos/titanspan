@@ -8,12 +8,15 @@ Dishka.
   a competing dependency-resolution engine.
 - Keep public names domain-oriented (currently `container/container.py`), not
   vendor-oriented. State clearly that graph resolution is delegated to Dishka.
-- Keep Dishka types behind `container._backends` for ordinary APIs. The
-  ASGI `Application.providers` input remains a transitional web route
-  interoperability boundary; framework services already use the native
-  application container and structural service providers. Do not expand the
-  raw provider surface. Remove it only with route-scope, cleanup, and migration
-  coverage.
+- Keep Dishka types behind `container._backends` for ordinary APIs.
+  `Application.dependency` resolves native services from the active app and
+  request scope, including through streamed responses. `Application.providers`
+  remains an advanced interoperability boundary for explicit external route
+  providers. Do not expand the raw provider surface. Remove it only with
+  request-scope, cleanup, and migration coverage.
+- Keep application startup and shutdown available without an ASGI host.
+  Register cleanup before provider boot, roll back partial startup, and close
+  external route resources before native services while logging remains live.
 - Keep the synchronous-first `ServiceContainer` and async-only
   `AsyncServiceContainer` protocols canonical in
   `titanspan.contracts.container`. Ordinary resolution uses `make`/`get` for

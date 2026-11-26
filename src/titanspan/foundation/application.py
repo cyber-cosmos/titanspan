@@ -7,24 +7,31 @@ container, and the application context at one composition boundary.
 from __future__ import annotations
 
 from contextlib import (
+    AbstractContextManager,
     AsyncExitStack,
     asynccontextmanager,
     contextmanager,
 )
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Self
 from uuid import uuid4
 
-from fastapi import FastAPI, Request, Response
+import anyio
+from fastapi import FastAPI, Request
 
-from titanspan._application_context import bind_application_context
+from titanspan._application_context import (
+    ActiveApplicationContext,
+    ApplicationContextError,
+    active_application_context,
+    bind_application_context,
+)
 from titanspan.config import (
     ConfigManager,
     ConfigServiceProvider,
     ConfigValueError,
     Settings,
 )
-from titanspan.container import Container, Scope
+from titanspan.container import Container, Scope, ScopeError
 from titanspan.container._backends.fastapi import (
     create_fastapi_container,
     setup_fastapi_container,
@@ -46,9 +53,18 @@ from titanspan.logging import (
 )
 
 if TYPE_CHECKING:
-    from collections.abc import AsyncGenerator, Generator, Mapping, Sequence
+    from collections.abc import (
+        AsyncGenerator,
+        Awaitable,
+        Callable,
+        Generator,
+        Mapping,
+        Sequence,
+    )
+    from types import TracebackType
 
-    from starlette.middleware.base import RequestResponseEndpoint
+    from starlette.types import ASGIApp, Receive, Send
+    from starlette.types import Scope as ASGIScope
 
     from titanspan.container.container import ContainerScope
     from titanspan.logging.logger import Logger
@@ -59,14 +75,92 @@ _APP_DEBUG_KEY = "app.debug"
 _CONFIGURATION_SOURCE_CONFLICT = (
     "Pass either config overrides or config_repository, not both."
 )
+_APPLICATION_CLOSED_ERROR = "A stopped application cannot be restarted."
+_APPLICATION_STARTING_ERROR = "Application startup is already in progress."
+_APPLICATION_CONTEXT_REENTRY_ERROR = (
+    "An application async context is already active."
+)
+_APPLICATION_SHUTDOWN_DURING_STARTUP_ERROR = (
+    "Application shutdown cannot run while startup is in progress."
+)
+_APPLICATION_CONTEXT_ERROR = (
+    "Native HTTP dependencies require this application's active context."
+)
+_ACTIVE_APPLICATION_SCOPE_ERROR = (
+    "Application shutdown requires all execution scopes to finish first."
+)
+
+
+class _ApplicationContextMiddleware:
+    """Hold app and request state through a complete ASGI response call.
+
+    Pure ASGI middleware remains active until all messages have been sent,
+    including messages produced lazily by a streaming response.
+    """
+
+    def __init__(
+        self,
+        app: ASGIApp,
+        *,
+        application: Application,
+        app_name: str,
+        log_manager: LoggingManager,
+    ) -> None:
+        """Retain the native application dependencies used by each request.
+
+        Args:
+            app: Downstream ASGI application wrapped by this middleware.
+            application: Composition root providing request scopes.
+            app_name: Safe application identifier added to log context.
+            log_manager: Native manager supplying request-local context.
+        """
+        self._app = app
+        self._application = application
+        self._app_name = app_name
+        self._log_manager = log_manager
+
+    async def __call__(
+        self,
+        scope: ASGIScope,
+        receive: Receive,
+        send: Send,
+    ) -> None:
+        """Enclose HTTP request handling and all response body messages.
+
+        Args:
+            scope: ASGI connection metadata.
+            receive: ASGI message receiver.
+            send: ASGI message sender.
+
+        Side Effects:
+            Creates and finalizes a request scope around the full HTTP ASGI
+            invocation. Other connection types pass through unchanged.
+        """
+        if scope["type"] != "http":
+            await self._app(scope, receive, send)
+            return
+
+        request = Request(scope, receive=receive)
+        request_id = _request_id(request)
+        async with self._application.execution_scope(Scope.REQUEST):
+            with self._log_manager.context(
+                application=self._app_name,
+                request_id=request_id,
+            ):
+                await self._app(scope, receive, send)
+
+    _app: ASGIApp
+    _application: Application
+    _app_name: str
+    _log_manager: LoggingManager
 
 
 class Application:
     """Compose one application container and its optional ASGI adapter.
 
     Native providers register against ``container`` before graph resolution.
-    FastAPI route injection remains an explicitly separate interoperability
-    boundary while ordinary application services resolve through Titanspan.
+    HTTP handlers can resolve those same services with ``dependency``;
+    third-party provider graphs remain an optional interoperability boundary.
 
     Attributes:
         asgi: FastAPI application served by an ASGI server.
@@ -74,8 +168,8 @@ class Application:
         settings: Validated settings resolved on access.
 
     Notes:
-        Bind ``context`` around non-ASGI application work before using
-        component facades. ASGI middleware binds a request scope automatically.
+        Use ``async with application`` or call ``startup`` and ``shutdown``
+        for non-ASGI work. ASGI middleware binds request context automatically.
     """
 
     # Keep independent framework and adapter inputs visible at composition.
@@ -111,8 +205,8 @@ class Application:
             Exception: A provider or native service construction failure.
 
         Side Effects:
-            Loads trusted configuration files and composes application-owned
-            containers. Logging and container resources close at ASGI shutdown.
+            Loads trusted configuration and composes application-owned
+            containers. Managed resources close on native or ASGI shutdown.
         """
         if config_repository is not None and config is not None:
             raise ValueError(_CONFIGURATION_SOURCE_CONFLICT)
@@ -144,35 +238,47 @@ class Application:
         self._service_providers = native_providers
 
         active_repository = native_container.make(ConfigRepository)
-        log_manager = native_container.make(LoggingManager)
         app_name, debug = _application_metadata(active_repository)
+        log_manager = native_container.make(LoggingManager)
         self.container = native_container
         self._config_repository = active_repository
         self._logging_manager = log_manager
         self._config_manager = config_manager
+        self._started = False
+        self._starting = False
+        self._closed = False
+        self._standalone_context: (
+            AbstractContextManager[ActiveApplicationContext] | None
+        ) = None
 
-        integration_container = create_fastapi_container(
-            [*providers, config_provider]
+        integration_container = (
+            create_fastapi_container([*providers, config_provider])
+            if providers
+            else None
         )
+        self._lifecycle_stack = AsyncExitStack()
+        # LIFO cleanup closes the optional route graph first, then native
+        # dependencies, while keeping logging available to their finalizers.
+        self._lifecycle_stack.push_async_callback(log_manager.aclose)
+        self._lifecycle_stack.push_async_callback(native_container.aclose)
+        if integration_container is not None:
+            self._lifecycle_stack.push_async_callback(
+                integration_container.close
+            )
 
         @asynccontextmanager
         async def lifespan(_: FastAPI) -> AsyncGenerator[None, None]:
-            """Boot application providers and finalize services in reverse.
+            """Delegate HTTP hosting to the native application lifecycle.
 
-            Registration is complete before startup, so boot dependencies
-            resolve from the same graph as facades and application services.
-            ExitStack runs every registered cleanup if boot fails or is
-            cancelled.
+            The application context remains bound through host startup,
+            serving, and shutdown. Native startup rolls back on failure.
             """
             with bind_application_context(self, native_container):
-                async with AsyncExitStack() as resources:
-                    resources.push_async_callback(integration_container.close)
-                    resources.push_async_callback(native_container.aclose)
-                    resources.push_async_callback(log_manager.aclose)
-                    for provider in self._service_providers:
-                        if isinstance(provider, BootableServiceProvider):
-                            await native_container.call_async(provider.boot)
+                await self.startup()
+                try:
                     yield
+                finally:
+                    await self.shutdown()
 
         self.asgi = FastAPI(
             title=app_name,
@@ -182,32 +288,166 @@ class Application:
         self.asgi.state.titanspan_config = active_repository
         self.asgi.state.titanspan_logging = log_manager
 
-        @self.asgi.middleware("http")
-        async def bind_request_context(
-            request: Request,
-            call_next: RequestResponseEndpoint,
-        ) -> Response:
-            """Bind application services and request metadata per request.
+        if integration_container is not None:
+            setup_fastapi_container(
+                container=integration_container,
+                application=self.asgi,
+            )
+        # Add this after the optional route adapter so it is the outermost
+        # user middleware and remains active while every response chunk sends.
+        self.asgi.add_middleware(
+            _ApplicationContextMiddleware,
+            application=self,
+            app_name=app_name,
+            log_manager=log_manager,
+        )
 
-            Args:
-                request: Active request whose safe identifier is captured.
-                call_next: Remaining ASGI middleware and endpoint stack.
+    async def startup(self) -> None:
+        """Boot application providers without requiring an ASGI host.
+
+        Provider registration is complete before startup. Boot callbacks run
+        in order with native dependency injection and the application context
+        bound. A failure closes owned resources before it is re-raised.
+
+        Raises:
+            RuntimeError: If a stopped application is restarted or another
+                startup call is already in progress.
+            Exception: If provider boot or owned-resource cleanup fails.
+        """
+        if self._closed:
+            raise RuntimeError(_APPLICATION_CLOSED_ERROR)
+        if self._started:
+            return
+        if self._starting:
+            raise RuntimeError(_APPLICATION_STARTING_ERROR)
+
+        self._starting = True
+        try:
+            with bind_application_context(self, self.container):
+                for provider in self._service_providers:
+                    if isinstance(provider, BootableServiceProvider):
+                        await self.container.call_async(provider.boot)
+        except BaseException as startup_error:
+            self._closed = True
+            try:
+                with anyio.CancelScope(shield=True):
+                    with bind_application_context(
+                        self,
+                        self.container,
+                    ):
+                        await self._lifecycle_stack.aclose()
+            except BaseException as cleanup_error:
+                startup_error.add_note(
+                    "Application cleanup also failed with "
+                    f"{type(cleanup_error).__name__}."
+                )
+                raise startup_error from cleanup_error
+            raise
+        else:
+            self._started = True
+        finally:
+            self._starting = False
+
+    async def shutdown(self) -> None:
+        """Finalize application-owned resources without an ASGI host.
+
+        Cleanup is idempotent and runs in reverse ownership order. The
+        application context remains active while finalizers execute, and
+        cancellation is shielded until registered cleanup completes.
+
+        Raises:
+            Exception: If an owned service fails during finalization.
+        """
+        if self._closed:
+            return
+        if self._starting:
+            raise RuntimeError(_APPLICATION_SHUTDOWN_DURING_STARTUP_ERROR)
+        if self.container.active_scope_count:
+            raise ScopeError(_ACTIVE_APPLICATION_SCOPE_ERROR)
+        self._closed = True
+        with bind_application_context(self, self.container):
+            with anyio.CancelScope(shield=True):
+                await self._lifecycle_stack.aclose()
+
+    async def __aenter__(self) -> Self:
+        """Start this application and bind it for standalone work.
+
+        Returns:
+            This started application with its context active.
+
+        Raises:
+            RuntimeError: If another standalone context is already active or
+                the application was previously stopped.
+        """
+        if self._standalone_context is not None:
+            raise RuntimeError(_APPLICATION_CONTEXT_REENTRY_ERROR)
+        await self.startup()
+        binding = bind_application_context(self, self.container)
+        binding.__enter__()
+        self._standalone_context = binding
+        return self
+
+    async def __aexit__(
+        self,
+        exception_type: type[BaseException] | None,
+        exception: BaseException | None,
+        traceback: TracebackType | None,
+    ) -> None:
+        """Shut down services and restore the previous application context.
+
+        Args:
+            exception_type: Active exception class, if work failed.
+            exception: Active exception instance, if work failed.
+            traceback: Traceback associated with the active exception.
+        """
+        binding = self._standalone_context
+        self._standalone_context = None
+        try:
+            await self.shutdown()
+        finally:
+            if binding is not None:
+                binding.__exit__(exception_type, exception, traceback)
+
+    def dependency[ServiceT](
+        self,
+        service: type[ServiceT],
+    ) -> Callable[[], Awaitable[ServiceT]]:
+        """Create a FastAPI dependency backed by the native service graph.
+
+        Use the returned callable with FastAPI's ``Depends`` declaration.
+        It resolves from the same application container and active request
+        scope used by facades and ordinary application services.
+
+        Args:
+            service: Native service contract or concrete service type.
+
+        Returns:
+            An async dependency resolver preserving the requested type.
+
+        Raises:
+            ApplicationContextError: If invoked outside this application's
+                active ASGI request context.
+        """
+
+        async def resolve_service() -> ServiceT:
+            """Resolve one service through the active native container.
 
             Returns:
-                Response produced by the downstream application.
-            """
-            request_id = _request_id(request)
-            async with self.execution_scope(Scope.REQUEST):
-                with log_manager.context(
-                    application=app_name,
-                    request_id=request_id,
-                ):
-                    return await call_next(request)
+                The service instance selected by the active request scope.
 
-        setup_fastapi_container(
-            container=integration_container,
-            application=self.asgi,
-        )
+            Raises:
+                ApplicationContextError: If another application is active.
+            """
+            active = active_application_context()
+            if (
+                active is None
+                or active.application is not self
+                or active.container is not self.container
+            ):
+                raise ApplicationContextError(_APPLICATION_CONTEXT_ERROR)
+            return await self.container.make_async(service)
+
+        return resolve_service
 
     @property
     def config(self) -> ConfigRepository:
@@ -287,7 +527,12 @@ class Application:
         Side Effects:
             Closes resources created within the scope on exit, failure, or
             cancellation.
+
+        Raises:
+            RuntimeError: If the application is stopping or stopped.
         """
+        if self._closed:
+            raise RuntimeError(_APPLICATION_CLOSED_ERROR)
         async with self.container.scope(scope) as active_scope:
             with bind_application_context(
                 self,
@@ -302,6 +547,11 @@ class Application:
     _logging_manager: LoggingManager
     _config_manager: ConfigManager
     _service_providers: tuple[ServiceProvider, ...]
+    _lifecycle_stack: AsyncExitStack
+    _started: bool
+    _starting: bool
+    _closed: bool
+    _standalone_context: AbstractContextManager[ActiveApplicationContext] | None
 
 
 def _application_metadata(

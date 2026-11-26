@@ -46,10 +46,10 @@ container within its application or execution lifecycle and close it after
 use. Implementations own resource finalization and cancellation behavior.
 
 The native `Container` implements `ServiceContainer` and is the composition
-root for framework-owned services in `Application`. FastAPI route injection
-still uses a separate private graph adapter because its request-injection
-lifecycle has not yet been unified. No module-level `app()` container helper
-is available.
+root for framework-owned services in `Application`. FastAPI handlers can use
+`Application.dependency` to resolve from that same container and active
+request scope. Explicit external route providers remain behind a separate
+private adapter. No module-level `app()` container helper is available.
 
 Do not build another resolver, infer dependency graphs, or promise scopes that
 the selected adapter cannot enforce. Any adapter should be introduced with

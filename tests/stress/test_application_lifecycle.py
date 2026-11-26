@@ -13,12 +13,13 @@ from titanspan import Application
 @pytest.mark.stress
 @pytest.mark.concurrency
 def test_application_can_start_and_stop_repeatedly() -> None:
-    """Start and stop independent ASGI applications repeatedly.
+    """Start and stop native applications without an unused route graph.
 
-    Each context exit closes its own Dishka application scope.
+    An external provider graph is composed only when the application supplies
+    explicit providers; ordinary ASGI apps use the native service container.
     """
     for _ in range(20):
         application = Application().asgi
 
         with TestClient(application):
-            assert application.state.dishka_container is not None
+            assert not hasattr(application.state, "dishka_container")

@@ -4,8 +4,10 @@ The sync-first protocol keeps ordinary construction synchronous while making
 asynchronous dependency acquisition an explicit operation.
 """
 
-from collections.abc import Callable
 from typing import Protocol, runtime_checkable
+
+from titanspan.contracts.container.factory import ServiceFactory
+from titanspan.contracts.container.scope import Scope
 
 
 @runtime_checkable
@@ -59,26 +61,42 @@ class ServiceRegistry(Protocol):
     def bind[ServiceT](
         self,
         service: type[ServiceT],
-        implementation: type[ServiceT] | Callable[..., ServiceT] | None = None,
+        implementation: type[ServiceT] | ServiceFactory[ServiceT] | None = None,
     ) -> None:
-        """Register a transient class or synchronous factory.
+        """Register transient construction or a managed resource factory.
 
         Args:
             service: Canonical service contract.
-            implementation: Type or factory used to construct the service.
+            implementation: Type or sync/async factory for the service.
         """
         ...
 
     def singleton[ServiceT](
         self,
         service: type[ServiceT],
-        implementation: type[ServiceT] | Callable[..., ServiceT] | None = None,
+        implementation: type[ServiceT] | ServiceFactory[ServiceT] | None = None,
     ) -> None:
         """Register one application-owned service instance.
 
         Args:
             service: Canonical service contract.
-            implementation: Type or synchronous factory for the service.
+            implementation: Type or sync/async factory for the service.
+        """
+        ...
+
+    def scoped[ServiceT](
+        self,
+        service: type[ServiceT],
+        implementation: type[ServiceT] | ServiceFactory[ServiceT] | None = None,
+        *,
+        scope: Scope = Scope.REQUEST,
+    ) -> None:
+        """Register a service cached for one selected execution lifecycle.
+
+        Args:
+            service: Canonical service contract or concrete service type.
+            implementation: Class or sync/async resource factory.
+            scope: Execution lifetime that owns the resulting instance.
         """
         ...
 
@@ -180,6 +198,8 @@ class AsyncServiceContainer(Protocol):
 __all__ = [
     "AsyncServiceContainer",
     "InstanceRegistration",
+    "Scope",
     "ServiceContainer",
+    "ServiceFactory",
     "ServiceRegistry",
 ]

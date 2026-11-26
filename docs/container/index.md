@@ -80,6 +80,41 @@ and [lazy factories](factories.md) for current APIs and limits.
 See [resource management](resource-management.md) for factory ownership,
 scope cleanup, cancellation, and shutdown behavior.
 
+## HTTP dependency integration
+
+Resolve native application services in FastAPI handlers with the dependency
+bridge. It uses the same container as providers and facades, and request
+resources remain alive until streaming responses finish.
+
+```python
+from typing import Annotated
+
+from fastapi import Depends
+
+from titanspan.contracts.config import ConfigRepository
+
+
+async def endpoint(
+    config: Annotated[
+        ConfigRepository,
+        Depends(application.dependency(ConfigRepository)),
+    ],
+) -> dict[str, object]:
+    """Return a value from the application-owned configuration service.
+
+    Args:
+        config: Configuration repository resolved by the active request.
+
+    Returns:
+        A JSON-compatible response value.
+    """
+    return {"name": config.get("app.name")}
+```
+
+The raw `Application.providers` input remains an advanced interoperability
+boundary for external provider graphs. Ordinary Titanspan services do not
+need that separate graph.
+
 ## Implementation status
 
 The native operation inventory, implemented behavior, and pending work are

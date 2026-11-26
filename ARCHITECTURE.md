@@ -66,8 +66,8 @@ tracked in [`docs/specifications/backend-boundaries.md`](docs/specifications/bac
 
 | Module | Responsibility | Status |
 | --- | --- | --- |
-| `foundation` | Application lifecycle, bootstrapping, kernels, shutdown, and provider lifecycle. | Initial `Application` implemented. |
-| `container` | Dependency injection, bindings, concrete graph discovery, scopes, and resource management. | Native sync-first container composes framework services; a separate private graph adapter remains for ASGI route injection. See `docs/specifications/container.md`. |
+| `foundation` | Application lifecycle, bootstrapping, kernels, shutdown, and provider lifecycle. | `Application` owns native startup and shutdown independently of its ASGI adapter. |
+| `container` | Dependency injection, bindings, concrete graph discovery, scopes, and resource management. | Native sync-first container composes framework services and supplies request-scoped HTTP dependencies; a private adapter remains for explicit external route providers. See `docs/specifications/container.md`. |
 | `contracts` | Dependency-independent typed protocols and shared abstraction boundaries. | Initial configuration, sync-first and async container, and Support contracts implemented; many component contracts remain pending. |
 | `support` | Shared utilities, managers, and lightweight helpers. | Selected native utilities implemented; see `docs/specifications/support.md`. |
 | `config` | Typed configuration, trusted sources, environment integration, and safe snapshots. | Native repository, settings, source loader, cache, commands, and application provider implemented; see `docs/config/`. |
@@ -141,14 +141,15 @@ application resolution, Config and Log facades, helper access, and provider
 boot dependencies therefore share service identities.
 
 The caller can include FastAPI routers through the deliberate
-`application.asgi` integration boundary. Route dependency injection still
-uses a separate private graph adapter because the web integration owns its
-request injection protocol. The application lifespan boots optional provider
-hooks inside the active application context and closes logging, native
-container, and route graph resources if startup fails, is cancelled, or exits
-normally. Request middleware creates an application-owned scope and logging
-context. See the [backend boundary audit](docs/specifications/backend-boundaries.md)
-for the transitional raw provider interoperability input.
+`application.asgi` integration boundary. `Application.dependency` resolves
+native services through the active application container. An optional private
+graph remains for explicitly supplied external route providers. Native
+`Application.startup` and `Application.shutdown` work without HTTP hosting;
+the ASGI lifespan delegates to them. Pure ASGI request middleware keeps
+application context, request scope, and logging context active through the
+complete response send, including streaming bodies. See the [backend boundary
+audit](docs/specifications/backend-boundaries.md) for the remaining raw
+provider interoperability input.
 
 ```mermaid
 sequenceDiagram
@@ -156,18 +157,19 @@ sequenceDiagram
     participant App as Titanspan Application
     participant Container as Native service container
     participant Providers as Component service providers
-    participant Routes as Private ASGI route graph
+    participant Routes as Optional external route graph
     participant Handler as FastAPI handler
 
     App->>Container: construct native application registry
     App->>Providers: register config, logging, and app services
     App->>Container: resolve configured logging manager
-    Host->>App: enter ASGI lifespan
+    Host->>App: native startup / ASGI lifespan
     App->>Providers: boot with injected services
     Host->>Handler: HTTP request
     App->>Container: create request execution scope
-    Handler-->>Host: response
-    Host->>App: exit ASGI lifespan
+    App->>Container: resolve native handler dependencies
+    Handler-->>Host: send full response body
+    Host->>App: native shutdown / ASGI lifespan exit
     App->>Container: close native application resources
     App->>Routes: close ASGI route graph resources
 ```
@@ -184,9 +186,9 @@ construction and resource finalization. Concrete class graphs can be
 discovered on demand and are cached by root until application or scope
 shutdown. Registration freezes when graph composition starts. The current
 adapter maps semantic scope names onto a finite ordered hierarchy; see the
-specification for equivalent-level and nesting limits. FastAPI route
-injection remains a separate interoperability graph until its lifecycle is
-reconciled with native request dependency injection.
+specification for equivalent-level and nesting limits. Native FastAPI
+dependencies use the application container. Explicit external route
+providers may still use a separate interoperability graph.
 
 Application-scoped objects may be shared only when they are safe for concurrent
 use. Mutable sessions and request data belong to narrower scopes. Facades, if

@@ -156,14 +156,15 @@ semantics are specified and tested.
 
 - Runtime bindings freeze after first graph composition; live rebinding,
   contextual changes, and override stacks are not implemented.
-- `make_with`, primitive contextual bindings, configuration injection, and
-  custom injection attributes are not implemented. `call` accepts explicit
-  named values and resolves only class-typed service parameters.
+- Primitive contextual bindings, configuration injection, and custom
+  injection attributes are not implemented. `call` accepts explicit named
+  values and resolves only class-typed service parameters.
 - `Application` uses this registry as the composition root for framework
-  services. FastAPI route dependencies still use the explicit private web
-  integration provider boundary and a separate request graph. The raw
-  `Application.providers` input remains a transitional interoperability
-  surface. No module-level `app()` helper is available.
+  services. Use `Application.dependency` for HTTP handlers that consume native
+  services; it resolves through the active application container and request
+  scope. Explicit `Application.providers` values remain an advanced
+  interoperability boundary with a separate provider graph. No module-level
+  `app()` helper is available.
 - Synchronous and asynchronous generator resource factories have lifecycle
   tests, including cleanup when the active task is cancelled. Direct
   context-manager factory forms are not implemented.

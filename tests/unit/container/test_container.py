@@ -571,6 +571,72 @@ async def test_instance_registration_is_external_and_resolved_immediately() -> (
 
 
 @pytest.mark.anyio
+async def test_factory_binding_replaces_an_uncomposed_instance() -> None:
+    """Discard an explicit instance when a factory replaces its binding.
+
+    Registration replacement happens before graph composition, so the new
+    factory must be the only source used for subsequent resolution.
+    """
+    original = SharedService()
+    replacement = SharedService()
+    factory_calls = 0
+
+    def create_service() -> SharedService:
+        """Return the replacement and expose whether stale state was used.
+
+        Returns:
+            The object selected by the replacement factory.
+        """
+        nonlocal factory_calls
+        factory_calls += 1
+        return replacement
+
+    async with Container() as container:
+        container.instance(SharedService, original)
+        container.bind(SharedService, create_service)
+
+        resolved = container.make(SharedService)
+
+    assert resolved is replacement
+    assert resolved is not original
+    assert factory_calls == 1
+
+
+@pytest.mark.anyio
+async def test_singleton_binding_replaces_an_uncomposed_instance() -> None:
+    """Use the new singleton factory after replacing an explicit instance.
+
+    The replacement is cached according to singleton semantics, while the
+    externally supplied previous instance is no longer seeded into the graph.
+    """
+    original = SharedService()
+    replacement = SharedService()
+    factory_calls = 0
+
+    def create_service() -> SharedService:
+        """Return one observable value for the new singleton binding.
+
+        Returns:
+            The replacement singleton instance.
+        """
+        nonlocal factory_calls
+        factory_calls += 1
+        return replacement
+
+    async with Container() as container:
+        container.instance(SharedService, original)
+        container.singleton(SharedService, create_service)
+
+        first = container.make(SharedService)
+        second = container.make(SharedService)
+
+    assert first is replacement
+    assert second is replacement
+    assert first is not original
+    assert factory_calls == 1
+
+
+@pytest.mark.anyio
 async def test_none_instance_is_a_valid_explicit_dependency() -> None:
     """Distinguish an explicit null instance from a missing registration.
 

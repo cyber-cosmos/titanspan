@@ -23,5 +23,14 @@ curl -H 'x-request-id: example-123' http://127.0.0.1:8000/
 
 Uvicorn enters the ASGI lifespan on startup and exits it on shutdown. Titanspan
 boots registered providers and finalizes its container and logging resources
-when that lifespan ends. FastAPI routing remains an explicit integration
-boundary; this example does not imply a native Titanspan routing component.
+when that lifespan ends. The same lifecycle supports commands, workers, and
+workflows without an HTTP server:
+
+```python
+async with application:
+    greeter = application.make(Greeter)
+    print(greeter.greet("worker"))
+```
+
+FastAPI routing remains the HTTP integration boundary; this example does not
+imply a native Titanspan routing component.

@@ -39,7 +39,7 @@ need to implement typed reads, overrides, redacted diagnostics, or macros.
 | Contract | Definition | Implementation and consumers | Registration and evidence | Status |
 | --- | --- | --- | --- | --- |
 | `InstanceRegistration` | `contracts/container/__init__.py` | `ConfigServiceProvider`; private ASGI provider adapter | Static conformance in `test_contract_organization.py`; actual configuration transfer is exercised by application and ASGI lifecycle tests | Implemented adapter capability |
-| `ServiceRegistry` | `contracts/container/__init__.py` | `container.Container`; config and logging providers; application providers | Provider methods accept the protocol; static assignments and `test_provider_boot_runs_after_registration_with_injection` verify registration through the real application | Implemented registration boundary |
+| `ServiceRegistry` | `contracts/container/__init__.py` | `container.Container`; config and logging providers; application providers | Includes instance, transient, singleton, and scoped registration; static assignments and provider integration tests verify use through the real application | Implemented registration boundary |
 | `ServiceContainer` | `contracts/container/__init__.py` | `container.Container`; `Facade`; `Application` | Bound to the owning application container; identity, contract resolution, provider injection, scopes, and resource behavior are exercised across container and application integration tests | Implemented, registered, and consumed |
 | `AsyncServiceContainer` | `contracts/container/__init__.py` | `container.Container`; async-only consumers may depend on this smaller surface | Bound to the same application container as `ServiceContainer`; static and runtime contract checks plus execution-mode tests | Implemented capability; no separate built-in consumer |
 
@@ -65,9 +65,11 @@ injection.
 
 Providers are structurally typed. Application construction is the only
 registration owner; providers do not create another container. Provider boot
-runs under the active application context. The same context remains bound
-through the complete ASGI lifespan and its cleanup; regression tests verify
-facade access and context restoration after shutdown and failed startup.
+runs under the active application context. Native startup and shutdown also
+work outside an ASGI host, and the ASGI lifespan delegates to those methods.
+Pure ASGI request middleware keeps request scope and context active through
+streamed response bodies. Regression tests cover cleanup and restoration after
+shutdown and failed startup.
 
 ## Logging contracts
 
@@ -98,9 +100,10 @@ by the logging component's own manager and channel lifecycles.
 | `MessageProvider` | `contracts/support/message_bag.py` | `support.MessageBag.merge` consumes application-defined message providers | Structural fixture and merge behavior tests in `tests/unit/support/test_message_bag.py`; no built-in provider class | Implemented extension point |
 | `UriUrlGenerator` | `support/uri.py` | `support.Uri` route and URL factories consume an application router adapter | Alternate generator fixtures exercise route, origin, and signature behavior in `tests/unit/support/test_uri.py` | Implemented public integration extension point |
 
-`MessageKey` is a public shared type alias. Configuration key aliases,
-`ConfigArray`, and logging `DeliveryStatus` are domain values rather than
-additional protocols.
+`MessageKey` is a public shared type alias. `Scope` and `ServiceFactory` are
+container domain values in `contracts/container`; `titanspan.container`
+re-exports those same objects. Configuration key aliases, `ConfigArray`, and
+logging `DeliveryStatus` are domain values rather than additional protocols.
 
 ## Private and test-only protocols
 
@@ -136,9 +139,10 @@ methods and Python special methods remain available where useful.
 configuration and logging providers followed by application providers, and
 resolves framework services through it. Config and Log facades share a typed
 `Facade` base and resolve their declared contracts from one context-local
-application binding. ASGI route injection remains a separate private adapter
-with the deliberate `Application.providers` interoperability input. This is
-the remaining dependency graph split; it does not split configuration,
+application binding. Native HTTP dependencies use `Application.dependency`
+and resolve from the same application container and request scope. Explicit
+`Application.providers` values remain a separate private interoperability
+graph for external route providers; this does not split configuration,
 logging, facade, or native application service identity.
 
 `ConfigServiceProvider` registers `ConfigRepository`, `ConfigReader`, and
@@ -155,9 +159,9 @@ configuration repository does not promise concurrent mutation of base values.
 The application validates core metadata and resolves configuration and the
 logging manager during composition, but it does not preflight every arbitrary
 user service graph. The current container has no non-instantiating whole-graph
-validation API. Resource finalization is coordinated by ASGI lifespan; a
-standalone non-ASGI owner must close the exposed native container and logging
-manager until Foundation provides a separate application shutdown interface.
+validation API. `Application.startup` and `Application.shutdown` coordinate
+provider boot, resource finalization, cancellation shielding, and context
+restoration for ASGI hosts and standalone owners.
 
 `Application.asgi` and the explicit route `providers` input are documented
 FastAPI interoperability boundaries. The public `Settings` class still

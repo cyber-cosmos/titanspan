@@ -4,9 +4,9 @@ The example composes native providers, contracts, facades, and automatic
 constructor injection before exposing one small HTTP route.
 """
 
-from typing import Protocol
+from typing import Annotated, Protocol
 
-from fastapi import FastAPI
+from fastapi import Depends, FastAPI
 
 from titanspan import Application
 from titanspan.contracts.config import ConfigRepository
@@ -113,13 +113,17 @@ app: FastAPI = application.asgi
 
 
 @app.get("/")
-async def hello_world() -> dict[str, str]:
+async def hello_world(
+    greeter: Annotated[
+        Greeter,
+        Depends(application.dependency(Greeter)),
+    ],
+) -> dict[str, str]:
     """Return a configured greeting and this request's context identifier.
 
     Returns:
         Application name, service-generated greeting, and request identifier.
     """
-    greeter = application.make(Greeter)
     application_name = Config.string("app.name")
     request_id = Log.get_context().get("request_id")
     if not isinstance(request_id, str):

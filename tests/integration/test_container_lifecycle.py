@@ -9,6 +9,7 @@ from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
 from http import HTTPStatus
 from threading import Lock
+from typing import Annotated
 
 import pytest
 
@@ -19,10 +20,15 @@ from dishka import (
     provide,  # pyright: ignore[reportUnknownVariableType]
 )
 from dishka.integrations.fastapi import DishkaRoute, FromDishka
-from fastapi import APIRouter
+from fastapi import APIRouter, Depends
+from fastapi.responses import StreamingResponse
 from fastapi.testclient import TestClient
 
 from titanspan import Application
+from titanspan._application_context import active_application_context
+from titanspan.container import ContainerScope
+from titanspan.container import Scope as NativeScope
+from titanspan.contracts.container import ServiceRegistry
 
 HANDLER_FAILURE_MESSAGE = "handler failed"
 EXPECTED_REQUEST_COUNT = 2
@@ -48,14 +54,20 @@ class ResourceProvider(Provider):
         resources: Instances created by the asynchronous provider.
     """
 
-    def __init__(self, resources: list[ManagedResource]) -> None:
+    def __init__(
+        self,
+        resources: list[ManagedResource],
+        events: list[str] | None = None,
+    ) -> None:
         """Retain the test-owned resource observation list.
 
         Args:
             resources: List populated when the provider first resolves.
+            events: Optional ordered cleanup observations.
         """
         super().__init__()
         self.resources = resources
+        self.events = events
 
     @provide(scope=Scope.APP)
     async def resource(self) -> AsyncIterator[ManagedResource]:
@@ -66,11 +78,15 @@ class ResourceProvider(Provider):
         """
         resource = ManagedResource()
         self.resources.append(resource)
+        if self.events is not None:
+            self.events.append("route-created")
         try:
             yield resource
         finally:
             # The generator's finally block exposes Dishka's close behavior.
             resource.closed = True
+            if self.events is not None:
+                self.events.append("route-closed")
 
 
 @dataclass(frozen=True)
@@ -114,6 +130,126 @@ class RequestScopedProvider(Provider):
             self.created += 1
             identifier = self.created
         return RequestScopedResource(identifier=identifier)
+
+
+@dataclass
+class NativeStreamingResource:
+    """Track a native request resource while an ASGI body is streamed.
+
+    Attributes:
+        closed: Whether the active request scope finalized this resource.
+    """
+
+    closed: bool = False
+
+
+class NativeStreamingProvider:
+    """Register a request resource through the Titanspan container.
+
+    Attributes:
+        resources: Resources created and finalized by native request scopes.
+    """
+
+    def __init__(self, resources: list[NativeStreamingResource]) -> None:
+        """Retain resources for lifecycle assertions after HTTP completion.
+
+        Args:
+            resources: Test-owned list populated by the resource factory.
+        """
+        self.resources = resources
+
+    def register(self, container: ServiceRegistry) -> None:
+        """Register the resource with the canonical request lifecycle.
+
+        Args:
+            container: Native application service registry.
+        """
+        container.scoped(
+            NativeStreamingResource,
+            self._request_resource,
+            scope=NativeScope.REQUEST,
+        )
+
+    async def _request_resource(
+        self,
+    ) -> AsyncIterator[NativeStreamingResource]:
+        """Yield a request value until its scope has fully exited.
+
+        Yields:
+            A resource whose finalization is observable by the test.
+        """
+        resource = NativeStreamingResource()
+        self.resources.append(resource)
+        try:
+            yield resource
+        finally:
+            resource.closed = True
+
+    resources: list[NativeStreamingResource]
+
+
+@dataclass
+class NativeApplicationResource:
+    """Track an application-owned resource used to verify close ordering.
+
+    Attributes:
+        closed: Whether the native application container finalized it.
+    """
+
+    closed: bool = False
+
+
+class NativeApplicationProvider:
+    """Own an app-scoped generator resource through the native container.
+
+    Attributes:
+        events: Ordered resource lifecycle observations.
+    """
+
+    def __init__(self, events: list[str]) -> None:
+        """Retain events shared with the optional route graph fixture.
+
+        Args:
+            events: Ordered lifecycle observations populated by both graphs.
+        """
+        self.events = events
+
+    def register(self, container: ServiceRegistry) -> None:
+        """Register the native resource and prepare it during application boot.
+
+        Args:
+            container: Canonical Titanspan application registry.
+        """
+        container.singleton(
+            NativeApplicationResource,
+            self._application_resource,
+        )
+
+    async def _application_resource(
+        self,
+    ) -> AsyncIterator[NativeApplicationResource]:
+        """Yield a resource whose cleanup ordering is observable.
+
+        Yields:
+            An application-scoped resource owned by the native container.
+        """
+        resource = NativeApplicationResource()
+        self.events.append("native-created")
+        try:
+            yield resource
+        finally:
+            resource.closed = True
+            self.events.append("native-closed")
+
+    async def boot(self, resource: NativeApplicationResource) -> None:
+        """Resolve the resource before the host begins serving requests.
+
+        Args:
+            resource: App-scoped value whose finalizer belongs to the app.
+        """
+        assert not resource.closed
+
+    events: list[str]
 
 
 def test_app_scope_resource_is_shared_and_closed_at_shutdown() -> None:
@@ -238,3 +374,110 @@ def test_resource_is_closed_when_request_handler_fails() -> None:
 
     assert response.status_code == HTTPStatus.INTERNAL_SERVER_ERROR
     assert resources == [ManagedResource(closed=True)]
+
+
+def test_route_resources_close_before_native_application_resources() -> None:
+    """Finalize the optional route graph before native application services.
+
+    Real generator resources in both graphs record their cleanup sequence
+    while the ASGI host owns application startup and shutdown.
+    """
+    events: list[str] = []
+    route_resources: list[ManagedResource] = []
+    application = Application(
+        providers=[ResourceProvider(route_resources, events)],
+        service_providers=[NativeApplicationProvider(events)],
+    )
+    router = APIRouter(route_class=DishkaRoute)
+
+    @router.get("/resource-order")
+    async def read_route_resource(
+        resource: FromDishka[ManagedResource],
+    ) -> dict[str, bool]:
+        """Read the external graph resource while both graphs remain open.
+
+        Args:
+            resource: Route-scoped value owned by the optional route graph.
+
+        Returns:
+            Whether the route resource is still open during request handling.
+        """
+        return {"closed": resource.closed}
+
+    application.asgi.include_router(router)
+
+    with TestClient(application.asgi) as client:
+        response = client.get("/resource-order")
+
+    assert response.status_code == HTTPStatus.OK
+    assert response.json() == {"closed": False}
+    assert events == [
+        "native-created",
+        "route-created",
+        "route-closed",
+        "native-closed",
+    ]
+
+
+def test_native_request_context_and_scope_cover_streaming_response() -> None:
+    """Keep app context and request resources alive through final body send.
+
+    The route uses a native dependency bridge and the actual ASGI test client;
+    each body iteration observes the active request scope before cleanup.
+    """
+    resources: list[NativeStreamingResource] = []
+    provider = NativeStreamingProvider(resources)
+    application = Application(service_providers=[provider])
+    router = APIRouter()
+    observations: list[tuple[bool, bool, bool]] = []
+
+    @router.get("/native-stream")
+    async def stream_resource(
+        resource: Annotated[
+            NativeStreamingResource,
+            Depends(application.dependency(NativeStreamingResource)),
+        ],
+    ) -> StreamingResponse:
+        """Stream observations of request-owned native application state.
+
+        Args:
+            resource: Request-scoped resource injected through Titanspan.
+
+        Returns:
+            A streaming response whose producer runs after response headers.
+        """
+
+        async def body() -> AsyncIterator[bytes]:
+            """Record context state at each streaming boundary.
+
+            Yields:
+                Two body segments while the request lifecycle remains active.
+            """
+            for segment in (b"first", b"second"):
+                active = active_application_context()
+                scope_active = (
+                    active is not None
+                    and isinstance(active.scope, ContainerScope)
+                    and active.scope.is_active
+                )
+                observations.append(
+                    (
+                        not resource.closed,
+                        active is not None
+                        and active.application is application,
+                        scope_active,
+                    )
+                )
+                yield segment
+
+        return StreamingResponse(body(), media_type="text/plain")
+
+    application.asgi.include_router(router)
+
+    with TestClient(application.asgi) as client:
+        response = client.get("/native-stream")
+
+    assert response.status_code == HTTPStatus.OK
+    assert response.content == b"firstsecond"
+    assert observations == [(True, True, True), (True, True, True)]
+    assert resources == [NativeStreamingResource(closed=True)]

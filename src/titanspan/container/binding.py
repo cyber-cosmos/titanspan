@@ -3,19 +3,11 @@
 These immutable definitions are shared by registration and graph discovery.
 """
 
-from collections.abc import AsyncIterator, Awaitable, Callable, Iterator
 from dataclasses import dataclass
 from enum import Enum
 
-from titanspan.container.scope import Scope
-
-type ServiceFactory[ServiceT] = Callable[
-    ...,
-    ServiceT
-    | Awaitable[ServiceT]
-    | Iterator[ServiceT]
-    | AsyncIterator[ServiceT],
-]
+from titanspan.contracts.container.factory import ServiceFactory
+from titanspan.contracts.container.scope import Scope
 
 
 class Lifetime(Enum):

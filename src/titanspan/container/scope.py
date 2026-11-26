@@ -1,29 +1,9 @@
-"""Describe Titanspan-owned dependency lifecycle scopes.
+"""Re-export the canonical dependency scope values for container users.
 
-The names express lifecycle intent while adapting to supported graph levels.
+The value type belongs to Contracts so registration providers need no
+dependency on the concrete container implementation.
 """
 
-from enum import Enum
-
-
-class Scope(Enum):
-    """Name application and execution lifetimes for cached dependencies.
-
-    Execution scope names adapt to a finite backend hierarchy. Request,
-    connection, job, and workflow lifetimes share one level; node and agent
-    lifetimes share the next level; tool and task lifetimes share the final
-    level. Nesting is therefore supported only when it advances that order.
-    """
-
-    APPLICATION = "application"
-    REQUEST = "request"
-    CONNECTION = "connection"
-    JOB = "job"
-    WORKFLOW = "workflow"
-    NODE = "node"
-    AGENT = "agent"
-    TOOL = "tool"
-    TASK = "task"
-
+from titanspan.contracts.container.scope import Scope
 
 __all__ = ["Scope"]

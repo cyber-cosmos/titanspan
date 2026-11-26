@@ -7,15 +7,19 @@ facades or framework services through isolated test registries.
 from __future__ import annotations
 
 import asyncio
-from collections.abc import Mapping, Sequence
+from collections.abc import AsyncIterator, Mapping, Sequence
 from types import MappingProxyType
 from typing import TYPE_CHECKING, cast, overload
 
 import pytest
 
 from titanspan import Application
-from titanspan._application_context import active_application_context
+from titanspan._application_context import (
+    ApplicationContextError,
+    active_application_context,
+)
 from titanspan.config import ConfigCapabilityError
+from titanspan.container import Scope, ScopeError
 from titanspan.contracts.config import (
     ConfigDiagnostics,
     ConfigMacroRegistry,
@@ -34,6 +38,9 @@ from titanspan.facades import Config, Facade, Log
 from titanspan.logging import LogLifecycleError
 from titanspan.support import config
 from titanspan.support.arr import Arr
+
+_PROVIDER_FAILURE_MESSAGE = "provider startup failed"
+_RESOURCE_CLEANUP_FAILURE_MESSAGE = "resource cleanup failed"
 
 if TYPE_CHECKING:
     from titanspan.contracts.container import ServiceRegistry
@@ -125,6 +132,147 @@ class _BootProvider:
         """
         assert repository.get("app.name") == "Booted"
         self._events.append("booted")
+
+
+class _LifecycleResource:
+    """Track a container-owned resource across application lifecycle hooks.
+
+    Attributes:
+        closed: Whether the native container finalized the resource.
+    """
+
+    def __init__(self, events: list[str]) -> None:
+        """Retain a test-owned event sink for resource finalization.
+
+        Args:
+            events: Ordered lifecycle observations shared by the test.
+        """
+        self.closed = False
+        self._events = events
+
+    def close(self) -> None:
+        """Record finalization and preserve its observable order.
+
+        The event list makes resource shutdown relative to logging cleanup
+        testable.
+        """
+        if active_application_context() is not None:
+            self._events.append("application-context-active-during-close")
+        self.closed = True
+        self._events.append("resource-closed")
+
+    closed: bool
+    _events: list[str]
+
+
+class _LifecycleProvider:
+    """Register and initialize a resource through the native application.
+
+    Attributes:
+        events: Ordered observations of registration and cleanup.
+    """
+
+    def __init__(
+        self,
+        events: list[str],
+        *,
+        fail_during_boot: bool = False,
+        fail_during_cleanup: bool = False,
+    ) -> None:
+        """Configure successful or failing application startup.
+
+        Args:
+            events: Ordered observations populated by hooks and resources.
+            fail_during_boot: Whether startup raises after resolving a resource.
+            fail_during_cleanup: Whether finalization raises after recording.
+        """
+        self.events = events
+        self._fail_during_boot = fail_during_boot
+        self._fail_during_cleanup = fail_during_cleanup
+
+    def register(self, container: ServiceRegistry) -> None:
+        """Register the lifecycle resource before application startup.
+
+        Args:
+            container: Canonical registry owned by the application.
+        """
+        container.singleton(_LifecycleResource, self._resource)
+        self.events.append("registered")
+
+    async def _resource(self) -> AsyncIterator[_LifecycleResource]:
+        """Yield a managed resource and record deterministic cleanup.
+
+        Yields:
+            The resource owned by the application's container.
+        """
+        resource = _LifecycleResource(self.events)
+        self.events.append("resource-created")
+        try:
+            yield resource
+        finally:
+            resource.close()
+            if self._fail_during_cleanup:
+                raise RuntimeError(_RESOURCE_CLEANUP_FAILURE_MESSAGE)
+
+    async def boot(self, resource: _LifecycleResource) -> None:
+        """Use the registered resource during native application startup.
+
+        Args:
+            resource: Application-owned service resolved by injection.
+
+        Raises:
+            RuntimeError: When configured to exercise startup rollback.
+        """
+        assert not resource.closed
+        self.events.append("booted")
+        if self._fail_during_boot:
+            failure_message = _PROVIDER_FAILURE_MESSAGE
+            raise RuntimeError(failure_message)
+
+    events: list[str]
+    _fail_during_boot: bool
+    _fail_during_cleanup: bool
+
+
+class _BlockingBootProvider:
+    """Hold provider startup until the owning lifecycle releases it.
+
+    The two events give integration tests a deterministic startup barrier for
+    checking that shutdown cannot race with partially initialized services.
+    """
+
+    def __init__(
+        self,
+        startup_entered: asyncio.Event,
+        finish_startup: asyncio.Event,
+    ) -> None:
+        """Retain synchronization points for startup coordination.
+
+        Args:
+            startup_entered: Event set after boot begins.
+            finish_startup: Event that releases the suspended boot operation.
+        """
+        self._startup_entered = startup_entered
+        self._finish_startup = finish_startup
+
+    def register(self, container: ServiceRegistry) -> None:
+        """Satisfy the provider lifecycle without adding test services.
+
+        Args:
+            container: Canonical application service registry.
+        """
+
+    async def boot(self) -> None:
+        """Signal entry and wait for the test to allow startup completion.
+
+        Side Effects:
+            Suspends until the paired release event is set.
+        """
+        self._startup_entered.set()
+        await self._finish_startup.wait()
+
+    _startup_entered: asyncio.Event
+    _finish_startup: asyncio.Event
 
 
 class _MappingConfigRepository:
@@ -510,6 +658,195 @@ async def test_provider_boot_runs_after_registration_with_injection() -> None:
 
 
 @pytest.mark.anyio
+async def test_application_lifecycle_runs_without_an_asgi_server(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Start and stop application services independently of HTTP hosting.
+
+    Provider boot uses the canonical container and its resource is finalized
+    by the same native shutdown operation used by the ASGI adapter.
+
+    Args:
+        monkeypatch: Wraps real logger cleanup to observe ownership ordering.
+    """
+    events: list[str] = []
+    application = Application(
+        service_providers=[_LifecycleProvider(events)],
+    )
+    close_logging_sync = application.logging.close
+
+    def observe_logging_cleanup() -> None:
+        """Record logging finalization before delegating to the manager.
+
+        The test compares the manager's real cleanup with native resource
+        finalization through one ordered event sequence.
+        """
+        events.append("logging-closed")
+        close_logging_sync()
+
+    monkeypatch.setattr(
+        application.logging,
+        "close",
+        observe_logging_cleanup,
+    )
+
+    await application.startup()
+
+    resource = application.make(_LifecycleResource)
+    assert events == ["registered", "resource-created", "booted"]
+    assert not resource.closed
+    with application.context():
+        active = active_application_context()
+        assert active is not None
+        assert active.application is application
+
+    await application.shutdown()
+
+    assert resource.closed
+    assert events[-2:] == ["resource-closed", "logging-closed"]
+    assert active_application_context() is None
+
+
+@pytest.mark.anyio
+async def test_application_startup_and_shutdown_are_idempotent() -> None:
+    """Keep repeated lifecycle calls safe and reject a stopped restart.
+
+    Standalone workers may share startup hooks with host integrations, so
+    repeated calls must not duplicate initialization or finalization.
+    """
+    events: list[str] = []
+    application = Application(
+        service_providers=[_LifecycleProvider(events)],
+    )
+
+    await application.startup()
+    await application.startup()
+    await application.shutdown()
+    await application.shutdown()
+
+    assert events.count("booted") == 1
+    assert events.count("resource-closed") == 1
+    with pytest.raises(RuntimeError, match="cannot be restarted"):
+        await application.startup()
+
+
+@pytest.mark.anyio
+async def test_shutdown_is_rejected_while_provider_startup_is_active() -> None:
+    """Prevent teardown from racing with provider initialization.
+
+    Events provide a deterministic barrier so shutdown is attempted only
+    after startup has entered the provider's asynchronous boot operation.
+    """
+    startup_entered = asyncio.Event()
+    finish_startup = asyncio.Event()
+    provider = _BlockingBootProvider(startup_entered, finish_startup)
+    application = Application(service_providers=[provider])
+    startup_task = asyncio.create_task(application.startup())
+
+    await startup_entered.wait()
+    with pytest.raises(RuntimeError, match="startup is in progress"):
+        await application.shutdown()
+
+    finish_startup.set()
+    await startup_task
+    await application.shutdown()
+
+
+@pytest.mark.anyio
+async def test_async_context_reentry_is_rejected() -> None:
+    """Reject overlapping standalone context ownership for one app.
+
+    The application context is task-local, but a single lifecycle owner must
+    still have unambiguous responsibility for finalization.
+    """
+    application = Application()
+
+    async with application:
+        with pytest.raises(RuntimeError, match="already active"):
+            await application.__aenter__()
+
+
+@pytest.mark.anyio
+async def test_native_dependency_rejects_resolution_without_app_context() -> (
+    None
+):
+    """Require native HTTP dependency resolution to use its owning app.
+
+    This prevents an ASGI dependency callable from silently resolving a
+    service through another application's active container.
+    """
+    application = Application()
+    dependency = application.dependency(_Marker)
+
+    with pytest.raises(ApplicationContextError, match="active context"):
+        await dependency()
+
+    await application.shutdown()
+
+
+@pytest.mark.anyio
+async def test_closed_application_rejects_new_execution_scopes() -> None:
+    """Prevent new scoped resources after application shutdown.
+
+    Closed containers cannot safely create resources whose owner has already
+    finalized its application lifecycle.
+    """
+    application = Application()
+    await application.shutdown()
+
+    with pytest.raises(RuntimeError, match="cannot be restarted"):
+        async with application.execution_scope(Scope.REQUEST):
+            pytest.fail("a closed application opened an execution scope")
+
+
+@pytest.mark.anyio
+async def test_shutdown_rejects_active_scopes_without_losing_cleanup() -> None:
+    """Keep lifecycle callbacks available until execution scopes have exited.
+
+    A rejected shutdown must leave the application usable so the owner can
+    finish active work and retry finalization afterward.
+    """
+    events: list[str] = []
+    application = Application(
+        service_providers=[_LifecycleProvider(events)],
+    )
+    await application.startup()
+
+    async with application.execution_scope(Scope.REQUEST):
+        with pytest.raises(ScopeError, match="execution scopes"):
+            await application.shutdown()
+        assert application.container.active_scope_count == 1
+        assert not application.make(_LifecycleResource).closed
+
+    await application.shutdown()
+
+    assert events[-1] == "resource-closed"
+
+
+@pytest.mark.anyio
+async def test_application_async_context_manages_native_lifecycle() -> None:
+    """Keep the active application context through standalone work.
+
+    The async context manager offers command and worker entry points a
+    structured startup, active-context, and shutdown boundary.
+    """
+    events: list[str] = []
+    application = Application(
+        service_providers=[_LifecycleProvider(events)],
+    )
+
+    async with application as active_application:
+        assert active_application is application
+        active = active_application_context()
+        assert active is not None
+        assert active.application is application
+        assert not application.make(_LifecycleResource).closed
+
+    assert events[-1] == "resource-closed"
+    assert active_application_context() is None
+
+
+@pytest.mark.anyio
 async def test_application_context_covers_the_full_asgi_lifespan() -> None:
     """Keep shared facade resolution active through startup and shutdown.
 
@@ -544,30 +881,7 @@ async def test_provider_boot_failure_closes_services_and_restores_context() -> (
     The application context must unwind after the boot error, and the
     initialized logging manager must reject use after cleanup.
     """
-
-    class FailingProvider:
-        """Fail startup after all application services are prepared.
-
-        The integration test verifies that partially initialized services
-        are still finalized and the active application context is restored.
-        """
-
-        def register(self, container: ServiceRegistry) -> None:
-            """Leave service registration unchanged for this failure case.
-
-            Args:
-                container: Shared registry created by the application.
-            """
-
-        async def boot(self) -> None:
-            """Fail during the managed provider startup phase.
-
-            Raises:
-                RuntimeError: Always, to exercise startup cleanup.
-            """
-            failure = "provider startup failed"
-            raise RuntimeError(failure)
-
+    events: list[str] = []
     application = Application(
         config={
             "logging": {
@@ -575,14 +889,51 @@ async def test_provider_boot_failure_closes_services_and_restores_context() -> (
                 "channels": {"memory": {"driver": "memory"}},
             },
         },
-        service_providers=[FailingProvider()],
+        service_providers=[
+            _LifecycleProvider(events, fail_during_boot=True),
+        ],
     )
 
-    with pytest.raises(RuntimeError, match="provider startup failed"):
-        async with application.asgi.router.lifespan_context(application.asgi):
-            pytest.fail("Application boot should have failed")
+    with pytest.raises(RuntimeError, match=_PROVIDER_FAILURE_MESSAGE):
+        await application.startup()
 
+    assert "application-context-active-during-close" in events
+    assert events[-1] == "resource-closed"
     assert active_application_context() is None
+    with pytest.raises(LogLifecycleError):
+        application.logging.channel()
+
+
+@pytest.mark.anyio
+async def test_startup_failure_remains_primary_on_cleanup_failure() -> None:
+    """Preserve the boot error while reporting a failed finalizer.
+
+    Startup rollback must continue closing the other owned resources and
+    attach cleanup failure details without replacing the original cause.
+    """
+    events: list[str] = []
+    application = Application(
+        service_providers=[
+            _LifecycleProvider(
+                events,
+                fail_during_boot=True,
+                fail_during_cleanup=True,
+            ),
+        ],
+    )
+
+    with pytest.raises(
+        RuntimeError,
+        match=_PROVIDER_FAILURE_MESSAGE,
+    ) as startup_error:
+        await application.startup()
+
+    assert startup_error.value.__cause__ is not None
+    assert any(
+        "Application cleanup also failed" in note
+        for note in startup_error.value.__notes__
+    )
+    assert events[-1] == "resource-closed"
     with pytest.raises(LogLifecycleError):
         application.logging.channel()
 

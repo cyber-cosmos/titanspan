@@ -18,7 +18,9 @@ from titanspan.contracts.config import (
 from titanspan.contracts.container import (
     AsyncServiceContainer,
     InstanceRegistration,
+    Scope,
     ServiceContainer,
+    ServiceFactory,
     ServiceRegistry,
 )
 from titanspan.contracts.foundation import (
@@ -69,8 +71,10 @@ __all__ = [
     "MessageBagProtocol",
     "MessageKey",
     "MessageProvider",
+    "Scope",
     "ScopedConfigOverrides",
     "ServiceContainer",
+    "ServiceFactory",
     "ServiceProvider",
     "ServiceRegistry",
     "TypedConfigReader",

@@ -23,12 +23,16 @@ Component-private protocols remain in their owning component.
 | --- | --- | --- |
 | `ConfigRepository` | Typed hierarchical configuration access and mutation | `titanspan.config.Repository`; `tests/unit/config/` |
 | `ServiceContainer`, `AsyncServiceContainer` | Typed sync-safe and async dependency resolution | `titanspan.container.Container`; `tests/unit/container/` |
+| `ServiceRegistry` | Native instance, transient, singleton, and scoped registration | `titanspan.container.Container`; provider conformance tests |
 | `InstanceRegistration` | Explicit instance registration | `titanspan.container` |
 | `HtmlRenderable`, `DeferredDisplayValue` | Trusted and deferred HTML boundaries | Support implementation and tests |
 | `MessageBagProtocol`, `MessageProvider` | Read and provide keyed validation messages | `tests/unit/support/test_message_bag.py` |
 | `LogDriver`, `AsyncLogDriver` | Synchronous and asynchronous record delivery | `titanspan.logging`; logging tests |
 | `LogFormatter`, `LogProcessor`, `LogCustomizer` | Format, transform, and customize component records | `titanspan.logging`; logging tests |
 | `DeliveryStatus` | Report the outcome known at the logging call boundary | `titanspan.logging`; delivery tests |
+
+`Scope` and `ServiceFactory` are container domain values in Contracts and are
+re-exported by `titanspan.container` with canonical object identity.
 
 Logging protocols are generic over the owning component's record or logger
 type. The shared package therefore does not import concrete records, loggers,
