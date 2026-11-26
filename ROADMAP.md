@@ -29,8 +29,10 @@ and documentation before expanding its surface area.
 
 ## Phase 2 — Web and developer tooling
 
-- Routing, controllers, and middleware conventions.
-- HTTP client integration and structured observability improvements.
+- Native ASGI request scopes, response construction, initial middleware,
+  streaming, and pooled HTTP clients are implemented; see `docs/http/`.
+- Routing, controllers, route-level middleware, HTTP fake transports, bounded
+  concurrent HTTP pools, and structured observability improvements remain.
 - CLI generators and application test utilities.
 
 ## Phase 3 — AI orchestration

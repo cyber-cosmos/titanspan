@@ -17,6 +17,7 @@ export default defineConfig({
           { text: "Configuration", link: "/config/" },
           { text: "Service Container", link: "/container/" },
           { text: "Contracts", link: "/contracts/" },
+          { text: "HTTP", link: "/http/" },
           { text: "Logging", link: "/logging/" },
           { text: "Support", link: "/support/" },
         ],
@@ -144,6 +145,10 @@ export default defineConfig({
                 text: "0019 — Contextual container services",
                 link: "/architecture/decisions/0019-contextual-container-services",
               },
+              {
+                text: "0020 — Native HTTP component",
+                link: "/architecture/decisions/0020-native-http-component",
+              },
             ],
           },
         ],
@@ -190,6 +195,27 @@ export default defineConfig({
           {
             text: "Native specification",
             link: "/specifications/container",
+          },
+        ],
+      },
+      {
+        text: "HTTP",
+        items: [
+          { text: "Overview", link: "/http/" },
+          { text: "Incoming requests", link: "/http/requests" },
+          { text: "Responses", link: "/http/responses" },
+          { text: "Outgoing client", link: "/http/client" },
+          { text: "Streaming and SSE", link: "/http/streaming" },
+          { text: "Middleware", link: "/http/middleware" },
+          {
+            text: "Configuration and lifecycle",
+            link: "/http/configuration",
+          },
+          { text: "Security", link: "/http/security" },
+          { text: "Testing", link: "/http/testing" },
+          {
+            text: "Behavioral specification",
+            link: "/specifications/http",
           },
         ],
       },

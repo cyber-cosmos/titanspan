@@ -46,6 +46,7 @@ from typing import (
 import anyio
 
 from titanspan.container._backends.dependency_engine import (
+    AsyncInspectionContext,
     DependencyGraph,
     EngineBinding,
     GraphConfiguration,
@@ -108,6 +109,12 @@ _APPLICATION_SCOPE_ERROR = "The application scope is owned by the container."
 _INACTIVE_SCOPE_ERROR = "The requested execution scope is not active."
 _REENTERED_SCOPE_ERROR = "An execution scope context can only be entered once."
 _SCOPED_BINDING_ERROR = "Scoped bindings require an execution scope."
+_SCOPE_CONTEXT_LOCKED_ERROR = (
+    "Scope values must be supplied before resolving any service."
+)
+_DUPLICATE_SCOPE_INSTANCE_ERROR = (
+    "A scope cannot replace a supplied or resolved service instance."
+)
 _EMPTY_ALIAS_ERROR = "Service aliases must not be empty."
 _EMPTY_TAG_ERROR = "Service tags must not be empty."
 _EMPTY_CONTEXTUAL_PARAMETER_ERROR = (
@@ -329,6 +336,7 @@ class ContainerScope:
         self._sync_graphs: dict[int, SyncDependencyGraph] = {}
         self._generations: dict[tuple[type[object], bool], _Generation] = {}
         self._instances: dict[type[object], object] = {}
+        self._provided_instance_scopes: dict[type[object], str] = {}
         self._lock = asyncio.Lock()
         self._active = False
         self._entered = False
@@ -560,6 +568,15 @@ class ContainerScope:
         """
         return dict(self._instances)
 
+    def instance_scope_snapshot(self) -> Mapping[type[object], str]:
+        """Return lifecycle ownership for values seeded in this frame.
+
+        Returns:
+            Scope names for externally supplied values that remain visible
+            only within this frame or a nested frame.
+        """
+        return dict(self._provided_instance_scopes)
+
     def remember_instance(
         self,
         service: type[object],
@@ -572,6 +589,34 @@ class ContainerScope:
             instance: Resolved object whose identity must be preserved.
         """
         self._instances[service] = instance
+
+    def provide_instance[ServiceT](
+        self,
+        service: type[ServiceT],
+        instance: ServiceT,
+    ) -> None:
+        """Supply a context-owned value before composing scope graphs.
+
+        Values are visible only to dependency graphs composed in this active
+        frame and its child frames. The scope does not close externally
+        supplied objects; their creator remains responsible for cleanup.
+
+        Args:
+            service: Canonical service key used by constructor injection.
+            instance: Value available for this scope's dependency graphs.
+
+        Raises:
+            ScopeError: If the frame is inactive, graph composition has
+                started, or this service key already has an instance.
+        """
+        if not self._active:
+            raise ScopeError(_INACTIVE_SCOPE_ERROR)
+        if self._generations or self._graphs or self._sync_graphs:
+            raise ScopeError(_SCOPE_CONTEXT_LOCKED_ERROR)
+        if service in self._instances:
+            raise ScopeError(_DUPLICATE_SCOPE_INSTANCE_ERROR)
+        self._instances[service] = instance
+        self._provided_instance_scopes[service] = self.scope.value
 
     def generation_for(
         self,
@@ -2051,13 +2096,25 @@ class Container(ServiceContainer):
         bindings = tuple(
             self._engine_binding(binding) for binding in self._bindings.values()
         )
+        frames = self._active_scopes.get()
+        # A parent instance must not mask a temporary replacement factory,
+        # because that replacement may require asynchronous initialization.
+        cached_services = set(self._shared_instance_snapshot())
+        for frame in frames:
+            cached_services.update(frame.instance_snapshot())
         return asynchronous_dependency_path(
             service,
             bindings,
             self._extensions,
-            tuple(self._contextual_bindings.values()),
-            self._aliases,
-            {name: tuple(services) for name, services in self._tags.items()},
+            AsyncInspectionContext(
+                contextual_bindings=(tuple(self._contextual_bindings.values())),
+                aliases=self._aliases,
+                tags={
+                    name: tuple(services)
+                    for name, services in self._tags.items()
+                },
+                cached_services=frozenset(cached_services),
+            ),
         )
 
     @staticmethod
@@ -3293,6 +3350,8 @@ class Container(ServiceContainer):
         for frame in frames:
             instances.update(frame.instance_snapshot())
         scopes = self._instance_scopes(instances)
+        for frame in frames:
+            scopes.update(frame.instance_scope_snapshot())
         request = GraphRequest(
             service=service,
             auto_resolve=service not in self._bindings,

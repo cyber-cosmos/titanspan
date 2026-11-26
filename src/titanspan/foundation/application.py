@@ -17,7 +17,10 @@ from typing import TYPE_CHECKING, Self
 from uuid import uuid4
 
 import anyio
-from fastapi import FastAPI, Request
+from fastapi import FastAPI
+from starlette.middleware.base import BaseHTTPMiddleware
+from starlette.requests import Request as StarletteRequest
+from starlette.responses import Response as StarletteResponse
 
 from titanspan._application_context import (
     ActiveApplicationContext,
@@ -45,7 +48,13 @@ from titanspan.contracts.foundation import (
     BootableServiceProvider,
     ServiceProvider,
 )
+from titanspan.contracts.http import HttpRequest, HttpResponse
 from titanspan.contracts.logging import LoggingManager
+from titanspan.http import HttpServiceProvider, JsonResponse, Request
+from titanspan.http._backends.asgi import create_request
+from titanspan.http.configuration import HttpConfiguration
+from titanspan.http.exceptions import RequestBodyTooLargeError
+from titanspan.http.response import validate_header
 from titanspan.logging import (
     LogCustomizer,
     LoggingConfiguration,
@@ -63,10 +72,12 @@ if TYPE_CHECKING:
     )
     from types import TracebackType
 
+    from starlette.middleware.base import RequestResponseEndpoint
     from starlette.types import ASGIApp, Receive, Send
     from starlette.types import Scope as ASGIScope
 
     from titanspan.container.container import ContainerScope
+    from titanspan.contracts.http import HttpMiddleware, RequestHandler
     from titanspan.logging.logger import Logger
 
 _REQUEST_ID_MAX_LENGTH = 128
@@ -89,6 +100,9 @@ _APPLICATION_CONTEXT_ERROR = (
 _ACTIVE_APPLICATION_SCOPE_ERROR = (
     "Application shutdown requires all execution scopes and overrides "
     "to finish first."
+)
+_INVALID_MIDDLEWARE_RESPONSE_ERROR = (
+    "Native HTTP middleware must return an ASGI-compatible response."
 )
 
 
@@ -141,19 +155,174 @@ class _ApplicationContextMiddleware:
             await self._app(scope, receive, send)
             return
 
-        request = Request(scope, receive=receive)
-        request_id = _request_id(request)
-        async with self._application.execution_scope(Scope.REQUEST):
-            with self._log_manager.context(
-                application=self._app_name,
-                request_id=request_id,
-            ):
-                await self._app(scope, receive, send)
+        incoming = StarletteRequest(scope, receive=receive)
+        request_id = _request_id(incoming)
+        server = self._application.http_configuration.server
+        native_request = create_request(
+            scope,
+            receive,
+            request_id=request_id,
+            configuration=server,
+        )
+        async with self._application.execution_scope(Scope.REQUEST) as active:
+            active.provide_instance(Request, native_request)
+            active.provide_instance(HttpRequest, native_request)
+            try:
+                with self._log_manager.context(
+                    application=self._app_name,
+                    request_id=request_id,
+                ):
+                    await self._app(scope, receive, send)
+            finally:
+                with anyio.CancelScope(shield=True):
+                    await native_request.aclose()
 
     _app: ASGIApp
     _application: Application
     _app_name: str
     _log_manager: LoggingManager
+
+
+class _NativeHttpResponseAdapter:
+    """Adapt a downstream response without reading or buffering its body.
+
+    The application owns this lifecycle through shutdown.
+    """
+
+    def __init__(self, response: StarletteResponse) -> None:
+        """Retain the ASGI response returned by downstream handling.
+
+        Args:
+            response: Response whose body may be produced incrementally.
+        """
+        self._response = response
+
+    @property
+    def status_code(self) -> int:
+        """Return the downstream response status code.
+
+        The application owns this lifecycle through shutdown.
+        """
+        return self._response.status_code
+
+    @property
+    def headers(self) -> Mapping[str, str]:
+        """Expose current headers for native middleware inspection.
+
+        The application owns this lifecycle through shutdown.
+        """
+        return self._response.headers
+
+    def with_header(self, name: str, value: str) -> Self:
+        """Set a validated response header without consuming the body.
+
+        Args:
+            name: HTTP header token name.
+            value: Single-line header value.
+
+        Returns:
+            This response adapter for fluent middleware composition.
+
+        Raises:
+            ValueError: If the name or value is malformed.
+        """
+        validate_header(name, value)
+        self._response.headers[name] = value
+        return self
+
+    def asgi_response(self) -> StarletteResponse:
+        """Return the original response to the middleware host.
+
+        Returns:
+            The original response object, retaining any streaming iterator.
+        """
+        return self._response
+
+    _response: StarletteResponse
+
+
+class _NativeHttpMiddlewareStack(BaseHTTPMiddleware):
+    """Resolve native middleware from the request's application container.
+
+    The application owns this lifecycle through shutdown.
+    """
+
+    def __init__(
+        self,
+        app: ASGIApp,
+        *,
+        application: Application,
+        middleware_types: Sequence[type[HttpMiddleware]],
+    ) -> None:
+        """Retain middleware classes in outer-to-inner order.
+
+        Args:
+            app: Downstream ASGI application.
+            application: Composition root owning the native service graph.
+            middleware_types: Classes in the configured execution order.
+        """
+        super().__init__(app)
+        self._application = application
+        self._middleware_types = tuple(middleware_types)
+
+    async def dispatch(
+        self,
+        request: StarletteRequest,
+        call_next: RequestResponseEndpoint,
+    ) -> StarletteResponse:
+        """Run native middleware around downstream route processing.
+
+        Args:
+            request: Backend request passed through the ASGI stack.
+            call_next: Starlette continuation to the route application.
+
+        Returns:
+            The final response transmitted through the ASGI send channel.
+
+        Raises:
+            TypeError: If a middleware returns a non-ASGI response object.
+        """
+        native_request = self._application.container.make(HttpRequest)
+        instances = [
+            await self._application.container.make_async(middleware_type)
+            for middleware_type in self._middleware_types
+        ]
+
+        async def terminal(_: HttpRequest) -> HttpResponse:
+            """Run the route and adapt its response without buffering it.
+
+            The application owns this lifecycle through shutdown.
+            """
+            backend_response = await call_next(request)
+            return _NativeHttpResponseAdapter(backend_response)
+
+        handler: RequestHandler = terminal
+        for middleware in reversed(instances):
+            downstream = handler
+
+            async def invoke(
+                value: HttpRequest,
+                *,
+                current: HttpMiddleware = middleware,
+                next_handler: RequestHandler = downstream,
+            ) -> HttpResponse:
+                """Bind one middleware instance to its own continuation.
+
+                The application owns this lifecycle through shutdown.
+                """
+                return await current.handle(value, next_handler)
+
+            handler = invoke
+
+        result = await handler(native_request)
+        if isinstance(result, StarletteResponse):
+            return result
+        if isinstance(result, _NativeHttpResponseAdapter):
+            return result.asgi_response()
+        raise TypeError(_INVALID_MIDDLEWARE_RESPONSE_ERROR)
+
+    _application: Application
+    _middleware_types: tuple[type[HttpMiddleware], ...]
 
 
 class Application:
@@ -187,6 +356,7 @@ class Application:
         logging_customizers: (
             Mapping[str, LogCustomizer[Logger]] | None
         ) = None,
+        http_middleware: Sequence[type[HttpMiddleware]] = (),
     ) -> None:
         """Build the native service graph and the FastAPI integration.
 
@@ -199,6 +369,7 @@ class Application:
             providers: Advanced FastAPI dependency integration providers.
             logging: Final explicit logging configuration override.
             logging_customizers: Native logger setup hooks keyed by name.
+            http_middleware: Native middleware in outer-to-inner order.
 
         Raises:
             ValueError: If both configuration source override forms are used.
@@ -221,6 +392,7 @@ class Application:
             if config_repository is not None
             else config_manager.load(overrides=config)
         )
+        http_configuration = HttpConfiguration.from_repository(repository)
         native_container = Container()
         native_container.instance(ServiceContainer, native_container)
         native_container.instance(AsyncServiceContainer, native_container)
@@ -232,6 +404,7 @@ class Application:
         native_providers: tuple[ServiceProvider, ...] = (
             config_provider,
             logging_provider,
+            HttpServiceProvider(http_configuration),
             *service_providers,
         )
         for provider in native_providers:
@@ -239,12 +412,12 @@ class Application:
         self._service_providers = native_providers
 
         active_repository = native_container.make(ConfigRepository)
-        app_name, debug = _application_metadata(active_repository)
         log_manager = native_container.make(LoggingManager)
         self.container = native_container
         self._config_repository = active_repository
         self._logging_manager = log_manager
         self._config_manager = config_manager
+        self._http_configuration = http_configuration
         self._started = False
         self._starting = False
         self._closed = False
@@ -267,41 +440,70 @@ class Application:
                 integration_container.close
             )
 
+        self._fastapi_container = integration_container
+        self.asgi = self._create_asgi(http_middleware)
+
+    def _create_asgi(
+        self,
+        http_middleware: Sequence[type[HttpMiddleware]],
+    ) -> FastAPI:
+        """Compose the ASGI host around the native application.
+
+        Args:
+            http_middleware: Native middleware in outer-to-inner order.
+
+        Returns:
+            FastAPI host configured with lifecycle, scopes, and adapters.
+        """
+        app_name, debug = _application_metadata(self._config_repository)
+
         @asynccontextmanager
         async def lifespan(_: FastAPI) -> AsyncGenerator[None, None]:
-            """Delegate HTTP hosting to the native application lifecycle.
+            """Bind application context through host shutdown.
 
-            The application context remains bound through host startup,
-            serving, and shutdown. Native startup rolls back on failure.
+            The application owns this lifecycle through shutdown.
             """
-            with bind_application_context(self, native_container):
+            with bind_application_context(self, self.container):
                 await self.startup()
                 try:
                     yield
                 finally:
                     await self.shutdown()
 
-        self.asgi = FastAPI(
+        asgi = FastAPI(
             title=app_name,
             debug=debug,
             lifespan=lifespan,
         )
-        self.asgi.state.titanspan_config = active_repository
-        self.asgi.state.titanspan_logging = log_manager
+        asgi.state.titanspan_config = self._config_repository
+        asgi.state.titanspan_logging = self._logging_manager
+        asgi.state.titanspan_http = self._http_configuration
+        asgi.add_exception_handler(
+            RequestBodyTooLargeError,
+            _request_too_large,
+        )
 
-        if integration_container is not None:
-            setup_fastapi_container(
-                container=integration_container,
-                application=self.asgi,
+        if http_middleware:
+            asgi.add_middleware(
+                _NativeHttpMiddlewareStack,
+                application=self,
+                middleware_types=http_middleware,
             )
-        # Add this after the optional route adapter so it is the outermost
-        # user middleware and remains active while every response chunk sends.
-        self.asgi.add_middleware(
+
+        if self._fastapi_container is not None:
+            setup_fastapi_container(
+                container=self._fastapi_container,
+                application=asgi,
+            )
+        # Keep context outside dependency middleware and response transmission
+        # so stream iterators retain request-owned services.
+        asgi.add_middleware(
             _ApplicationContextMiddleware,
             application=self,
             app_name=app_name,
-            log_manager=log_manager,
+            log_manager=self._logging_manager,
         )
+        return asgi
 
     async def startup(self) -> None:
         """Boot application providers without requiring an ASGI host.
@@ -480,6 +682,16 @@ class Application:
         """
         return self._config_manager.settings
 
+    @property
+    def http_configuration(self) -> HttpConfiguration:
+        """Return validated incoming and outgoing HTTP settings.
+
+        Returns:
+            The immutable defaults shared by the ASGI adapter and HTTP
+            service provider.
+        """
+        return self._http_configuration
+
     def make[ServiceT](self, service: type[ServiceT]) -> ServiceT:
         """Resolve a synchronous service through the canonical registry.
 
@@ -549,6 +761,7 @@ class Application:
     container: Container
     _config_repository: ConfigRepository
     _logging_manager: LoggingManager
+    _http_configuration: HttpConfiguration
     _config_manager: ConfigManager
     _service_providers: tuple[ServiceProvider, ...]
     _lifecycle_stack: AsyncExitStack
@@ -582,7 +795,7 @@ def _application_metadata(
     return name, debug_value
 
 
-def _request_id(request: Request) -> str:
+def _request_id(request: StarletteRequest) -> str:
     """Return a bounded request identifier or generate a safe replacement.
 
     Args:
@@ -599,3 +812,23 @@ def _request_id(request: Request) -> str:
     ):
         return uuid4().hex
     return request_id
+
+
+async def _request_too_large(
+    request: StarletteRequest,
+    error: Exception,
+) -> StarletteResponse:
+    """Return a safe client error for an oversized ASGI request.
+
+    Args:
+        request: Server request associated with the rejected body.
+        error: Native size-limit exception without request payload data.
+
+    Returns:
+        A JSON 413 response without disclosing request contents.
+    """
+    _ = request, error
+    return JsonResponse(
+        {"detail": "Request body exceeds the configured size limit."},
+        status=413,
+    )

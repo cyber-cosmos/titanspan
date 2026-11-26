@@ -15,9 +15,9 @@ explicit async interfaces.
 The current package is intentionally small. The implemented foundation is a
 FastAPI-backed ASGI application, a Dishka-backed container, a native
 configuration repository with Pydantic Settings validation, a Typer CLI,
-selected Support utilities, and an initial native logging component. Other
-modules below remain planned boundaries unless marked as implemented in the
-table.
+selected Support utilities, native logging, and an initial native HTTP
+component. Other modules below remain planned boundaries unless marked as
+implemented in the table.
 
 ## Architectural principles
 
@@ -73,7 +73,7 @@ tracked in [`docs/specifications/backend-boundaries.md`](docs/specifications/bac
 | `config` | Typed configuration, trusted sources, environment integration, and safe snapshots. | Native repository, settings, source loader, cache, commands, and application provider implemented; see `docs/config/`. |
 | `facades` | Context-aware access to application-owned services. | Shared typed facade base and execution-local `Config` and `Log` facades implemented. |
 | `routing` | Fluent routing, route groups, controllers, and workflow endpoints. | Planned; FastAPI routers remain directly accessible. |
-| `http` | HTTP requests, responses, middleware, and fluent HTTP clients. | Planned. |
+| `http` | Incoming ASGI requests, native responses, middleware, streaming, and pooled outgoing clients. | Initial component implemented and application-integrated; pending behavior is listed in `docs/specifications/http.md`. |
 | `auth` | Authentication, authorization, guards, gates, and policies. | Planned. |
 | `database` | SQLAlchemy-backed models, queries, transactions, migrations, and persistence. | Planned. |
 | `collections` | Eager, lazy, and asynchronous fluent collections. | Planned. |

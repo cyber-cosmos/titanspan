@@ -75,3 +75,18 @@ Titanspan uses python-dotenv 1.2.4 to read dotenv values without mutating
 the process environment. No python-dotenv source code is copied into
 Titanspan. The package is distributed under the BSD 3-Clause License; see
 the [official python-dotenv 1.2.4 license](https://github.com/theskumar/python-dotenv/blob/v1.2.4/LICENSE).
+
+## HTTPX2
+
+Titanspan uses HTTPX2 2.16.2 for synchronous and asynchronous outgoing HTTP
+transport, connection pooling, and response streaming. No HTTPX2 source code
+is copied into Titanspan. HTTPX2 is distributed under the BSD 3-Clause
+License; see the [official HTTPX2 license](https://github.com/pydantic/httpx2/blob/main/LICENSE).
+
+## python-multipart
+
+Titanspan uses python-multipart 0.0.34 through Starlette's bounded multipart
+parser for incoming file uploads. No python-multipart source code is copied
+into Titanspan. python-multipart is distributed under the Apache License 2.0;
+see the [0.0.34 package metadata](https://github.com/Kludex/python-multipart/blob/0.0.34/pyproject.toml)
+and [license text](https://github.com/Kludex/python-multipart/blob/0.0.34/LICENSE.txt).

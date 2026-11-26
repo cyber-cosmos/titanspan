@@ -428,6 +428,30 @@ async def test_sync_access_reuses_an_async_initialized_singleton() -> None:
 
 
 @pytest.mark.anyio
+async def test_sync_consumer_can_inject_async_initialized_singleton() -> None:
+    """Allow sync construction when an async-only dependency is cached.
+
+    The synchronous root constructor performs no async work. Its singleton
+    dependency was initialized during application startup, so reuse is safe.
+    """
+
+    async def create_service() -> AsyncService:
+        """Create the dependency through its asynchronous factory.
+
+        The assertions exercise the application-owned container lifecycle.
+        """
+        return AsyncService()
+
+    async with Container() as container:
+        container.singleton(AsyncService, create_service)
+        initialized = await container.make_async(AsyncService)
+
+        consumer = container.make(AsyncServiceConsumer)
+
+    assert consumer.service is initialized
+
+
+@pytest.mark.anyio
 async def test_application_singletons_are_isolated_between_containers() -> None:
     """Keep singleton identity local to the owning application container.
 

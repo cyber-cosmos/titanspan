@@ -124,6 +124,26 @@ class EngineBinding:
 
 
 @dataclass(frozen=True, slots=True)
+class AsyncInspectionContext:
+    """Hold optional registrations used while inspecting async graph paths.
+
+    Attributes:
+        contextual_bindings: Consumer-specific dependency source rules.
+        aliases: String names mapped to canonical service keys.
+        tags: Ordered service groups selected by injection metadata.
+        cached_services: Services initialized in an active lifecycle.
+    """
+
+    contextual_bindings: Sequence[ContextualBinding] = ()
+    aliases: Mapping[str, type[object]] | None = None
+    tags: Mapping[str, Sequence[type[object]]] | None = None
+    cached_services: frozenset[type[object]] = frozenset()
+
+
+_EMPTY_ASYNC_INSPECTION_CONTEXT = AsyncInspectionContext()
+
+
+@dataclass(frozen=True, slots=True)
 class GraphRequest:
     """Describe one requested root and its automatic-discovery policy.
 
@@ -930,9 +950,7 @@ def asynchronous_dependency_path(
     root: type[object],
     bindings: Sequence[EngineBinding],
     extensions: Mapping[type[object], Sequence[Callable[..., object]]],
-    contextual_bindings: Sequence[ContextualBinding] = (),
-    aliases: Mapping[str, type[object]] | None = None,
-    tags: Mapping[str, Sequence[type[object]]] | None = None,
+    context: AsyncInspectionContext = _EMPTY_ASYNC_INSPECTION_CONTEXT,
 ) -> tuple[str, ...] | None:
     """Find the first dependency path that requires asynchronous creation.
 
@@ -940,9 +958,7 @@ def asynchronous_dependency_path(
         root: Service requested by synchronous resolution.
         bindings: Native service-to-implementation registrations.
         extensions: Service decorators that may require asynchronous work.
-        contextual_bindings: Consumer-specific injection source rules.
-        aliases: Registered names mapped to service types.
-        tags: Ordered groups of services selected by injection metadata.
+        context: Optional registrations and initialized cache identities.
 
     Returns:
         A readable service path ending at an async factory, or ``None`` when
@@ -951,9 +967,7 @@ def asynchronous_dependency_path(
     inspector = _AsyncDependencyInspector(
         bindings,
         extensions,
-        contextual_bindings,
-        aliases,
-        tags,
+        context,
     )
     return inspector.find_path(root)
 
@@ -969,33 +983,30 @@ class _AsyncDependencyInspector:
         self,
         bindings: Sequence[EngineBinding],
         extensions: Mapping[type[object], Sequence[Callable[..., object]]],
-        contextual_bindings: Sequence[ContextualBinding],
-        aliases: Mapping[str, type[object]] | None,
-        tags: Mapping[str, Sequence[type[object]]] | None,
+        context: AsyncInspectionContext,
     ) -> None:
         """Index graph metadata for deterministic path traversal.
 
         Args:
             bindings: Native registrations included in graph composition.
             extensions: Service decorators that may require async execution.
-            contextual_bindings: Consumer-specific source rules.
-            aliases: Registered string names and their service keys.
-            tags: Ordered service groups selected by injection metadata.
+            context: Optional registrations and initialized cache identities.
         """
         self.bindings = {binding.service: binding for binding in bindings}
         self.extensions = extensions
         self.contextual = {
             (consumer, binding.dependency): binding
-            for binding in contextual_bindings
+            for binding in context.contextual_bindings
             for consumer in binding.consumers
         }
         self.consumers = _implementation_consumers(bindings)
         self.aliases: Mapping[str, type[object]] = (
-            {} if aliases is None else aliases
+            {} if context.aliases is None else context.aliases
         )
         self.tags: Mapping[str, Sequence[type[object]]] = (
-            {} if tags is None else tags
+            {} if context.tags is None else context.tags
         )
+        self.cached_services = context.cached_services
 
     def find_path(
         self,
@@ -1028,7 +1039,7 @@ class _AsyncDependencyInspector:
         Returns:
             The first async path found, or ``None`` when this branch is safe.
         """
-        if service in visited:
+        if service in visited or service in self.cached_services:
             return None
         binding = self.bindings.get(service)
         if binding is not None and binding.is_instance:

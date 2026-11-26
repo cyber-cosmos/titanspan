@@ -5,6 +5,13 @@ public release.
 
 ## Unreleased
 
+- Added the initial native HTTP component: scoped ASGI requests, bounded body
+  and multipart parsing, native responses, SSE and streaming, ordered
+  dependency-injected middleware, and pooled synchronous/asynchronous outgoing
+  clients. Request scope and context remain active through response
+  transmission. HTTP fakes, bounded request pools, outgoing multipart, and
+  SSRF enforcement remain pending; see `docs/http/` and
+  `docs/specifications/http.md`.
 - Reject nested overrides that would be hidden by an inherited singleton,
   while preserving unaffected singleton identity and resource ownership.
   Configuration injection checks collection values against bare or
