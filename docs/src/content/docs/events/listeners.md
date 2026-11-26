@@ -38,10 +38,10 @@ register methods directly or return an event-to-handler mapping. Mark a class
 with `@subscriber` to include it in configured discovery. Discovery resolves
 subscriber classes through the container during application startup.
 
-An instance subscriber is retained only through listener references it
-registers. Pass application-lifetime instances when its methods become
-application-lifetime listeners. Prefer subscriber classes when the container
-must control construction.
+Class subscribers retain their class and method names. The Container resolves
+each method in the active dispatch scope. An explicit instance subscriber
+retains that instance through its method references. Pass application-lifetime
+instances when those methods outlive their creation scope.
 
 ## Trusted discovery
 

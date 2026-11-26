@@ -5,10 +5,9 @@ The provider shares route definitions with URL generation and the ASGI adapter.
 
 from titanspan.contracts.config import ConfigRepository
 from titanspan.contracts.container import ServiceRegistry
-from titanspan.contracts.routing import RouteCatalog
+from titanspan.contracts.routing import RouteCatalog, UriUrlGenerator
 from titanspan.routing.router import Router
 from titanspan.routing.url_generator import UrlGenerator
-from titanspan.support.uri import UriUrlGenerator
 
 _INVALID_ORIGIN_TYPE_ERROR = "routing.origin must be text when configured."
 

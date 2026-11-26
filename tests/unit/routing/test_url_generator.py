@@ -38,20 +38,102 @@ def named_router() -> Router:
     return router
 
 
-def test_named_route_encodes_path_and_query_values() -> None:
-    """Substitute path parameters and encode unused values as a query.
+def test_named_route_uses_support_query_encoding() -> None:
+    """Substitute path values and encode query values through Support.
 
-    Path slashes are encoded to avoid changing route structure.
+    The shared encoder uses RFC 3986 escaping and indexed nested values.
     """
     generator = UrlGenerator(named_router().routes)
 
     generated = generator.route(
         "documents.show",
-        {"document_id": "a/b", "tag": ["ai", "data"]},
+        {
+            "document_id": "a b",
+            "search": "two words",
+            "tag": ["ai", "data"],
+        },
         False,
     )
 
-    assert generated == "/documents/a%2Fb?tag=ai&tag=data"
+    assert generated == (
+        "/documents/a%20b?search=two%20words&tag%5B0%5D=ai&tag%5B1%5D=data"
+    )
+
+
+@pytest.mark.parametrize(
+    ("path", "value", "expected"),
+    [
+        ("/items/{value}", "two words", "/items/two%20words"),
+        ("/items/{value:int}", "0017", "/items/17"),
+        ("/items/{value:float}", "1.5", "/items/1.5"),
+        (
+            "/items/{value:float}",
+            1e20,
+            "/items/100000000000000000000",
+        ),
+        (
+            "/items/{value:uuid}",
+            "550e8400-e29b-41d4-a716-446655440000",
+            "/items/550e8400-e29b-41d4-a716-446655440000",
+        ),
+        (
+            "/files/{value:path}",
+            "folder/report.csv",
+            "/files/folder/report.csv",
+        ),
+    ],
+)
+def test_builtin_route_converters_generate_matchable_paths(
+    path: str,
+    value: object,
+    expected: str,
+) -> None:
+    """Validate and encode every built-in converter before app startup.
+
+    Args:
+        path: Route template with one Starlette built-in converter.
+        value: Candidate path value.
+        expected: Encoded path accepted by the route template.
+    """
+    router = Router()
+    router.get(path, endpoint).name("items.show")
+    generator = UrlGenerator(router.routes)
+
+    assert generator.route("items.show", {"value": value}, False) == expected
+
+
+@pytest.mark.parametrize(
+    ("path", "value", "message"),
+    [
+        ("/items/{value}", "", "converter"),
+        ("/items/{value}", "folder/item", "converter"),
+        ("/items/{value:int}", "-1", "converter"),
+        ("/items/{value:int}", "9" * 5000, "converter"),
+        ("/items/{value:float}", "nan", "converter"),
+        ("/items/{value:float}", "not-a-float", "converter"),
+        ("/items/{value:float}", object(), "converter"),
+        ("/items/{value:uuid}", "invalid", "converter"),
+        ("/items/{value:slug}", "item", "unsupported path converter"),
+    ],
+)
+def test_route_converter_rejects_values_that_cannot_match(
+    path: str,
+    value: object,
+    message: str,
+) -> None:
+    """Fail early when reversal would produce a non-matching route path.
+
+    Args:
+        path: Route template with one supported or unsupported converter.
+        value: Candidate value that must fail validation.
+        message: Native error text expected from the generator.
+    """
+    router = Router()
+    router.get(path, endpoint).name("items.show")
+    generator = UrlGenerator(router.routes)
+
+    with pytest.raises(RouteUrlError, match=message):
+        generator.route("items.show", {"value": value}, False)
 
 
 def test_absolute_route_uses_only_the_configured_origin() -> None:
@@ -278,10 +360,10 @@ def test_path_reverser_is_single_assignment_and_errors_are_native() -> None:
         )
 
 
-def test_custom_converter_uses_native_path_substitution() -> None:
-    """Retain custom converter syntax when backend reversal is unavailable.
+def test_configured_path_reverser_handles_typed_converter_values() -> None:
+    """Delegate typed path reversal when the backend hook is configured.
 
-    Converter values use the canonical path substitution implementation.
+    The generator validates values before passing them to the route adapter.
     """
     router = Router()
     router.get("/documents/{document_id:int}", endpoint).name("documents.show")
@@ -296,7 +378,7 @@ def test_custom_converter_uses_native_path_substitution() -> None:
             {"document_id": 42},
             False,
         )
-        == "/documents/42"
+        == "/documents.show/42"
     )
 
 

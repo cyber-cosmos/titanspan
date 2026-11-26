@@ -15,9 +15,16 @@ public release.
   application context and route catalog. Titanspan validates redirect
   responses. Signed URLs remain unavailable until secure signing and
   verification exist.
+- Unified named route generation through `UriUrlGenerator`, aligned relative
+  defaults across URI factories and Routing helpers, and reused Support's
+  query encoder. Call `absolute=True` to preserve prior absolute `Uri.route()`
+  and `Uri.action()` output. Built-in route converters now reject values that
+  cannot match; custom Starlette converters remain unsupported.
 - Added ordered event dispatch through Blinker 1.9.0. It supports sync and
   async listeners, Container injection, wildcards, subscribers, discovery,
   context-local fakes, deferral, and bounded event pushes.
+  Class-based subscriber methods resolve in each active dispatch scope;
+  explicit instance subscribers remain registration-owned.
   Queue, Database, Broadcasting, and Console integrations remain pending.
   See `docs/src/content/docs/events/` and
   `docs/src/content/docs/specifications/events.md`.

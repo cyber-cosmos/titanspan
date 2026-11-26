@@ -119,8 +119,10 @@ Functions, bound methods, and callable objects use the Container's explicit
 
 Subscribers expose `subscribe(dispatcher)`. They can register listeners
 directly or return a mapping from event selectors to method names or listener
-objects. `subscribe_async()` supports async subscribers. Discovery requires
-the `@subscriber` marker for subscriber classes.
+objects. Class subscribers retain class and method metadata. Dispatch resolves
+the method in the active scope. Explicit instance subscribers remain owned by
+their registration. `subscribe_async()` supports async subscribers.
+Discovery requires the `@subscriber` marker for subscriber classes.
 
 Discovery inspects only configured absolute module names. It registers
 decorated functions, class `handle()` methods, and methods named `handle_*`

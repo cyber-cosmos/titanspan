@@ -12,10 +12,10 @@ from titanspan._application_context import (
 )
 from titanspan.container import BindingResolutionError
 from titanspan.contracts.http import HttpResponse, ResponseFactory
+from titanspan.contracts.routing import UriUrlGenerator
 from titanspan.http.request import Request
 from titanspan.routing.exceptions import RouteUrlError, RoutingContextError
 from titanspan.routing.route import RouteDefinition
-from titanspan.routing.url_generator import UrlGenerator
 
 if TYPE_CHECKING:
     from collections.abc import Mapping
@@ -40,7 +40,7 @@ class Redirector:
     def __init__(
         self,
         factory: ResponseFactory,
-        generator: UrlGenerator,
+        generator: UriUrlGenerator,
     ) -> None:
         """Retain application-owned response and URL construction services.
 
@@ -88,7 +88,7 @@ class Redirector:
         return self._factory.redirect(location, status=status)
 
     _factory: ResponseFactory
-    _generator: UrlGenerator
+    _generator: UriUrlGenerator
 
 
 def route(
@@ -155,7 +155,7 @@ def redirect() -> Redirector:
     try:
         return Redirector(
             active.container.make(ResponseFactory),
-            active.container.make(UrlGenerator),
+            active.container.make(UriUrlGenerator),
         )
     except BindingResolutionError as error:
         raise RoutingContextError(_REDIRECT_CONTEXT_ERROR) from error
@@ -194,7 +194,7 @@ def current_route_name() -> str | None:
     return None if current is None else current.route_name
 
 
-def _url_generator() -> UrlGenerator:
+def _url_generator() -> UriUrlGenerator:
     """Resolve the native URL generator from active application services.
 
     Returns:
@@ -207,7 +207,7 @@ def _url_generator() -> UrlGenerator:
     if active is None:
         raise RoutingContextError(_URL_CONTEXT_ERROR)
     try:
-        return active.container.make(UrlGenerator)
+        return active.container.make(UriUrlGenerator)
     except BindingResolutionError as error:
         raise RoutingContextError(_URL_CONTEXT_ERROR) from error
 

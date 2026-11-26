@@ -7,12 +7,16 @@ or forwarded headers.
 from __future__ import annotations
 
 import inspect
+import math
 import re
-from typing import TYPE_CHECKING, TypeGuard, cast
-from urllib.parse import quote, urlencode, urlsplit, urlunsplit
+from typing import TYPE_CHECKING, SupportsFloat, TypeGuard, cast
+from urllib.parse import quote, urlsplit, urlunsplit
+from uuid import UUID
 
+from titanspan.contracts.routing import UriUrlGenerator
 from titanspan.routing.exceptions import RouteUrlError
-from titanspan.support.uri import Uri, UriUrlGenerator
+from titanspan.support.arr import Arr
+from titanspan.support.uri import Uri
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Mapping, Sequence
@@ -41,6 +45,12 @@ _ORIGIN_DOMAIN_MISMATCH = (
 )
 _ROUTE_CONSTRAINT_ERROR = (
     "A route parameter does not satisfy its registered constraint."
+)
+_ROUTE_CONVERTER_ERROR = (
+    "A route parameter does not satisfy its registered converter."
+)
+_UNSUPPORTED_ROUTE_CONVERTER_ERROR = (
+    "The route uses an unsupported path converter."
 )
 _REVERSER_ALREADY_SET = "The route path reverser is already configured."
 _REVERSER_FAILURE = "The registered route could not be reversed."
@@ -162,15 +172,15 @@ class UrlGenerator(UriUrlGenerator):
         parameters: Mapping[str, object],
         absolute: bool,
     ) -> str:
-        """Reject action-based lookup in favor of stable route names.
+        """Build a URL for one unambiguous registered callable action.
 
         Args:
-            action: Controller action identifier from a caller.
-            parameters: Candidate action parameters.
-            absolute: Whether the requested result would be absolute.
+            action: Dotted or ordered callable identity.
+            parameters: Values used for path and query parameters.
+            absolute: Whether to include the configured origin.
 
         Raises:
-            RouteUrlError: Action lookup is not an implemented route identity.
+            RouteUrlError: If no unique registered action matches.
         """
         identity = _requested_action(action)
         matches = [
@@ -207,7 +217,6 @@ class UrlGenerator(UriUrlGenerator):
         remaining = dict(parameters)
         path_values: dict[str, str] = {}
         path = route.path
-        supports_backend_reverse = True
         for match in _PATH_PARAMETER.finditer(route.path):
             key, converter = match.groups()
             value = remaining.pop(key, route.default_values.get(key))
@@ -224,28 +233,28 @@ class UrlGenerator(UriUrlGenerator):
                 is None
             ):
                 raise RouteUrlError(_ROUTE_CONSTRAINT_ERROR)
-            safe = "/" if converter == "path" else ""
-            if converter is not None:
-                supports_backend_reverse = False
-            path_values[key] = quote(str(value), safe=safe)
+            converter_name = "str" if converter is None else converter
+            path_values[key] = _convert_path_value(
+                converter_name,
+                value,
+            )
+            safe = "/" if converter_name == "path" else ""
+            encoded_value = quote(path_values[key], safe=safe)
+            path_values[key] = encoded_value
             path = path.replace(
                 match.group(0),
-                path_values[key],
+                encoded_value,
                 1,
             )
 
-        if (
-            self._path_reverser is not None
-            and route.route_name is not None
-            and supports_backend_reverse
-        ):
+        if self._path_reverser is not None and route.route_name is not None:
             try:
                 path = self._path_reverser(route.route_name, path_values)
-            except (KeyError, ValueError) as error:
+            except (AssertionError, KeyError, ValueError) as error:
                 raise RouteUrlError(_REVERSER_FAILURE) from error
 
         if remaining:
-            path = f"{path}?{_encode_query(remaining)}"
+            path = f"{path}?{Arr.query(remaining)}"
         if not absolute:
             return path
         return self._absolute(path, route_domain=route.domain_name)
@@ -437,24 +446,110 @@ def _type_identity(value: type[object]) -> str:
     return f"{value.__module__}.{value.__qualname__}"
 
 
-def _encode_query(parameters: Mapping[str, object]) -> str:
-    """Encode leftover values without changing repeated-value semantics.
+def _convert_path_value(converter: str, value: object) -> str:
+    """Validate and normalize one supported route path value.
 
     Args:
-        parameters: Query names and scalar or repeated values.
+        converter: Starlette-compatible converter name.
+        value: Caller value for one path parameter.
 
     Returns:
-        RFC 3986 query text without a leading question mark.
+        Canonical string value accepted by the route converter.
+
+    Raises:
+        RouteUrlError: If the converter is unsupported or rejects the value.
     """
-    pairs: list[tuple[str, str]] = []
-    for key, value in parameters.items():
-        values = (
-            cast("Sequence[object]", value)
-            if isinstance(value, (list, tuple))
-            else (value,)
-        )
-        pairs.extend((key, str(item)) for item in values)
-    return urlencode(pairs)
+    if converter == "path":
+        return str(value)
+    if converter == "str":
+        return _convert_string_path_value(value)
+    if converter == "int":
+        return _convert_integer_path_value(value)
+    if converter == "float":
+        return _convert_float_path_value(value)
+    if converter == "uuid":
+        return _convert_uuid_path_value(value)
+    raise RouteUrlError(_UNSUPPORTED_ROUTE_CONVERTER_ERROR)
+
+
+def _convert_string_path_value(value: object) -> str:
+    """Validate the default non-empty string path converter.
+
+    Args:
+        value: Caller value for one path segment.
+
+    Returns:
+        A valid string path segment.
+
+    Raises:
+        RouteUrlError: If the value is empty or contains a slash.
+    """
+    text = str(value)
+    if not text or "/" in text:
+        raise RouteUrlError(_ROUTE_CONVERTER_ERROR)
+    return text
+
+
+def _convert_integer_path_value(value: object) -> str:
+    """Normalize a non-negative integer path value.
+
+    Args:
+        value: Caller value for one integer path parameter.
+
+    Returns:
+        Canonical decimal digits accepted by Starlette's integer converter.
+
+    Raises:
+        RouteUrlError: If the value is not a supported integer spelling.
+    """
+    text = str(value)
+    if re.fullmatch(r"[0-9]+", text) is None:
+        raise RouteUrlError(_ROUTE_CONVERTER_ERROR)
+    try:
+        return str(int(text))
+    except ValueError as error:
+        raise RouteUrlError(_ROUTE_CONVERTER_ERROR) from error
+
+
+def _convert_float_path_value(value: object) -> str:
+    """Normalize a finite, non-negative float path value.
+
+    Args:
+        value: Caller value for one float path parameter.
+
+    Returns:
+        Decimal text accepted by Starlette's float converter.
+
+    Raises:
+        RouteUrlError: If the value is outside the converter's accepted form.
+    """
+    if not isinstance(value, (str, SupportsFloat)):
+        raise RouteUrlError(_ROUTE_CONVERTER_ERROR)
+    try:
+        numeric = float(value)
+    except (OverflowError, TypeError, ValueError) as error:
+        raise RouteUrlError(_ROUTE_CONVERTER_ERROR) from error
+    if not math.isfinite(numeric) or numeric < 0:
+        raise RouteUrlError(_ROUTE_CONVERTER_ERROR)
+    return f"{numeric:0.20f}".rstrip("0").rstrip(".")
+
+
+def _convert_uuid_path_value(value: object) -> str:
+    """Normalize a UUID path value to its canonical spelling.
+
+    Args:
+        value: Caller value for one UUID path parameter.
+
+    Returns:
+        Canonical lowercase UUID text accepted by Starlette.
+
+    Raises:
+        RouteUrlError: If the value is not a valid UUID.
+    """
+    try:
+        return str(UUID(str(value)))
+    except ValueError as error:
+        raise RouteUrlError(_ROUTE_CONVERTER_ERROR) from error
 
 
 __all__ = ["UrlGenerator"]

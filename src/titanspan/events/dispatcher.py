@@ -476,9 +476,9 @@ class NativeEventDispatcher(EventDispatcherContract):
     def subscribe(self, subscriber: object | type[object]) -> None:
         """Register several listeners through one subscriber object.
 
-        A class is constructed through the application container. An instance
-        is retained only through listeners it registers, so callers should
-        pass application-lifetime instances.
+        A class-based subscriber retains method metadata and resolves its
+        listener in each dispatch scope. An explicit instance remains owned by
+        the registration and must have application lifetime.
 
         Args:
             subscriber: Class or instance exposing ``subscribe(dispatcher)``.
@@ -500,7 +500,13 @@ class NativeEventDispatcher(EventDispatcherContract):
                 callback,
                 _named_arguments(callback, "dispatcher", self),
             )
-        self._register_subscription_result(instance, result)
+        listener_owner = (
+            subscriber if isinstance(subscriber, type) else instance
+        )
+        self._register_subscription_result(
+            result,
+            listener_owner,
+        )
 
     async def subscribe_async(
         self,
@@ -527,7 +533,13 @@ class NativeEventDispatcher(EventDispatcherContract):
                 callback,
                 _named_arguments(callback, "dispatcher", self),
             )
-        self._register_subscription_result(instance, result)
+        listener_owner = (
+            subscriber if isinstance(subscriber, type) else instance
+        )
+        self._register_subscription_result(
+            result,
+            listener_owner,
+        )
 
     def _subscriber_instance(self, subscriber: object | type[object]) -> object:
         """Resolve a subscriber class synchronously when necessary.
@@ -566,14 +578,14 @@ class NativeEventDispatcher(EventDispatcherContract):
 
     def _register_subscription_result(
         self,
-        instance: object,
         result: object,
+        listener_owner: object | type[object],
     ) -> None:
         """Apply a declarative event-to-method subscriber mapping.
 
         Args:
-            instance: Subscriber retained by explicit method references.
             result: Optional mapping returned by its subscribe method.
+            listener_owner: Class for runtime resolution or explicit instance.
 
         Raises:
             EventRegistrationError: If a mapping contains invalid targets.
@@ -594,7 +606,7 @@ class NativeEventDispatcher(EventDispatcherContract):
             )
             for target in targets:
                 listener_target = (
-                    ListenerReference(instance, target)
+                    ListenerReference(listener_owner, target)
                     if isinstance(target, str)
                     else target
                 )

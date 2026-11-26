@@ -29,7 +29,7 @@ Concurrency, or Telemetry components.
 | Bounded async request pools | `Http.pool`, `HttpPoolRequest` | `tests/integration/http/test_http_fakes.py` |
 | Outbound URL scheme and credential checks | `PendingRequest`, `HttpClient` | Builder and client integration tests |
 | Application-scoped client and request scope | `HttpServiceProvider`, `Application` | HTTP application integration tests |
-| URI redirects | `ResponseFactory.redirect`, `Uri.redirect` | Routing URI integration tests use the native response factory |
+| URI redirects | `ResponseFactory.redirect`, `Uri.redirect`, named Routing redirects | Routing URI integration tests use the canonical generator and native response factory |
 
 ## Resolution and lifecycle
 
@@ -67,6 +67,11 @@ Response fluent header methods mutate the response and return it. JSON values
 are validated against the supported JSON model. Bodyless statuses do not
 transmit a body. Redirects reject protocol-relative and unsupported schemes;
 external HTTP(S) targets need explicit permission.
+
+`Uri.redirect()` and named Routing redirects delegate to the application-owned
+`ResponseFactory`. Named destinations use the canonical `UriUrlGenerator` and
+are relative by default. Redirect validation remains the HTTP component's
+responsibility.
 
 ## Outgoing request behavior
 

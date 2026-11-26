@@ -9,6 +9,10 @@ shares the route catalog used for incoming dispatch and is available through
 the `UriUrlGenerator` contract. URI parsing remains usable without an active
 Application; route-aware URI factories require one.
 
+Named route URLs are relative by default across `route()`, `Uri.route()`, and
+`Uri.action()`. Pass `absolute=True` to use the configured trusted origin.
+This policy keeps URL helpers consistent and makes redirects local by default.
+
 ## Named routes
 
 ```python
@@ -31,21 +35,23 @@ with application.context():
     absolute = Uri.route(
         "documents.show",
         {"document_id": 42},
+        absolute=True,
     )
     assert absolute.value() == "https://example.test/documents/42"
     assert url("/docs", absolute=True) == "https://example.test/docs"
 ```
 
-Path parameters are percent-encoded. Unused parameters become query values;
-sequence values use repeated keys. Missing routes and required path parameters
+Path parameters are percent-encoded and validated against their route
+converters. Unused parameters use Support's RFC 3986 query encoder. Lists use
+indexed bracket keys, nested mappings use bracket notation, `None` values are
+omitted, and booleans use `1` or `0`. Missing routes and required parameters
 raise native routing exceptions. Absolute URLs require `routing.origin` or
-`app.url`. Host and forwarded headers are never trusted as the application
-origin.
+`app.url`. Host and forwarded headers never set the application origin.
 
-After compilation, ordinary named paths use the ASGI router's supported
-`url_path_for` operation. Route forms with custom converters use the native
-catalog fallback. Both paths use the same registered definition and produce
-local URLs before the configured origin is applied.
+After compilation, named paths use the ASGI router's supported
+`url_path_for` operation. Before compilation, the generator validates the
+built-in `str`, `int`, `float`, `uuid`, and `path` converters directly. Custom
+Starlette converters are not exposed by the native Router and fail explicitly.
 
 ## URI factories and controller actions
 
@@ -55,6 +61,7 @@ with application.context():
     document_url = Uri.route(
         "documents.show",
         {"document_id": 42},
+        absolute=True,
     )
     action_url = Uri.action(
         "DocumentController.show",
@@ -68,9 +75,9 @@ ambiguous; use a named route to select the intended path.
 
 URI component manipulation such as `Uri.of(...).with_query(...)` does not
 require an Application. `Uri.to`, `Uri.route`, and `Uri.action` resolve the
-active application's URL generator through a context-local binding. Nested
-contexts, exceptions, cancellation, and concurrent tasks restore the previous
-binding.
+active application's URL generator through the `UriUrlGenerator` contract.
+Nested contexts, exceptions, cancellation, and concurrent tasks restore the
+previous binding.
 
 ## Redirects
 

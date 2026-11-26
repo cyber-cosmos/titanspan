@@ -46,6 +46,9 @@ future utility has been implemented.
 - URI route factories resolve `UriUrlGenerator` only inside the active
   Application context. Support re-exports the same contract object defined in
   `contracts.routing`; the application provider binds its canonical generator.
+- Named URI routes and actions are relative by default. Pass `absolute=True`
+  to use the configured trusted origin. Remaining route query values use
+  `Arr.query`, the shared RFC 3986 encoder.
 - URI redirects use the registered `ResponseFactory`. Parsing remains
   independent of app state, while `Uri.redirect()` requires active app
   context and inherits native external and protocol-relative redirect checks.

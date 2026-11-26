@@ -84,6 +84,111 @@ class RecordingProvider:
         container.instance(RecordingService, self._service)
 
 
+class _RequestEventDependency:
+    """Identify the request scope used by an event subscriber.
+
+    Each resolved instance carries a distinct token.
+    """
+
+    def __init__(self) -> None:
+        """Create one request-owned token.
+
+        Each scope receives its own dependency instance.
+        """
+        self.token = object()
+
+
+class _RequestEventDependencyProvider:
+    """Register a dependency with request-owned lifetime.
+
+    The integration test observes its identity across dispatch scopes.
+    """
+
+    def register(self, container: ServiceRegistry) -> None:
+        """Bind one dependency instance to each active request scope.
+
+        Args:
+            container: Canonical application service registry.
+        """
+        container.scoped(
+            _RequestEventDependency,
+            scope=Scope.REQUEST,
+        )
+
+
+class _RequestScopedSubscriber:
+    """Expose a method whose dependency follows the dispatch scope.
+
+    The listener returns the identity token for its active request.
+    """
+
+    def __init__(self, dependency: _RequestEventDependency) -> None:
+        """Retain the dependency owned by the active request.
+
+        Args:
+            dependency: Request-scoped value resolved by the Container.
+        """
+        self._dependency = dependency
+
+    def subscribe(self, dispatcher: EventDispatcher) -> dict[str, str]:
+        """Declare one named listener method.
+
+        Args:
+            dispatcher: Application-owned event dispatcher.
+
+        Returns:
+            Event name mapped to the listener method name.
+        """
+        _ = dispatcher
+        return {"request.scoped.subscriber": "handle"}
+
+    def handle(self) -> object:
+        """Return the request token used during this dispatch.
+
+        Returns:
+            The token owned by the dispatch's request scope.
+        """
+        return self._dependency.token
+
+
+class _AsyncRequestScopedSubscriber:
+    """Declare an asynchronous listener with request-owned state.
+
+    Async subscription uses the same execution-scope guarantee.
+    """
+
+    def __init__(self, dependency: _RequestEventDependency) -> None:
+        """Retain the dependency owned by the active request.
+
+        Args:
+            dependency: Request-scoped value resolved by the Container.
+        """
+        self._dependency = dependency
+
+    async def subscribe(
+        self,
+        dispatcher: EventDispatcher,
+    ) -> dict[str, str]:
+        """Return one listener declaration through async setup.
+
+        Args:
+            dispatcher: Application-owned event dispatcher.
+
+        Returns:
+            Event name mapped to the listener method name.
+        """
+        _ = dispatcher
+        return {"request.scoped.async_subscriber": "handle"}
+
+    def handle(self) -> object:
+        """Return the request token used during this dispatch.
+
+        Returns:
+            The token owned by the dispatch's request scope.
+        """
+        return self._dependency.token
+
+
 @dataclass(frozen=True, slots=True)
 class DocumentProcessed(Dispatchable):
     """Identify one processed document for integration coverage.
@@ -736,6 +841,7 @@ async def test_facade_subscribers_push_and_deferred_dispatch() -> None:
         assert Event.flush("push.sync") == ["pushed"]
         assert Event.flush("push.sync") == ["pushed"]
         Event.forget_pushed()
+
         assert Event.flush("push.sync") == []
 
         Event.listen("push.async", respond_async)
@@ -759,3 +865,40 @@ async def test_facade_subscribers_push_and_deferred_dispatch() -> None:
             fake.assert_dispatched("push.async", times=1)
 
         assert observed[-1] == "real"
+
+
+@pytest.mark.anyio
+async def test_subscriber_class_resolves_listener_in_active_request_scope() -> (
+    None
+):
+    """Avoid retaining a class subscriber's shorter-lived dependencies.
+
+    Subscription metadata should retain the class and method. Dispatch must
+    construct that class in the active request scope.
+    """
+    application = Application(
+        service_providers=(_RequestEventDependencyProvider(),),
+    )
+
+    async with application:
+        async with application.execution_scope(Scope.REQUEST):
+            Event.subscribe(_RequestScopedSubscriber)
+            await Event.subscribe_async(_AsyncRequestScopedSubscriber)
+            first_dependency = application.make(_RequestEventDependency)
+            first_result = Event.dispatch("request.scoped.subscriber")
+            first_async_result = await Event.dispatch_async(
+                "request.scoped.async_subscriber",
+            )
+
+        async with application.execution_scope(Scope.REQUEST):
+            second_dependency = application.make(_RequestEventDependency)
+            second_result = Event.dispatch("request.scoped.subscriber")
+            second_async_result = await Event.dispatch_async(
+                "request.scoped.async_subscriber",
+            )
+
+    assert first_result == [first_dependency.token]
+    assert second_result == [second_dependency.token]
+    assert first_async_result == [first_dependency.token]
+    assert second_async_result == [second_dependency.token]
+    assert first_dependency.token is not second_dependency.token

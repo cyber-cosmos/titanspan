@@ -377,12 +377,12 @@ def test_uri_resolver_supports_url_generation_helpers() -> None:
         )
         assert builder.calls == [
             ("to", "/docs"),
-            ("route", "home", {}, True),
-            ("signed_route", "home", {}, None, True),
-            ("signed_route", "home", {}, None, True),
-            ("signed_route", "home", {}, 60, True),
-            ("signed_route", "home", {}, 60, True),
-            ("action", "HomeController@index", {}, True),
+            ("route", "home", {}, False),
+            ("signed_route", "home", {}, None, False),
+            ("signed_route", "home", {}, None, False),
+            ("signed_route", "home", {}, 60, False),
+            ("signed_route", "home", {}, 60, False),
+            ("action", "HomeController@index", {}, False),
         ]
 
 

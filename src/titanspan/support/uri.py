@@ -480,14 +480,14 @@ class Uri(
         cls,
         name: str | Enum,
         parameters: Mapping[str, object] | None = None,
-        absolute: bool = True,
+        absolute: bool = False,
     ) -> Self:
         """Build a URI for a named route using the configured URL generator.
 
         Args:
             name: The route name or a scalar-backed enum member.
             parameters: Values used to generate route parameters.
-            absolute: Whether to include the route origin.
+            absolute: Whether to include the route origin. Defaults to False.
 
         Returns:
             A URI containing the generated route.
@@ -510,7 +510,7 @@ class Uri(
         name: str | Enum,
         parameters: Mapping[str, object] | None = None,
         expiration: object = None,
-        absolute: bool = True,
+        absolute: bool = False,
     ) -> Self:
         """Build a signed URI for a named route.
 
@@ -518,7 +518,7 @@ class Uri(
             name: The route name or a scalar-backed enum member.
             parameters: Values used to generate route parameters.
             expiration: The requested signature expiration value.
-            absolute: Whether to include the route origin.
+            absolute: Whether to include the route origin. Defaults to False.
 
         Returns:
             A URI containing the signed route.
@@ -539,7 +539,7 @@ class Uri(
         name: str | Enum,
         expiration: object,
         parameters: Mapping[str, object] | None = None,
-        absolute: bool = True,
+        absolute: bool = False,
     ) -> Self:
         """Build a temporary signed route through the signed-route API.
 
@@ -547,7 +547,7 @@ class Uri(
             name: The route name or a scalar-backed enum member.
             expiration: The requested signature expiration value.
             parameters: Values used to generate route parameters.
-            absolute: Whether to include the route origin.
+            absolute: Whether to include the route origin. Defaults to False.
 
         Returns:
             A URI containing the temporary signed route.
@@ -559,17 +559,20 @@ class Uri(
         cls,
         action: str | Sequence[str],
         parameters: Mapping[str, object] | None = None,
-        absolute: bool = True,
+        absolute: bool = False,
     ) -> Self:
-        """Build a URI for a controller action.
+        """Build a URI for one unambiguous registered callable action.
 
         Args:
-            action: The action name or an ordered action descriptor.
-            parameters: Values used to generate action parameters.
-            absolute: Whether to include the action origin.
+            action: Dotted or ordered callable identity.
+            parameters: Values used for path and query parameters.
+            absolute: Whether to include the route origin. Defaults to False.
 
         Returns:
             A URI containing the generated action.
+
+        Raises:
+            UriContextError: If no application context is active.
         """
         return cls(cls._generator().action(action, parameters or {}, absolute))
 

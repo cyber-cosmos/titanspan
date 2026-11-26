@@ -103,7 +103,11 @@ application.router.get(
 ).name("profiles.show")
 
 with application.context():
-    profile_url = Uri.route("profiles.show", {"profile": "ada"})
+    profile_url = Uri.route(
+        "profiles.show",
+        {"profile": "ada"},
+        absolute=True,
+    )
     relative_url = Uri.route(
         "profiles.show",
         {"profile": "ada"},
@@ -112,11 +116,14 @@ with application.context():
 ```
 
 The same route catalog powers `Uri.route`, `Uri.action`, the Routing helpers,
-and named redirects. Named route path values are percent-encoded; remaining
-values become query parameters. Lists use repeated query keys. After startup,
-ordinary named paths use the supported ASGI router path-reversal operation.
-Absolute URLs require an explicit trusted `routing.origin` or `app.url`; the
-request Host and forwarded headers are never used as an origin.
+and named redirects. Named routes are relative by default; pass
+`absolute=True` to include the trusted origin. Path values are percent-encoded
+and checked against route converters. Remaining values use Support's RFC 3986
+query encoder. Lists use indexed bracket keys, nested mappings use bracket
+notation, `None` values are omitted, and booleans use `1` or `0`. After
+startup, named paths use the supported ASGI router reversal operation. Custom
+Starlette converters are not exposed by the native Router. The request Host
+and forwarded headers never set the origin.
 
 Action lookup accepts a dotted callable identity such as
 `"ProfileController.show"`. It fails if no registered route matches or if

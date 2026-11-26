@@ -58,7 +58,8 @@ class EventDispatcher(Protocol):
     def subscribe(self, subscriber: object | type[object]) -> None:
         """Register related listeners through one subscriber object.
 
-        Listener registration remains owned by this dispatcher.
+        Class subscribers resolve named methods in the active dispatch scope.
+        Explicit instances remain owned by this dispatcher.
         """
         ...
 
@@ -68,7 +69,7 @@ class EventDispatcher(Protocol):
     ) -> None:
         """Register a subscriber that requires asynchronous resolution.
 
-        Asynchronous subscriber setup remains an explicit operation.
+        Named methods from a class subscriber resolve in the dispatch scope.
         """
         ...
 

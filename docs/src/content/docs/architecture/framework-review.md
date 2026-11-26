@@ -6,13 +6,11 @@ title: "Framework engineering review"
 
 ## Scope and evidence
 
-The source audit started from commit `2afcd31`. Documentation tooling then
-moved to Starlight. Events landed on `main` at `5b3538a`, followed by a
-navigation correction at `b6a6bd1`. This review covers those changes and the
-working corrections below. It examines production paths, contracts, locked
-dependencies, tests, architecture records, documentation, and benchmarks.
-Findings distinguish reproduced defects from documented limits and evidence
-gaps.
+The historical source audit started at commit `2afcd31`. This continuation
+reviewed main at `ad06e47`, including the HTTP implementation. It revalidated
+URL generation and event subscriber ownership against production code and
+tests. Findings distinguish reproduced defects from documented limits and
+evidence gaps.
 
 The lockfile pins Blinker 1.9.0, Dishka 1.10.1, FastAPI 0.165.0, and
 Starlette 1.10.0. It also pins HTTPX2 2.16.2, Pydantic 2.14.4, Pydantic
@@ -29,8 +27,98 @@ contracts, security rules, lifecycle ownership, and application integration.
 
 This is a coherent foundation for current configuration, logging, events,
 HTTP, and routing use. The worker-thread singleton race documented below is
-resolved by this review's correction. Semantic scope nesting remains limited
-by the backend hierarchy and affects future workflow architecture.
+resolved by an earlier focused correction. This pass also corrected URL
+contract substitution, encoded route reversal, and event subscriber scope
+retention. Semantic scope nesting remains limited by the backend hierarchy
+and affects future workflow architecture.
+
+## Import dependency graph
+
+An AST scan of 198 source files found 520 internal module edges and 43
+cross-component pairs. A second scan excluded `TYPE_CHECKING` blocks and
+function-local imports. It found 461 module-scope edges and no import-time
+cycles.
+
+The following graph aggregates the complete internal import references. An
+arrow points from an importing component to its dependency.
+
+```mermaid
+flowchart LR
+    app[titanspan] --> console
+    app --> foundation
+    app --> routing
+    collections --> support
+    config --> contracts
+    config --> support
+    console --> config
+    console --> contracts
+    console --> support
+    console --> app
+    container --> contracts
+    events --> container
+    events --> contracts
+    events --> facades
+    facades --> application_context
+    facades --> config
+    facades --> contracts
+    facades --> events
+    facades --> http
+    facades --> logging
+    facades --> routing
+    application_context --> contracts
+    foundation --> application_context
+    foundation --> config
+    foundation --> container
+    foundation --> contracts
+    foundation --> events
+    foundation --> http
+    foundation --> logging
+    foundation --> routing
+    foundation --> support
+    http --> application_context
+    http --> container
+    http --> contracts
+    http --> support
+    logging --> contracts
+    routing --> application_context
+    routing --> container
+    routing --> contracts
+    routing --> http
+    routing --> support
+    support --> contracts
+    support --> facades
+```
+
+The graph groups private modules under their owning components. The
+`application_context` node represents the private shared context module.
+`events.helpers` imports the Event facade for application-bound helpers.
+`support.helpers.config` does the same for configuration access. Both imports
+are function-local; they do not create module initialization cycles. The
+Console-to-package edge reads installed version metadata.
+
+## Component readiness matrix
+
+The matrix separates production integration evidence from isolated unit
+coverage. Each component specification lists implemented and pending
+capabilities in more detail.
+
+| Component | Integration evidence | Current assessment |
+| --- | --- | --- |
+| Contracts | `docs/src/content/docs/architecture/contract-integration.md`; Pyright and contract resolution tests | Native service boundaries exist for implemented components. Some protocols remain optional extension points. |
+| Support | `tests/integration/support/`; URI and Routing integration tests | Reusable utilities work independently. Application-bound `config()` and route-aware URI factories require active services. |
+| Config | Framework cohesion tests and Config specification | The repository is substitutable and Foundation-owned. Settings inheritance still exposes backend methods. |
+| Logging | Framework cohesion tests and Logging specification | The manager, logger contracts, configuration, facade, and shutdown use one application identity. Several backend branches have lower local coverage than core APIs. |
+| Container | Container thread-safety and lifecycle integration tests | One graph and shared initialization gates protect supported sync and async paths. Request/workflow and node/agent lifetimes cannot overlap. |
+| Facades | Framework cohesion and URI contract substitution tests | Facades resolve declared application contracts. They do not own a second service registry. |
+| Foundation | Lifecycle tests in `tests/integration/test_framework_cohesion.py` | Startup, failure rollback, context, active-scope shutdown rejection, and retryable shutdown have real tests. |
+| HTTP | ASGI, client, streaming, and request lifecycle integration tests | Server and client adapters use application services. Native SSRF destination enforcement remains pending. |
+| Routing | Dispatch, URI integration, and URL generator tests | One catalog drives matching and reversal. Native custom converters and route-file discovery remain unsupported. |
+| Collections | Collection unit tests and Hypothesis invariants | Eager and lazy operations use Python iterators and preserve documented order. Intersection checks every supplied iterable. |
+| Events | Events application and dispatcher integration tests | Dispatch uses the application Container. Class subscribers now resolve handlers in the active scope; Blinker currently stores receivers. |
+| Console | CLI tests and Typer integration | The CLI delegates argument parsing and output. Many component-specific commands remain planned. |
+
+This evidence does not establish production readiness for distributed
+execution, Windows, multiprocess pools, AI agents, or nested workflow scopes.
 
 ## Custom infrastructure review
 
@@ -66,6 +154,10 @@ by the backend hierarchy and affects future workflow architecture.
   transport client or request execution engine.
 - Routing continues to compile the canonical route catalog into FastAPI.
   Route constraints also apply to URL reversal and partial method matches.
+- URL factories resolve one `UriUrlGenerator` contract. They share Support's
+  query encoding and validate generated URLs against route matching.
+- Class-based Event subscribers retain class and method metadata. Dispatch
+  resolves each handler in its active execution scope.
 - Collection intersection now checks membership in every supplied iterable.
   It retains first-seen order and supports unhashable values.
 - Pytest collection rejects runtime tests without a recognized category.
@@ -145,6 +237,109 @@ cancellation, shutdown, and exact resource finalization.
 **Result:** Sync and async resolution use one application backend cache and a
 shared native initialization gate. Worker requests are not serialized at the
 request level. The regression suite verifies the required one-owner behavior.
+
+### F-008 — URL consumers bypassed the canonical contract
+
+**Severity:** P2 — confirmed substitution defect, resolved in this change.
+
+**Affected components:** Support, Routing, Container, Foundation.
+
+**Evidence:** URI factories resolved `UriUrlGenerator`, but Routing helpers
+and named redirects requested the concrete `UrlGenerator`. The old access
+paths were in `src/titanspan/routing/helpers.py:155-159` and `:206-210`.
+
+**Reproduction:** Override `UriUrlGenerator` with an alternate implementation.
+Before correction, URI factories used the replacement while route helpers and
+redirects resolved the concrete service.
+
+**Correction:** Route helpers and `Redirector` now resolve the canonical
+contract at `src/titanspan/routing/helpers.py:155-159` and `:206-210`. The
+provider registers one generator under both keys at
+`src/titanspan/routing/service_provider.py:61-70`.
+
+**Verification:** `tests/integration/routing/test_uri_integration.py` checks
+contract substitution across `Uri`, path helpers, action helpers, redirects,
+and dependency injection. It also checks nested and concurrent application
+contexts.
+
+### F-009 — Named URL factories used inconsistent absolute defaults
+
+**Severity:** P2 — confirmed API inconsistency, resolved with a documented
+pre-release behavior change.
+
+**Affected components:** Support URI factories, Routing helpers.
+
+**Evidence:** `Uri.route()` and `Uri.action()` defaulted to absolute URLs at
+`src/titanspan/support/uri.py:479-484` and `:558-563`; `route()` returned a
+relative URL at `src/titanspan/routing/helpers.py:91-95`.
+
+**Correction:** All named-route factories now return relative URLs by default.
+Callers pass `absolute=True` to include the configured origin. `CHANGELOG.md`,
+the URI guide, the Routing guide, and ADR 0021 document this change.
+
+**Verification:** `test_named_url_factories_share_relative_default_policy`
+checks the default and explicit absolute behavior.
+
+### F-010 — Routing duplicated Support query encoding
+
+**Severity:** P2 — confirmed behavior divergence, resolved in this change.
+
+**Affected components:** Routing, Support URI utilities.
+
+**Evidence:** Routing encoded repeated query values as duplicate keys and
+spaces as `+` in its local `_encode_query()` helper. Support encoded nested
+values with bracket indexes and RFC 3986 percent encoding.
+
+**Correction:** URL generation delegates remaining values to `Arr.query` at
+`src/titanspan/routing/url_generator.py:256-257`.
+
+**Verification:** Unit and integration tests assert matching nested-array and
+space encoding.
+
+### F-011 — URL reversal did not validate all built-in converter values
+
+**Severity:** P2 — confirmed route-generation defect, resolved in this change.
+
+**Affected components:** Routing, HTTP.
+
+**Evidence:** The baseline generator did not validate route converters and
+skipped the backend reverser for typed converters. The first correction then
+rejected `1e20`, although Starlette 1.10.0 accepts it and emits a matching
+decimal path. A focused regression reproduced that edge case.
+
+**Correction:** `src/titanspan/routing/url_generator.py:217-260` validates
+constraints and delegates compiled reversal. Lines 449-535 normalize the
+supported built-in converters. Unsupported custom converters fail explicitly.
+
+**Verification:** `tests/unit/routing/test_url_generator.py` covers converter
+acceptance and rejection. `tests/integration/routing/test_uri_integration.py`
+dispatches an encoded Unicode URL through the real ASGI route and verifies a
+compiled integer route against its generated absolute URL.
+
+### F-012 — Class subscribers retained request-scoped dependencies
+
+**Severity:** P1 — confirmed execution-scope isolation defect, resolved in
+this change.
+
+**Affected components:** Events, Container, application context.
+
+**Evidence:** A class subscriber created in one request scope returned a
+method name. `src/titanspan/events/dispatcher.py:579-613` stored
+`ListenerReference(instance, method)` in its application-owned registry. A
+later request invoked the first instance and received its dependency token.
+
+**Reproduction:** `test_subscriber_class_resolves_listener_in_active_request_scope`
+registers a class in one request and dispatches in a second. Before correction,
+the second dispatch returned the first scope's token.
+
+**Correction:** `src/titanspan/events/dispatcher.py:486-544` retains class
+and method metadata for class-based subscribers. The Container resolves each
+handler in the dispatch scope. An explicit instance remains registration-
+owned and must have application lifetime.
+
+**Verification:** The regression covers synchronous and asynchronous
+subscription and dispatch. The complete Events unit and integration suites
+pass after correction.
 
 ## Open findings
 
@@ -269,26 +464,19 @@ services or unstable CI thresholds.
 
 ## Writing validation
 
-`make prose-check` found no blocking errors after the review edits. The current
-advisory snapshot reports:
-
-- 1,317 passive-voice warnings.
-- 31 procedural sentence-length warnings.
-- 40 descriptive sentence-length warnings.
-- 3,408 spelling warnings.
-
-The review did not record counts before editing. These totals are a current
-snapshot after the Events merge and review edits, not a measured reduction.
-`make terminology-check` found no blocking terminology violations, and Vale
-rule tests passed.
+The final repository prose check reported 1,349 passive-voice advisories,
+29 procedural sentence-length advisories, 38 descriptive sentence-length
+advisories, and 3,557 spelling advisories. These findings are warnings. The
+terminology rules and Vale regression suite remain blocking checks.
 
 ## Readiness
 
 Configuration, logging, events, native request handling, and routing share
 application services and lifecycle ownership. Their adapters delegate mature
-protocol and execution engines. The reviewed fixes add regression evidence for
-cookie isolation, bounded request bodies, stream cleanup, URL constraints,
-middleware composition, and intersection semantics.
+protocol and execution engines. Verified fixes cover cookie isolation, bounded
+request bodies, stream cleanup, URL constraints, middleware composition,
+intersection semantics, URL contract substitution, and subscriber scope
+isolation.
 
 Within one application container, singleton identity is shared across
 concurrent synchronous, asynchronous, and worker-thread resolution. The
@@ -296,5 +484,9 @@ current scope map cannot overlap request and workflow lifetimes or nest node
 and agent lifetimes. Resolve F-002 before implementing overlapping request and
 workflow execution. Resolve F-007 before implementing nested agent and node
 lifecycles. Treat F-003 as a public API design decision before stabilization.
-Review F-006 before stabilizing Events. Benchmark HTTP and Routing before
-making performance claims.
+Review F-006 before stabilizing Events. The Hello World example composes
+configuration, logging, providers, dependency injection, and routing. It does
+not yet exercise the full reference-application acceptance scenario or prove
+execution from an installed wheel. Add that vertical slice before claiming
+full framework cohesion. HTTP and Routing benchmarks are also absent, so no
+performance advantage is established.

@@ -32,23 +32,27 @@ The canonical `UriUrlGenerator` contract lives under `contracts.routing`.
 `support.UriUrlGenerator` re-exports the exact same protocol object for
 existing Support imports. `RoutingServiceProvider` registers one concrete
 `UrlGenerator` under both concrete and protocol keys. `Uri` factories,
-application helpers, dependency injection, and named redirects read that
-same service and route catalog.
+application helpers, dependency injection, and named redirects resolve the
+protocol key. Replacing that contract changes all of those entry points
+within the active context.
 
 `route()` requires a named route, substitutes declared path values, applies
-route defaults, and serializes unused scalar and sequence values as query
-parameters. Path values are percent-encoded. `to()` accepts local absolute
-paths and requires a configured trusted origin. Absolute generation never
-uses request Host or forwarded headers. URI query and fragment components are
-preserved when an origin is added.
+route defaults, and serializes unused values with `Arr.query`. Named route
+helpers, `Uri.route()`, and `Uri.action()` return relative URLs by default;
+pass `absolute=True` to include the configured trusted origin. `Uri.to()`
+always resolves its local path against that origin. Absolute generation never
+uses request Host or forwarded headers.
 
-After FastAPI route compilation, named paths without custom path converters
-delegate substitution to the application router's supported `url_path_for`
-operation. Custom converter forms use native catalog substitution. The route
-catalog remains authoritative in both cases. The URL generator validates each
-substituted value against its declared route constraint using a full match. An
-absolute URL for a domain-constrained route requires the configured trusted
-origin to use that domain. Relative URL generation remains available.
+Path values are percent-encoded and validated against route constraints and
+the built-in `str`, `int`, `float`, `uuid`, and `path` converters. After
+compilation, reversal delegates to the ASGI router's supported
+`url_path_for`. Custom Starlette converters are not exposed by the native
+Router and fail explicitly. Remaining query values follow Support's RFC 3986
+encoding: nested values use brackets, sequence indexes are explicit, `None`
+is omitted, and booleans use `1` or `0`.
+
+An absolute URL for a domain-constrained route requires the configured trusted
+origin to match that domain. Relative URL generation remains available.
 
 `action()` inspects stored callable metadata without constructing a controller.
 It accepts a dotted identifier or identifier sequence, rejects missing
