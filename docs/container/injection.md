@@ -1,7 +1,8 @@
 # Callable injection
 
 Use `Container.call` to invoke application functions and methods while
-resolving required class-typed parameters from the active container.
+resolving registered services, contextual values, or declared injection
+metadata.
 
 ```python
 from titanspan.container import Container
@@ -51,12 +52,12 @@ async def run_async() -> int:
         )
 ```
 
-Explicit named values take precedence over annotation resolution. Python
-defaults are used when a value is omitted. A required parameter without an
-explicit value must have a class annotation that the container can resolve.
-The container does not guess primitive values such as strings, numbers, or
-booleans. Unknown explicit names raise `BindingError`, unless the callable
-accepts `**kwargs`.
+Explicit named values take precedence over contextual rules. Contextual rules
+take precedence over supported `Annotated` metadata. If neither selects a
+source, the container resolves a registered service or auto-resolvable
+concrete class. Python defaults apply when no source is selected. Required
+primitive values are not guessed. Unknown explicit names raise `BindingError`,
+unless the callable accepts `**kwargs`.
 
 `Container.call` invokes sync callbacks immediately and rejects async-only
 callbacks. `Container.call_async` accepts synchronous or asynchronous
@@ -64,7 +65,12 @@ callbacks and awaits awaitable results. Synchronous callbacks execute on the
 current thread. Blocking work should be moved to an explicit worker boundary
 by the application.
 
-Only the annotation's base type is currently used for `Annotated` values.
-Custom injection attributes, configuration values, tagged collections,
-primitive contextual bindings, and arbitrary union resolution remain
-unimplemented.
+Supported metadata includes `Inject(Implementation)`,
+`FromConfig("path.to.value")`, `Named("service-alias")`, and
+`Tagged("service-group")`. Configuration selection resolves the registered
+`ConfigReader` contract; tagged selection preserves registration order.
+Arbitrary union inference and custom metadata handlers are not implemented.
+Before synchronous resolution, the container inspects the same selected
+contextual, metadata, alias, and tag sources and rejects known async-only
+factories before they initialize. Opaque external provider behavior may still
+be discovered only when the backend attempts synchronous resolution.

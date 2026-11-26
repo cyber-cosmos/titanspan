@@ -22,10 +22,12 @@ scope. Scope-created graphs close with their owning scope. The default bound is
 128 retained graph roots; configure `max_graph_generations` for applications
 with a different verified workload.
 
-Automatic resolution is currently limited to class-valued constructor
-annotations that can be resolved by Python's type-hint introspection. Contextual
-values, primitive injection, and `Annotated` injection attributes remain
-pending. Callable injection is available through `Container.call`; see the
-[callable injection guide](injection.md). Runtime rebinding remains pending.
-See the [behavior inventory](../specifications/container.md) for exact
-implementation status.
+Automatic resolution handles class-valued constructor annotations that can be
+resolved by Python's type-hint introspection. Consumer-specific contextual
+bindings and the supported `Annotated` markers select protocol implementations,
+primitive values, configuration values, aliases, and tagged services. Callable
+injection uses the same precedence described in the
+[injection guide](injection.md). Runtime rebinding remains unavailable; use a
+[temporary override](overrides.md) for substitution. See the
+[behavior inventory](../specifications/container.md) for exact status and
+limits.

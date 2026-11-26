@@ -330,6 +330,7 @@ def test_async_path_discovery_stops_at_cycles_and_instances() -> None:
         asynchronous_dependency_path(
             Repository,
             [instance_binding],
+            {},
         )
         is None
     )
@@ -337,10 +338,11 @@ def test_async_path_discovery_stops_at_cycles_and_instances() -> None:
         asynchronous_dependency_path(
             SearchDependency,
             [non_callable_binding],
+            {},
         )
         is None
     )
-    assert asynchronous_dependency_path(CycleFirst, []) is None
+    assert asynchronous_dependency_path(CycleFirst, [], {}) is None
 
 
 def test_factory_classification_handles_callable_and_invalid_annotations() -> (

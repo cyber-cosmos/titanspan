@@ -13,7 +13,7 @@ from typing import TYPE_CHECKING, cast, overload
 
 import pytest
 
-from titanspan import Application
+from titanspan import Application, app
 from titanspan._application_context import (
     ApplicationContextError,
     active_application_context,
@@ -560,6 +560,25 @@ def test_nested_application_context_restores_the_previous_container() -> None:
         with second.context():
             assert Config.string("app.name") == "second"
         assert Config.string("app.name") == "first"
+
+
+def test_app_helper_resolves_only_the_active_application() -> None:
+    """Return the nested active application without global fallback state.
+
+    Application lookup must respect nested ContextVar bindings and fail
+    actionably when no application context is active.
+    """
+    first = Application()
+    second = Application()
+
+    with first.context():
+        assert app() is first
+        with second.context():
+            assert app() is second
+        assert app() is first
+
+    with pytest.raises(ApplicationContextError, match="active application"):
+        app()
 
 
 def test_facades_resolve_declared_contracts_from_the_shared_base() -> None:

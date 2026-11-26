@@ -4,9 +4,13 @@ The sync-first protocol keeps ordinary construction synchronous while making
 asynchronous dependency acquisition an explicit operation.
 """
 
-from typing import Protocol, runtime_checkable
+from types import TracebackType
+from typing import Literal, Protocol, runtime_checkable
 
-from titanspan.contracts.container.factory import ServiceFactory
+from titanspan.contracts.container.factory import (
+    ServiceExtension,
+    ServiceFactory,
+)
 from titanspan.contracts.container.scope import Scope
 
 
@@ -195,11 +199,73 @@ class AsyncServiceContainer(Protocol):
         ...
 
 
+class ServiceOverride(Protocol):
+    """Describe a temporary sync or async service replacement context.
+
+    Implementations restore the active container after either context form
+    exits and finalize resources using the matching lifecycle mode.
+    """
+
+    def __enter__(self) -> ServiceContainer:
+        """Activate a sync-safe replacement graph.
+
+        Returns:
+            The active temporary service registry.
+        """
+        ...
+
+    def __exit__(
+        self,
+        exc_type: type[BaseException] | None,
+        exc_value: BaseException | None,
+        traceback: TracebackType | None,
+    ) -> Literal[False]:
+        """Finalize sync resources and restore the previous graph.
+
+        Args:
+            exc_type: Exception type leaving the context, if any.
+            exc_value: Exception instance leaving the context, if any.
+            traceback: Traceback associated with the context exception.
+
+        Returns:
+            ``False`` so application exceptions propagate unchanged.
+        """
+        ...
+
+    async def __aenter__(self) -> ServiceContainer:
+        """Activate a graph that may initialize asynchronous resources.
+
+        Returns:
+            The active temporary service registry.
+        """
+        ...
+
+    async def __aexit__(
+        self,
+        exc_type: type[BaseException] | None,
+        exc_value: BaseException | None,
+        traceback: TracebackType | None,
+    ) -> Literal[False]:
+        """Await resource finalization and restore the prior graph.
+
+        Args:
+            exc_type: Exception type leaving the context, if any.
+            exc_value: Exception instance leaving the context, if any.
+            traceback: Traceback associated with the context exception.
+
+        Returns:
+            ``False`` so application exceptions propagate unchanged.
+        """
+        ...
+
+
 __all__ = [
     "AsyncServiceContainer",
     "InstanceRegistration",
     "Scope",
     "ServiceContainer",
+    "ServiceExtension",
     "ServiceFactory",
+    "ServiceOverride",
     "ServiceRegistry",
 ]

@@ -11,7 +11,15 @@ from __future__ import annotations
 import asyncio
 from collections.abc import Awaitable as AwaitableABC
 from collections.abc import Coroutine as CoroutineABC
-from contextlib import AsyncExitStack, ExitStack
+from collections.abc import Hashable
+from contextlib import (
+    AbstractAsyncContextManager,
+    AbstractContextManager,
+    AsyncExitStack,
+    ExitStack,
+    asynccontextmanager,
+    contextmanager,
+)
 from contextvars import ContextVar, Token
 from dataclasses import dataclass
 from inspect import (
@@ -28,17 +36,19 @@ from inspect import (
 from threading import RLock
 from typing import (
     TYPE_CHECKING,
-    Annotated,
+    Literal,
     cast,
-    get_args,
     get_origin,
     get_type_hints,
     overload,
 )
 
+import anyio
+
 from titanspan.container._backends.dependency_engine import (
     DependencyGraph,
     EngineBinding,
+    GraphConfiguration,
     GraphRequest,
     SyncDependencyGraph,
     asynchronous_dependency_path,
@@ -46,7 +56,26 @@ from titanspan.container._backends.dependency_engine import (
     create_sync_dependency_graph,
     discover_dependency_types,
 )
-from titanspan.container.binding import Binding, Lifetime, ServiceFactory
+from titanspan.container._internal.injection import (
+    select_dependency_source,
+    split_annotation,
+)
+from titanspan.container.binding import (
+    Binding,
+    Lifetime,
+    ServiceExtension,
+    ServiceFactory,
+)
+from titanspan.container.callbacks import (
+    BeforeResolutionCallback,
+    ResolutionCallback,
+    ResolutionCallbacks,
+)
+from titanspan.container.contextual_binding import (
+    ContextualBinding,
+    ContextualBindingBuilder,
+    ContextualKind,
+)
 from titanspan.container.decorators import binding_declaration
 from titanspan.container.exceptions import (
     AsyncResolutionRequiredError,
@@ -57,10 +86,18 @@ from titanspan.container.exceptions import (
     ScopeError,
 )
 from titanspan.container.scope import Scope
-from titanspan.contracts import ServiceContainer
+from titanspan.contracts import ServiceContainer, ServiceOverride
+from titanspan.contracts.config import ConfigReader
 
 if TYPE_CHECKING:
-    from collections.abc import Awaitable, Callable, Iterable, Mapping
+    from collections.abc import (
+        AsyncGenerator,
+        Awaitable,
+        Callable,
+        Generator,
+        Iterable,
+        Mapping,
+    )
     from types import TracebackType
 
 _NESTED_SCOPE_ERROR = (
@@ -72,8 +109,19 @@ _REENTERED_SCOPE_ERROR = "An execution scope context can only be entered once."
 _SCOPED_BINDING_ERROR = "Scoped bindings require an execution scope."
 _EMPTY_ALIAS_ERROR = "Service aliases must not be empty."
 _EMPTY_TAG_ERROR = "Service tags must not be empty."
+_EMPTY_CONTEXTUAL_PARAMETER_ERROR = (
+    "Contextual parameter names cannot be empty."
+)
+_EMPTY_CONTEXTUAL_SOURCE_ERROR = (
+    "Contextual configuration keys and tags cannot be empty."
+)
 _INHERITED_SCOPE_ERROR = "An inherited execution scope has closed."
-_ACTIVE_SCOPE_ERROR = "Execution scopes must close before the container."
+_ACTIVE_SCOPE_ERROR = (
+    "Execution scopes and overrides must close before the container."
+)
+_OVERRIDE_ACTIVE_SCOPE_ERROR = (
+    "Enter service overrides before execution scopes begin."
+)
 _CLOSED_CONTAINER_ERROR = "The service container is closed."
 _SCOPE_FINALIZATION_ERROR = "Execution scope resource finalization failed."
 _FROZEN_BINDINGS_ERROR = "Bindings are immutable after graph composition."
@@ -84,6 +132,7 @@ _MISSING_METHOD_BINDING_ERROR = "No callable is registered for this method."
 _CALL_SIGNATURE_ERROR = "Unable to inspect the callable signature."
 _CALL_PARAMETER_ERROR = "The callable received unknown explicit parameters."
 _CALL_ANNOTATION_ERROR = "A required callable parameter is not resolvable."
+_INJECTION_SOURCE_ERROR = "An injection source must select a service."
 _ASYNC_RESOLUTION_ERROR = (
     "Synchronous resolution requires an asynchronous dependency path."
 )
@@ -158,6 +207,86 @@ class _Generation:
         self.identifier = identifier
         self.root = root
         self.graph = graph
+
+
+class _OverrideContext:
+    """Forward sync and async context operations to their graph owners.
+
+    The contained context managers perform all container mutation and
+    lifecycle handling at the application boundary.
+    """
+
+    def __init__(
+        self,
+        sync_context: AbstractContextManager[Container],
+        async_context: AbstractAsyncContextManager[Container],
+    ) -> None:
+        """Retain both explicit override lifecycle implementations.
+
+        Args:
+            sync_context: Context manager for synchronous resources.
+            async_context: Context manager for asynchronous resources.
+        """
+        self._sync_context = sync_context
+        self._async_context = async_context
+
+    def __enter__(self) -> Container:
+        """Enter the synchronous override lifecycle.
+
+        Returns:
+            The active child container.
+        """
+        return self._sync_context.__enter__()
+
+    def __exit__(
+        self,
+        exc_type: type[BaseException] | None,
+        exc_value: BaseException | None,
+        traceback: TracebackType | None,
+    ) -> Literal[False]:
+        """Exit and finalize synchronous override resources.
+
+        Args:
+            exc_type: Exception type leaving the context, if any.
+            exc_value: Exception leaving the context, if any.
+            traceback: Traceback associated with the context exception.
+
+        Returns:
+            ``False`` so application exceptions propagate unchanged.
+        """
+        self._sync_context.__exit__(exc_type, exc_value, traceback)
+        return False
+
+    async def __aenter__(self) -> Container:
+        """Enter the asynchronous override lifecycle.
+
+        Returns:
+            The active child container.
+        """
+        return await self._async_context.__aenter__()
+
+    async def __aexit__(
+        self,
+        exc_type: type[BaseException] | None,
+        exc_value: BaseException | None,
+        traceback: TracebackType | None,
+    ) -> Literal[False]:
+        """Exit and await asynchronous resource finalization.
+
+        Args:
+            exc_type: Exception type leaving the context, if any.
+            exc_value: Exception leaving the context, if any.
+            traceback: Traceback associated with the context exception.
+
+        Returns:
+            ``False`` so application exceptions propagate unchanged.
+        """
+        await self._async_context.__aexit__(
+            exc_type,
+            exc_value,
+            traceback,
+        )
+        return False
 
 
 class ContainerScope:
@@ -584,19 +713,38 @@ class Container(ServiceContainer):
         ] = {}
         self._aliases: dict[str, type[object]] = {}
         self._tags: dict[str, list[type[object]]] = {}
+        self._contextual_bindings: dict[
+            tuple[type[object], Hashable],
+            ContextualBinding,
+        ] = {}
+        self._extensions: dict[
+            type[object],
+            list[Callable[..., object]],
+        ] = {}
+        self._resolution_callbacks = ResolutionCallbacks()
         self._method_bindings: dict[str, Callable[..., object]] = {}
         self._shared_instances: dict[type[object], object] = {}
+        self._override_instances: dict[type[object], object] = {}
+        self._override_services: frozenset[type[object]] = frozenset()
+        self._local_override_services: frozenset[type[object]] = frozenset()
+        self._override_owner: Container | None = None
         self._shared_resolution_locks: dict[type[object], asyncio.Lock] = {}
-        self._generations: list[DependencyGraph] = []
+        self._generations: list[DependencyGraph | SyncDependencyGraph] = []
         self._generation_by_type: dict[type[object], _Generation] = {}
         self._next_generation_id = 0
         self._active_scopes: ContextVar[tuple[ContainerScope, ...]] = (
             ContextVar(f"titanspan_container_scopes_{id(self)}", default=())
         )
+        self._override_context: ContextVar[Container | None] = ContextVar(
+            f"titanspan_container_override_{id(self)}",
+            default=None,
+        )
         self._generation_lock = RLock()
         self._closed = False
         self._frozen = False
         self._active_scope_count = 0
+        self._active_override_count = 0
+        self._synchronous_override = False
         self._scope_generation_count = 0
         self._scope_callbacks = _ScopeCallbacks(
             ensure_open=self._ensure_open,
@@ -778,7 +926,10 @@ class Container(ServiceContainer):
             instance=value,
             instance_binding=True,
         )
-        self._shared_instances[service] = value
+        if service in self._override_services:
+            self._override_instances[service] = value
+        else:
+            self._shared_instances[service] = value
 
     def alias[ServiceT](
         self,
@@ -802,6 +953,149 @@ class Container(ServiceContainer):
             message = f"The alias {name!r} is already registered."
             raise BindingError(message)
         self._aliases[name] = service
+
+    def when(
+        self,
+        consumers: type[object] | Iterable[type[object]],
+    ) -> ContextualBindingBuilder:
+        """Start a consumer-specific dependency registration.
+
+        Args:
+            consumers: One consuming class or an ordered collection of classes.
+
+        Returns:
+            A builder that selects a constructor dependency and its source.
+
+        Raises:
+            BindingError: If no consumer class is supplied.
+        """
+        self._ensure_mutable()
+        raw_values: tuple[object, ...] = (
+            (consumers,)
+            if isinstance(consumers, type)
+            else tuple(cast("Iterable[object]", consumers))
+        )
+        if not raw_values or any(
+            not isinstance(value, type) for value in raw_values
+        ):
+            message = (
+                "Contextual bindings require one or more consumer classes."
+            )
+            raise BindingError(message)
+        values = tuple(cast("type[object]", value) for value in raw_values)
+        return ContextualBindingBuilder(
+            values,
+            self._register_contextual_binding,
+        )
+
+    def extend[ServiceT](
+        self,
+        service: type[ServiceT],
+        extension: ServiceExtension[ServiceT],
+    ) -> None:
+        """Decorate a service through the backend's native graph pipeline.
+
+        Extensions run in registration order when the backend constructs the
+        selected service. Its configured lifetime caches the final decorated
+        value. Resource wrappers must forward cleanup to owned inner services.
+
+        Args:
+            service: Canonical service key to decorate.
+            extension: Synchronous or asynchronous typed decorator.
+
+        Raises:
+            BindingError: If registrations have already been frozen.
+        """
+        self._ensure_mutable()
+        self._extensions.setdefault(service, []).append(extension)
+
+    def before_resolving(
+        self,
+        service: type[object] | None,
+        callback: BeforeResolutionCallback,
+    ) -> None:
+        """Run a hook before each matching public resolution request.
+
+        Args:
+            service: Exact service key, or ``None`` for all requests.
+            callback: Synchronous or asynchronous callback receiving the key.
+
+        Raises:
+            BindingError: If resolution hooks have already been frozen.
+        """
+        self._ensure_mutable()
+        self._resolution_callbacks.before_resolving(service, callback)
+
+    def resolving(
+        self,
+        service: type[object] | None,
+        callback: ResolutionCallback,
+    ) -> None:
+        """Run a hook after a matching value has been obtained.
+
+        Args:
+            service: Exact service key, or ``None`` for all requests.
+            callback: Synchronous or asynchronous callback receiving the value.
+
+        Raises:
+            BindingError: If resolution hooks have already been frozen.
+        """
+        self._ensure_mutable()
+        self._resolution_callbacks.resolving(service, callback)
+
+    def after_resolving(
+        self,
+        service: type[object] | None,
+        callback: ResolutionCallback,
+    ) -> None:
+        """Run a hook after all resolving callbacks finish successfully.
+
+        Args:
+            service: Exact service key, or ``None`` for all requests.
+            callback: Synchronous or asynchronous callback receiving the value.
+
+        Raises:
+            BindingError: If resolution hooks have already been frozen.
+        """
+        self._ensure_mutable()
+        self._resolution_callbacks.after_resolving(service, callback)
+
+    def _register_contextual_binding(
+        self,
+        consumers: tuple[type[object], ...],
+        dependency: Hashable,
+        kind: ContextualKind,
+        value: object,
+    ) -> None:
+        """Store or replace one exact consumer dependency rule.
+
+        Args:
+            consumers: Consumer classes selected by ``when``.
+            dependency: Type annotation or exact parameter name from ``needs``.
+            kind: Source used to create the contextual value.
+            value: Implementation, literal, config key, or tag name.
+
+        Notes:
+            Re-registering the same consumer and dependency before graph
+            composition replaces the prior rule, matching binding behavior.
+        """
+        self._ensure_mutable()
+        if isinstance(dependency, str) and not dependency:
+            raise BindingError(_EMPTY_CONTEXTUAL_PARAMETER_ERROR)
+        if (
+            kind
+            in {
+                ContextualKind.CONFIG,
+                ContextualKind.NAMED,
+                ContextualKind.TAGGED,
+            }
+            and not value
+        ):
+            raise BindingError(_EMPTY_CONTEXTUAL_SOURCE_ERROR)
+        binding = ContextualBinding(consumers, dependency, kind, value)
+        for consumer in consumers:
+            self._contextual_bindings[(consumer, dependency)] = binding
+        self._dependency_types_by_root.clear()
 
     def tag(
         self,
@@ -920,6 +1214,9 @@ class Container(ServiceContainer):
             Synchronous callbacks run on the calling thread. Blocking work
             should be offloaded by the application explicitly.
         """
+        effective = self._effective_container()
+        if effective is not self:
+            return await effective.call_async(callback, parameters)
         call_signature, annotations = self._call_signature(
             cast("Callable[..., object]", callback)
         )
@@ -927,6 +1224,7 @@ class Container(ServiceContainer):
             call_signature,
             annotations,
             {} if parameters is None else dict(parameters),
+            consumer=self._call_consumer(callback),
         )
         callable_callback = cast(
             "Callable[..., ReturnT] | Callable[..., Awaitable[ReturnT]]",
@@ -954,8 +1252,11 @@ class Container(ServiceContainer):
         """
         try:
             callback_signature = signature(callback)
+            hint_target = (
+                callback.__init__ if isinstance(callback, type) else callback
+            )
             annotations = get_type_hints(
-                callback,
+                hint_target,
                 include_extras=True,
             )
         except (NameError, TypeError, ValueError) as error:
@@ -982,6 +1283,9 @@ class Container(ServiceContainer):
             BindingError: If explicit values name unsupported parameters.
             BindingResolutionError: If a required parameter cannot be resolved.
         """
+        effective = self._effective_container()
+        if effective is not self:
+            return effective.call(callback, parameters)
         callable_callback = cast("Callable[..., object]", callback)
         call_signature, annotations = self._call_signature(callable_callback)
         return_hint = annotations.get(
@@ -996,6 +1300,7 @@ class Container(ServiceContainer):
             call_signature,
             annotations,
             {} if parameters is None else dict(parameters),
+            consumer=self._call_consumer(callback),
         )
         result = callable_callback(*arguments, **keywords)
         if isawaitable(result):
@@ -1009,6 +1314,8 @@ class Container(ServiceContainer):
         callback_signature: Signature,
         annotations: Mapping[str, object],
         explicit: dict[str, object],
+        *,
+        consumer: type[object] | None = None,
     ) -> tuple[list[object], dict[str, object]]:
         """Resolve synchronous callback arguments and validate overrides.
 
@@ -1019,6 +1326,9 @@ class Container(ServiceContainer):
 
         Returns:
             Positional and keyword arguments ready for invocation.
+
+        Args:
+            consumer: Constructor or method owner used by contextual rules.
         """
         positional: list[object] = []
         keywords: dict[str, object] = {}
@@ -1057,6 +1367,7 @@ class Container(ServiceContainer):
                 value = self._resolve_call_parameter_sync(
                     name,
                     annotations.get(name, parameter.annotation),
+                    consumer=consumer,
                 )
             if parameter.kind is Parameter.POSITIONAL_ONLY:
                 positional.append(value)
@@ -1068,6 +1379,8 @@ class Container(ServiceContainer):
         self,
         name: str,
         annotation: object,
+        *,
+        consumer: type[object] | None = None,
     ) -> object:
         """Resolve one annotated callback service without guessing scalars.
 
@@ -1077,10 +1390,14 @@ class Container(ServiceContainer):
 
         Returns:
             A resolved service instance.
+
+        Args:
+            consumer: Constructor or method owner used by contextual rules.
         """
-        if get_origin(annotation) is Annotated:
-            arguments = get_args(annotation)
-            annotation = arguments[0] if arguments else annotation
+        source = self._selected_call_source(consumer, name, annotation)
+        if source is not None:
+            return self._resolve_selected_source_sync(*source)
+        annotation, _ = split_annotation(annotation)
         if not isinstance(annotation, type) or annotation in _PRIMITIVE_TYPES:
             message = f"{_CALL_ANNOTATION_ERROR} Parameter {name!r}."
             raise BindingResolutionError(message)
@@ -1095,6 +1412,8 @@ class Container(ServiceContainer):
         callback_signature: Signature,
         annotations: Mapping[str, object],
         explicit: dict[str, object],
+        *,
+        consumer: type[object] | None = None,
     ) -> tuple[list[object], dict[str, object]]:
         """Resolve a callable's required arguments and validate overrides.
 
@@ -1105,6 +1424,9 @@ class Container(ServiceContainer):
 
         Returns:
             Positional and keyword arguments ready for invocation.
+
+        Args:
+            consumer: Constructor or method owner used by contextual rules.
 
         Raises:
             BindingError: If explicit values cannot be consumed.
@@ -1147,6 +1469,7 @@ class Container(ServiceContainer):
                 value = await self._resolve_call_parameter_async(
                     name,
                     annotations.get(name, parameter.annotation),
+                    consumer=consumer,
                 )
             if parameter.kind is Parameter.POSITIONAL_ONLY:
                 positional.append(value)
@@ -1158,6 +1481,8 @@ class Container(ServiceContainer):
         self,
         name: str,
         annotation: object,
+        *,
+        consumer: type[object] | None = None,
     ) -> object:
         """Resolve one annotated service parameter without guessing scalars.
 
@@ -1170,10 +1495,14 @@ class Container(ServiceContainer):
 
         Raises:
             BindingResolutionError: If the annotation is missing or unsupported.
+
+        Args:
+            consumer: Constructor or method owner used by contextual rules.
         """
-        if get_origin(annotation) is Annotated:
-            arguments = get_args(annotation)
-            annotation = arguments[0] if arguments else annotation
+        source = self._selected_call_source(consumer, name, annotation)
+        if source is not None:
+            return await self._resolve_selected_source_async(*source)
+        annotation, _ = split_annotation(annotation)
         if not isinstance(annotation, type) or annotation in _PRIMITIVE_TYPES:
             message = f"{_CALL_ANNOTATION_ERROR} Parameter {name!r}."
             raise BindingResolutionError(message)
@@ -1183,6 +1512,152 @@ class Container(ServiceContainer):
         except BindingResolutionError as error:
             message = f"Unable to resolve callable parameter {name!r}."
             raise BindingResolutionError(message) from error
+
+    @staticmethod
+    def _call_consumer(
+        callback: Callable[..., object],
+    ) -> type[object] | None:
+        """Return the class whose constructor or bound method is invoked.
+
+        Args:
+            callback: Target inspected for injected values.
+
+        Returns:
+            The class for a constructor or bound method, when available.
+        """
+        if isinstance(callback, type):
+            return cast("type[object]", callback)
+        owner = getattr(callback, "__self__", None)
+        return cast("type[object]", type(owner)) if owner is not None else None
+
+    def _selected_call_source(
+        self,
+        consumer: type[object] | None,
+        name: str,
+        annotation: object,
+    ) -> tuple[ContextualKind, object] | None:
+        """Select contextual metadata before ``Annotated`` markers.
+
+        Args:
+            consumer: Constructor or bound-method owner, if known.
+            name: Parameter name used by contextual declarations.
+            annotation: Evaluated type annotation including metadata.
+
+        Returns:
+            The configured source and its value, if one is selected.
+
+        Raises:
+            BindingError: If the annotation has conflicting markers.
+        """
+        return select_dependency_source(
+            () if consumer is None else (consumer,),
+            name,
+            annotation,
+            self._contextual_bindings,
+        )
+
+    def _resolve_selected_source_sync(
+        self,
+        kind: ContextualKind,
+        value: object,
+    ) -> object:
+        """Resolve one contextual or declarative source synchronously.
+
+        Args:
+            kind: Native source category selected for a constructor value.
+            value: Implementation, alias, tag, config key, or literal value.
+
+        Returns:
+            The selected dependency value.
+
+        Raises:
+            AsyncResolutionRequiredError: If a selected factory is async-only.
+            BindingError: If an alias or tag does not exist.
+        """
+        if kind is ContextualKind.VALUE:
+            return value
+        if kind is ContextualKind.CONFIG:
+            return self.make(ConfigReader).get(cast("str", value))
+        if kind is ContextualKind.NAMED:
+            return self.make(self._named_service(cast("str", value)))
+        if kind is ContextualKind.TAGGED:
+            services = self._tagged_services(cast("str", value))
+            return [self.make(service) for service in services]
+        if isinstance(value, type):
+            return self.make(cast("type[object]", value))
+        if callable(value):
+            return self.call(value)
+        raise BindingError(_INJECTION_SOURCE_ERROR)
+
+    async def _resolve_selected_source_async(
+        self,
+        kind: ContextualKind,
+        value: object,
+    ) -> object:
+        """Resolve one contextual or declarative source asynchronously.
+
+        Args:
+            kind: Native source category selected for a constructor value.
+            value: Implementation, alias, tag, config key, or literal value.
+
+        Returns:
+            The selected dependency value after asynchronous resolution.
+
+        Raises:
+            BindingError: If an alias or tag does not exist.
+        """
+        if kind is ContextualKind.VALUE:
+            return value
+        if kind is ContextualKind.CONFIG:
+            repository = await self.make_async(ConfigReader)
+            return repository.get(cast("str", value))
+        if kind is ContextualKind.NAMED:
+            service = self._named_service(cast("str", value))
+            return await self.make_async(service)
+        if kind is ContextualKind.TAGGED:
+            services = self._tagged_services(cast("str", value))
+            return [await self.make_async(service) for service in services]
+        if isinstance(value, type):
+            return await self.make_async(cast("type[object]", value))
+        if callable(value):
+            return await self.call_async(value)
+        raise BindingError(_INJECTION_SOURCE_ERROR)
+
+    def _named_service(self, name: str) -> type[object]:
+        """Return the canonical service selected by one registered alias.
+
+        Args:
+            name: Alias configured in the container.
+
+        Returns:
+            Canonical class key for the alias.
+
+        Raises:
+            BindingError: If no service has the requested alias.
+        """
+        try:
+            return self._aliases[name]
+        except KeyError as error:
+            message = f"No service alias is registered for {name!r}."
+            raise BindingError(message) from error
+
+    def _tagged_services(self, name: str) -> tuple[type[object], ...]:
+        """Return registered services in their stable tag order.
+
+        Args:
+            name: Tag configured in the container.
+
+        Returns:
+            Immutable service keys registered under the tag.
+
+        Raises:
+            BindingError: If the tag has no registered services.
+        """
+        services = self._tags.get(name)
+        if not services:
+            message = f"No services are registered for tag {name!r}."
+            raise BindingError(message)
+        return tuple(services)
 
     def bind_method(
         self,
@@ -1299,7 +1774,14 @@ class Container(ServiceContainer):
             ContainerClosedError: If the container has begun shutdown.
             ScopeError: If an inherited execution scope has already closed.
         """
-        return self._make_sync(service)
+        effective = self._effective_container()
+        if effective is not self:
+            return effective.make(service)
+        key = self._resolve_key(service)
+        return self._resolution_callbacks.run_sync(
+            key,
+            lambda: self._make_sync(key),
+        )
 
     @overload
     async def make_async[ServiceT](
@@ -1344,8 +1826,38 @@ class Container(ServiceContainer):
             ContainerClosedError: If the container has begun shutdown.
             ScopeError: If an inherited execution scope has already closed.
         """
+        effective = self._effective_container()
+        if effective is not self:
+            return await effective.make_async(service)
         self._ensure_open()
         key = self._resolve_key(service)
+        return await self._resolution_callbacks.run_async(
+            key,
+            lambda: self._make_async_core(key),
+        )
+
+    async def _make_async_core(self, key: type[object]) -> object:
+        """Resolve one service using async-capable backend scopes.
+
+        Args:
+            key: Canonical service key after alias normalization.
+
+        Returns:
+            The service instance from the active graph cache.
+        """
+        self._ensure_open()
+        owner = self._shared_singleton_owner(key)
+        if owner is not None:
+            return await Container._make_async_core(owner, key)
+        if self._synchronous_override:
+            path = self._async_path(key)
+            if path is not None:
+                message = (
+                    "This override requires asynchronous resource handling. "
+                    "Use 'async with container.override(...)'."
+                )
+                raise AsyncResolutionRequiredError(message)
+            return self._make_sync(key)
         frames = self._active_scopes.get()
         if frames and frames[-1].is_synchronous:
             path = self._async_path(key)
@@ -1355,10 +1867,15 @@ class Container(ServiceContainer):
         is_cached, cached = self._cached_value(key, frames)
         if is_cached:
             return cached
+        if self._override_owner is not None:
+            await self._prime_override_dependencies(
+                key,
+                self._override_owner,
+            )
         async with AsyncExitStack() as lock_stack:
             for lock in self._shared_locks_for(key, frames):
                 await lock_stack.enter_async_context(lock)
-            if frames:
+            if frames and self._override_owner is None:
                 await self._prime_application_dependencies(key)
             return await self._resolve_locked(key, frames)
 
@@ -1417,6 +1934,9 @@ class Container(ServiceContainer):
         """
         self._ensure_open()
         key = self._resolve_key(service)
+        owner = self._shared_singleton_owner(key)
+        if owner is not None:
+            return Container._make_sync(owner, key)
         frames = self._active_scopes.get()
         is_cached, cached = self._cached_value(key, frames)
         if is_cached:
@@ -1424,10 +1944,13 @@ class Container(ServiceContainer):
         path = self._async_path(key)
         if path is not None:
             dependency_path = " -> ".join(path)
-            message = (
-                f"{_ASYNC_RESOLUTION_ERROR} Dependency path: "
-                f"{dependency_path}. Use make_async()."
+            recommendation = (
+                "Use 'async with container.override(...)'."
+                if self._synchronous_override
+                else "Use make_async()."
             )
+            message = f"{_ASYNC_RESOLUTION_ERROR} Dependency path: "
+            message = f"{message}{dependency_path}. {recommendation}"
             raise AsyncResolutionRequiredError(message)
 
         if frames and not frames[-1].is_synchronous:
@@ -1448,7 +1971,7 @@ class Container(ServiceContainer):
                     frames,
                 )
 
-        if frames:
+        if frames or self._override_owner is not None:
             self._prime_application_dependencies_sync(key)
         generation = self._generation_for_sync(key, frames)
         if frames:
@@ -1457,9 +1980,11 @@ class Container(ServiceContainer):
             resolve = graph.get
         else:
             graph = generation.graph
-            if not isinstance(graph, DependencyGraph):
-                raise BindingResolutionError(_APPLICATION_GRAPH_ERROR)
-            resolve = graph.get_sync
+            resolve = (
+                graph.get_sync
+                if isinstance(graph, DependencyGraph)
+                else graph.get
+            )
         try:
             result = resolve(key)
         except Exception as error:
@@ -1485,7 +2010,14 @@ class Container(ServiceContainer):
         bindings = tuple(
             self._engine_binding(binding) for binding in self._bindings.values()
         )
-        return asynchronous_dependency_path(service, bindings)
+        return asynchronous_dependency_path(
+            service,
+            bindings,
+            self._extensions,
+            tuple(self._contextual_bindings.values()),
+            self._aliases,
+            {name: tuple(services) for name, services in self._tags.items()},
+        )
 
     @staticmethod
     def _entered_async_graph(
@@ -1573,7 +2105,10 @@ class Container(ServiceContainer):
         Returns:
             One stable lock for each explicitly shared service dependency.
         """
-        dependencies = self._dependency_types_for(service)
+        # Include the requested root as well as its constructor closure. An
+        # override graph and its parent use separate backend graphs, so they
+        # must coordinate first construction of the same application key.
+        dependencies = self._dependency_types_for(service) | {service}
         shared = sorted(
             (
                 dependency
@@ -1614,7 +2149,16 @@ class Container(ServiceContainer):
                 self._engine_binding(binding)
                 for binding in self._bindings.values()
             )
-            dependencies = discover_dependency_types(service, bindings)
+            dependencies = discover_dependency_types(
+                service,
+                bindings,
+                tuple(self._contextual_bindings.values()),
+                self._aliases,
+                {
+                    name: tuple(services)
+                    for name, services in self._tags.items()
+                },
+            )
             self._dependency_types_by_root[service] = dependencies
         return dependencies
 
@@ -1633,6 +2177,10 @@ class Container(ServiceContainer):
             application-owned graph first, then seed them into the request
             graph as external instances.
         """
+        owner = self._override_owner
+        if owner is not None:
+            await self._prime_override_dependencies(root, owner)
+            return
         dependencies = sorted(
             self._dependency_types_for(root),
             key=lambda dependency: (
@@ -1645,7 +2193,7 @@ class Container(ServiceContainer):
             if (
                 policy is None
                 or policy[0] is not Lifetime.SINGLETON
-                or dependency in self._shared_instances
+                or self._cached_value(dependency, ())[0]
             ):
                 continue
             generation = await self._generation_for(dependency, ())
@@ -1676,6 +2224,10 @@ class Container(ServiceContainer):
             AsyncResolutionRequiredError: If an app singleton is async-only.
             BindingResolutionError: If synchronous singleton creation fails.
         """
+        owner = self._override_owner
+        if owner is not None:
+            self._prime_override_dependencies_sync(root, owner)
+            return
         dependencies = sorted(
             self._dependency_types_for(root),
             key=lambda dependency: (
@@ -1688,7 +2240,7 @@ class Container(ServiceContainer):
             if (
                 policy is None
                 or policy[0] is not Lifetime.SINGLETON
-                or dependency in self._shared_instances
+                or self._cached_value(dependency, ())[0]
             ):
                 continue
             generation = self._generation_for_sync(dependency, ())
@@ -1732,6 +2284,10 @@ class Container(ServiceContainer):
             is_cached, cached = frame.find_instance(service)
             if is_cached:
                 return True, cached
+        if service in self._override_services:
+            if service in self._override_instances:
+                return True, self._override_instances[service]
+            return False, None
         if service in self._shared_instances:
             return True, self._shared_instances[service]
         return False, None
@@ -1779,6 +2335,79 @@ class Container(ServiceContainer):
         except Exception as error:
             message = f"Unable to resolve service {service.__qualname__}."
             raise BindingResolutionError(message) from error
+
+    async def _prime_override_dependencies(
+        self,
+        root: type[object],
+        owner: Container,
+    ) -> None:
+        """Initialize inherited app singletons through their owning overlay.
+
+        Args:
+            root: Requested graph whose singleton dependencies are inspected.
+            owner: Immediate overlay or application graph that owns values.
+
+        Notes:
+            A child graph may borrow an inherited singleton, but it must not
+            become that singleton resource's finalization owner.
+        """
+        for dependency in sorted(
+            self._dependency_types_for(root),
+            key=lambda value: (value.__module__, value.__qualname__),
+        ):
+            if dependency in self._local_override_services:
+                continue
+            policy = self._binding_policy(dependency)
+            if policy is None or policy[0] is not Lifetime.SINGLETON:
+                continue
+            await Container._make_async_core(owner, dependency)
+
+    def _prime_override_dependencies_sync(
+        self,
+        root: type[object],
+        owner: Container,
+    ) -> None:
+        """Initialize inherited sync-safe app singletons through their owner.
+
+        Args:
+            root: Requested graph whose singleton dependencies are inspected.
+            owner: Immediate overlay or application graph that owns values.
+        """
+        for dependency in sorted(
+            self._dependency_types_for(root),
+            key=lambda value: (value.__module__, value.__qualname__),
+        ):
+            if dependency in self._local_override_services:
+                continue
+            policy = self._binding_policy(dependency)
+            if policy is None or policy[0] is not Lifetime.SINGLETON:
+                continue
+            Container._make_sync(owner, dependency)
+
+    def _shared_singleton_owner(
+        self,
+        service: type[object],
+    ) -> Container | None:
+        """Return the immediate graph owner for an inherited singleton.
+
+        Args:
+            service: Service key requested in this overlay.
+
+        Returns:
+            The parent overlay or application container if this overlay does
+            not locally replace the application-scoped singleton.
+        """
+        owner = self._override_owner
+        if owner is None or service in self._local_override_services:
+            return None
+        policy = self._binding_policy(service)
+        if (
+            policy is None
+            or policy[0] is not Lifetime.SINGLETON
+            or policy[1] is not Scope.APPLICATION
+        ):
+            return None
+        return owner
 
     async def _remember_shared_dependencies(
         self,
@@ -1986,10 +2615,7 @@ class Container(ServiceContainer):
             service = self._aliases.get(service, service)
         if not isinstance(service, type):
             return False
-        return service in self._shared_instances or any(
-            frame.find_instance(service)[0]
-            for frame in self._active_scopes.get()
-        )
+        return self._cached_value(service, self._active_scopes.get())[0]
 
     def is_shared(self, service: type[object] | str) -> bool:
         """Return whether the explicit binding uses a cached lifetime.
@@ -2038,6 +2664,222 @@ class Container(ServiceContainer):
         """
         return dict(self._bindings)
 
+    def override(
+        self,
+        bindings: Mapping[type[object], object],
+    ) -> ServiceOverride:
+        """Create a temporary service graph usable with either context form.
+
+        Use ``with`` for sync-safe graphs and synchronous resource finalizers.
+        Use ``async with`` when replacements can initialize asynchronous
+        resources. Application registrations and unrelated singleton
+        identities remain unchanged in both modes.
+
+        Args:
+            bindings: Service keys mapped to replacement classes, factories,
+                or concrete values.
+
+        Returns:
+            A task-local context manager supporting sync and async lifecycles.
+
+        Raises:
+            ContainerClosedError: When entered after container shutdown.
+            ScopeError: When entered during an active scope or reused.
+        """
+        return _OverrideContext(
+            self._sync_override_context(bindings),
+            self._async_override_context(bindings),
+        )
+
+    @contextmanager
+    def _sync_override_context(
+        self,
+        bindings: Mapping[type[object], object],
+    ) -> Generator[Container, None, None]:
+        """Own synchronous replacement resources for one context.
+
+        Args:
+            bindings: Service replacements applied to the child registry.
+
+        Yields:
+            The active temporary registry.
+        """
+        parent, child, token = self._activate_override(
+            bindings,
+            synchronous=True,
+        )
+        try:
+            yield child
+        finally:
+            try:
+                Container._close_sync(child)
+            finally:
+                Container._restore_override(parent, token)
+
+    @asynccontextmanager
+    async def _async_override_context(
+        self,
+        bindings: Mapping[type[object], object],
+    ) -> AsyncGenerator[Container, None]:
+        """Own asynchronous replacement resources for one context.
+
+        Args:
+            bindings: Service replacements applied to the child registry.
+
+        Yields:
+            The active temporary registry.
+        """
+        parent, child, token = self._activate_override(
+            bindings,
+            synchronous=False,
+        )
+        try:
+            yield child
+        finally:
+            try:
+                # Cancellation must not interrupt backend resource cleanup.
+                with anyio.CancelScope(shield=True):
+                    await Container.aclose(child)
+            finally:
+                Container._restore_override(parent, token)
+
+    def _activate_override(
+        self,
+        bindings: Mapping[type[object], object],
+        *,
+        synchronous: bool,
+    ) -> tuple[Container, Container, Token[Container | None]]:
+        """Install one task-local override graph for its owner context.
+
+        Args:
+            bindings: Service replacements applied to the child registry.
+            synchronous: Whether child graphs use synchronous resource owners.
+
+        Returns:
+            Parent, child, and context token needed for deterministic restore.
+
+        Raises:
+            ContainerClosedError: If the active parent is closed.
+            ScopeError: If the parent has an active scope.
+        """
+        parent = self._effective_container()
+        Container._ensure_open(parent)
+        if Container._has_active_scope(parent):
+            raise ScopeError(_OVERRIDE_ACTIVE_SCOPE_ERROR)
+        child = Container._clone_for_override(
+            parent,
+            bindings,
+            synchronous=synchronous,
+        )
+        token = Container._install_override(parent, child)
+        return parent, child, token
+
+    def _has_active_scope(self) -> bool:
+        """Report whether this container has an active execution scope.
+
+        Returns:
+            Whether a scope currently owns the active execution context.
+        """
+        return bool(self._active_scopes.get())
+
+    def _install_override(
+        self,
+        child: Container,
+    ) -> Token[Container | None]:
+        """Install one child registry in this task-local context.
+
+        Args:
+            child: Temporary container becoming active in this context.
+
+        Returns:
+            Token that restores the preceding override context.
+        """
+        token = self._override_context.set(child)
+        self._active_override_count += 1
+        return token
+
+    def _restore_override(self, token: Token[Container | None]) -> None:
+        """Restore a parent container after child resource finalization.
+
+        Args:
+            token: Exact execution-local state saved on entry.
+        """
+        self._override_context.reset(token)
+        self._active_override_count -= 1
+
+    def _clone_for_override(
+        self,
+        bindings: Mapping[type[object], object],
+        *,
+        synchronous: bool,
+    ) -> Container:
+        """Create an isolated registry seeded with existing app instances.
+
+        Args:
+            bindings: Temporary registration values for the child container.
+            synchronous: Whether the graph uses synchronous resource owners.
+
+        Returns:
+            A child registry that owns only resources it creates itself.
+
+        Raises:
+            BindingError: If a replacement cannot be registered.
+        """
+        child = Container(
+            providers=self.providers,
+            max_graph_generations=self.max_graph_generations,
+        )
+        child._bindings = dict(self._bindings)
+        child._dependency_types_by_root = dict(self._dependency_types_by_root)
+        child._aliases = dict(self._aliases)
+        child._tags = {
+            name: list(values) for name, values in self._tags.items()
+        }
+        child._contextual_bindings = dict(self._contextual_bindings)
+        child._extensions = {
+            service: list(extensions)
+            for service, extensions in self._extensions.items()
+        }
+        child._resolution_callbacks = self._resolution_callbacks.clone()
+        child._method_bindings = dict(self._method_bindings)
+        child._shared_instances = self._shared_instances
+        child._override_instances = dict(self._override_instances)
+        child._override_services = self._override_services | frozenset(bindings)
+        child._local_override_services = frozenset(bindings)
+        child._override_owner = self
+        child._shared_resolution_locks = self._shared_resolution_locks
+        child._override_context = self._override_context
+        child._synchronous_override = synchronous
+
+        for service, replacement in bindings.items():
+            current = child._bindings.get(service)
+            lifetime = (
+                current.lifetime if current is not None else Lifetime.TRANSIENT
+            )
+            scope = current.scope if current is not None else Scope.APPLICATION
+            if isinstance(replacement, type) or callable(replacement):
+                child._register(
+                    service,
+                    cast(
+                        "type[object] | ServiceFactory[object]",
+                        replacement,
+                    ),
+                    lifetime,
+                    scope,
+                )
+            else:
+                child.instance(service, replacement)
+        return child
+
+    def _effective_container(self) -> Container:
+        """Return the task-local override or this application container.
+
+        Returns:
+            The currently active child container, if one is installed.
+        """
+        active = self._override_context.get()
+        return self if active is None or active is self else active
+
     def scope(self, scope: Scope) -> ContainerScope:
         """Create a task-local execution scope context manager.
 
@@ -2047,6 +2889,9 @@ class Container(ServiceContainer):
         Returns:
             An inactive context manager that resolves within the scope.
         """
+        effective = self._effective_container()
+        if effective is not self:
+            return effective.scope(scope)
         return ContainerScope(
             self,
             scope,
@@ -2085,7 +2930,7 @@ class Container(ServiceContainer):
         """Finalize graph resources in reverse generation order.
 
         Raises:
-            ScopeError: If an execution scope is still active.
+            ScopeError: If a scope or temporary override is still active.
 
         Notes:
             Later graph generations may borrow cached instances from earlier
@@ -2093,13 +2938,48 @@ class Container(ServiceContainer):
         """
         if self._closed:
             return
-        if self._active_scope_count:
+        if self._active_scope_count or self._active_override_count:
             raise ScopeError(_ACTIVE_SCOPE_ERROR)
         self._closed = True
         failures: list[Exception] = []
         for graph in reversed(self._generations):
             try:
-                await graph.close()
+                if isinstance(graph, DependencyGraph):
+                    await graph.close()
+                else:
+                    graph.close()
+            except Exception as error:
+                failures.append(error)
+        if failures:
+            details = "; ".join(type(error).__name__ for error in failures)
+            message = f"Container resource finalization failed: {details}."
+            raise BindingResolutionError(message) from failures[0]
+
+    def _close_sync(self) -> None:
+        """Finalize only synchronous graph owners without blocking.
+
+        Raises:
+            AsyncResolutionRequiredError: If an async graph is owned here.
+            ScopeError: If a scope or child override remains active.
+            BindingResolutionError: If a synchronous resource cannot close.
+        """
+        if self._closed:
+            return
+        if self._active_scope_count or self._active_override_count:
+            raise ScopeError(_ACTIVE_SCOPE_ERROR)
+        if any(
+            isinstance(graph, DependencyGraph) for graph in self._generations
+        ):
+            message = (
+                "This override owns asynchronous graph resources. "
+                "Enter it with 'async with container.override(...)'."
+            )
+            raise AsyncResolutionRequiredError(message)
+        self._closed = True
+        failures: list[Exception] = []
+        for graph in reversed(self._generations):
+            try:
+                graph.close()
             except Exception as error:
                 failures.append(error)
         if failures:
@@ -2132,7 +3012,10 @@ class Container(ServiceContainer):
         """
         self._ensure_mutable()
         self._dependency_types_by_root.clear()
-        self._shared_instances.pop(service, None)
+        if service in self._override_services:
+            self._override_instances.pop(service, None)
+        else:
+            self._shared_instances.pop(service, None)
         self._bindings[service] = Binding(
             service=service,
             implementation=implementation,
@@ -2332,7 +3215,7 @@ class Container(ServiceContainer):
         bindings = tuple(
             self._engine_binding(item) for item in self._bindings.values()
         )
-        instances = dict(self._shared_instances)
+        instances = self._shared_instance_snapshot()
         for frame in frames:
             instances.update(frame.instance_snapshot())
         scopes = self._instance_scopes(instances)
@@ -2344,19 +3227,33 @@ class Container(ServiceContainer):
             frames[-1].scope.value if frames else Scope.APPLICATION.value
         )
         try:
-            graph_factory = (
-                create_dependency_graph
-                if asynchronous or not frames
-                else create_sync_dependency_graph
-            )
-            graph = graph_factory(
+            if self._synchronous_override:
+                graph_factory = create_sync_dependency_graph
+            elif asynchronous or not frames:
+                graph_factory = create_dependency_graph
+            else:
+                graph_factory = create_sync_dependency_graph
+            graph_configuration = GraphConfiguration(
                 providers=self.providers,
                 bindings=bindings,
                 request=request,
                 resolution_scope=resolution_scope,
                 instances=instances,
                 instance_scopes=scopes,
+                contextual_bindings=tuple(self._contextual_bindings.values()),
+                extensions={
+                    key: tuple(values)
+                    for key, values in self._extensions.items()
+                },
+                aliases=dict(self._aliases),
+                tags={
+                    name: tuple(services)
+                    for name, services in self._tags.items()
+                },
             )
+            graph = graph_factory(graph_configuration)
+        except BindingError:
+            raise
         except Exception as error:
             message = f"Unable to compose a graph for {service.__qualname__}."
             raise BindingResolutionError(message) from error
@@ -2387,7 +3284,10 @@ class Container(ServiceContainer):
         if frames:
             frames[-1].own_generation(service, generation)
             return
-        if not isinstance(generation.graph, DependencyGraph):
+        if (
+            not isinstance(generation.graph, DependencyGraph)
+            and not self._synchronous_override
+        ):
             raise BindingResolutionError(_APPLICATION_GRAPH_ERROR)
         self._generations.append(generation.graph)
         self._generation_by_type[service] = generation
@@ -2415,6 +3315,18 @@ class Container(ServiceContainer):
             if declaration is not None:
                 scopes[service] = declaration.scope.value
         return scopes
+
+    def _shared_instance_snapshot(self) -> dict[type[object], object]:
+        """Return application instances excluding shadowed override values.
+
+        Returns:
+            Backend context values owned by this application or override.
+        """
+        instances = dict(self._shared_instances)
+        for service in self._override_services:
+            instances.pop(service, None)
+        instances.update(self._override_instances)
+        return instances
 
     @staticmethod
     def _engine_binding(binding: Binding[object]) -> EngineBinding:
@@ -2463,7 +3375,10 @@ class Container(ServiceContainer):
             return
         lifetime, scope = policy
         if lifetime is Lifetime.SINGLETON:
-            self._shared_instances[service] = instance
+            if service in self._override_services:
+                self._override_instances[service] = instance
+            else:
+                self._shared_instances[service] = instance
             return
         level = _scope_level(scope)
         for frame in reversed(frames):

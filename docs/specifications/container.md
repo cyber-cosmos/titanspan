@@ -33,6 +33,11 @@ and generator cleanup to the selected dependency engine.
 | `make` / `get` | Verified | Synchronously resolves sync-safe graphs; an initialized cached service remains accessible. |
 | `make_async` / `get_async` | Verified | Explicitly resolves graphs with async factories or resources. |
 | `make_with` / `make_with_async` | Verified | Constructs a root with explicit values and resolves remaining dependencies through `call` or `call_async`. |
+| `when(...).needs(...).give(...)` | Verified | Adds consumer-specific implementation, value, configuration, alias, or tag sources before graph composition. |
+| `Annotated` metadata | Verified | `Inject`, `FromConfig`, `Named`, and `Tagged` select native dependency sources. |
+| `extend` | Verified | Adds ordered sync or async decorators through the backend's supported provider API. |
+| Resolution callbacks | Verified | `before_resolving`, `resolving`, and `after_resolving` wrap public root lookups, including cached values. |
+| `override` | Adapted | A dual sync/async context creates a task-local overlay; each mode owns matching graph cleanup. |
 | `bound` | Verified | Checks explicit registration without resolution. |
 | `has` | Adapted | Checks explicit keys, aliases, and non-abstract classes; it does not
   prove that a concrete graph can be constructed. |
@@ -66,13 +71,13 @@ and generator cleanup to the selected dependency engine.
 | Graph generation bound | Verified | `max_graph_generations` limits retained global and active-scope graphs. |
 | Backend provider interop | Advanced | `providers` accepts explicit integration objects. It is an escape hatch,
   not the ordinary registration API. |
+| Active application helper | Verified | `titanspan.app()` returns the canonical container in an active application context. |
 
 The remaining provider escape hatch belongs to `foundation.Application`,
-whose `providers` parameter passes non-native registration values to the
-private adapter. Ordinary registration through the native `Container` uses
-Titanspan bindings and contracts. Replacing this input is deferred until that
-container becomes the application composition root; see the
-[backend boundary audit](./backend-boundaries).
+whose `providers` parameter passes explicit interoperability registrations to
+the private adapter. Ordinary registration through the native `Container`
+uses Titanspan bindings and contracts. It remains available only for
+third-party integration; see the [backend boundary audit](./backend-boundaries).
 
 Focused evidence is in `tests/unit/container/test_container.py`,
 `tests/unit/container/test_execution_modes.py`, and
@@ -112,8 +117,9 @@ close the sync resource before the scope completes.
 6. Abstract classes and protocols require explicit bindings.
 7. Unannotated required constructor parameters are not guessed; graph
    validation reports a resolution failure.
-8. Registration is allowed until the first graph is composed. Later mutation
-   raises `BindingError`.
+8. Bindings, contextual rules, extensions, and callbacks are registered before
+   first graph composition. Later mutation raises `BindingError`; use a
+   temporary override for task-local substitution.
 9. The graph limit applies to global graphs plus graphs owned by active scopes.
    A graph that exceeds the configured bound raises `GraphLimitError`.
 10. Externally supplied instances registered with `instance` are not closed by
@@ -145,33 +151,110 @@ API.
 All methods use `snake_case`. Sync and async methods are distinct operations;
 neither returns an awaitable conditionally.
 
-## Planned capabilities
+## Contextual injection and lifecycle hooks
 
-Contextual binding, attribute-based injection, service extensions, rebinding,
-resolution callbacks, and temporary override stacks are not implemented.
-They remain outside the advertised API until their registration and lifecycle
-semantics are specified and tested.
+`Container.when(Consumer).needs(selector)` registers a rule for one or more
+consumer classes. `give` selects a service implementation or typed factory;
+`give_value` supplies a literal; `give_config` reads through the registered
+`ConfigReader`; `give_named` selects a registered alias; and `give_tagged`
+resolves tagged services in registration order.
 
-## Known limits for this milestone
+Constructor and callable source precedence is deterministic:
 
-- Runtime bindings freeze after first graph composition; live rebinding,
-  contextual changes, and override stacks are not implemented.
-- Primitive contextual bindings, configuration injection, and custom
-  injection attributes are not implemented. `call` accepts explicit named
-  values and resolves only class-typed service parameters.
+1. Explicit values supplied to `make_with`, `make_with_async`, `call`, or
+   `call_async`.
+2. A matching consumer-specific contextual rule.
+3. A supported `Annotated` marker (`Inject`, `FromConfig`, `Named`, or
+   `Tagged`).
+4. An ordinary binding or automatic concrete resolution.
+5. A Python parameter default when no source is selected.
+
+Explicit values remain present when they are `None`, `False`, zero, or an
+empty collection. Conflicting supported injection markers raise
+`BindingError`. Contextual rules affect only their selected consumers.
+Configuration injection requires the application to register `ConfigReader`.
+
+`extend` decorates a service in registration order through the backend's
+supported graph pipeline. The final value is cached according to the binding
+lifetime. Decorators that wrap resources must forward cleanup to resources
+they own. Sync decorators work through `make`; async decorators require
+`make_async` and are detected before sync resolution constructs or caches a
+partial value.
+
+`before_resolving`, `resolving`, and `after_resolving` run for each public root
+lookup, including cached values. The order is before hooks, resolution,
+resolving hooks, then after hooks. A failure stops later phases and propagates.
+Async callbacks require explicit async resolution. Hooks do not observe each
+dependency created internally by a backend graph. Recursive resolution of
+the same service from a callback is rejected to avoid an uncontrolled loop.
+
+## Temporary overrides
+
+`Container.override` returns a context object that supports both sync and async
+entry. Use synchronous entry for graphs with synchronous factories and
+finalizers:
+
+```python
+with container.override({Repository: FakeRepository}):
+    service = container.make(DocumentService)
+```
+
+Use asynchronous entry when a replacement requires asynchronous resource
+initialization or cleanup:
+
+```python
+async with container.override({Repository: FakeRepository}):
+    service = container.make(DocumentService)
+```
+
+Overrides are context-local and nest in LIFO order. Replacement values and
+their resources belong to the temporary graph. Unaffected application
+singletons share the canonical application cache and per-service locks,
+including when first initialized concurrently from an overlay. Closing an
+overlay does not close borrowed application singletons. Cleanup is shielded
+from cancellation before the previous context is restored.
+
+The synchronous context composes through the supported synchronous backend
+and closes its resources immediately. Async resolution inside that context is
+allowed only when its graph remains synchronous; async-only dependencies fail
+before initialization with guidance to use `async with`. The asynchronous
+context supports async factories and finalizers.
+
+Enter overrides before opening execution scopes. The container rejects an
+override entered inside an active scope, and rejects shutdown while an
+override remains active. Bindings still freeze when a graph is first
+composed; temporary overlays are the supported substitution mechanism after
+that point. Arbitrary live rebinding is not supported.
+
+## Known limits
+
+- Runtime bindings freeze after first graph composition. Synchronous overrides
+  cannot initialize async-only dependencies; use the asynchronous context for
+  those resources.
+- `Annotated` injection is limited to the four documented Titanspan markers.
+  Arbitrary union inference and custom metadata handlers are not implemented.
+- Contextual rules have no runtime removal or mutation operation.
+  `ConfigReader` must be registered for `FromConfig` or `give_config`.
+- Service extensions must preserve the selected contract and forward cleanup
+  when wrapping owned resources. Ownership of arbitrary user wrappers cannot
+  be inferred.
+- Resolution hooks wrap public root lookups only; nested backend-created
+  dependencies do not emit separate callback events.
 - `Application` uses this registry as the composition root for framework
   services. Use `Application.dependency` for HTTP handlers that consume native
   services; it resolves through the active application container and request
   scope. Explicit `Application.providers` values remain an advanced
-  interoperability boundary with a separate provider graph. No module-level
-  `app()` helper is available.
+  interoperability boundary with a separate provider graph. The
+  `titanspan.app()` helper resolves the same container while an application
+  context is active; ordinary Titanspan services do not need the provider
+  graph.
 - Synchronous and asynchronous generator resource factories have lifecycle
   tests, including cleanup when the active task is cancelled. Direct
   context-manager factory forms are not implemented.
 - The scope names adapt to one backend hierarchy and do not represent
   independent request, job, and workflow branches.
-- Container-level tests verify the native adapter behavior. They do not yet
-  establish every planned capability or the requested coverage target.
+- Component coverage remains subject to the repository-wide line and branch
+  coverage gates; passing isolated tests alone does not prove completeness.
 - Task-group tests verify sync and async operations share one application
   singleton cache and scope tests verify a scoped instance is shared across
   both modes. Cross-thread access to one Dishka graph is not declared safe or

@@ -64,6 +64,13 @@ ownership stable during application execution.
 Classes may also declare application or execution lifetimes with the native
 decorators described in [class declarations](decorators.md).
 
+Select a dependency for one consumer with
+[contextual bindings](contextual-bindings.md). `Annotated` metadata supports
+implementation, configuration, alias, and tagged-service selection.
+[Extensions and callbacks](lifecycle-hooks.md) add ordered service decoration
+and root-resolution hooks. [Temporary overrides](overrides.md) provide
+isolated substitutions for tests and individual executions.
+
 ## Resolution scopes
 
 Use `async with container.scope(Scope.WORKFLOW)` to isolate cached resources

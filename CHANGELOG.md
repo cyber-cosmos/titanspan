@@ -19,11 +19,13 @@ public release.
   application singletons, execution-scoped values, ordered tags, aliases,
   automatic concrete dependency discovery, bounded graph generations, and
   synchronous and asynchronous generator cleanup, callable injection, method
-  callback bindings, and declarative class lifetime decorators. The native
-  container now composes framework services through application providers;
-  FastAPI route injection remains a separate adapter. Contextual injection and
-  dynamic rebinding remain pending. See `docs/specifications/container.md` and
-  `docs/container/`.
+  callback bindings, and declarative class lifetime decorators. The container
+  now supports consumer-specific bindings, `Annotated` injection, ordered
+  service extensions, root-resolution callbacks, and task-local overrides
+  with matching synchronous or asynchronous resource cleanup. Framework
+  services resolve through the application container; FastAPI route injection
+  remains a separate adapter. Registrations freeze after graph composition.
+  See `docs/specifications/container.md` and `docs/container/`.
 - Added the native configuration repository, strict typed accessors, trusted
   Python/JSON/TOML source loading, isolated dotenv integration, validated
   settings, application-scoped facade and native contract registration. Added

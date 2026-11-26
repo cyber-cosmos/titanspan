@@ -21,6 +21,7 @@ from titanspan.contracts.container import (
     Scope,
     ServiceContainer,
     ServiceFactory,
+    ServiceOverride,
     ServiceRegistry,
 )
 from titanspan.contracts.foundation import (
@@ -75,6 +76,7 @@ __all__ = [
     "ScopedConfigOverrides",
     "ServiceContainer",
     "ServiceFactory",
+    "ServiceOverride",
     "ServiceProvider",
     "ServiceRegistry",
     "TypedConfigReader",

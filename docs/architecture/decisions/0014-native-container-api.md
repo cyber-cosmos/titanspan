@@ -6,7 +6,9 @@
 
 > Status update: The native container now composes framework services in
 > `Application`. Only FastAPI route injection retains a separate graph; see
-> ADR 0018.
+> ADR 0018. Contextual injection, service extensions, resolution callbacks,
+> and sync/async task-local overrides were subsequently implemented with the
+> constraints recorded in ADR 0019.
 
 ## Context
 
@@ -44,9 +46,9 @@ could invalidate singleton and scoped resources.
   generator-backed singleton cleanup attached to application shutdown.
 - Treat each scope context object as one-shot because it owns closed backend
   child graphs and cannot safely reopen those resources.
-- Freeze registration after first graph composition. Runtime rebinding,
-  contextual changes, and live overrides are deferred until an explicit safe
-  graph-generation design is tested.
+- Freeze registration after first graph composition. Contextual injection and
+  temporary sync/async overrides are implemented in ADR 0019; arbitrary live
+  rebinding remains unsupported.
 - Bound retained generations with a configurable default limit of 128.
 - Map semantic execution scope names onto the existing ordered backend scope
   levels. Document equivalent-level and nesting limitations instead of
@@ -61,12 +63,11 @@ constructor graphs. Graph composition still validates the whole provider
 graph. Dynamic root graphs are retained for the owning application or scope,
 and the explicit limit prevents unbounded root metadata growth.
 
-The public API includes callable injection, method callback registration, and
-lazy resolver factories. Contextual bindings, primitive injection, custom
-attributes, extensions, callbacks, and safe live rebinding remain pending in
-`docs/specifications/container.md`. The application lifecycle still accepts
-the established integration provider boundary and does not expose `Container`
-as its canonical container.
+At the time this decision was accepted, contextual bindings, primitive
+injection, custom metadata, extensions, resolution callbacks, and overrides
+were pending. The current implementation and its verified limits are recorded
+in `docs/specifications/container.md` and ADR 0019. Safe live rebinding remains
+unsupported because registrations freeze after graph composition.
 
 ## Verification required for future changes
 

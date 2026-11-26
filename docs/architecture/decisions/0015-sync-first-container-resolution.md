@@ -7,7 +7,10 @@
 
 > Status update: At acceptance, `Application` still used a separate native
 > service graph. ADR 0018 subsequently made `Container` the composition root
-> for framework services. FastAPI route injection still uses its own adapter.
+> for framework services and added the context-local `app()` helper.
+> Contextual sources, callbacks, extensions, and temporary overrides are
+> described in ADR 0019. FastAPI route injection still uses its native bridge;
+> the separate raw provider graph is reserved for explicit interoperability.
 
 ## Context
 
@@ -24,9 +27,9 @@ provides `AsyncContainer.get_sync` for sync-safe dependencies and
 and `AsyncContainer.get` use the same graph cache. Synchronous access bypasses
 the async method's lock, so the framework must not imply cross-thread safety.
 
-The web `Application` still owns its established ASGI graph and does not yet
-expose the native `Container` as its single composition root. There is no
-module-level `app()` helper in this milestone.
+The web `Application` owns the native container as the composition root for
+Titanspan services. A context-local module-level `app()` helper provides
+access to it while an application context is active.
 
 ## Decision
 
@@ -78,12 +81,16 @@ singleton access and mixed-mode scoped access; cross-thread resolution remains
 unsupported and unverified.
 
 The native container is the composition root for framework services, while
-FastAPI route injection remains a separate adapter. A module-level `app()`
-helper is not available. Async factories supplied through external provider
-integrations may not be statically inspectable; a sync backend failure at
-that boundary is reported as a native `BindingResolutionError` with an
-async-resolution recommendation, rather than misclassified as a verified
-async-only graph.
+FastAPI route injection uses a bridge into that container. Async factories
+supplied through explicit external provider integrations may not be
+statically inspectable; a sync backend failure at that boundary is reported
+as a native `BindingResolutionError` with an async-resolution recommendation,
+rather than misclassified as a verified async-only graph. The active
+container helper is `titanspan.app()` and requires an application context.
+
+Contextual bindings, injection metadata, extensions, callbacks, and temporary
+overrides were added after this decision. Their precedence, ownership, and
+cleanup rules are in [ADR 0019](0019-contextual-container-services.md).
 
 ## Verification
 

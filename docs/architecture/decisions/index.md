@@ -22,3 +22,4 @@ for compatibility, maintenance, licensing, and security before use.
 - [0016 — Native Python API naming](./0016-native-python-api-naming)
 - [0017 — Domain-oriented shared contracts](./0017-domain-oriented-contracts)
 - [0018 — Native application service composition](./0018-application-service-composition)
+- [0019 — Contextual container services and temporary overrides](./0019-contextual-container-services)

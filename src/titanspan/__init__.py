@@ -6,8 +6,8 @@ metadata; planned framework modules remain unavailable as supported APIs.
 
 from importlib.metadata import version
 
-from titanspan.foundation.application import Application
+from titanspan.foundation import Application, app
 
 __version__ = version("titanspan")
 
-__all__ = ["Application", "__version__"]
+__all__ = ["Application", "__version__", "app"]

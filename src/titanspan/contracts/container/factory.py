@@ -14,4 +14,9 @@ type ServiceFactory[ServiceT] = Callable[
     | AsyncIterator[ServiceT],
 ]
 
-__all__ = ["ServiceFactory"]
+type ServiceExtension[ServiceT] = Callable[
+    [ServiceT],
+    ServiceT | Awaitable[ServiceT],
+]
+
+__all__ = ["ServiceExtension", "ServiceFactory"]

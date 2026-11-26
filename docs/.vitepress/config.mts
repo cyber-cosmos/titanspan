@@ -140,6 +140,10 @@ export default defineConfig({
                 text: "0018 — Application service composition",
                 link: "/architecture/decisions/0018-application-service-composition",
               },
+              {
+                text: "0019 — Contextual container services",
+                link: "/architecture/decisions/0019-contextual-container-services",
+              },
             ],
           },
         ],
@@ -165,6 +169,15 @@ export default defineConfig({
           { text: "Class declarations", link: "/container/decorators" },
           { text: "Factories", link: "/container/factories" },
           { text: "Injection", link: "/container/injection" },
+          {
+            text: "Contextual bindings",
+            link: "/container/contextual-bindings",
+          },
+          {
+            text: "Extensions and callbacks",
+            link: "/container/lifecycle-hooks",
+          },
+          { text: "Temporary overrides", link: "/container/overrides" },
           {
             text: "Method bindings",
             link: "/container/method-bindings",

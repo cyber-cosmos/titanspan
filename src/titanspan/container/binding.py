@@ -6,7 +6,10 @@ These immutable definitions are shared by registration and graph discovery.
 from dataclasses import dataclass
 from enum import Enum
 
-from titanspan.contracts.container.factory import ServiceFactory
+from titanspan.contracts.container.factory import (
+    ServiceExtension,
+    ServiceFactory,
+)
 from titanspan.contracts.container.scope import Scope
 
 
@@ -69,5 +72,6 @@ __all__ = [
     "Binding",
     "BindingDeclaration",
     "Lifetime",
+    "ServiceExtension",
     "ServiceFactory",
 ]
