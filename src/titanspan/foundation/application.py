@@ -57,7 +57,7 @@ from titanspan.contracts.logging import LoggingManager
 from titanspan.contracts.routing import UriUrlGenerator
 from titanspan.events import EventServiceProvider
 from titanspan.http import HttpServiceProvider, JsonResponse, Request
-from titanspan.http._backends.asgi import create_request
+from titanspan.http._backends.asgi import create_request_boundary
 from titanspan.http.configuration import HttpConfiguration
 from titanspan.http.exceptions import RequestBodyTooLargeError
 from titanspan.http.response import validate_header
@@ -167,12 +167,13 @@ class _ApplicationContextMiddleware:
         incoming = StarletteRequest(scope, receive=receive)
         request_id = _request_id(incoming)
         server = self._application.http_configuration.server
-        native_request = create_request(
+        request_boundary = create_request_boundary(
             scope,
             receive,
             request_id=request_id,
             configuration=server,
         )
+        native_request = request_boundary.request
         async with self._application.execution_scope(Scope.REQUEST) as active:
             active.provide_instance(Request, native_request)
             active.provide_instance(HttpRequest, native_request)
@@ -181,7 +182,7 @@ class _ApplicationContextMiddleware:
                     application=self._app_name,
                     request_id=request_id,
                 ):
-                    await self._app(scope, receive, send)
+                    await self._app(scope, request_boundary.receive, send)
             finally:
                 with anyio.CancelScope(shield=True):
                     await native_request.aclose()

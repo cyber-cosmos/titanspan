@@ -95,6 +95,43 @@ def test_absolute_generation_requires_a_trusted_origin() -> None:
         generator.to("/documents")
 
 
+def test_named_route_rejects_parameters_outside_route_constraints() -> None:
+    """Reject generated paths that the registered route cannot match.
+
+    URL reversal must preserve the same declared parameter rules as routing.
+    """
+    router = Router()
+    router.get("/documents/{document_id}", endpoint).where_number(
+        "document_id"
+    ).name("documents.show")
+    generator = UrlGenerator(router.routes)
+
+    with pytest.raises(RouteUrlError, match="constraint"):
+        generator.route(
+            "documents.show",
+            {"document_id": "not-a-number"},
+            False,
+        )
+
+
+def test_domain_route_absolute_url_requires_matching_trusted_origin() -> None:
+    """Reject absolute URLs whose configured host cannot match the route.
+
+    A path-only URL remains available for domain-constrained routes.
+    """
+    router = Router()
+    router.get("/status", endpoint).domain("api.example.test").name(
+        "api.status"
+    )
+    generator = UrlGenerator(
+        router.routes,
+        origin="https://app.example.test",
+    )
+
+    with pytest.raises(RouteUrlError, match="route domain"):
+        generator.route("api.status", {}, True)
+
+
 @pytest.mark.parametrize(
     "origin",
     [

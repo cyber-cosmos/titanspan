@@ -103,6 +103,7 @@ export const documentationSidebar = [
         items: [
           "architecture",
           "architecture/contract-integration",
+          "architecture/framework-review",
           {
             label: "Architecture Decision Records",
             collapsed: true,

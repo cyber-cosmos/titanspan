@@ -7,9 +7,9 @@ title: "Hello World"
 The example composes a native application configuration, service provider,
 contract-based service, and logger. The greeting implementation receives its
 configuration repository and logger through automatic constructor injection.
-This example uses FastAPI's explicit routing interoperability API. The
-native Routing component provides Titanspan-owned route registration and
-dispatch.
+The endpoint is registered through Titanspan Routing and resolved through the
+application Container. FastAPI and Starlette provide the ASGI host and protocol
+infrastructure.
 
 Run it from the repository root:
 
@@ -37,5 +37,6 @@ async with application:
     print(greeter.greet("worker"))
 ```
 
-The example keeps its explicit FastAPI route and dependency bridge. See the
-[native Routing guide](/titanspan/routing/) for application-owned routes.
+The route catalog freezes and installs when the ASGI lifespan starts. Direct
+FastAPI integration remains available through `application.asgi`, but this
+example does not require it. See the [Routing guide](/titanspan/routing/).

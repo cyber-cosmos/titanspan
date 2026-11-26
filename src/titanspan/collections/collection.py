@@ -1092,11 +1092,13 @@ class Collection[T](Tappable):
         """
         if not others:
             return self.unique()
-        common = _EqualitySet(chain.from_iterable(others))
+        membership_sets = tuple(_EqualitySet(other) for other in others)
         selected = _EqualitySet()
         result: list[T] = []
         for item in self._items:
-            if item in common and item not in selected:
+            if all(item in values for values in membership_sets):
+                if item in selected:
+                    continue
                 selected.add(item)
                 result.append(item)
         return Collection(result)

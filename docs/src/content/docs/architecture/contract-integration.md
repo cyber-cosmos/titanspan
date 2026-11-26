@@ -13,13 +13,13 @@ column distinguishes static assignments and behavioral tests from real
 application integration. The cross-component test target runs tests marked
 `architecture` and is a required job in the CI gate.
 
-The shared Contracts package currently defines 26 public protocols across
-configuration, container, foundation, logging, and Support. Domain value
-types are identified separately. One public abstract facade base and one
-private production protocol are also inventoried below.
-Every public contract in the domain tables is exported from its canonical
-domain package and re-exported as the same object from `titanspan.contracts`;
-private implementation and test-only protocols are not exported.
+The shared Contracts package currently defines 36 public protocols across
+eight domains: configuration, container, foundation, Events, HTTP, logging,
+Routing, and Support. Domain value types are identified separately. One public
+abstract facade base and one private production protocol are also listed.
+Every public contract appears in its canonical domain package. The root
+package re-exports the same object. Private implementation and test-only
+protocols remain unexported.
 
 ## Configuration contracts
 
@@ -75,6 +75,16 @@ Pure ASGI request middleware keeps request scope and context active through
 streamed response bodies. Regression tests cover cleanup and restoration after
 shutdown and failed startup.
 
+## Events contracts
+
+| Contract or type | Definition | Implementation and consumers | Registration and evidence | Status |
+| --- | --- | --- | --- | --- |
+| `EventDispatcher` | `contracts/events/dispatcher.py` | `events.NativeEventDispatcher`; event facade, helpers, subscribers, and application listeners | `EventServiceProvider` registers one instance under contract and concrete keys; strict Pyright checks the implementation and real Application integration verifies identity and dispatch behavior | Implemented, registered, and consumed |
+
+`EventSelector` is a public type alias. It does not create a second runtime
+contract. Blinker stores receiver references. Titanspan owns event selection,
+injection, ordering, and sequential dispatch policy.
+
 ## Logging contracts
 
 | Contract or type | Definition | Implementation and consumers | Registration and evidence | Status |
@@ -91,8 +101,32 @@ shutdown and failed startup.
 
 Logging extension contracts describe behavior, not backend types. Only
 `LoggingManager` and the default `LogWriter` are application container
-services; drivers, formatters, processors, bridges, and customizers are owned
-by the logging component's own manager and channel lifecycles.
+services. The logging manager and channels own drivers, formatters, processors,
+bridges, and customizers.
+
+## HTTP contracts
+
+| Contract or type | Definition | Implementation and consumers | Registration and evidence | Status |
+| --- | --- | --- | --- | --- |
+| `HttpRequest` | `contracts/http/request.py` | `http.Request`; native route handlers, middleware, and helpers | Request-scoped under concrete and protocol keys; ASGI tests verify identity and input behavior | Implemented, registered, and consumed |
+| `HttpResponse`, `ResponseFactory` | `contracts/http/response.py` | Native response classes and `NativeResponseFactory`; route dispatch and middleware | Factory registered by `HttpServiceProvider`; response and ASGI tests verify output and redirect rules | Implemented, registered, and consumed |
+| `HttpMiddleware`, `RequestHandler` | `contracts/http/middleware.py` | Foundation middleware stack and route middleware | Resolved through the application Container; ordering and streaming tests cover execution | Implemented and consumed |
+| `HttpClient`, `HttpClientResponse` | `contracts/http/client.py` | `HttpxClientAdapter`, native client response | Application singleton registration; loopback sync, async, stream, timeout, and shutdown tests | Implemented, registered, and consumed |
+
+`OutgoingRequest`, `JsonValue`, query aliases, and `ServerSentEvent` are
+transport-neutral values. HTTPX2 owns the outgoing pools. Starlette and
+FastAPI own protocol parsing and ASGI response transmission.
+
+## Routing contracts
+
+| Contract | Definition | Implementation and consumers | Registration and evidence | Status |
+| --- | --- | --- | --- | --- |
+| `RouteCatalog`, `RouteInfo` | `contracts/routing/catalog.py` | `Router.routes`, `RouteDefinition`; URL generation, facade inspection, and backend compilation | One application-owned catalog; routing unit and ASGI integration tests | Implemented, registered, and consumed |
+| `UriUrlGenerator` | `contracts/routing/url_generator.py` | `routing.UrlGenerator`; URI factories, helpers, and named redirects | Registered under concrete and protocol keys; URI integration verifies shared identity | Implemented, registered, and consumed |
+| `RouteAction`, `ControllerAction`, `RouteEndpoint` | `contracts/routing/types.py` | Route registration and dispatch annotations | Static checks and dispatch tests; these are type aliases, not protocols | Implemented |
+
+Starlette and FastAPI own path matching and hosting. Titanspan's route catalog
+is the source for registration, metadata, URL generation, and compiled routes.
 
 ## Support contracts
 
@@ -102,7 +136,6 @@ by the logging component's own manager and channel lifecycles.
 | `DeferredDisplayValue` | `contracts/support/deferred_display_value.py` | Application-defined display values; `EncodedHtmlString` consumes it before escaping | Unit fixtures cover deferred trusted markup and plain-text escaping | Implemented extension point |
 | `MessageBagProtocol` | `contracts/support/message_bag.py` | `support.MessageBag` structurally implements it; message consumers may depend on the read/write surface | Strict assignment in `test_contract_organization.py`; MessageBag behavior tests | Implemented and statically verified |
 | `MessageProvider` | `contracts/support/message_bag.py` | `support.MessageBag.merge` consumes application-defined message providers | Structural fixture and merge behavior tests in `tests/unit/support/test_message_bag.py`; no built-in provider class | Implemented extension point |
-| `UriUrlGenerator` | `contracts/routing/url_generator.py` | `RoutingServiceProvider` registers `UrlGenerator`; `support.Uri` factories and Routing helpers consume the same application service | Strict contract injection and real application URI integration tests in `tests/integration/routing/test_uri_integration.py` | Implemented and consumed; signed operations intentionally reject until key management exists |
 
 `MessageKey` is a public shared type alias. `Scope` and `ServiceFactory` are
 container domain values in `contracts/container`; `titanspan.container`
@@ -139,15 +172,13 @@ methods and Python special methods remain available where useful.
 
 ## Application integration and remaining limits
 
-`Application` creates one native `Container`, registers the built-in
-configuration and logging providers followed by application providers, and
-resolves framework services through it. Config and Log facades share a typed
-`Facade` base and resolve their declared contracts from one context-local
-application binding. Native HTTP dependencies use `Application.dependency`
-and resolve from the same application container and request scope. Explicit
-`Application.providers` values remain a separate private interoperability
-graph for external route providers; this does not split configuration,
-logging, facade, or native application service identity.
+`Application` creates one native `Container`, registers configuration,
+logging, HTTP, and Routing services, then registers application providers.
+Config, Log, Http, and Route facades resolve application services from the
+active application context. Native routes use the same container and request
+scope. Explicit external `Application.providers` values remain a separate
+private interoperability graph; they do not split native route or framework
+service identity.
 
 `ConfigServiceProvider` registers `ConfigRepository`, `ConfigReader`, and
 `ConfigWriter` to the same instance. It conditionally registers typed access,
@@ -175,11 +206,11 @@ they remain visible limitations of the current public objects.
 
 `examples/hello-world/app.py` is also exercised through a real ASGI test. It
 uses a native service provider, a contract binding, auto-injected config and
-logging services, both facades, request-local identifiers, and lifespan
-cleanup; the route itself remains FastAPI-owned.
+logging services, facades, a native route, request-local identifiers, and
+lifespan cleanup.
 
-The installed distribution, ordinary public signatures, and private adapter
+The installed distribution, ordinary public signatures, and module import
 boundaries are checked by `make public-api-check`, `make architecture-check`,
-and `make architecture-integration-test`. This audit does not claim that
-unimplemented routing, database, cache, queue, HTTP, validation, or workflow
-components have contracts or application integrations.
+and `make architecture-integration-test`. These checks prove different
+properties; they do not establish every structural signature or behavior.
+Database, cache, queue, validation, and workflow contracts remain deferred.

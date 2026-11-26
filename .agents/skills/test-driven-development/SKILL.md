@@ -34,7 +34,7 @@ resource lifecycles, or concurrency changes.
 
 ## Failure modes
 
-- Writing tests that only assert a mock was called.
+- Writing tests that only verify mock calls.
 - Testing private implementation details instead of observable behavior.
 - Marking a failing test skipped or weakening it to avoid a defect.
 - Creating flaky timing assertions or tests that need commercial services.
@@ -48,5 +48,5 @@ gate. Use integration or stress targets where relevant.
 
 ## Completion criteria
 
-The new or changed contract has deterministic regression coverage, the
-relevant checks pass, and failures/skipped checks are reported honestly.
+Add deterministic regression tests for every new or changed contract. Run the
+relevant checks. Report all failures and skipped checks.

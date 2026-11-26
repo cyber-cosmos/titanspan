@@ -8,6 +8,7 @@ private boundary.
 from __future__ import annotations
 
 from contextlib import asynccontextmanager, contextmanager
+from http.cookiejar import Cookie, CookieJar
 from typing import TYPE_CHECKING, TypedDict, cast
 
 import anyio
@@ -95,6 +96,26 @@ class _ClientOptions(TypedDict):
     http2: bool
 
 
+class _RequestIsolatedCookieJar(CookieJar):
+    """Prevent the pooled client from retaining response cookies.
+
+    Applications pass cookies explicitly on each request. This keeps the
+    shared connection pool from carrying upstream session state between
+    independent calls.
+    """
+
+    def set_cookie(self, cookie: Cookie) -> None:
+        """Discard one cookie extracted from an upstream response.
+
+        Args:
+            cookie: Cookie offered by the HTTP transport.
+
+        Side Effects:
+            Leaves this jar empty so later requests cannot inherit state.
+        """
+        _ = cookie
+
+
 class HttpxClientAdapter(HttpClient):
     """Own one sync and one async pooled transport client per application.
 
@@ -128,9 +149,15 @@ class HttpxClientAdapter(HttpClient):
             "base_url": configuration.base_url,
             "http2": configuration.http2,
         }
-        self._sync_client = httpx2.Client(**common)
+        self._sync_client = httpx2.Client(
+            **common,
+            cookies=_RequestIsolatedCookieJar(),
+        )
         try:
-            self._async_client = httpx2.AsyncClient(**common)
+            self._async_client = httpx2.AsyncClient(
+                **common,
+                cookies=_RequestIsolatedCookieJar(),
+            )
         except BaseException:
             self._sync_client.close()
             raise

@@ -48,8 +48,8 @@ could invalidate singleton and scoped resources.
 - Resolve uncached application singletons through an application-owned graph
   before creating a shorter-lived graph that depends on them. This keeps
   generator-backed singleton cleanup attached to application shutdown.
-- Treat each scope context object as one-shot because it owns closed backend
-  child graphs and cannot safely reopen those resources.
+- Treat each scope context object as one-shot. It owns closed backend child
+  graphs and cannot reopen those resources.
 - Freeze registration after first graph composition. Contextual injection and
   temporary sync/async overrides are implemented in ADR 0019; arbitrary live
   rebinding remains unsupported.
@@ -57,8 +57,9 @@ could invalidate singleton and scoped resources.
 - Map semantic execution scope names onto the existing ordered backend scope
   levels. Document equivalent-level and nesting limitations instead of
   claiming independent scope trees.
-- Preserve the existing web application integration during this milestone.
-  The native container is not yet the application's single composition root.
+- Let `Application` compose framework services through the native Container,
+  as recorded in ADR 0018. Keep explicit external provider graphs as an
+  interoperability boundary only.
 
 ## Consequences
 
@@ -75,11 +76,10 @@ unsupported because registrations freeze after graph composition.
 
 ## Verification required for future changes
 
-Any change to dynamic graph ownership must retain regression tests for
-application singleton identity, overlapping execution scopes, generator
-resource cleanup, concurrent discovery, and cleanup after cancellation. A
-future application integration must use one lifecycle owner for HTTP, direct
-resolution, configuration, and logging services.
+Any change to dynamic graph ownership must preserve these regressions:
+application singleton identity, overlapping scopes, generator cleanup,
+concurrent discovery, and cancellation cleanup. Application owns one lifecycle
+for HTTP, direct resolution, configuration, and logging services.
 
 The synchronous-first execution model and explicit async alternatives were
 adopted after this decision. See [ADR 0015](/titanspan/architecture/decisions/0015-sync-first-container-resolution/)

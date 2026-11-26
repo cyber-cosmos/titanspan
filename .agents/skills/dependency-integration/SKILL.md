@@ -34,8 +34,8 @@ Use when selecting, adding, upgrading, or wrapping a third-party package.
 ## Failure modes
 
 - Choosing a package based only on remembered APIs or popularity.
-- Adding packages that are unused, abandoned, duplicated, incompatible, or
-  have an unsuitable license.
+- Adding packages that lack maintenance, duplicate existing tools, conflict
+  with the stack, or use an unsuitable license.
 - Reimplementing the dependency's engine or concealing its ownership.
 - Importing an optional integration from core package initialization.
 - Editing `uv.lock` manually or selecting model/provider credentials.
@@ -48,5 +48,6 @@ contents.
 
 ## Completion criteria
 
-The dependency evidence and ownership boundary are documented, the lock is
-reproducible, optionality is correct, and tests cover the Titanspan contract.
+Document dependency evidence and the ownership boundary. Confirm that `uv.lock`
+resolves reproducibly, optional packages remain optional, and tests cover the
+Titanspan contract.

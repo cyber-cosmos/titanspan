@@ -24,9 +24,8 @@ uncommitted diff.
    understand the changed contract.
 2. Check correctness, failure cases, cleanup, concurrency, security, type
    quality, and API compatibility.
-3. Check tests prove the intended contract rather than only mock behavior;
-   verify test-first evidence and real integration coverage at changed
-   dependency boundaries.
+3. Check that tests prove behavior instead of only mocking it. Verify
+   test-first evidence and real integration coverage at changed boundaries.
 4. Check strict annotations, 80-column formatting, multi-line docstrings,
    and comments that explain non-obvious reasoning rather than narrate code.
 5. Check docs, examples, changelog, ADR, and roadmap status for accuracy.
@@ -49,5 +48,5 @@ read-only review.
 
 ## Completion criteria
 
-Provide only evidence-backed findings, or state that no actionable issue was
-found within the inspected scope and list unverified checks.
+Provide only evidence-backed findings. If you find no actionable issue, name
+the inspected scope and list checks you could not verify.

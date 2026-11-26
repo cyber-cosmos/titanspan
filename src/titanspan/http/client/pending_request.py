@@ -8,13 +8,13 @@ from __future__ import annotations
 import base64
 import math
 import random
-import time
 from collections.abc import Mapping, Sequence
+from copy import deepcopy
 from dataclasses import dataclass, field, replace
+from datetime import timedelta
 from typing import TYPE_CHECKING
 from urllib.parse import urljoin
 
-import anyio
 from pydantic import TypeAdapter, ValidationError
 
 from titanspan.contracts.http import (
@@ -30,6 +30,8 @@ from titanspan.http.exceptions import (
     HttpClientError,
     HttpTransportError,
 )
+from titanspan.support import retry as retry_sync
+from titanspan.support import retry_async
 
 if TYPE_CHECKING:
     from contextlib import AbstractAsyncContextManager, AbstractContextManager
@@ -40,6 +42,7 @@ _JSON_ADAPTER = TypeAdapter(JsonValue)
 _MAX_RETRY_DELAY = 30.0
 _INVALID_JSON_BODY_ERROR = "JSON request bodies must contain JSON values only."
 _INVALID_FORM_BODY_ERROR = "Form request bodies must be mappings or byte text."
+_BODY_SNAPSHOT_ERROR = "HTTP request data could not be safely snapshotted."
 _INVALID_BASE_URL_ERROR = "HTTP base_url must use an absolute HTTP(S) URL."
 _INVALID_AUTH_HEADER_MESSAGE = (
     "Bearer tokens must be non-empty and single-line."
@@ -48,7 +51,6 @@ _INVALID_TIMEOUT_ERROR = "HTTP timeout must be a finite positive value."
 _INVALID_RETRY_ATTEMPTS_ERROR = "Retry attempts must be at least one."
 _INVALID_RETRY_BACKOFF_ERROR = "Retry backoff must be finite and non-negative."
 _INVALID_RETRY_STATUS_ERROR = "Retry statuses must be valid HTTP status codes."
-_UNREACHABLE_SEND_ERROR = "A configured request attempt must resolve."
 _INVALID_HEADER_ERROR = (
     "HTTP headers must use valid names and single-line values."
 )
@@ -76,6 +78,24 @@ class _RequestOptions:
     backoff: float = 0.1
     jitter: bool = True
     retry_statuses: tuple[int, ...] = _RETRYABLE_STATUSES
+
+
+class _RetryableResponseError(Exception):
+    """Carry retry metadata from an HTTP response into Tenacity policy.
+
+    The response is closed before this signal crosses the shared retry helper.
+    """
+
+    def __init__(self, retry_after: str | None) -> None:
+        """Retain the optional server-provided delay for one retry.
+
+        Args:
+            retry_after: Numeric ``Retry-After`` value, if supplied.
+        """
+        super().__init__("The HTTP response status is configured for retry.")
+        self.retry_after = retry_after
+
+    retry_after: str | None
 
 
 @dataclass(frozen=True, slots=True)
@@ -212,9 +232,10 @@ class PendingRequest:
         Returns:
             A new builder retaining a shallow copy of mapping bodies.
         """
-        if isinstance(body, Mapping):
-            body = dict(body)
-        return self._with_options(body=body, body_is_set=True)
+        return self._with_options(
+            body=_snapshot_value(body),
+            body_is_set=True,
+        )
 
     def with_query_parameters(
         self,
@@ -229,7 +250,7 @@ class PendingRequest:
             A new builder with copied query values.
         """
         merged: dict[str, QueryParameterValue] = dict(self._options.params)
-        merged.update(params)
+        merged.update(_snapshot_query_parameters(params))
         return self._with_options(params=tuple(merged.items()))
 
     def with_cookies(self, cookies: Mapping[str, str]) -> PendingRequest:
@@ -571,7 +592,7 @@ class PendingRequest:
         data: RequestPayload | JsonValue,
         params: QueryParameters | None,
     ) -> HttpClientResponse:
-        """Send one sync request and apply the configured safe retry policy.
+        """Send one sync request through the shared retry controller.
 
         Fluent updates isolate request options until execution.
         """
@@ -579,31 +600,43 @@ class PendingRequest:
         headers = _headers_dict(self._options.headers)
         safe_to_retry = _is_retry_safe(method, headers)
         attempts = self._options.attempts if safe_to_retry else 1
-        for attempt in range(attempts):
-            try:
-                response = self._client.request(
-                    self._outgoing_request(
-                        method,
-                        url,
-                        data=payload,
-                        params=params,
-                    ),
-                )
-            except HttpTransportError:
-                if attempt + 1 >= attempts:
-                    raise
-                time.sleep(self._retry_delay(attempt, None))
-                continue
+
+        def send(attempt: int) -> HttpClientResponse:
+            """Perform one request and signal retryable statuses safely.
+
+            Args:
+                attempt: One-based attempt number from the retry controller.
+
+            Returns:
+                The response when it should be returned to the caller.
+
+            Raises:
+                HttpTransportError: When the transport request fails.
+                _RetryableResponseError: When another attempt is permitted.
+            """
+            response = self._client.request(
+                self._outgoing_request(
+                    method,
+                    url,
+                    data=payload,
+                    params=params,
+                ),
+            )
             if (
-                attempt + 1 < attempts
+                attempt < attempts
                 and response.status_code in self._options.retry_statuses
             ):
-                delay = self._retry_delay(attempt, response)
+                retry_after = response.header("retry-after")
                 response.close()
-                time.sleep(delay)
-                continue
+                raise _RetryableResponseError(retry_after)
             return response
-        raise AssertionError(_UNREACHABLE_SEND_ERROR)
+
+        return retry_sync(
+            attempts,
+            send,
+            sleep_milliseconds=self._retry_wait,
+            when=_is_retryable_failure,
+        )
 
     async def _send_async(
         self,
@@ -613,7 +646,7 @@ class PendingRequest:
         data: RequestPayload | JsonValue,
         params: QueryParameters | None,
     ) -> HttpClientResponse:
-        """Send one async request and apply the configured safe retry policy.
+        """Send one async request through the shared retry controller.
 
         Fluent updates isolate request options until execution.
         """
@@ -621,31 +654,43 @@ class PendingRequest:
         headers = _headers_dict(self._options.headers)
         safe_to_retry = _is_retry_safe(method, headers)
         attempts = self._options.attempts if safe_to_retry else 1
-        for attempt in range(attempts):
-            try:
-                response = await self._client.request_async(
-                    self._outgoing_request(
-                        method,
-                        url,
-                        data=payload,
-                        params=params,
-                    ),
-                )
-            except HttpTransportError:
-                if attempt + 1 >= attempts:
-                    raise
-                await anyio.sleep(self._retry_delay(attempt, None))
-                continue
+
+        async def send(attempt: int) -> HttpClientResponse:
+            """Perform one async request and close discarded responses.
+
+            Args:
+                attempt: One-based attempt number from the retry controller.
+
+            Returns:
+                The response when it should be returned to the caller.
+
+            Raises:
+                HttpTransportError: When the transport request fails.
+                _RetryableResponseError: When another attempt is permitted.
+            """
+            response = await self._client.request_async(
+                self._outgoing_request(
+                    method,
+                    url,
+                    data=payload,
+                    params=params,
+                ),
+            )
             if (
-                attempt + 1 < attempts
+                attempt < attempts
                 and response.status_code in self._options.retry_statuses
             ):
-                delay = self._retry_delay(attempt, response)
+                retry_after = response.header("retry-after")
                 await response.aclose()
-                await anyio.sleep(delay)
-                continue
+                raise _RetryableResponseError(retry_after)
             return response
-        raise AssertionError(_UNREACHABLE_SEND_ERROR)
+
+        return await retry_async(
+            attempts,
+            send,
+            sleep_milliseconds=self._retry_wait,
+            when=_is_retryable_failure,
+        )
 
     def _outgoing_request(
         self,
@@ -674,13 +719,15 @@ class PendingRequest:
         json_enabled = include_body and self._options.json_mode
         if include_body and self._options.json_mode:
             try:
-                json_body = _JSON_ADAPTER.validate_python(data)
+                json_body = _JSON_ADAPTER.validate_python(_snapshot_value(data))
             except ValidationError as error:
                 raise HttpClientError(_INVALID_JSON_BODY_ERROR) from error
         elif include_body and data is not None:
             if not isinstance(data, (Mapping, str, bytes)):
                 raise TypeError(_INVALID_FORM_BODY_ERROR)
-            request_data = data
+            request_data = (
+                _snapshot_value(data) if isinstance(data, Mapping) else data
+            )
 
         return OutgoingRequest(
             method=method.upper(),
@@ -720,27 +767,30 @@ class PendingRequest:
             return url
         return urljoin(self._options.base_url, url)
 
-    def _retry_delay(
+    def _retry_wait(
         self,
         attempt: int,
-        response: HttpClientResponse | None,
-    ) -> float:
-        """Compute capped exponential delay with optional jitter.
+        error: Exception,
+    ) -> timedelta:
+        """Compute an HTTP retry delay for the shared retry controller.
 
         Args:
-            attempt: Zero-based failed attempt.
-            response: Response that may contain Retry-After seconds.
+            attempt: One-based failed attempt number.
+            error: Retryable transport or response failure.
 
         Returns:
-            Delay seconds bounded to a finite 30 second maximum.
+            A non-negative delay capped at 30 seconds.
         """
         retry_after = (
-            None if response is None else response.header("retry-after")
+            error.retry_after
+            if isinstance(error, _RetryableResponseError)
+            else None
         )
         if retry_after is not None and retry_after.isdigit():
-            return min(float(retry_after), _MAX_RETRY_DELAY)
+            seconds = min(float(retry_after), _MAX_RETRY_DELAY)
+            return timedelta(seconds=seconds)
         delay = min(
-            self._options.backoff * (2**attempt),
+            self._options.backoff * (2 ** (attempt - 1)),
             _MAX_RETRY_DELAY,
         )
         if self._options.jitter and delay:
@@ -748,7 +798,7 @@ class PendingRequest:
                 delay * 0.75,
                 delay * 1.25,
             )
-        return min(delay, _MAX_RETRY_DELAY)
+        return timedelta(seconds=min(delay, _MAX_RETRY_DELAY))
 
     def _with_options(self, **changes: object) -> PendingRequest:
         """Return a builder with a replaced immutable option object.
@@ -799,10 +849,60 @@ def _merge_params(
 
     Fluent updates isolate request options until execution.
     """
-    values: dict[str, QueryParameterValue] = dict(base)
+    values: dict[str, QueryParameterValue] = {
+        key: _snapshot_query_value(value) for key, value in base
+    }
     if override is not None:
-        values.update(override)
+        values.update(_snapshot_query_parameters(override))
     return values
+
+
+def _snapshot_value[ValueT](value: ValueT) -> ValueT:
+    """Deep-copy request data before it enters reusable builder state.
+
+    Args:
+        value: Mapping or JSON-compatible value supplied by application code.
+
+    Returns:
+        A copy independent of mutable objects owned by the caller.
+
+    Raises:
+        HttpClientError: If the supplied value cannot be copied safely.
+    """
+    try:
+        return deepcopy(value)
+    except Exception as error:
+        raise HttpClientError(_BODY_SNAPSHOT_ERROR) from error
+
+
+def _snapshot_query_parameters(
+    values: QueryParameters,
+) -> dict[str, QueryParameterValue]:
+    """Copy mutable query sequences into immutable tuples.
+
+    Args:
+        values: Query mapping supplied by application code.
+
+    Returns:
+        An independently owned query mapping.
+    """
+    return {key: _snapshot_query_value(value) for key, value in values.items()}
+
+
+def _snapshot_query_value(
+    value: QueryParameterValue,
+) -> QueryParameterValue:
+    """Copy repeated query values while preserving scalar values.
+
+    Args:
+        value: Scalar query value or a sequence of scalar values.
+
+    Returns:
+        The scalar or a tuple independent of the source sequence.
+    """
+    if isinstance(value, Sequence) and not isinstance(value, str):
+        return tuple(value)
+    return value
 
 
 def _is_retry_safe(method: str, headers: Mapping[str, str]) -> bool:
@@ -813,6 +913,21 @@ def _is_retry_safe(method: str, headers: Mapping[str, str]) -> bool:
     return method.upper() in _IDEMPOTENT_METHODS or any(
         name.lower() == "idempotency-key" and bool(value)
         for name, value in headers.items()
+    )
+
+
+def _is_retryable_failure(error: Exception) -> bool:
+    """Select transport failures and configured HTTP status signals.
+
+    Args:
+        error: Exception raised by one request attempt.
+
+    Returns:
+        Whether the shared retry controller may schedule another attempt.
+    """
+    return isinstance(
+        error,
+        (HttpTransportError, _RetryableResponseError),
     )
 
 

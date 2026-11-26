@@ -5,24 +5,27 @@ public release.
 
 ## Unreleased
 
-- Added initial native routing integration with the application container,
-  controller dispatch, request scopes, route helpers, and a canonical URL
-  generator. URI route factories and redirects now resolve from the active
-  application context and use the same route catalog and native response
-  validation. Signed URLs remain explicitly unavailable until secure key
-  management and verification are implemented.
-- Added native event dispatch through Blinker 1.9.0, with ordered sync and
-  async listeners, Container injection, named wildcards, subscribers,
-  explicit discovery, context-local fakes, deferred dispatch, and bounded
-  pushed events. Queue, Database, Broadcasting, and Console integrations
-  remain pending; see `docs/src/content/docs/events/` and
+- Isolated pooled HTTP cookie state and shared ASGI body limits. Streams now
+  close on disconnect or cancellation. Request builders snapshot inputs and
+  use shared retry helpers. Routing validates URL constraints and trusted
+  domains. Collection intersection checks every iterable. Pytest collection
+  rejects tests without category markers.
+- Added native route registration, controller dispatch, request scopes,
+  helpers, and URL generation. URI factories and redirects share the active
+  application context and route catalog. Titanspan validates redirect
+  responses. Signed URLs remain unavailable until secure signing and
+  verification exist.
+- Added ordered event dispatch through Blinker 1.9.0. It supports sync and
+  async listeners, Container injection, wildcards, subscribers, discovery,
+  context-local fakes, deferral, and bounded event pushes.
+  Queue, Database, Broadcasting, and Console integrations remain pending.
+  See `docs/src/content/docs/events/` and
   `docs/src/content/docs/specifications/events.md`.
-- Added the initial native HTTP component: scoped ASGI requests, bounded body
-  and multipart parsing, native responses, SSE and streaming, ordered
-  dependency-injected middleware, and pooled synchronous/asynchronous outgoing
-  clients. Request scope and context remain active through response
-  transmission. HTTP fakes, bounded request pools, outgoing multipart, and
-  SSRF enforcement remain pending; see `docs/src/content/docs/http/` and
+- Added scoped ASGI requests with bounded body and multipart parsing. HTTP
+  provides native responses, SSE, streaming, ordered middleware, and pooled
+  sync and async clients. Request scope remains active through transmission.
+  HTTP fakes, bounded request pools, multipart client uploads, and SSRF
+  enforcement remain pending. See `docs/src/content/docs/http/` and
   `docs/src/content/docs/specifications/http.md`.
 - Added a technical writing standard and canonical glossary. Vale checks
   maintained Markdown, Python comments, and docstrings with pinned rules and
@@ -46,27 +49,26 @@ public release.
   string encoding and locale parameters. Empty iterable endpoints now return
   `None`, and configuration mapping deletion removes the path. See ADR 0016
   for the API policy.
-- Corrected the native container to resolve sync-safe graphs synchronously and
-  expose explicit async resolution methods for async factories and resources.
-  Application-level synchronous and asynchronous resolution share Dishka's
-  graph cache; sync and async scopes close their owned resources through their
-  matching lifecycle. See ADR 0015 and `docs/src/content/docs/specifications/container.md`.
-- Added an incremental native asynchronous container API with typed bindings,
-  application singletons, execution-scoped values, ordered tags, aliases,
-  automatic concrete dependency discovery, bounded graph generations, and
-  synchronous and asynchronous generator cleanup, callable injection, method
-  callback bindings, and declarative class lifetime decorators. The container
-  now supports consumer-specific bindings, `Annotated` injection, ordered
-  service extensions, root-resolution callbacks, and task-local overrides
-  with matching synchronous or asynchronous resource cleanup. Framework
-  services resolve through the application container; FastAPI route injection
-  remains a separate adapter. Registrations freeze after graph composition.
-  See `docs/src/content/docs/specifications/container.md` and `docs/src/content/docs/container/`.
-- Added the native configuration repository, strict typed accessors, trusted
-  Python/JSON/TOML source loading, isolated dotenv integration, validated
-  settings, application-scoped facade and native contract registration. Added
-  secret-safe configuration inspection, atomic JSON caching, and config CLI
-  commands. See `docs/src/content/docs/config/` and `docs/src/content/docs/specifications/config.md`.
+- Corrected sync-safe graphs to resolve synchronously. Async factories and
+  resources use explicit async methods. Sync and async application resolution
+  share Dishka's graph cache. Scopes finalize resources through their matching
+  lifecycle. See ADR 0015 and
+  `docs/src/content/docs/specifications/container.md`.
+- The native Container provides typed bindings, application singletons,
+  execution scopes, tags, aliases, concrete dependency discovery, and bounded
+  graph generations. It cleans up sync and async resources. It supports
+  callable and method injection, lifetime decorators, contextual bindings,
+  `Annotated` injection, extensions, callbacks, and task-local overrides.
+  Framework services and native routes use one Container. The Container freezes
+  registrations after graph composition. Explicit external provider graphs
+  remain an interoperability boundary. See
+  `docs/src/content/docs/specifications/container.md` and
+  `docs/src/content/docs/container/`.
+- Config provides a native repository, typed accessors, trusted Python, JSON,
+  and TOML sources, dotenv integration, settings validation, and contract
+  registration. It also provides safe inspection, atomic JSON caching, and
+  configuration commands. See `docs/src/content/docs/config/` and
+  `docs/src/content/docs/specifications/config.md`.
 - Projected explicitly supplied custom settings fields into configuration
   paths, preserving nested sibling values and file precedence for unset
   defaults.
@@ -81,17 +83,14 @@ public release.
   import concrete logging records. Top-level and component imports re-export
   the same objects. Direct imports from the former flat contract modules are
   removed in this unreleased API; see `docs/src/content/docs/specifications/contracts.md`.
-- Added a native structured logging component with RFC severity levels,
-  context-local metadata, redaction, channel stacks, file and stream drivers,
-  standard-library logging interoperability, bounded background dispatch,
-  application lifecycle integration, and native logging fakes. See
-  `docs/src/content/docs/specifications/logging.md` for implemented boundaries.
-- Unified configuration, logging, facades, native service providers, and the
-  application container. Configuration now drives the default logging
-  manager; facade resolution shares one application context; provider boot is
-  injected through the native container and cleaned up on startup failure.
-  FastAPI route dependency injection remains a separately documented adapter.
-  See ADR 0018 and `docs/src/content/docs/architecture/contract-integration.md`.
+- Logging provides structured records, channels, redaction, and native test
+  fakes. It also supports file and stream drivers, bounded delivery, lifecycle
+  cleanup, and standard logging integration. See its specification for details.
+- Configuration, Logging, Facades, providers, and the application Container
+  now share one lifecycle. Configuration selects the logging manager. Provider
+  boot uses Container injection and cleans up after startup failure. FastAPI
+  dependency injection remains a documented adapter. See ADR 0018 and the
+  contract integration audit.
 - Added UTC calendar-month log rotation with bounded archive retention through
   Python's standard timed file handler.
 - Added registered, once-per-channel native logging customizers with cleanup

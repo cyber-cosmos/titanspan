@@ -22,7 +22,9 @@ the full ASGI call, not only to endpoint execution.
 ## Decision
 
 - Use Starlette request, response, and ASGI machinery behind the Titanspan
-  HTTP component. Keep FastAPI as the existing route integration boundary.
+  HTTP component. FastAPI and Starlette provide the ASGI host and supported
+  routing backend; the separate Routing component owns route definitions and
+  dispatch.
 - Use HTTPX2 for pooled synchronous and asynchronous outgoing transport.
   Keep both connection pools on one application-owned service and close them
   through the native application lifecycle.
@@ -35,9 +37,9 @@ the full ASGI call, not only to endpoint execution.
 - Bind the application context, request context, logging context, and native
   request scope through a pure ASGI middleware boundary that remains active
   until response transmission has completed or been cancelled.
-- Do not introduce a router, concurrent request pool, fake HTTP system, or
-  SSRF destination policy in this component. These require their own
-  implemented contracts and integration evidence.
+- Keep route definitions and dispatch in the Routing component. Concurrent
+  client pools, fake HTTP transports, and SSRF destination policy require
+  separate contracts and integration evidence.
 
 ## Consequences
 

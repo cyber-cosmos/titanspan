@@ -6,11 +6,11 @@ available.
 
 ## Before opening an issue
 
-Search current issues and Discussions. For a defect, include the Titanspan and
-Python versions, operating system, relevant dependency versions, reproduction
-steps, a minimal example, expected and actual behavior, and relevant logs.
-Performance reports should also include a reproducible benchmark and workload,
-baseline, concurrency, and memory details.
+Search current issues and Discussions before opening a report. For defects,
+include Titanspan and Python versions, the operating system, dependency
+versions, and reproduction steps. Add a minimal example, expected and actual
+behavior, and relevant logs. For performance reports, include a reproducible
+benchmark, workload, baseline, concurrency, and memory details.
 
 Use Discussions for design questions. Open an issue for a reproducible defect
 or a focused proposal.
@@ -26,11 +26,10 @@ make help
 make check
 ```
 
-`make check` is the required, read-only local gate. It runs strict Ruff
-linting and formatting checks, the 80-column and multi-line-docstring
-validator, strict Pyright, YAML and lockfile checks, architecture boundaries,
-agent configuration validation, the full applicable test suite, and separate
-95% statement and 90% branch coverage thresholds.
+`make check` is the required, read-only local gate. It runs Ruff, strict
+Pyright, YAML and lockfile checks, architecture checks, and agent validation.
+It also runs applicable tests and enforces statement and branch coverage
+separately. The minimums are 95% for statements and 90% for branches.
 
 Run `make docs-build` when changing documentation and `make docs-test` to
 verify the rendered site in Playwright. Use `make ci` for the complete local CI
@@ -54,9 +53,9 @@ mandatory and preserve independent verification.
 
 - Read [ARCHITECTURE.md](ARCHITECTURE.md) and relevant ADRs before changing
   module boundaries or public APIs.
-- Use Red-Green-Refactor for every meaningful behavior: write a focused
-  failing test, verify the failure is relevant, implement the smallest
-  change, and refactor with tests passing. Bug fixes require regression tests.
+- Use Red-Green-Refactor for meaningful behavior changes. Write a focused
+  failing test and verify its failure. Implement the smallest change. Refactor
+  with tests passing. Add a regression test for every bug fix.
 - Add comprehensive unit tests and real integration tests for implemented
   dependency boundaries. Cover failure, validation, cleanup, cancellation,
   scope isolation, and concurrency where applicable.
@@ -65,8 +64,8 @@ mandatory and preserve independent verification.
   physically multi-line Google-style docstring. Add concise comments that
   explain non-obvious rationale, invariants, and lifecycle behavior.
 - Keep Python formatting at 80 columns and follow Ruff and strict Pyright.
-- Use UTF-8, LF, four-space Python indentation, two-space YAML indentation,
-  and GNU Make's required tab indentation for recipes.
+- Use UTF-8 and LF. Indent Python with four spaces and YAML with two. Use tabs
+  only for GNU Make recipes.
 - Prefer mature libraries over new infrastructure abstractions.
 - Preserve native library access and propagate cancellation.
 - Update user documentation and the changelog for public behavior changes.

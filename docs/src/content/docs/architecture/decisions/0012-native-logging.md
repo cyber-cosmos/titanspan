@@ -45,12 +45,12 @@ delivery status, and close logger resources during application shutdown.
 
 - Expose Structlog loggers and processor configuration directly: rejected
   because it would make backend details part of the public API.
-- Use only Python's standard logger as the public abstraction: rejected
-  because Titanspan needs native RFC levels, structured records, context
-  semantics, and test assertions.
-- Implement file rotation, queue workers, and distributed storage from
-  scratch: rejected where mature standard handlers or explicit external
-  collectors already provide those capabilities.
+- Use Python's standard logger as the public abstraction: rejected. Titanspan
+  needs native RFC levels, structured records, context semantics, and test
+  assertions.
+- Reimplement file rotation and queue workers: rejected because standard
+  handlers already provide them. Reimplement distributed storage: rejected
+  because external collectors provide it.
 - Store shared context in global mutable dictionaries: rejected because
   concurrent requests and workflow tasks would leak values.
 

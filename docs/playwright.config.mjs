@@ -1,6 +1,7 @@
 import { defineConfig } from "@playwright/test";
 
-const baseURL = "http://127.0.0.1:4321/titanspan/";
+const testPort = process.env.TITANSPAN_DOCS_TEST_PORT ?? "4321";
+const baseURL = `http://127.0.0.1:${testPort}/titanspan/`;
 
 export default defineConfig({
   testDir: "./tests/e2e",
@@ -17,7 +18,7 @@ export default defineConfig({
     trace: "retain-on-failure",
   },
   webServer: {
-    command: "npm run docs:preview -- --host 127.0.0.1 --port 4321 --ignore-lock",
+    command: `npm run docs:preview -- --host 127.0.0.1 --port ${testPort} --ignore-lock`,
     url: baseURL,
     reuseExistingServer: !process.env.CI,
     timeout: 30_000,

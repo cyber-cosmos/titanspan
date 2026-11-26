@@ -51,10 +51,9 @@ objects. Cache files remain sensitive, unencrypted artifacts.
 ## Consequences
 
 - Configuration reads remain synchronous and lightweight.
-- `Settings` methods documented by Titanspan remain the supported API. Its
-  current private validation base still makes inherited backend methods
-  visible; the boundary and a possible composition-based follow-up are
-  recorded in `docs/specifications/backend-boundaries.md`.
+- `Settings` exposes the methods in its public documentation. Its validation
+  base still exposes inherited backend methods. The boundary and a possible
+  composition follow-up are in `docs/specifications/backend-boundaries.md`.
 - Application files are trusted code; callers must keep the config root
   trusted.
 - Source precedence is explicit and tested. Unmapped process variables do not

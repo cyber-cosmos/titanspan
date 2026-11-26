@@ -61,7 +61,7 @@ and generator cleanup to the selected dependency engine.
   values are seeded into later graphs using public backend APIs. |
 | Generator resource cleanup | Verified | Real synchronous generator resources close when the owning scope exits. |
 | Async generator resource cleanup | Verified | Real asynchronous generator resources close when the owning scope exits. |
-| Shared initialization | Verified | Concurrent graph roots coordinate registered and decorated shared values with per-service locks. |
+| Shared initialization | Adapted | Async graph resolutions coordinate registered and decorated shared values with per-service async locks. Concurrent sync `get_sync` calls from worker threads do not share that lock and can initialize one application singleton more than once; see the framework review. |
 | Application resource ownership | Verified | Application singletons in a scoped graph are initialized through application-owned generations and remain open until container shutdown. |
 | Callable injection | Verified | `call` invokes sync callbacks immediately; `call_async` awaits async callbacks and dependencies. |
 | Method callback registration | Verified | `bind_method` dispatches through callable injection. |
@@ -146,9 +146,11 @@ close the sync resource before the scope completes.
     `make_async`; it does not invoke the async factory.
 14. At application scope, `make` uses the async backend graph's documented
     `get_sync`, and `make_async` uses `get`. Both operations share the same
-    backend cache. Scope-local sync graphs are tracked separately by execution
+    backend cache. This does not guarantee single-flight initialization when
+    concurrent worker threads call `get_sync`; async locks do not coordinate
+    those calls. Scope-local sync graphs are tracked separately by execution
     mode, while tracked singleton and scoped instances preserve identity across
-    newly composed roots.
+    newly composed roots after initialization.
 
 ## Canonical API names
 
@@ -315,8 +317,9 @@ let Dishka resolve these selected values while retaining its construction,
 cache, and cleanup ownership. Reachable-type inspection is also retained to
 compose only the requested closure, preflight async-only paths, and track
 shared values across the dynamically generated Dishka graphs. Per-service
-locks coordinate first construction across those separate graph caches;
-Dishka's own per-container lock cannot synchronize distinct containers.
+async locks coordinate first construction across asynchronous graph caches.
+They do not protect synchronous ``get_sync`` calls from worker threads.
+Dishka's own per-container lock cannot synchronize distinct graph containers.
 Temporary overlays are composed with the public provider API because a
 validated Dishka graph is fixed after construction. They do not reimplement
 object construction or resource finalization.

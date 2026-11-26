@@ -22,8 +22,8 @@ shutdown, or changes that process concurrent or unbounded work.
 1. Trace each task from creation to completion and identify its owner.
 2. Trace cancellation and timeout propagation through nested calls.
 3. Check for blocking I/O or CPU work on the event loop.
-4. Check that concurrency, queue depth, buffers, batches, and memory are
-   bounded and that streams apply backpressure.
+4. Check that concurrency, queue depth, buffers, batches, and memory have
+   explicit bounds. Confirm that streams apply backpressure.
 5. Check mutable state and SQLAlchemy async session isolation.
 6. Check retry idempotency, partial failures, and cleanup after cancellation
    and shutdown.
@@ -32,7 +32,7 @@ shutdown, or changes that process concurrent or unbounded work.
 ## Failure modes
 
 - Assuming async/await alone provides scalability.
-- Unbounded `gather`, task-per-row fanout, or whole-dataset materialization.
+- Unbounded `gather`, one task for each row, or whole-dataset materialization.
 - Detached tasks, lost cancellation, missing timeouts, or hidden synchronous
   I/O.
 - Shared async sessions or resources used after shutdown.
@@ -46,5 +46,5 @@ changes. Benchmarks must follow `benchmarks/AGENTS.md`.
 
 ## Completion criteria
 
-Task ownership, concurrency bounds, cancellation, resource lifetime, and
-failure semantics are explicit or concrete gaps are reported with file paths.
+Confirm that authors state task ownership, concurrency bounds, cancellation,
+resource lifetime, and failure semantics. Report concrete gaps with file paths.

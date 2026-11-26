@@ -22,8 +22,8 @@ Keep Node/npm limited to the Starlight documentation toolchain.
 
 - Poetry, Pipenv, and Conda: not selected because they add competing Python
   workflows.
-- Setuptools or Hatchling: valid PEP 517 backends; uv_build is a good fit for
-  this pure-Python package and is maintained with uv.
+- Setuptools and Hatchling remain valid PEP 517 choices. The project uses
+  `uv_build` for this pure-Python package. uv maintains that backend.
 
 ## Consequences
 

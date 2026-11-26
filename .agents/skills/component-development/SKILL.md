@@ -49,5 +49,5 @@ changes and `make docs-build` for docs site changes.
 
 ## Completion criteria
 
-The behavior is implemented and tested, typed and documented, scoped to the
-requested module, and all reported checks have actual observed results.
+Implement and test the behavior. Keep it typed and documented. Stay within the
+requested module. Report only checks you ran.

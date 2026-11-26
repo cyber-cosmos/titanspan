@@ -36,6 +36,12 @@ _AMBIGUOUS_ACTION_ROUTE = (
     "The requested action is registered at multiple route paths."
 )
 _INVALID_ORIGIN_ERROR = "Configured application origin is invalid."
+_ORIGIN_DOMAIN_MISMATCH = (
+    "Configured trusted origin does not match the route domain."
+)
+_ROUTE_CONSTRAINT_ERROR = (
+    "A route parameter does not satisfy its registered constraint."
+)
 _REVERSER_ALREADY_SET = "The route path reverser is already configured."
 _REVERSER_FAILURE = "The registered route could not be reversed."
 _CONTROLLER_ACTION_PARTS = 2
@@ -208,6 +214,16 @@ class UrlGenerator(UriUrlGenerator):
             if value is None:
                 message = f"{_MISSING_PARAMETER} {key!r}."
                 raise RouteUrlError(message)
+            constraint = route.constraints.get(key)
+            if (
+                constraint is not None
+                and re.fullmatch(
+                    constraint,
+                    str(value),
+                )
+                is None
+            ):
+                raise RouteUrlError(_ROUTE_CONSTRAINT_ERROR)
             safe = "/" if converter == "path" else ""
             if converter is not None:
                 supports_backend_reverse = False
@@ -230,22 +246,37 @@ class UrlGenerator(UriUrlGenerator):
 
         if remaining:
             path = f"{path}?{_encode_query(remaining)}"
-        return self._absolute(path) if absolute else path
+        if not absolute:
+            return path
+        return self._absolute(path, route_domain=route.domain_name)
 
-    def _absolute(self, path: str) -> str:
+    def _absolute(
+        self,
+        path: str,
+        *,
+        route_domain: str | None = None,
+    ) -> str:
         """Join a safe application path to the trusted origin.
 
         Args:
             path: Application path and optional query string.
+            route_domain: Optional exact host required by the route.
 
         Returns:
             Absolute URL using the configured origin.
 
         Raises:
-            RouteUrlError: If no trusted origin was configured.
+            RouteUrlError: If origin is absent or does not match the route.
         """
         if self._origin is None:
             raise RouteUrlError(_UNTRUSTED_ORIGIN)
+        origin_host = urlsplit(self._origin).hostname
+        if (
+            route_domain is not None
+            and origin_host is not None
+            and origin_host.lower().rstrip(".") != route_domain
+        ):
+            raise RouteUrlError(_ORIGIN_DOMAIN_MISMATCH)
         origin = Uri(self._origin).get_uri()
         target = Uri(path).get_uri()
         return urlunsplit(

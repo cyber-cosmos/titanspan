@@ -49,6 +49,23 @@ class RouteInfo(Protocol):
         ...
 
     @property
+    def constraints(self) -> Mapping[str, str]:
+        """Return parameter patterns that constrain matched path values.
+
+        URL generation uses these patterns to reject invalid substitutions.
+        """
+        ...
+
+    @property
+    def domain_name(self) -> str | None:
+        """Return the exact host constraint, when the route declares one.
+
+        Absolute URL generation must verify its configured origin against this
+        host. Relative URL generation does not require an origin.
+        """
+        ...
+
+    @property
     def action(self) -> RouteAction | None:
         """Return the registered callable identity without invoking it.
 

@@ -5,10 +5,13 @@ The terminology target reports canonical language errors only.
 
 from __future__ import annotations
 
+import pytest
 from scripts.ci.check_prose import (
     Alert,
     _report,  # pyright: ignore[reportPrivateUsage]
 )
+
+pytestmark = pytest.mark.unit
 
 
 def test_terminology_report_excludes_prohibited_expression_rule() -> None:

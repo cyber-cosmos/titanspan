@@ -1,12 +1,13 @@
-"""Run a configured Titanspan application through a FastAPI ASGI boundary.
+"""Run a configured Titanspan application through its native Router.
 
 The example composes native providers, contracts, facades, and automatic
-constructor injection before exposing one small HTTP route.
+constructor injection before exposing one small HTTP route. FastAPI provides
+the ASGI host while Routing retains endpoint ownership.
 """
 
-from typing import Annotated, Protocol
+from typing import Protocol
 
-from fastapi import Depends, FastAPI
+from fastapi import FastAPI
 
 from titanspan import Application
 from titanspan.contracts.config import ConfigRepository
@@ -14,6 +15,7 @@ from titanspan.contracts.container import ServiceRegistry
 from titanspan.contracts.foundation import ServiceProvider
 from titanspan.contracts.logging import LogWriter
 from titanspan.facades import Config, Log
+from titanspan.http import Request
 
 __all__ = ["app", "application"]
 
@@ -107,17 +109,14 @@ application = Application(
     service_providers=(GreetingServiceProvider(),),
 )
 
-# FastAPI is the current routing interoperability boundary. Its lifespan
-# delegates startup and resource cleanup to the Titanspan Application.
+# The Application exposes its FastAPI-backed ASGI host to Uvicorn. Native
+# routes are declared on the application-owned Router below.
 app: FastAPI = application.asgi
 
 
-@app.get("/")
 async def hello_world(
-    greeter: Annotated[
-        Greeter,
-        Depends(application.dependency(Greeter)),
-    ],
+    greeter: Greeter,
+    request: Request,
 ) -> dict[str, str]:
     """Return a configured greeting and this request's context identifier.
 
@@ -125,10 +124,7 @@ async def hello_world(
         Application name, service-generated greeting, and request identifier.
     """
     application_name = Config.string("app.name")
-    request_id = Log.get_context().get("request_id")
-    if not isinstance(request_id, str):
-        message = "The ASGI request context has no valid request identifier."
-        raise TypeError(message)
+    request_id = request.request_id
     Log.info(
         "Greeting request handled",
         application=application_name,
@@ -139,3 +135,6 @@ async def hello_world(
         "message": greeter.greet("world"),
         "request_id": request_id,
     }
+
+
+application.router.get("/", hello_world).name("hello_world")

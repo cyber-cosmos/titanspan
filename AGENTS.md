@@ -70,7 +70,7 @@ without sacrificing engineering quality.
 
 ## 3. Dependency-first implementation
 
-Prefer delegation over reimplementation.
+Prefer delegation over rebuilding existing capabilities.
 
 Before introducing functionality:
 
@@ -228,8 +228,8 @@ infrastructure adapters.
 
 Prevent circular dependencies.
 
-Prefer composition and focused protocols over deep inheritance,
-unnecessary metaprogramming, or unrestricted dynamic forwarding.
+Prefer composition and focused protocols over deep inheritance, unnecessary
+runtime code generation, or unrestricted dynamic forwarding.
 
 Use dependency inversion where it establishes a genuine architectural
 boundary. Do not introduce interfaces for their own sake.
@@ -255,7 +255,7 @@ from a protocol is not universally required.
 Runtime protocol checks alone do not establish behavioral conformance.
 
 Component packages may re-export canonical contract objects but must not
-redeclare them. Keep implementation-private protocols within their owning
+define duplicates. Keep implementation-private protocols within their owning
 components.
 
 Ordinary Titanspan application APIs must remain independent of unnecessary
@@ -292,7 +292,7 @@ An implemented component must, where applicable:
 - Provide accurate documentation and executable examples.
 
 Use real application integration tests to verify service identity,
-substitutability, lifecycle behavior, and interactions between components.
+service substitution, lifecycle behavior, and component interactions.
 
 Do not simulate completeness through disconnected abstractions, placeholder
 implementations, or tests that exercise only artificial fixtures.
@@ -319,14 +319,14 @@ language's implementation.
 
 Use:
 
-- Canonical snake_case functions, methods, parameters, and attributes.
+- Canonical `snake_case` functions, methods, parameters, and attributes.
 - PascalCase classes, protocols, and exceptions.
 - UPPER_SNAKE_CASE constants.
 - Native Python decorators, context managers, protocols, generics, and
   special methods where appropriate.
 - Explicit, typed fluent APIs.
 
-Do not introduce camelCase compatibility aliases, PHP-specific type coercion,
+Do not introduce `camelCase` compatibility aliases, PHP-specific type coercion,
 or redundant methods solely to reproduce external framework APIs.
 
 Keep Ruff's `N` naming rules enabled.
@@ -535,7 +535,7 @@ As applicable, verify:
 
 - Successful operations.
 - Invalid input and failure conditions.
-- Contract conformance and substitutability.
+- Contract conformance and service substitution.
 - Cross-component integration.
 - Application and execution-context isolation.
 - Resource ownership and cleanup.
@@ -591,8 +591,8 @@ Use `make check` for the standard read-only quality gate.
 Use `make ci` for the extended CI-equivalent verification, including
 security, documentation, packaging, and runtime checks.
 
-Inspect the Makefile for current available commands. Do not invent targets
-or claim that unavailable or unexecuted commands have passed.
+Check the Makefile for current targets. Do not invent commands or claim checks
+that did not run.
 
 ### Mandatory CI gate
 
@@ -693,8 +693,8 @@ Agents must not:
 - Conceal implementation defects, failed checks, or unresolved limitations.
 
 Changes to canonical agent instructions, engineering standards, quality
-policies, CI requirements, or accepted architectural constraints require
-focused justification and independent review through the repository
+policies, CI requirements, or accepted architectural constraints need focused
+justification. They also need independent review through the repository
 contribution process.
 
 Do not weaken a policy as a workaround for implementation difficulties.
@@ -730,7 +730,7 @@ Report:
 - Observed verification and CI results.
 - Remaining limitations, risks, and blockers.
 
-Distinguish verified behavior from assumptions and unexecuted checks.
+Distinguish verified behavior from assumptions and checks that did not run.
 
 Never conceal failed or skipped verification.
 

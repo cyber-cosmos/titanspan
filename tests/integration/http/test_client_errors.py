@@ -4,6 +4,8 @@ The integration uses real components and local test services.
 """
 
 import asyncio
+from http.cookiejar import CookieJar
+from typing import TypedDict, Unpack
 
 import httpx2
 import pytest
@@ -21,6 +23,21 @@ from titanspan.http.exceptions import (
 pytestmark = pytest.mark.integration
 _PRIVATE_TIMEOUT_DETAIL = "private timeout detail"
 _PRIVATE_TRANSPORT_DETAIL = "private transport detail"
+
+
+class _ClientOptions(TypedDict):
+    """Describe constructor options forwarded to the real HTTPX2 client.
+
+    The fixture replaces only transport creation and preserves client options.
+    """
+
+    timeout: httpx2.Timeout
+    limits: httpx2.Limits
+    verify: bool
+    follow_redirects: bool
+    base_url: str
+    http2: bool
+    cookies: CookieJar
 
 
 def _install_transport(
@@ -49,49 +66,23 @@ def _install_transport(
             raise httpx2.ConnectError(_PRIVATE_TRANSPORT_DETAIL)
         return httpx2.Response(200, request=request)
 
-    def sync_client(
-        *,
-        timeout: httpx2.Timeout,
-        limits: httpx2.Limits,
-        verify: bool,
-        follow_redirects: bool,
-        base_url: str,
-        http2: bool,
-    ) -> httpx2.Client:
+    def sync_client(**options: Unpack[_ClientOptions]) -> httpx2.Client:
         """Create the normal sync client with a controlled transport.
 
         The integration uses real components and local test services.
         """
         return original_sync(
-            timeout=timeout,
-            limits=limits,
-            verify=verify,
-            follow_redirects=follow_redirects,
-            base_url=base_url,
-            http2=http2,
+            **options,
             transport=httpx2.MockTransport(handler),
         )
 
-    def async_client(
-        *,
-        timeout: httpx2.Timeout,
-        limits: httpx2.Limits,
-        verify: bool,
-        follow_redirects: bool,
-        base_url: str,
-        http2: bool,
-    ) -> httpx2.AsyncClient:
+    def async_client(**options: Unpack[_ClientOptions]) -> httpx2.AsyncClient:
         """Create the normal async client with a controlled transport.
 
         The integration uses real components and local test services.
         """
         return original_async(
-            timeout=timeout,
-            limits=limits,
-            verify=verify,
-            follow_redirects=follow_redirects,
-            base_url=base_url,
-            http2=http2,
+            **options,
             transport=httpx2.MockTransport(handler),
         )
 

@@ -12,9 +12,9 @@ from typing import TYPE_CHECKING, Self, cast
 
 import pytest
 
-from titanspan.http.client import pending_request as pending_request_module
 from titanspan.http.client.pending_request import PendingRequest
 from titanspan.http.exceptions import HttpClientError, HttpTransportError
+from titanspan.support import helpers as support_helpers
 
 if TYPE_CHECKING:
     from collections.abc import (
@@ -327,6 +327,34 @@ async def test_builder_options_are_isolated_and_snapshotted_per_request() -> (
 
 
 @pytest.mark.anyio
+async def test_builder_snapshots_nested_payload_and_query_values() -> None:
+    """Isolate builder state from later caller mutations.
+
+    Nested JSON mappings and repeated query values must not remain aliased to
+    mutable objects supplied during builder configuration.
+    """
+    client = ClientFake()
+    tags = ["original"]
+    labels = ["original"]
+    body = {"nested": {"labels": labels}}
+    request = (
+        PendingRequest(client)
+        .as_json()
+        .with_body(body)
+        .with_query_parameters({"tag": tags})
+    )
+
+    labels.append("changed")
+    tags.append("changed")
+
+    await request.post_async("https://api.example.test/items")
+
+    sent = client.requests[0]
+    assert sent.json_body == {"nested": {"labels": ["original"]}}
+    assert sent.params == {"tag": ("original",)}
+
+
+@pytest.mark.anyio
 async def test_retry_closes_retryable_response_and_preserves_safe_status() -> (
     None
 ):
@@ -457,7 +485,7 @@ def test_builder_options_merge_and_execute_a_form_request() -> None:
         "Basic " + base64.b64encode(b"user:pass").decode("ascii")
     )
     assert sent.headers["Accept"] == "application/json"
-    assert sent.params == {"page": 2, "tag": ["a", "b"]}
+    assert sent.params == {"page": 2, "tag": ("a", "b")}
     assert sent.data == {"active": True, "empty": None, "labels": ["a", 2]}
     assert sent.cookies == {"session": "local"}
     assert sent.timeout == _THREE_SECONDS
@@ -553,7 +581,7 @@ def test_sync_retry_handles_transport_errors_retry_after_and_payload_errors(
     The assertions verify the public result and its error paths.
     """
     sleeps: list[float] = []
-    monkeypatch.setattr(pending_request_module.time, "sleep", sleeps.append)
+    monkeypatch.setattr(support_helpers, "_retry_sleep", sleeps.append)
     client = FailingClientFake(failures=1)
     response = (
         PendingRequest(client)
@@ -615,7 +643,9 @@ def test_sync_retry_handles_transport_errors_retry_after_and_payload_errors(
         backoff=0,
         jitter=False,
     )
+    previous_sleep_count = len(sleeps)
     invalid_retry.get("https://api.example.test").close()
+    assert len(sleeps) == previous_sleep_count + 1
     assert sleeps[-1] == 0
 
 
@@ -629,14 +659,25 @@ async def test_async_retry_handles_transport_errors_and_jitter(
     """
     delays: list[float] = []
 
-    async def record_sleep(seconds: float) -> None:
+    def record_sleep(seconds: float) -> None:
         """Record retry delays without waiting during deterministic tests.
 
         Local fixtures keep these assertions deterministic.
         """
         delays.append(seconds)
 
-    monkeypatch.setattr(pending_request_module.anyio, "sleep", record_sleep)
+    async def record_sleep_async(seconds: float) -> None:
+        """Record asynchronous retry waits without delaying the test.
+
+        Local fixtures keep these assertions deterministic.
+        """
+        record_sleep(seconds)
+
+    monkeypatch.setattr(
+        support_helpers,
+        "_retry_sleep_async",
+        record_sleep_async,
+    )
     client = FailingClientFake(failures=1)
     response = (
         await PendingRequest(client)

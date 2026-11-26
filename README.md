@@ -10,16 +10,16 @@ Titanspan is an independent, open-source, async-first Python application
 framework for building intelligent systems at scale. It provides expressive
 Python APIs on top of established libraries.
 
-The project is at the beginning of **Phase 0: Engineering foundation**. The
-current implementation includes a FastAPI-backed application lifecycle, an
-async Dishka container integration, typed environment settings, a small CLI,
-tested Support utilities, and an initial native logging component with
-structured records, named channels, standard severity levels, context-local
-metadata, file and stream drivers, and bounded background dispatch.
+The project is in early development. The implemented foundation includes
+native configuration, logging, Support utilities, Collections, a synchronous-
+first service container, HTTP, and initial Routing on a FastAPI-backed ASGI
+host. These components have unit and integration coverage, but lifecycle,
+concurrency, security, and operational limits remain. Titanspan is not yet
+production-ready. See the architecture, roadmap, and component specifications
+for current capability status.
 Numeric locale formatting and number spelling use the optional `numbers`
 extra. Logging capabilities and planned work are listed in the native
 [logging specification](docs/src/content/docs/specifications/logging.md).
-The project is not production-ready.
 
 ## Install
 
@@ -43,9 +43,10 @@ uv run uvicorn --app-dir examples/hello-world app:app --reload
 
 Open `http://127.0.0.1:8000/` to see a configured JSON greeting. The example
 registers a service through a provider, injects configuration and logging
-contracts, and binds request context through the ASGI lifecycle. FastAPI
-provides the routing interoperability boundary; see the
-[Hello World guide](docs/src/content/docs/getting-started/hello-world.md) for details.
+contracts, and registers its endpoint through native Routing. FastAPI and
+Starlette provide the ASGI host and protocol infrastructure. See the
+[Hello World guide](docs/src/content/docs/getting-started/hello-world.md) for
+details.
 
 ## Development
 
@@ -60,12 +61,11 @@ to build it, and `make docs-test` to verify it in Playwright. Docker is
 optional; see the local
 infrastructure section in the project documentation.
 
-The current runtime foundation uses FastAPI and Starlette for ASGI, Dishka for
-dependency resolution and resource cleanup, Pydantic Settings for typed
-configuration, Typer with Rich for the CLI, and Structlog behind Titanspan's
-native logging API. SQLAlchemy, Alembic, LangGraph, and other integrations are
-architectural choices for future modules; they are not installed or exposed
-as Titanspan features yet.
+The runtime uses FastAPI and Starlette for ASGI. Dishka resolves dependencies
+and owns container resource cleanup. Pydantic Settings validates typed
+configuration. Typer and Rich provide the CLI. Structlog powers the native
+logging API. SQLAlchemy, Alembic, LangGraph, and other future integrations are
+not installed or exposed as Titanspan features.
 
 To start optional local services, copy `.env.example` to `.env` and run
 `make docker-up`. This starts PostgreSQL and Redis on loopback ports. The
@@ -75,9 +75,10 @@ Run `make docker-down` to stop services; named development data is retained.
 ## Architecture
 
 Titanspan owns its application APIs, lifecycle, integration conventions, and
-testing experience. It delegates web serving to FastAPI, dependency resolution
-to Dishka, typed configuration to Pydantic Settings, and structured logging
-dispatch to a private adapter. See the [logging guide](docs/src/content/docs/logging/),
+testing experience. It delegates ASGI hosting to FastAPI and Starlette,
+dependency resolution to Dishka, typed configuration to Pydantic Settings,
+and structured logging dispatch to a private adapter. See the
+[logging guide](docs/src/content/docs/logging/),
 [ARCHITECTURE.md](ARCHITECTURE.md), the
 [architecture decision records](docs/src/content/docs/architecture/decisions/), and the
 [roadmap](ROADMAP.md) for the intended module boundaries and future direction.

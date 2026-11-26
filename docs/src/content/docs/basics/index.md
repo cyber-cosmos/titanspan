@@ -4,17 +4,11 @@ title: "Basics"
 
 <span id="basics"></span>
 
-The supported foundation currently includes:
+The current foundation includes native configuration, logging, the
+synchronous-first Container, HTTP services, and Routing. These components use
+one Application lifecycle and service registry. Collections provides eager
+and lazy APIs over Python iterables. FastAPI remains available as an explicit
+ASGI interoperability boundary.
 
-- `Application` from `titanspan`, exposing a FastAPI app at `.asgi`.
-- `Settings` from `titanspan.config`, using the `TITANSPAN_` environment
-  prefix.
-- The `titanspan` CLI with `--help` and `--version`.
-- Dishka provider resolution and app-scoped resource cleanup during ASGI
-  lifespan shutdown.
-- The initial `titanspan.support` array utilities and reusable conditional
-  and macro registration primitives.
-
-Use Titanspan Routing for application-owned route definitions and dispatch.
-FastAPI remains available for explicit interoperability. Service providers,
-facades, and the configuration repository are also implemented.
+Check each component specification for verified behavior and known limits.
+The project remains in early development and is not production-ready.

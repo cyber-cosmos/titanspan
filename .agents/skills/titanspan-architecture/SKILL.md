@@ -49,4 +49,4 @@ official references. Run `make docs-build` and `make docs-test` when docs change
 ## Completion criteria
 
 Return the affected modules, dependency direction, smallest viable design,
-alternatives and tradeoffs, validation plan, and whether an ADR is needed.
+alternatives, tradeoffs, and a validation plan. Recommend an ADR when needed.

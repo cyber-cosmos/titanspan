@@ -18,10 +18,10 @@ created logging directly, and facades kept independent production lookups.
 This prevented alternate configuration repositories and typed service
 contracts from forming one substitutable application boundary.
 
-The existing web integration still uses a separate graph for FastAPI route
-dependencies. Replacing that integration belongs to the Container and web
-lifecycles; it must not require a second registry for ordinary Titanspan
-services.
+The early web integration used a separate graph for FastAPI route dependencies.
+Native Router handlers now resolve through the application Container. Explicit
+external route providers still use a private graph, but ordinary Titanspan
+services must not require that graph.
 
 ## Decision
 
@@ -57,8 +57,8 @@ services.
   response send, including streaming bodies.
 - Keep explicit third-party route providers behind the private adapter.
   `Application.providers` remains an advanced interoperability boundary and
-  may use a separate provider graph; ordinary Titanspan services do not need
-  that graph.
+  may use a separate provider graph; native Router handlers use the
+  application Container.
 - Close provider-owned startup work and application services after normal
   shutdown, startup failure, and cancellation. Run cleanup in reverse
   ownership order.
@@ -115,10 +115,9 @@ those inherited backend methods are not a supported Titanspan API.
 
 ## Verification
 
-The `architecture` marked tests run via `make architecture-integration-test`
-and the independently visible `Architecture: Cross-component integration`
-CI job. They cover contract identity, alternate configuration substitution,
+Architecture tests run through `make architecture-integration-test` and the
+corresponding CI job. They cover contract identity, configuration substitution,
 provider registration and boot injection, facade resolution, logging
-configuration, shared service identity, application context isolation, and
-startup-failure cleanup. Additional unit and integration suites cover config,
-logging, container scopes, ASGI requests, cancellation, and resource cleanup.
+configuration, shared service identity, context isolation, and startup cleanup.
+Unit and integration suites also cover config, logging, scopes, ASGI requests,
+cancellation, and resource cleanup.

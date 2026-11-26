@@ -5,8 +5,8 @@ title: "HTTP behavioral specification"
 <span id="http-behavioral-specification"></span>
 
 This specification records the implemented Titanspan HTTP boundary. It does
-not imply capabilities in future Routing, Authentication, Filesystem,
-Validation, Concurrency, or Telemetry components.
+not imply capabilities in Authentication, Filesystem, Validation,
+Concurrency, or Telemetry components.
 
 ## Implemented and verified
 
@@ -35,9 +35,14 @@ and facade resolution remain synchronous.
 The incoming `Request` is created per ASGI call and registered in the native
 request scope under both its implementation key and `HttpRequest`. The pure
 ASGI context boundary remains active until downstream ASGI execution finishes
-sending its complete body. This includes streaming responses and disconnect
-or cancellation paths. The request closes parser-owned resources in a
-cancellation-shielded finalizer.
+sending its complete body. Streaming iterators close before that boundary
+exits, including disconnect and cancellation paths. The request then closes
+parser-owned resources in a cancellation-shielded finalizer.
+
+The Foundation global middleware stack wraps the HTTP application. Router
+middleware wraps only the selected endpoint. This ordering is intentional:
+global middleware enters first and exits last. Registering the same middleware
+at both levels invokes it twice; neither layer silently deduplicates the other.
 
 ## Input and output semantics
 

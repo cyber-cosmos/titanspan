@@ -12,12 +12,10 @@ dependency registration, and sync-safe in-memory resolution remain
 synchronous. Operations that require asynchronous I/O or lifecycle work have
 explicit async interfaces.
 
-The current package is intentionally small. The implemented foundation is a
-FastAPI-backed ASGI application, a Dishka-backed container, a native
-configuration repository with Pydantic Settings validation, a Typer CLI,
-selected Support utilities, standalone eager and lazy Collections, native
-logging, and an initial native HTTP component. Other modules below remain
-planned boundaries unless marked as implemented in the table.
+Implemented components include Foundation, Container, Config, Contracts,
+Events, HTTP, Routing, Logging, Support, Collections, and Console. FastAPI and
+Starlette provide ASGI hosting. Dishka resolves dependencies. Other
+infrastructure remains planned unless the table below marks it implemented.
 
 ## Architectural principles
 
@@ -37,22 +35,21 @@ planned boundaries unless marked as implemented in the table.
 ## Component organization
 
 Components live in domain-oriented packages under `src/titanspan/`. Each
-implemented component exposes a deliberate `__init__.py` surface and owns
-concrete behavior under its package. Use `service_provider.py` for component
-registration when that lifecycle exists, `manager.py` for shared component
-coordination, `drivers/` for independently selectable destinations,
-`exceptions.py` for native errors, `events.py` for component events, and
-`testing/` for fakes and assertions. These are conventions, not empty-file
-requirements; create a subpackage only when the implementation needs it.
+component exposes a deliberate `__init__.py` surface and owns its concrete
+behavior. Use `service_provider.py` for registration when needed. Use
+`manager.py` for shared coordination. Place selectable destinations in
+`drivers/`, native errors in `exceptions.py`, component events in `events.py`,
+and fakes in `testing/`. These are conventions, not empty-file requirements.
+Create a subpackage only when the implementation needs it.
 
 Place shared structural interfaces in domain packages under
-`titanspan.contracts`: `config`, `container`, `logging`, and `support` are
-currently established. A component may re-export the identical contract
-object from its own public package. Implementation-only protocols remain with
-their owner. Private third-party adapters live in the owning component's
-`_backends/`; cohesive private helpers may live in `_internal/`. Do not make
-contracts import concrete services to avoid a cycle; move the shared value or
-contract to a dependency-safe location instead.
+`titanspan.contracts`. Established domains include `config`, `container`,
+`events`, `foundation`, `http`, `logging`, `routing`, and `support`. A component
+may re-export the identical contract object from its public package. Keep
+implementation-only protocols with their owner. Place private third-party
+adapters in the owning component's `_backends/`; keep cohesive private helpers
+in `_internal/`. Move shared values or contracts to dependency-safe locations
+to prevent cycles.
 
 Facades are context-bound entry points for application-owned services.
 `Config` and `Log` inherit one typed `Facade` base, declare the canonical
@@ -68,7 +65,7 @@ tracked in [`docs/src/content/docs/specifications/backend-boundaries.md`](docs/s
 | --- | --- | --- |
 | `foundation` | Application lifecycle, bootstrapping, kernels, shutdown, and provider lifecycle. | `Application` owns native startup and shutdown independently of its ASGI adapter. |
 | `container` | Dependency injection, bindings, concrete graph discovery, scopes, and resource management. | Native sync-first container composes framework services and supplies request-scoped HTTP dependencies; a private adapter remains for explicit external route providers. See `docs/src/content/docs/specifications/container.md`. |
-| `contracts` | Dependency-independent typed protocols and shared abstraction boundaries. | Initial configuration, sync-first and async container, and Support contracts implemented; many component contracts remain pending. |
+| `contracts` | Dependency-independent typed protocols and shared abstraction boundaries. | Configuration, container, foundation, HTTP, logging, routing, and Support domains are implemented; some component contracts remain pending. See `docs/src/content/docs/specifications/contracts.md`. |
 | `support` | Shared utilities, managers, and lightweight helpers. | Selected native utilities implemented; see `docs/src/content/docs/specifications/support.md`. |
 | `config` | Typed configuration, trusted sources, environment integration, and safe snapshots. | Native repository, settings, source loader, cache, commands, and application provider implemented; see `docs/src/content/docs/config/`. |
 | `facades` | Context-aware access to application-owned services. | Shared typed facade base and execution-local `Config` and `Log` facades implemented. |
@@ -83,7 +80,7 @@ tracked in [`docs/src/content/docs/specifications/backend-boundaries.md`](docs/s
 | `pipeline` | Composable streaming and concurrent transformations. | Planned. |
 | `events` | Event dispatching, listeners, subscribers, and application event lifecycle integration. | Native Blinker-backed dispatch, listener injection, scoped fakes, deferred and pushed events, and trusted discovery are implemented. Queue, Database, Broadcasting, and Console integrations remain pending. See `docs/src/content/docs/specifications/events.md`. |
 | `queue` | Distributed jobs, workers, retries, chains, and batches. | Planned. |
-| `mail` | Mailables, delivery, templates, and attachments. | Planned. |
+| `mail` | Email messages, delivery, templates, and attachments. | Planned. |
 | `notifications` | Multi-channel application notifications. | Planned. |
 | `filesystem` | Local and cloud storage abstractions. | Planned. |
 | `logging` | Native records, channels, drivers, redaction, context, async dispatch, and lifecycle. | Initial component implemented; see `docs/src/content/docs/logging/` and its specification for limits. |
@@ -216,7 +213,8 @@ repository through `ServiceRegistry`. LoggingServiceProvider builds the
 application manager from that contract and registers `LoggingManager` and
 `LogWriter`. `container.Container` implements `ServiceContainer` and is the
 registry used by Application and the shared facade base. Logging implements
-the shared generic driver, formatter, processor, and customizer contracts
+the shared generic driver, formatter, processor, and customizer
+contracts
 without importing concrete log records into the contracts package.
 
 The package dependency order places `titanspan.contracts` below configuration
@@ -307,9 +305,9 @@ CI enforces at least 95% statement coverage and 90% branch coverage
 independently for implemented first-party runtime code. Every Python module,
 class, function, method, fixture, and test has strict typing and a physically
 multi-line Google-style docstring. Implementation comments explain non-obvious
-decisions and invariants. These policies are checked with Ruff, strict
-Pyright, and the repository's read-only source checker; comment quality is
-reviewed because it cannot be reliably inferred mechanically.
+decisions and invariants. Ruff, strict Pyright, and the source checker validate
+these policies. A reviewer checks comment quality because tools cannot infer
+rationale.
 
 Performance measurements record the machine, operating system, Python and
 dependency versions, workload, concurrency, throughput, latency distribution,

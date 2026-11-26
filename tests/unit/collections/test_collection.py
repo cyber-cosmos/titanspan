@@ -320,6 +320,48 @@ def test_unique_and_ordered_set_operations_support_unhashable_items() -> None:
     assert collect([1, 1, 2]).concat([2, 3]).all() == [1, 1, 2, 2, 3]
 
 
+def test_intersection_requires_membership_in_every_iterable() -> None:
+    """Keep first-seen order while requiring each iterable to match.
+
+    Returns:
+        None.
+    """
+    values = collect([4, 2, 3, 4, 1, 2])
+
+    assert values.intersection([2, 4], [4, 2, 5], [4, 6]) == collect([4])
+
+
+@given(
+    st.lists(st.lists(st.integers(), max_size=3), max_size=8),
+    st.lists(
+        st.lists(st.lists(st.integers(), max_size=3), max_size=8),
+        max_size=3,
+    ),
+)
+def test_intersection_matches_ordered_equality_for_unhashable_values(
+    values: list[list[int]],
+    candidates: list[list[list[int]]],
+) -> None:
+    """Match every candidate iterable and retain unique source order.
+
+    Args:
+        values: Source values that cannot be hashed.
+        candidates: Candidate iterables that define intersection membership.
+
+    Returns:
+        None.
+    """
+    expected: list[list[int]] = []
+    for value in values:
+        if (
+            all(value in candidate for candidate in candidates)
+            and value not in expected
+        ):
+            expected.append(value)
+
+    assert collect(values).intersection(*candidates).all() == expected
+
+
 def test_sort_group_key_count_and_aggregations_use_python_operations() -> None:
     """Preserve stable sorting and return native ordered dictionaries.
 

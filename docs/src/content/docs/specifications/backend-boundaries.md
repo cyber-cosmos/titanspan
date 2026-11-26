@@ -4,37 +4,39 @@ title: "Public backend boundaries"
 
 <span id="public-backend-boundaries"></span>
 
-Ordinary Titanspan application code should depend on Titanspan APIs. A small
-number of explicit interoperability boundaries remain because the current
-application lifecycle is still being consolidated. Framework service
-composition is native; the table records remaining public integration
-boundaries.
+Titanspan owns public contracts, application integration, and lifecycle rules.
+Selected libraries own mature infrastructure behind private adapters.
 
-| Surface | Current boundary | Status |
+| Component | Delegated infrastructure | Titanspan-owned behavior |
 | --- | --- | --- |
-| `Application.asgi` | Exposes the configured FastAPI application for routes, middleware, and ASGI hosting. | Deliberate web integration escape hatch; web APIs beyond ASGI remain FastAPI-specific. |
-| `Application.dependency` | Creates an async HTTP dependency resolver for a native service contract. | Uses the active application container and request scope; streaming response tests verify the scope remains active until the final body message. |
-| `Application.providers` | Accepts explicit web integration provider values; the private adapter recognizes `InstanceRegistration` and otherwise passes values to the Dishka route graph. | Advanced interoperability for external route providers; ordinary Titanspan services use `Application.dependency` and the canonical native container. |
-| `Settings` | Native typed settings class uses a private Pydantic Settings base and translates validation failures. Pydantic's inherited methods remain discoverable through the class MRO. | Ordinary docs use Titanspan methods; inherited backend methods are not a supported contract. A composition-based schema needs a separate design. |
-| `Container` | Native registration, resolution, scopes, and errors delegate to a private Dishka adapter. | Public signatures use Titanspan types. This is the application composition root; native FastAPI dependencies resolve from it directly. |
-| `Facade` | Typed base resolves each component facade's declared contract through the active application context. | Config and Log use the same container path; their explicit context managers are temporary test overrides, not production registries. |
-| Logging | Native records, channels, drivers, and public contracts; Structlog and Python handler implementations stay behind `_backends/`. | Verified by component import and integration tests. Standard-library logging bridging is explicit. |
-| Configuration repository | Native `Repository`, `ConfigRepository`, source loader, cache, and exceptions. Pydantic Settings and dotenv parsing are implementation details. | Verified by repository, source-loading, cache, facade, and application integration tests. |
+| Container | Dishka graph validation, construction, caching, and resource cleanup | Native bindings, discovery, contextual injection, scopes, and exceptions |
+| Config | Pydantic Settings validation and `python-dotenv` parsing | Repository behavior, source precedence, safe diagnostics, and cache format |
+| Logging | Structlog processing and Python logging handlers | Records, channels, redaction, delivery policy, and application lifecycle |
+| HTTP server | Starlette request, response, and ASGI handling | Typed contracts, request limits, and request resource ownership |
+| HTTP client | HTTPX2 transports, pools, and protocol handling | Immutable request options, retry policy, and application ownership |
+| Routing | FastAPI and Starlette matching and ASGI hosting | Route catalog, metadata, controller dispatch, constraints, and URL generation |
+| Collections | Python iterators, mappings, and standard operations | Ordered eager and lazy APIs, including equality for unhashable values |
+| CLI | Typer parsing and Rich terminal output | Framework commands and application service integration |
 
-## Container and application follow-up
+## Public interoperability boundaries
 
-FastAPI handlers can resolve Titanspan services through the native
-`Application.dependency` bridge. The raw `Application.providers` input remains
-for explicit external provider interoperability; removing it requires a
-separate migration and resource-lifecycle review. Do not cast arbitrary
-application values to backend provider types in new code.
+| Surface | Purpose | Limitation |
+| --- | --- | --- |
+| `Application.asgi` | Expose the configured ASGI host | FastAPI APIs remain backend-specific outside Titanspan's HTTP and Routing APIs. |
+| `Application.providers` | Accept explicit external provider integrations | This optional input may create a separate private provider graph. Native services use the application Container. |
+| `Settings` | Define typed application settings | The native class subclasses a private Pydantic Settings base. Inherited Pydantic methods remain visible through its method resolution order. |
 
-The Config component is usable independently and provides synchronous access.
-Its typed `Settings` declarations remain convenient for applications, but
-subclassing exposes inherited validation-library methods. If the supported
-surface must be fully independent of that method set, design and test a
-composition-based declaration model before changing the API.
+Native routes and framework services use the same application Container.
+The external provider boundary remains for explicit interoperability.
+Ordinary native application code does not need backend imports.
 
-See [the architecture overview](/titanspan/architecture/) and the [Container
-specification](/titanspan/specifications/container) for the owning integration
-boundaries.
+## Delegation rule
+
+Keep an adapter when it provides a stable Titanspan contract, security policy,
+lifecycle ownership, or application integration. Delegate protocol parsing,
+transport pools, graph execution, route matching, and retry scheduling to the
+selected libraries. Do not add an adapter that only renames a backend type.
+
+The public Settings inheritance limit needs a separate API design. A
+composition-based replacement must preserve typed fields, validation, source
+precedence, and editor support.

@@ -37,10 +37,10 @@ queue, transaction, broadcasting, and Console integrations remain planned.
 
 ## Phase 2 — Web and developer tooling
 
-- Native ASGI request scopes, response construction, middleware, streaming,
-  pooled HTTP clients, native route registration, controller dispatch, and
-  route-aware URL generation are implemented incrementally; see `docs/src/content/docs/http/`
-  and `docs/src/content/docs/routing/`.
+- The initial HTTP component provides ASGI request scopes, responses,
+  middleware, streaming, and pooled clients. Routing provides native
+  registration, controller dispatch, and URL generation. See the HTTP and
+  Routing documentation for verified and pending behavior.
 - Route discovery, route caching, WebSockets, secure signed URLs, HTTP fake
   transports, bounded concurrent HTTP pools, and structured observability
   improvements remain.

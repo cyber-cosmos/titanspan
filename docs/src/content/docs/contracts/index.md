@@ -18,6 +18,9 @@ The package currently exports:
   consumers that inherently require asynchronous resolution.
 - `InstanceRegistration`, a native contract for supplying an existing service
   instance to the active container adapter.
+- HTTP protocols for requests, responses, middleware, outgoing clients, and
+  response construction.
+- Routing protocols for route catalogs, route metadata, and URL generation.
 - Support display and message protocols for HTML values and message bags.
 - Logging protocols for drivers, formatters, processors, async delivery, and
   logger customization, plus the shared `DeliveryStatus` enum.
@@ -28,17 +31,18 @@ components remain pending. The [native Contracts specification](
 
 These interfaces describe substitution points. Defining a protocol does not
 mean a production implementation or complete framework feature exists.
-Generic conversion, HTTP response, and validation protocols remain unpublished
-until their owning components establish a real behavioral boundary.
+Validation and persistence contracts remain pending until their owners
+establish real behavioral boundaries.
 The configuration component provides the native `Repository` implementation
 of `ConfigRepository`. Application startup registers it through the
 application-owned `titanspan.container.Container`. Framework service
-resolution, provider registration, facades, configuration, and logging share
-that native application container. FastAPI handlers use
-`Application.dependency` for native services; explicit external route
-providers remain behind a separate private graph adapter.
-Domain packages own each protocol: `config`, `container`, `logging`, and
-`support`. `titanspan.contracts` re-exports the same objects for convenience;
+resolution, provider registration, facades, configuration, logging, HTTP,
+and native Routing share that application container. Native routes resolve
+services through the Container. External FastAPI routers can use
+`Application.dependency`; explicit external Dishka providers remain behind a
+separate private graph adapter. Domain packages own each protocol: `config`,
+`container`, `foundation`, `http`, `logging`, `routing`, and `support`.
+`titanspan.contracts` re-exports the same objects for convenience;
 component packages may also expose those objects without creating new
 identities. `ConfigRepository.get` accepts one path or an ordered sequence of
 paths. The concrete `Repository` also exposes `get_many`, strict typed

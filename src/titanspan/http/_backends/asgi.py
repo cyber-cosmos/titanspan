@@ -6,8 +6,10 @@ objects retain native Titanspan signatures and lifecycle semantics.
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, cast
+from collections.abc import AsyncGenerator
+from typing import TYPE_CHECKING, NamedTuple, cast
 
+from anyio import CancelScope
 from starlette.datastructures import FormData
 from starlette.datastructures import UploadFile as StarletteUpload
 from starlette.requests import Request as StarletteRequest
@@ -37,12 +39,23 @@ from titanspan.http.uploaded_file import UploadedFile
 if TYPE_CHECKING:
     from collections.abc import AsyncIterator, Mapping, Sequence
 
-    from starlette.types import Message, Receive, Scope
+    from starlette.types import Message, Receive, Scope, Send
 
     from titanspan.http.configuration import ServerConfiguration
     from titanspan.http.request import RequestBackend
 
 _BODY_LIMIT_MESSAGE = "The request body exceeds the configured size limit."
+
+
+class RequestBoundary(NamedTuple):
+    """Pair one native request with its authoritative ASGI receiver.
+
+    Foundation passes the same bounded receiver to the downstream ASGI host.
+    This prevents interoperability routes from bypassing the request limit.
+    """
+
+    request: Request
+    receive: Receive
 
 
 class ResponseBackend(StarletteResponse):
@@ -76,8 +89,32 @@ class RedirectResponseBackend(StarletteRedirectResponse):
 class StreamingResponseBackend(StarletteStreamingResponse):
     """Stream async chunks through the server's ASGI send channel.
 
-    Transport details stay behind this private adapter.
+    Close the iterator before the owning ASGI request scope exits.
     """
+
+    async def __call__(
+        self,
+        scope: Scope,
+        receive: Receive,
+        send: Send,
+    ) -> None:
+        """Transmit the stream and finalize its iterator on every exit.
+
+        Args:
+            scope: ASGI connection scope supplied by the server.
+            receive: ASGI receiver used for disconnect detection.
+            send: ASGI sender used to transmit response messages.
+
+        Cancellation is shielded only while the response-owned generator
+        runs its finalizer. This completes cleanup before the request scope.
+        """
+        try:
+            await super().__call__(scope, receive, send)
+        finally:
+            iterator = self.body_iterator
+            if isinstance(iterator, AsyncGenerator):
+                with CancelScope(shield=True):
+                    await iterator.aclose()
 
 
 class FileResponseBackend(StarletteFileResponse):
@@ -321,12 +358,62 @@ def create_request(
     Returns:
         A Titanspan request adapter bound to the supplied ASGI connection.
     """
+    bounded_receive = _limit_receive(receive, configuration)
+    return _request_from_bounded_receive(
+        scope,
+        bounded_receive,
+        request_id=request_id,
+        configuration=configuration,
+    )
+
+
+def create_request_boundary(
+    scope: Scope,
+    receive: Receive,
+    *,
+    request_id: str,
+    configuration: ServerConfiguration,
+) -> RequestBoundary:
+    """Create the request and receiver shared by the complete ASGI stack.
+
+    Args:
+        scope: HTTP ASGI scope owned by the server.
+        receive: Original receiver supplied by the ASGI server.
+        request_id: Correlation identifier for this request.
+        configuration: Validated request and multipart limits.
+
+    Returns:
+        Native request and the same size-limited receiver for downstream use.
+    """
+    bounded_receive = _limit_receive(receive, configuration)
+    request = _request_from_bounded_receive(
+        scope,
+        bounded_receive,
+        request_id=request_id,
+        configuration=configuration,
+    )
+    return RequestBoundary(request, bounded_receive)
+
+
+def _limit_receive(
+    receive: Receive,
+    configuration: ServerConfiguration,
+) -> Receive:
+    """Wrap one ASGI receiver with a cumulative request-body limit.
+
+    Args:
+        receive: Original ASGI message receiver.
+        configuration: Validated maximum body size.
+
+    Returns:
+        A receiver that rejects the first chunk beyond the configured limit.
+    """
     consumed = 0
 
     async def limited_receive() -> Message:
-        """Reject a body chunk that would exceed the configured limit.
+        """Reject a body chunk that would exceed the configured size limit.
 
-        Transport details stay behind this private adapter.
+        The wrapper is shared by the request adapter and downstream ASGI app.
         """
         nonlocal consumed
         message: Message = await receive()
@@ -337,9 +424,28 @@ def create_request(
                 raise RequestBodyTooLargeError(_BODY_LIMIT_MESSAGE)
         return message
 
-    backend = _StarletteRequestBackend(
-        StarletteRequest(scope, receive=limited_receive)
-    )
+    return limited_receive
+
+
+def _request_from_bounded_receive(
+    scope: Scope,
+    receive: Receive,
+    *,
+    request_id: str,
+    configuration: ServerConfiguration,
+) -> Request:
+    """Build the native adapter from the receiver owned by one boundary.
+
+    Args:
+        scope: HTTP ASGI request scope.
+        receive: Already bounded receiver shared with downstream dispatch.
+        request_id: Correlation identifier for this request.
+        configuration: Validated multipart limits.
+
+    Returns:
+        A native request bound to the supplied receiver.
+    """
+    backend = _StarletteRequestBackend(StarletteRequest(scope, receive=receive))
     return Request(
         cast("RequestBackend", backend),
         request_id=request_id,
@@ -354,7 +460,9 @@ __all__ = [
     "HtmlResponseBackend",
     "JsonResponseBackend",
     "RedirectResponseBackend",
+    "RequestBoundary",
     "ResponseBackend",
     "StreamingResponseBackend",
     "create_request",
+    "create_request_boundary",
 ]

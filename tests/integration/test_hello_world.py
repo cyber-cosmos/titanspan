@@ -20,11 +20,12 @@ pytestmark = [
 def test_example_composes_native_services_and_request_context() -> None:
     """Serve configured greetings with independently scoped request IDs.
 
-    The route uses the application-owned service container and facades while
+    The route uses the application-owned Router, container, and facades while
     FastAPI remains the explicitly documented ASGI integration boundary.
     """
     greeter = application.make(Greeter)
     assert greeter is application.make(Greeter)
+    assert application.router.has("hello_world")
 
     with TestClient(app) as client:
         first = client.get(

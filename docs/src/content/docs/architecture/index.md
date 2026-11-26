@@ -17,3 +17,5 @@ marked otherwise in the repository's root-level `ARCHITECTURE.md` file.
 Read the complete
 [architecture guide](https://github.com/titanspan/titanspan/blob/main/ARCHITECTURE.md)
 and the [architecture decision records](/titanspan/architecture/decisions/).
+See the [framework engineering review](/titanspan/architecture/framework-review/)
+for implementation evidence and remaining limits.

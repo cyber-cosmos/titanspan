@@ -145,7 +145,8 @@ test("all rendered documentation links and anchors resolve", async ({ page }) =>
   test.setTimeout(180_000);
   const routes = await collectRenderedRoutes(path.join(process.cwd(), "dist"));
   const internalTargets = new Map();
-  const base = new URL("http://127.0.0.1:4321/titanspan/");
+  const testPort = process.env.TITANSPAN_DOCS_TEST_PORT ?? "4321";
+  const base = new URL(`http://127.0.0.1:${testPort}/titanspan/`);
 
   for (const route of routes) {
     await page.goto(route, { waitUntil: "domcontentloaded" });

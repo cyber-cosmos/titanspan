@@ -27,7 +27,7 @@ allocation, streaming, or large-dataset memory use.
    concurrency, throughput, latency distributions, and peak memory.
 4. Repeat enough runs to describe variability; separate setup from timed
    work.
-5. Inspect for unbounded fanout, eager materialization, repeated copies,
+5. Inspect for unbounded task creation, eager materialization, repeated copies,
    object churn, blocking I/O, or contention.
 6. Report raw method and limitations. Keep shared-runner timing informational.
 

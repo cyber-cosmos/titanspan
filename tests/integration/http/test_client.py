@@ -79,6 +79,8 @@ def http_server() -> Iterator[tuple[str, Queue[tuple[str, str | None]]]]:
             path = urlsplit(self.path).path
             if path == "/stream":
                 payload = b"first\nsecond\n"
+            elif path == "/set-cookie":
+                payload = b"{}"
             elif path == "/query":
                 query = parse_qs(
                     urlsplit(self.path).query,
@@ -106,6 +108,8 @@ def http_server() -> Iterator[tuple[str, Queue[tuple[str, str | None]]]]:
             self.send_response(status)
             self.send_header("Content-Type", "application/json")
             self.send_header("Content-Length", str(len(payload)))
+            if path == "/set-cookie":
+                self.send_header("Set-Cookie", "session=upstream; Path=/")
             self.end_headers()
             self.wfile.write(payload)
 
@@ -160,6 +164,59 @@ def test_sync_client_uses_isolated_builder_options(
         )
     finally:
         asyncio.run(client.aclose())
+
+
+def test_sync_client_does_not_reuse_response_cookies(
+    http_server: tuple[str, Queue[tuple[str, str | None]]],
+) -> None:
+    """Keep upstream response cookies out of later application requests.
+
+    Callers must opt into outgoing cookies on each request. The shared
+    connection pool must not retain upstream session state.
+    """
+    url, received = http_server
+    client = HttpxClientAdapter(ClientConfiguration())
+    request = PendingRequest(client)
+    try:
+        first = request.get(f"{url}/set-cookie")
+        first.close()
+        second = request.get(f"{url}/query")
+
+        body = second.json()
+        assert isinstance(body, dict)
+        assert body.get("cookie") == ""
+        second.close()
+        received.get(timeout=_SERVER_JOIN_TIMEOUT_SECONDS)
+        received.get(timeout=_SERVER_JOIN_TIMEOUT_SECONDS)
+    finally:
+        asyncio.run(client.aclose())
+
+
+@pytest.mark.anyio
+async def test_async_client_does_not_reuse_response_cookies(
+    http_server: tuple[str, Queue[tuple[str, str | None]]],
+) -> None:
+    """Keep async upstream response cookies out of later requests.
+
+    Async pooling must preserve the same request-local cookie policy as the
+    synchronous client.
+    """
+    url, received = http_server
+    client = HttpxClientAdapter(ClientConfiguration())
+    request = PendingRequest(client)
+    try:
+        first = await request.get_async(f"{url}/set-cookie")
+        await first.aclose()
+        second = await request.get_async(f"{url}/query")
+
+        body = second.json()
+        assert isinstance(body, dict)
+        assert body.get("cookie") == ""
+        await second.aclose()
+        received.get(timeout=_SERVER_JOIN_TIMEOUT_SECONDS)
+        received.get(timeout=_SERVER_JOIN_TIMEOUT_SECONDS)
+    finally:
+        await client.aclose()
 
 
 def test_sync_client_streams_with_bounded_connection_ownership(

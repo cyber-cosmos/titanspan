@@ -44,5 +44,5 @@ Run lifecycle integration tests for application startup/shutdown changes.
 
 ## Completion criteria
 
-The scope contract is explicit, Dishka interoperability is preserved, graph
-and cleanup behavior are tested, and docs match the implementation.
+Define the scope contract. Preserve Dishka interoperability. Test graph and
+cleanup behavior. Keep documentation aligned with the implementation.

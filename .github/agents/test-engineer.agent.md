@@ -12,4 +12,5 @@ the public contract. Cover failure, cleanup, cancellation, scope isolation,
 concurrency, and configuration validation where relevant. Use mocks only at
 external boundaries; do not replace the behavior under test with mock
 assertions. Run the narrow test first, then applicable project checks. Do not
-weaken assertions, skip tests, lower coverage, or call unrun checks successful.
+weaken assertions, skip tests, lower coverage, or report checks you did not run
+as successful.

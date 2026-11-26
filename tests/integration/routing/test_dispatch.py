@@ -10,7 +10,8 @@ from threading import get_ident
 import pytest
 from fastapi.testclient import TestClient
 
-from titanspan import route
+from titanspan import app, route
+from titanspan.container import Scope
 from titanspan.contracts.container import ServiceRegistry
 from titanspan.contracts.http import (
     HttpRequest,
@@ -61,6 +62,28 @@ class CatalogProvider:
             container: The application's shared service registry.
         """
         container.instance(DocumentCatalog, DocumentCatalog())
+
+
+class RequestMarker:
+    """Represent one request-owned service used by sync route dispatch.
+
+    Each HTTP execution must receive its own instance.
+    """
+
+
+class RequestMarkerProvider:
+    """Register a request-owned service through the native container.
+
+    The router must resolve this binding inside its active request scope.
+    """
+
+    def register(self, container: ServiceRegistry) -> None:
+        """Bind a request marker to the request lifecycle.
+
+        Args:
+            container: Application-owned service registry.
+        """
+        container.scoped(RequestMarker, scope=Scope.REQUEST)
 
 
 class DocumentController:
@@ -182,6 +205,29 @@ def test_static_route_wins_when_dynamic_route_was_registered_first() -> None:
 
     assert response.status_code == HTTPStatus.OK
     assert response.json() == {"match": "static"}
+
+
+def test_constraints_apply_to_partial_method_matches() -> None:
+    """Return 404 when a path violates constraints for an unsupported method.
+
+    A constraint failure must not turn into a misleading 405 response.
+    Valid values still report method mismatches with the allowed method.
+    """
+    application = Application()
+    application.router.get(
+        "/numbers/{number}",
+        _ok,
+    ).where_number("number")
+
+    with TestClient(application.asgi) as client:
+        invalid_get = client.get("/numbers/abc")
+        invalid_post = client.post("/numbers/abc")
+        valid_post = client.post("/numbers/12")
+
+    assert invalid_get.status_code == HTTPStatus.NOT_FOUND
+    assert invalid_post.status_code == HTTPStatus.NOT_FOUND
+    assert valid_post.status_code == HTTPStatus.METHOD_NOT_ALLOWED
+    assert valid_post.headers["allow"] == "GET"
 
 
 def test_path_parameter_named_request_does_not_collide_with_asgi_request() -> (
@@ -472,6 +518,33 @@ def test_controller_facade_and_route_middleware_share_application_state() -> (
     assert _TRACE == ["before", "after"]
 
 
+def test_global_and_route_middleware_wrap_endpoint_in_order() -> None:
+    """Run global middleware outside route middleware without deduplication.
+
+    Registering one middleware at both levels is explicit and invokes it twice.
+    """
+    _TRACE.clear()
+    application = Application(http_middleware=(TraceMiddleware,))
+    application.router.alias_middleware("trace", TraceMiddleware)
+
+    def endpoint() -> dict[str, str]:
+        """Mark endpoint execution between both middleware layers.
+
+        Returns:
+            A small successful response body.
+        """
+        _TRACE.append("endpoint")
+        return {"status": "ok"}
+
+    application.router.get("/middleware", endpoint).middleware("trace")
+
+    with TestClient(application.asgi) as client:
+        response = client.get("/middleware")
+
+    assert response.status_code == HTTPStatus.OK
+    assert _TRACE == ["before", "before", "endpoint", "after", "after"]
+
+
 def test_sync_endpoint_uses_worker_thread_and_native_dependency_injection() -> (
     None
 ):
@@ -506,6 +579,33 @@ def test_sync_endpoint_uses_worker_thread_and_native_dependency_injection() -> (
     assert response.json()["document"] == "document-7"
     assert _MIDDLEWARE_THREAD_IDS
     assert response.json()["thread"] != _MIDDLEWARE_THREAD_IDS[0]
+
+
+def test_sync_endpoint_reuses_request_scoped_injection() -> None:
+    """Keep scope identity when a sync endpoint runs in a worker thread.
+
+    The active application and request context must propagate to the worker.
+    """
+    application = Application(service_providers=(RequestMarkerProvider(),))
+
+    def show(marker: RequestMarker) -> dict[str, bool]:
+        """Compare injected and explicitly resolved request services.
+
+        Args:
+            marker: Instance resolved for the current request.
+
+        Returns:
+            Whether both native resolution paths share the scoped instance.
+        """
+        return {"same": marker is app().container.make(RequestMarker)}
+
+    application.router.get("/sync-scope", show)
+
+    with TestClient(application.asgi) as client:
+        response = client.get("/sync-scope")
+
+    assert response.status_code == HTTPStatus.OK
+    assert response.json() == {"same": True}
 
 
 def test_openapi_exposes_path_inputs_but_not_injected_services() -> None:

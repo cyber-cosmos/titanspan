@@ -502,7 +502,7 @@ def _route_class(
                 Backend match result and the associated child request scope.
             """
             match, child_scope = super().matches(scope)
-            if match is not Match.FULL:
+            if match is Match.NONE:
                 return match, child_scope
             route_values = child_scope.get("path_params", {})
             for parameter, pattern in constraints.items():

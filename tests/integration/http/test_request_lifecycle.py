@@ -8,17 +8,23 @@ from collections.abc import AsyncIterator
 from http import HTTPStatus
 from typing import Annotated
 
+import anyio
 import pytest
 from fastapi import Depends
+from fastapi import Request as FastAPIRequest
 from fastapi.testclient import TestClient
+from starlette.requests import ClientDisconnect
+from starlette.types import Message, Scope
 
 from titanspan.contracts.http import HttpRequest
 from titanspan.foundation import Application
 from titanspan.http import Request
+from titanspan.http.exceptions import HttpContextError
 from titanspan.http.helpers import request as active_request
 from titanspan.http.helpers import response
 
 pytestmark = pytest.mark.integration
+_CLIENT_DISCONNECTED_MESSAGE = "client disconnected"
 
 
 def test_native_request_is_injected_and_resolved_from_one_scope() -> None:
@@ -111,6 +117,185 @@ def test_request_scope_remains_active_until_stream_finishes() -> None:
     assert observed == ["same", "stream-123"]
 
 
+@pytest.mark.anyio
+async def test_disconnect_finalizes_stream_before_request_scope_closes() -> (
+    None
+):
+    """Finalize a disconnected stream while request context remains active.
+
+    The ASGI send failure models a client disconnect after response headers.
+    The stream finalizer must run before Foundation closes request services.
+    """
+    application = Application(config={"app": {"name": "disconnect test"}})
+    observed: list[str] = []
+
+    async def endpoint(request: Request) -> object:
+        """Return a stream that reads request-local context during cleanup.
+
+        Args:
+            request: Request-scoped service supplied by the native Container.
+
+        Returns:
+            A streaming response that observes its lifecycle finalizer.
+        """
+
+        async def chunks() -> AsyncIterator[bytes]:
+            """Yield one chunk and inspect context when transmission stops.
+
+            The request context must remain active through source finalization.
+            """
+            try:
+                yield b"first"
+            finally:
+                observed.append(
+                    "active" if active_request() is request else "different"
+                )
+
+        return response().stream(chunks(), content_type="text/plain")
+
+    application.router.get("/stream-disconnect", endpoint)
+    await application.startup()
+    scope: Scope = {
+        "type": "http",
+        "asgi": {"version": "3.0", "spec_version": "2.4"},
+        "http_version": "1.1",
+        "method": "GET",
+        "scheme": "http",
+        "path": "/stream-disconnect",
+        "raw_path": b"/stream-disconnect",
+        "query_string": b"",
+        "root_path": "",
+        "headers": [(b"host", b"testserver")],
+        "server": ("testserver", 80),
+        "client": ("127.0.0.1", 45000),
+        "extensions": {},
+        "state": {},
+    }
+    first_request = True
+
+    async def receive() -> Message:
+        """Return the empty request body expected for this GET operation.
+
+        A second receive reports disconnection after response transmission.
+        """
+        nonlocal first_request
+        if first_request:
+            first_request = False
+            return {
+                "type": "http.request",
+                "body": b"",
+                "more_body": False,
+            }
+        return {"type": "http.disconnect"}
+
+    async def send(message: Message) -> None:
+        """Fail response transmission after the first streamed body chunk.
+
+        Args:
+            message: ASGI message produced by the response implementation.
+
+        Raises:
+            OSError: To model a client that disconnected during transmission.
+        """
+        if message["type"] == "http.response.body":
+            raise OSError(_CLIENT_DISCONNECTED_MESSAGE)
+
+    try:
+        with pytest.raises(ClientDisconnect):
+            await application.asgi(scope, receive, send)
+        with pytest.raises(HttpContextError):
+            active_request()
+    finally:
+        await application.shutdown()
+
+    assert observed == ["active"]
+
+
+@pytest.mark.anyio
+@pytest.mark.concurrency
+async def test_cancelled_stream_finalizes_before_request_scope_closes() -> None:
+    """Finalize a cancelled stream before the request scope exits.
+
+    Cancellation during ASGI transmission must not abandon response-owned
+    generators or close request dependencies before their finalizers run.
+    """
+    application = Application(config={"app": {"name": "cancel test"}})
+    observed: list[str] = []
+    send_started = anyio.Event()
+
+    async def endpoint(request: Request) -> object:
+        """Return a stream whose finalizer reads request-local context.
+
+        Args:
+            request: Request-scoped service supplied by the native Container.
+
+        Returns:
+            A response that blocks while sending its first body chunk.
+        """
+
+        async def chunks() -> AsyncIterator[bytes]:
+            """Yield a chunk and record active context during cancellation.
+
+            The request context must remain active through source finalization.
+            """
+            try:
+                yield b"first"
+            finally:
+                observed.append(
+                    "active" if active_request() is request else "different"
+                )
+
+        return response().stream(chunks(), content_type="text/plain")
+
+    application.router.get("/stream-cancel", endpoint)
+    await application.startup()
+    scope: Scope = {
+        "type": "http",
+        "asgi": {"version": "3.0", "spec_version": "2.4"},
+        "http_version": "1.1",
+        "method": "GET",
+        "scheme": "http",
+        "path": "/stream-cancel",
+        "raw_path": b"/stream-cancel",
+        "query_string": b"",
+        "root_path": "",
+        "headers": [(b"host", b"testserver")],
+        "server": ("testserver", 80),
+        "client": ("127.0.0.1", 45000),
+        "extensions": {},
+        "state": {},
+    }
+
+    async def receive() -> Message:
+        """Return the empty request body for this GET operation.
+
+        The ASGI server reports no additional messages after request input.
+        """
+        return {"type": "http.request", "body": b"", "more_body": False}
+
+    async def send(message: Message) -> None:
+        """Wait at the first body chunk until the test cancels transmission.
+
+        Args:
+            message: ASGI message produced by the response implementation.
+        """
+        if message["type"] == "http.response.body" and message.get("more_body"):
+            send_started.set()
+            await anyio.sleep_forever()
+
+    try:
+        async with anyio.create_task_group() as task_group:
+            task_group.start_soon(application.asgi, scope, receive, send)
+            await send_started.wait()
+            task_group.cancel_scope.cancel()
+        with pytest.raises(HttpContextError):
+            active_request()
+    finally:
+        await application.shutdown()
+
+    assert observed == ["active"]
+
+
 def test_oversized_request_body_returns_a_native_413_response() -> None:
     """Enforce configured body limits through the real ASGI middleware.
 
@@ -141,5 +326,41 @@ def test_oversized_request_body_returns_a_native_413_response() -> None:
 
     with TestClient(application.asgi) as client:
         result = client.post("/bounded", content=b"12345")
+
+    assert result.status_code == HTTPStatus.REQUEST_ENTITY_TOO_LARGE
+
+
+def test_body_limit_covers_interoperability_routes_too() -> None:
+    """Apply one configured body limit to every ASGI route.
+
+    FastAPI interoperability routes must receive the same bounded ASGI
+    receiver as native Titanspan request adapters.
+    """
+    application = Application(
+        config={
+            "app": {"name": "interop body limit"},
+            "http": {"server": {"max_body_size": 4}},
+        }
+    )
+
+    async def endpoint(request: FastAPIRequest) -> dict[str, int]:
+        """Read the incoming body through the host interoperability API.
+
+        Args:
+            request: Backend request supplied by the ASGI host.
+
+        Returns:
+            The received byte count if the configured limit permits it.
+        """
+        return {"size": len(await request.body())}
+
+    application.asgi.add_api_route(
+        "/interop-bounded",
+        endpoint,
+        methods=["POST"],
+    )
+
+    with TestClient(application.asgi) as client:
+        result = client.post("/interop-bounded", content=b"12345")
 
     assert result.status_code == HTTPStatus.REQUEST_ENTITY_TOO_LARGE

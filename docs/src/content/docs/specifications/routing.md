@@ -20,6 +20,10 @@ It does not claim that pending web capabilities are available.
 | URI factories and safe redirects | Support and HTTP contracts | `tests/integration/routing/test_uri_integration.py` |
 | Named path reversal after compilation | FastAPI/Starlette router adapter | Compiled route reversal integration test |
 | Trusted origin handling | `UrlGenerator` | URL generator and multi-application tests |
+| Route constraints during reversal | `UrlGenerator` | URL generator tests reject values that do not fully match constraints |
+| Domain-constrained absolute URLs | `UrlGenerator` | URL generator tests require the configured trusted origin to match the route domain |
+| Constraint-aware method errors | FastAPI adapter | ASGI tests distinguish a constraint miss (404) from a valid path with a method miss (405 and `Allow`) |
+| Global and route middleware composition | Foundation and Router | `tests/integration/routing/test_dispatch.py` verifies outer-to-inner order and explicit double registration |
 
 ## URL generation semantics
 
@@ -40,7 +44,10 @@ preserved when an origin is added.
 After FastAPI route compilation, named paths without custom path converters
 delegate substitution to the application router's supported `url_path_for`
 operation. Custom converter forms use native catalog substitution. The route
-catalog remains authoritative in both cases.
+catalog remains authoritative in both cases. The URL generator validates each
+substituted value against its declared route constraint using a full match. An
+absolute URL for a domain-constrained route requires the configured trusted
+origin to use that domain. Relative URL generation remains available.
 
 `action()` inspects stored callable metadata without constructing a controller.
 It accepts a dotted identifier or identifier sequence, rejects missing
@@ -51,6 +58,11 @@ routes are preferred when a callable has multiple intentional paths.
 `ResponseFactory`. Its redirects inherit HTTP validation, including rejection
 of external and protocol-relative targets. URI parsing and manipulation do
 not require active application state.
+
+HTTP method mismatches return 405 with an `Allow` header only when the path,
+domain, and parameter constraints match. A constraint failure returns 404.
+Global middleware wraps routing; route middleware wraps only the selected
+endpoint. Explicitly registering one middleware at both levels runs it twice.
 
 Signed URLs are unavailable because Titanspan has no key-management boundary
 that supports both signing and verification. Both signed URI factory methods

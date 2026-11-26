@@ -16,9 +16,9 @@ deployment and coordination costs before stable module contracts exist.
 ## Decision
 
 Start as one Python distribution with explicit module boundaries. Keep module
-dependencies directional, integrate optional infrastructure through contracts
-and providers, and extract a separate distribution only when a real deployment
-or release boundary requires it.
+dependencies directional. Integrate optional infrastructure through contracts
+and providers. Extract a separate distribution only when a real deployment or
+release boundary requires it.
 
 ## Alternatives considered
 

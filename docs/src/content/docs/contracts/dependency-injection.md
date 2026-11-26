@@ -50,12 +50,12 @@ container within its application or execution lifecycle and close it after
 use. Implementations own resource finalization and cancellation behavior.
 
 The native `Container` implements `ServiceContainer` and is the composition
-root for framework-owned services in `Application`. FastAPI handlers can use
-`Application.dependency` to resolve from that same container and active
-request scope. Explicit external route providers remain behind a separate
-private adapter. `titanspan.app()` returns the active `Application` and
-requires an application context; its `.container` property exposes the native
-service container.
+root for framework-owned services in `Application`. Native Router handlers
+resolve from that container and its active request scope. External FastAPI
+handlers can use `Application.dependency` to resolve from the same container.
+Explicit external route providers remain behind a separate private adapter.
+`titanspan.app()` returns the active `Application` and requires an application
+context; its `.container` property exposes the native service container.
 
 Do not build another resolver, infer dependency graphs, or promise scopes that
 the selected adapter cannot enforce. Any adapter should be introduced with

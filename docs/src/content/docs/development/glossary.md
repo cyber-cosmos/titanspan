@@ -13,7 +13,7 @@ not promote roadmap work to an available capability.
 | Agent | An AI system that selects actions or tools. Titanspan's agent component is planned. |
 | Application | The framework object that composes providers and owns startup and shutdown. Implemented in Foundation. |
 | Awaitable | A Python object that can be used in an `await` expression. |
-| Backpressure | A way to slow a producer when a consumer cannot keep up. Titanspan streaming support is planned. |
+| Backpressure | A way to slow a producer when a consumer cannot keep up. HTTP response streams await each ASGI send. General stream pipelines remain planned. |
 | Binding | A container registration that associates a service key with its provider and lifetime. Implemented in Container. |
 | Cancellation | A request to stop asynchronous work before it finishes. APIs must propagate cancellation. |
 | Checkpoint | Saved workflow state that can support later resumption. Workflow checkpointing is planned. |
@@ -22,7 +22,7 @@ not promote roadmap work to an available capability.
 | Contract | A typed boundary that defines behavior shared by a producer and its consumers. |
 | Coroutine | A Python object created by calling an `async def` function. |
 | Facade | A context-aware API for resolving an application-owned service. Config and Log facades are implemented. |
-| Middleware | A component that wraps request processing. Titanspan HTTP middleware is planned. |
+| Middleware | A component that wraps request processing. Titanspan provides ordered HTTP and route middleware through the application Container. |
 | Provider | An object that registers services or participates in application startup. Service providers are implemented. |
 | Scope | A lifetime that controls where a resolved service can be reused. Container scopes are implemented with documented backend limits. |
 | Singleton | A service lifetime whose instance belongs to one application container. |

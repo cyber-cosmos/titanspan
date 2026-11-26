@@ -84,13 +84,13 @@ and scoped identities. Task-group tests verify mixed-mode application
 singleton access and mixed-mode scoped access; cross-thread resolution remains
 unsupported and unverified.
 
-The native container is the composition root for framework services, while
-FastAPI route injection uses a bridge into that container. Async factories
-supplied through explicit external provider integrations may not be
-statically inspectable; a sync backend failure at that boundary is reported
-as a native `BindingResolutionError` with an async-resolution recommendation,
-rather than misclassified as a verified async-only graph. The active
-container helper is `titanspan.app()` and requires an application context.
+The native container is the composition root for framework services. FastAPI
+route injection uses a bridge into that container. External provider
+integrations may supply async factories that Titanspan cannot inspect
+statically. At this boundary, sync backend failures become native
+`BindingResolutionError` exceptions. The message recommends async resolution
+instead of claiming preflight identified an async-only graph. The active
+container helper is `titanspan.app()`. It requires an application context.
 
 Contextual bindings, injection metadata, extensions, callbacks, and temporary
 overrides were added after this decision. Their precedence, ownership, and
@@ -98,10 +98,9 @@ cleanup rules are in [ADR 0019](/titanspan/architecture/decisions/0019-contextua
 
 ## Verification
 
-`tests/unit/container/test_execution_modes.py` covers sync and async
-zero-configuration resolution, mixed graphs, cache identity, transient and
-scoped behavior, async-only preflight, callback behavior, cancellation cleanup,
-and task-group mixed-mode access. Existing container integration tests exercise
-real Dishka graph construction, resource cleanup, scope ownership, and
-configuration contract resolution. The backend version and mode-specific
-behavior are recorded in `docs/src/content/docs/specifications/container.md`.
+`test_execution_modes.py` covers sync and async resolution, mixed graphs, cache
+identity, transient and scoped behavior, preflight errors, callbacks, cleanup,
+and task-group access. Container integration tests verify real Dishka graph
+construction, resource cleanup, scope ownership, and configuration contract
+resolution. The backend version and mode behavior are in the container
+specification.

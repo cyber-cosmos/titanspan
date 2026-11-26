@@ -14,7 +14,11 @@ concrete framework service exists.
 contracts/
 ├── config/
 ├── container/
+├── events/
+├── foundation/
+├── http/
 ├── logging/
+├── routing/
 └── support/
 ```
 
@@ -34,6 +38,10 @@ Component-private protocols remain in their owning component.
 | `LogDriver`, `AsyncLogDriver` | Synchronous and asynchronous record delivery | `titanspan.logging`; logging tests |
 | `LogFormatter`, `LogProcessor`, `LogCustomizer` | Format, transform, and customize component records | `titanspan.logging`; logging tests |
 | `DeliveryStatus` | Report the outcome known at the logging call boundary | `titanspan.logging`; delivery tests |
+| `HttpRequest`, `HttpResponse`, `ResponseFactory`, `HttpMiddleware` | Share request, response, and middleware behavior | `titanspan.http`; ASGI and lifecycle tests |
+| `HttpClient`, `HttpClientResponse` | Share pooled outgoing request behavior | HTTPX adapter; loopback integration tests |
+| `EventDispatcher` | Register, inspect, defer, fake, and dispatch application events | `NativeEventDispatcher`; service-provider and application integration tests |
+| `RouteCatalog`, `RouteInfo`, `UriUrlGenerator` | Share route inspection and URL generation | `titanspan.routing`; route and URI integration tests |
 
 `Scope` and `ServiceFactory` are container domain values in Contracts and are
 re-exported by `titanspan.container` with canonical object identity.
@@ -44,10 +52,10 @@ or backend types. `titanspan.logging` re-exports the same contract objects
 for application convenience.
 
 Response conversion, validated-data, generic mapping conversion, JSON-text,
-and general rendering protocols are not public contracts yet. They had no
+and general rendering protocols are not public contracts. They had no
 production owner or consumer; their fixture-only declarations were removed.
-The HTTP, validation, serialization, and presentation components can define
-domain-specific contracts when their behavior and integration seams exist.
+Validation contracts remain pending until that component has a production
+implementation and a tested application boundary.
 
 ## Typing and semantics
 
@@ -65,9 +73,9 @@ domain-specific contracts when their behavior and integration seams exist.
 
 ## Deferred boundaries
 
-Contracts for database, cache, queue, HTTP client, filesystem, AI, workflows,
-telemetry, and other unimplemented components remain deferred until their
-owning architecture is established. A roadmap item is not a public contract.
+Contracts for database, cache, queue, filesystem, AI, workflows, telemetry,
+and other unimplemented components remain deferred until their owning
+architecture is established. A roadmap item is not a public contract.
 
 ## Verification
 
