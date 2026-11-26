@@ -15,13 +15,25 @@ from titanspan.contracts import (
     AsyncServiceContainer,
     ConfigRepository,
     DeferredDisplayValue,
+    FileMetadata,
     HtmlRenderable,
+    StorageDisk,
+    StorageManager,
 )
 from titanspan.contracts.config.repository import (
     ConfigRepository as ConfigModule,
 )
 from titanspan.contracts.container import (
     AsyncServiceContainer as ContainerModule,
+)
+from titanspan.contracts.filesystem import (
+    FileMetadata as MetadataModule,
+)
+from titanspan.contracts.filesystem import (
+    StorageDisk as StorageDiskModule,
+)
+from titanspan.contracts.filesystem import (
+    StorageManager as StorageManagerModule,
 )
 from titanspan.facades import Config
 
@@ -231,6 +243,9 @@ def test_contract_exports_preserve_canonical_identity() -> None:
     assert DeferredDisplayValue.__module__ == (
         "titanspan.contracts.support.deferred_display_value"
     )
+    assert FileMetadata is MetadataModule
+    assert StorageDisk is StorageDiskModule
+    assert StorageManager is StorageManagerModule
 
 
 @pytest.mark.anyio

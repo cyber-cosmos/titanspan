@@ -2,13 +2,14 @@
 
 Titanspan is consolidating its engineering foundation and implementing the
 application and web composition lifecycle in tested vertical slices. Native
-configuration, logging, Support, the sync-first container, HTTP, and Routing
-have application integration. Routing covers registration, dispatch,
-discovery, inspection, safe metadata snapshots, WebSockets, and OpenAPI
-through the established ASGI host. Explicit third-party FastAPI providers
-remain an interoperability boundary; ordinary Titanspan route dispatch uses
-the native container. These phases are capability milestones, not calendar
-promises.
+configuration, logging, Support, the sync-first container, HTTP, Routing, and
+Filesystem integrate with the application lifecycle. Routing covers
+registration, dispatch, discovery, inspection, safe metadata snapshots,
+WebSockets, and OpenAPI through the established ASGI host. Filesystem provides
+application-owned local and memory disks over fsspec. Explicit third-party
+FastAPI providers remain an interoperability boundary; ordinary Titanspan
+route dispatch uses the native container. These phases are capability
+milestones, not calendar promises.
 
 The standalone Collections component now provides eager and lazy operations
 for ordinary Python iterables. Pipeline provides ordered synchronous and
@@ -64,7 +65,6 @@ queue, transaction, broadcasting, and Console integrations remain planned.
 
 - SQLAlchemy-backed persistence, migrations, and query conventions.
 - Structured concurrency, CPU parallelism, and bounded streaming pipelines.
-- Filesystem integrations.
 
 ## Phase 5 — Production infrastructure
 

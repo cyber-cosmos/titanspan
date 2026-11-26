@@ -25,6 +25,11 @@ from titanspan.contracts.container import (
     ServiceRegistry,
 )
 from titanspan.contracts.events import EventDispatcher
+from titanspan.contracts.filesystem import (
+    FileMetadata,
+    StorageDisk,
+    StorageManager,
+)
 from titanspan.contracts.foundation import (
     BootableServiceProvider,
     ServiceProvider,
@@ -106,6 +111,7 @@ __all__ = [
     "DeferredDisplayValue",
     "DeliveryStatus",
     "EventDispatcher",
+    "FileMetadata",
     "HtmlRenderable",
     "HttpClient",
     "HttpClientResponse",
@@ -145,6 +151,8 @@ __all__ = [
     "ServiceOverride",
     "ServiceProvider",
     "ServiceRegistry",
+    "StorageDisk",
+    "StorageManager",
     "TypedConfigReader",
     "UriUrlGenerator",
     "ValidationIssue",

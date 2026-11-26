@@ -22,6 +22,10 @@ sync-first contract. They do not claim that the private dependency engine
 implements a Titanspan protocol or that the in-memory test adapter is a
 production configuration repository.
 
+Filesystem unit tests exercise the storage contract against real local and
+memory fsspec implementations. Application tests verify that the facade and
+`StorageManager` contract resolve the same registered manager.
+
 Run focused tests with:
 
 ```bash
@@ -37,5 +41,5 @@ asserts observable behavior against each implementation; it does not merely
 check that attributes exist. Include failure and lifecycle cases when the
 contract owns errors or resources.
 
-Do not create empty conformance fixtures for cache, queue, filesystem, or
-workflow protocols before their contracts and implementations are established.
+Do not create empty conformance fixtures for cache, queue, or workflow
+protocols before their contracts and implementations are established.

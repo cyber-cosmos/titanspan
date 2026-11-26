@@ -15,6 +15,7 @@ contracts/
 ├── config/
 ├── container/
 ├── events/
+├── filesystem/
 ├── foundation/
 ├── http/
 ├── logging/
@@ -43,6 +44,7 @@ Component-private protocols remain in their owning component.
 | `HttpRequest`, `HttpResponse`, `ResponseFactory`, `HttpMiddleware` | Share request, response, and middleware behavior | `titanspan.http`; ASGI and lifecycle tests |
 | `HttpClient`, `HttpClientResponse` | Share pooled outgoing request behavior | HTTPX adapter; loopback integration tests |
 | `EventDispatcher` | Register, inspect, defer, fake, and dispatch application events | `NativeEventDispatcher`; service-provider and application integration tests |
+| `FileMetadata`, `StorageDisk`, `StorageManager` | Describe named disks and backend-independent file metadata | `titanspan.filesystem`; real fsspec and application integration tests |
 | `RouteCatalog`, `RouteInfo`, `UriUrlGenerator` | Share route inspection and URL generation | `titanspan.routing`; route and URI integration tests |
 | `PipelineContinuation`, `PipelineMiddlewareHandler` | Type sequential continuation callbacks | `titanspan.pipeline`; Pipeline unit tests |
 | `ValidationService`, `ValidationRule`, `AsyncValidationRule` | Validate typed values and apply ordered application rules | `titanspan.validation`; `tests/integration/validation/test_validation_application.py` |
@@ -76,9 +78,9 @@ validated-data boundary through `ValidationService` and its typed result.
 
 ## Deferred boundaries
 
-Contracts for database, cache, queue, filesystem, AI, workflows, telemetry,
-and other unimplemented components remain deferred until their owning
-architecture is established. A roadmap item is not a public contract.
+Contracts for database, cache, queue, AI, workflows, telemetry, and other
+unimplemented components remain deferred until their owning architecture is
+established. A roadmap item is not a public contract.
 
 ## Verification
 

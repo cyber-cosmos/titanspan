@@ -118,8 +118,9 @@ must not be treated as comprehensive SSRF protection.
   identity and permission context through native request scope.
 - Sessions and CSRF protection require a Session owner and state lifecycle.
 - Distributed rate limiting requires a Cache-backed policy owner.
-- Persisting uploads requires the Filesystem component to define destination
-  and cleanup ownership. Temporary upload inspection is already available.
+- `request.stream()` can feed `StorageDisk.write_stream_async` directly.
+  Applications choose trusted destination keys and cleanup ownership; HTTP
+  does not provide a storage destination policy.
 - OpenTelemetry spans and metrics require the Telemetry component to define
   instrumentation and export lifecycle.
 - Trusted proxy behavior must be configured at the ASGI server boundary with
