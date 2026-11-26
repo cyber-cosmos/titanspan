@@ -15,8 +15,9 @@ Multiple consumers may be selected by passing an iterable to `when`.
 ## Values and framework services
 
 Use `give_value` for a literal, `give_config` for a value read through the
-registered `ConfigReader`, `give_named` for an alias, and `give_tagged` for an
-ordered list of services:
+registered `ConfigReader` and its optional `TypedConfigReader` capability,
+`give_named` for an alias, and `give_tagged`
+for an ordered list of services:
 
 ```python
 container.when(Worker).needs("timeout").give_value(30)
@@ -60,9 +61,12 @@ class DocumentService:
 ```
 
 The supported markers are `Inject`, `FromConfig`, `Named`, and `Tagged`.
-Configuration metadata requires `ConfigReader` to be registered in the active
-application container. More than one supported marker on a parameter raises
-`BindingError` instead of guessing.
+Configuration metadata resolves through `ConfigReader`. Its implementation
+must provide the optional `TypedConfigReader` capability. Typed values are
+validated by the existing accessors; supported annotations are `str`, `int`,
+`float`, `bool`, `dict`, `list`, and `Mapping`. Other annotations fail during
+resolution before the consumer is constructed. More than one supported marker
+on a parameter raises `BindingError` instead of guessing.
 
 ## Precedence
 

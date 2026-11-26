@@ -49,7 +49,9 @@ The native `Container` implements `ServiceContainer` and is the composition
 root for framework-owned services in `Application`. FastAPI handlers can use
 `Application.dependency` to resolve from that same container and active
 request scope. Explicit external route providers remain behind a separate
-private adapter. No module-level `app()` container helper is available.
+private adapter. `titanspan.app()` returns the active `Application` and
+requires an application context; its `.container` property exposes the native
+service container.
 
 Do not build another resolver, infer dependency graphs, or promise scopes that
 the selected adapter cannot enforce. Any adapter should be introduced with

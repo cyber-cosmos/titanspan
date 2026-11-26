@@ -5,7 +5,7 @@ The helpers centralize precedence across native resolution entry points.
 
 from __future__ import annotations
 
-from collections.abc import Hashable
+from collections.abc import Hashable, Mapping
 from typing import TYPE_CHECKING, Annotated, get_args, get_origin
 
 from titanspan.container.contextual_binding import (
@@ -14,13 +14,14 @@ from titanspan.container.contextual_binding import (
 )
 from titanspan.container.exceptions import BindingError
 from titanspan.container.injection import FromConfig, Inject, Named, Tagged
+from titanspan.contracts.config import ConfigReader, TypedConfigReader
 
 _INJECTION_MARKER_CONFLICT_ERROR = (
     "A dependency annotation may contain only one injection marker."
 )
 
 if TYPE_CHECKING:
-    from collections.abc import Mapping, Sequence
+    from collections.abc import Sequence
 
 
 def split_annotation(
@@ -38,6 +39,51 @@ def split_annotation(
         return annotation, ()
     arguments = get_args(annotation)
     return arguments[0], tuple(arguments[1:])
+
+
+def read_config_value(
+    repository: ConfigReader,
+    key: str,
+    annotation: object,
+) -> object:
+    """Read a typed configuration value through its native capability.
+
+    Args:
+        repository: Configuration reader with optional typed accessors.
+        key: Dotted configuration path selected by injection metadata.
+        annotation: Parameter annotation, including optional metadata.
+
+    Returns:
+        The value validated by the matching typed configuration accessor.
+
+    Raises:
+        BindingError: If the reader lacks typed accessors or the annotation
+            has no supported accessor.
+        TypeError: If the stored configuration value is missing or has an
+            incompatible type.
+    """
+    base, _metadata = split_annotation(annotation)
+    if not isinstance(repository, TypedConfigReader):
+        message = (
+            "Configuration injection requires a ConfigReader that "
+            "implements TypedConfigReader."
+        )
+        raise BindingError(message)
+    if base is str:
+        return repository.string(key)
+    if base is int:
+        return repository.integer(key)
+    if base is float:
+        return repository.float(key)
+    if base is bool:
+        return repository.boolean(key)
+    if get_origin(base) in {dict, list, Mapping}:
+        return repository.array(key)
+    message = (
+        "FromConfig requires str, int, float, bool, dict, list, or "
+        "Mapping annotations."
+    )
+    raise BindingError(message)
 
 
 def select_dependency_source(

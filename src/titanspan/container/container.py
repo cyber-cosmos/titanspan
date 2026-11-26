@@ -57,6 +57,7 @@ from titanspan.container._backends.dependency_engine import (
     discover_dependency_types,
 )
 from titanspan.container._internal.injection import (
+    read_config_value,
     select_dependency_source,
     split_annotation,
 )
@@ -118,6 +119,10 @@ _EMPTY_CONTEXTUAL_SOURCE_ERROR = (
 _INHERITED_SCOPE_ERROR = "An inherited execution scope has closed."
 _ACTIVE_SCOPE_ERROR = (
     "Execution scopes and overrides must close before the container."
+)
+_OVERRIDE_SINGLETON_ERROR = (
+    "A temporary override cannot replace a dependency captured by an "
+    "application singleton."
 )
 _OVERRIDE_ACTIVE_SCOPE_ERROR = (
     "Enter service overrides before execution scopes begin."
@@ -766,6 +771,18 @@ class Container(ServiceContainer):
         """
         return self._active_scope_count
 
+    @property
+    def active_override_count(self) -> int:
+        """Return the number of active root override contexts.
+
+        Returns:
+            The container-wide active override count.
+
+        Notes:
+            Nested overlays remain owned by their root override context.
+        """
+        return self._active_override_count
+
     async def __aenter__(self) -> Container:
         """Return this container for deterministic asynchronous ownership.
 
@@ -1396,7 +1413,11 @@ class Container(ServiceContainer):
         """
         source = self._selected_call_source(consumer, name, annotation)
         if source is not None:
-            return self._resolve_selected_source_sync(*source)
+            return self._resolve_selected_source_sync(
+                source[0],
+                source[1],
+                annotation,
+            )
         annotation, _ = split_annotation(annotation)
         if not isinstance(annotation, type) or annotation in _PRIMITIVE_TYPES:
             message = f"{_CALL_ANNOTATION_ERROR} Parameter {name!r}."
@@ -1501,7 +1522,11 @@ class Container(ServiceContainer):
         """
         source = self._selected_call_source(consumer, name, annotation)
         if source is not None:
-            return await self._resolve_selected_source_async(*source)
+            return await self._resolve_selected_source_async(
+                source[0],
+                source[1],
+                annotation,
+            )
         annotation, _ = split_annotation(annotation)
         if not isinstance(annotation, type) or annotation in _PRIMITIVE_TYPES:
             message = f"{_CALL_ANNOTATION_ERROR} Parameter {name!r}."
@@ -1560,24 +1585,32 @@ class Container(ServiceContainer):
         self,
         kind: ContextualKind,
         value: object,
+        annotation: object,
     ) -> object:
         """Resolve one contextual or declarative source synchronously.
 
         Args:
             kind: Native source category selected for a constructor value.
             value: Implementation, alias, tag, config key, or literal value.
+            annotation: Parameter annotation used to select typed config read.
 
         Returns:
             The selected dependency value.
 
         Raises:
             AsyncResolutionRequiredError: If a selected factory is async-only.
-            BindingError: If an alias or tag does not exist.
+            BindingError: If an alias, tag, or typed reader does not exist.
+            TypeError: If a selected configuration value is missing or
+                incompatible with the parameter annotation.
         """
         if kind is ContextualKind.VALUE:
             return value
         if kind is ContextualKind.CONFIG:
-            return self.make(ConfigReader).get(cast("str", value))
+            return read_config_value(
+                self.make(ConfigReader),
+                cast("str", value),
+                annotation,
+            )
         if kind is ContextualKind.NAMED:
             return self.make(self._named_service(cast("str", value)))
         if kind is ContextualKind.TAGGED:
@@ -1593,24 +1626,32 @@ class Container(ServiceContainer):
         self,
         kind: ContextualKind,
         value: object,
+        annotation: object,
     ) -> object:
         """Resolve one contextual or declarative source asynchronously.
 
         Args:
             kind: Native source category selected for a constructor value.
             value: Implementation, alias, tag, config key, or literal value.
+            annotation: Parameter annotation used to select typed config read.
 
         Returns:
             The selected dependency value after asynchronous resolution.
 
         Raises:
-            BindingError: If an alias or tag does not exist.
+            BindingError: If an alias, tag, or typed reader does not exist.
+            TypeError: If a selected configuration value is missing or
+                incompatible with the parameter annotation.
         """
         if kind is ContextualKind.VALUE:
             return value
         if kind is ContextualKind.CONFIG:
             repository = await self.make_async(ConfigReader)
-            return repository.get(cast("str", value))
+            return read_config_value(
+                repository,
+                cast("str", value),
+                annotation,
+            )
         if kind is ContextualKind.NAMED:
             service = self._named_service(cast("str", value))
             return await self.make_async(service)
@@ -2351,15 +2392,21 @@ class Container(ServiceContainer):
             A child graph may borrow an inherited singleton, but it must not
             become that singleton resource's finalization owner.
         """
+        dependencies = self._dependency_types_for(root) | {root}
         for dependency in sorted(
-            self._dependency_types_for(root),
+            dependencies,
             key=lambda value: (value.__module__, value.__qualname__),
         ):
             if dependency in self._local_override_services:
                 continue
             policy = self._binding_policy(dependency)
-            if policy is None or policy[0] is not Lifetime.SINGLETON:
+            if (
+                policy is None
+                or policy[0] is not Lifetime.SINGLETON
+                or policy[1] is not Scope.APPLICATION
+            ):
                 continue
+            self._ensure_singleton_override_safe(dependency)
             await Container._make_async_core(owner, dependency)
 
     def _prime_override_dependencies_sync(
@@ -2373,15 +2420,21 @@ class Container(ServiceContainer):
             root: Requested graph whose singleton dependencies are inspected.
             owner: Immediate overlay or application graph that owns values.
         """
+        dependencies = self._dependency_types_for(root) | {root}
         for dependency in sorted(
-            self._dependency_types_for(root),
+            dependencies,
             key=lambda value: (value.__module__, value.__qualname__),
         ):
             if dependency in self._local_override_services:
                 continue
             policy = self._binding_policy(dependency)
-            if policy is None or policy[0] is not Lifetime.SINGLETON:
+            if (
+                policy is None
+                or policy[0] is not Lifetime.SINGLETON
+                or policy[1] is not Scope.APPLICATION
+            ):
                 continue
+            self._ensure_singleton_override_safe(dependency)
             Container._make_sync(owner, dependency)
 
     def _shared_singleton_owner(
@@ -2407,7 +2460,26 @@ class Container(ServiceContainer):
             or policy[1] is not Scope.APPLICATION
         ):
             return None
+        self._ensure_singleton_override_safe(service)
         return owner
+
+    def _ensure_singleton_override_safe(
+        self,
+        service: type[object],
+    ) -> None:
+        """Reject overrides that would be hidden by singleton caching.
+
+        Args:
+            service: Inherited application singleton being resolved.
+
+        Raises:
+            ScopeError: If an active replacement is in its dependency graph.
+        """
+        if service in self._override_services:
+            return
+        dependencies = self._dependency_types_for(service)
+        if dependencies.intersection(self._override_services):
+            raise ScopeError(_OVERRIDE_SINGLETON_ERROR)
 
     async def _remember_shared_dependencies(
         self,

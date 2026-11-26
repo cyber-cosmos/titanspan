@@ -52,8 +52,18 @@ The current adapter uses an ordered backend scope chain:
 | `TOOL`, `TASK` | Step level |
 
 Names in the same row share one backend level and cannot be nested within one
-another. A nested scope must advance to a deeper level. This is an explicit
-adaptation, not a claim that unrelated lifecycles have independent hierarchies.
+another. Supported chains include `REQUEST` → `NODE` → `TOOL` for HTTP work
+and `WORKFLOW` → `AGENT` → `TASK` for workflow work. A request-level scope
+may be `REQUEST`, `CONNECTION`, `JOB`, or `WORKFLOW`; it cannot be nested in
+another scope from that row. `NODE` and `AGENT` are alternative names at the
+action level, and `TOOL` and `TASK` are alternatives at the step level.
+`REQUEST` → `WORKFLOW`, `NODE` → `AGENT`, and `TOOL` → `TASK` are therefore
+unsupported nested combinations. Use sequential sibling scopes when those
+lifecycles do not overlap. This adapter does not represent independent HTTP,
+job, and workflow branches. Overlapping lifecycles at the same backend level
+need an external owner or separate container; separate containers do not
+share application singletons.
+
 Each concurrent workflow entered from the application context receives an
 isolated child scope. Tasks spawned inside one scope inherit that context; use
 a deeper task scope when concurrent work requires separate scoped instances.

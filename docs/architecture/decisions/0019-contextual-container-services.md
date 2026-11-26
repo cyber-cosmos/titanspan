@@ -18,7 +18,9 @@ scoped resources and shared instance identity.
 - Add immutable consumer-specific rules through
   `Container.when(...).needs(...)`. Rules select an implementation or factory,
   a literal value, a `ConfigReader` value, a registered alias, or an ordered
-  tag.
+  tag. Configuration injection requires its implementation to provide the
+  optional `TypedConfigReader` capability. Missing and incompatible values
+  use its existing accessors; no second validation engine is added.
 - Support Titanspan-owned `Annotated` metadata: `Inject`, `FromConfig`,
   `Named`, and `Tagged`. A shared private selector enforces one precedence
   policy across graph construction and callable injection.
@@ -40,7 +42,9 @@ scoped resources and shared instance identity.
   async entry supports async factories and finalizers. Nested overrides
   restore in LIFO order. Replacement values belong to the overlay; unaffected
   application singletons and their per-service locks are shared with the
-  canonical cache. Finalize resources before restoring the prior context,
+  canonical cache. If a requested singleton depends on an overridden service,
+  reject resolution rather than return or retain a singleton built from the
+  original dependency. Finalize resources before restoring the prior context,
   shield async cleanup from cancellation, and prevent shutdown while an
   override remains active.
 - Require overrides to begin before execution scopes. The existing scope

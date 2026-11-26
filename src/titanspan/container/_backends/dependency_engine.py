@@ -54,6 +54,7 @@ from dishka.integrations.fastapi import FastapiProvider
 
 from titanspan.container._backends.providers import adapt_providers
 from titanspan.container._internal.injection import (
+    read_config_value,
     select_dependency_source,
     split_annotation,
 )
@@ -256,6 +257,7 @@ class _SelectedInjection:
     kind: ContextualKind
     value: object
     synthetic: type[object]
+    annotation: object
 
 
 class _FactoryMetadata(Protocol):
@@ -1442,7 +1444,14 @@ def _constructor_injections(
         selected[name] = (kind, value, synthetic)
         synthetic_types.add(synthetic)
         _provide_selected_source(
-            _SelectedInjection(service, name, kind, value, synthetic),
+            _SelectedInjection(
+                service,
+                name,
+                kind,
+                value,
+                synthetic,
+                split_annotation(annotation)[0],
+            ),
             environment,
         )
 
@@ -1544,15 +1553,22 @@ def _provide_config_source(
     key = cast("str", selected.value)
 
     def read_config(repository: ConfigReader) -> object:
-        """Read one declared configuration value for the consumer.
+        """Read and validate one typed configuration value.
 
         Args:
-            repository: Canonical application configuration contract.
+            repository: Native configuration reader contract.
 
         Returns:
-            The value stored at the selected key.
+            The validated value stored at the selected key.
+
+        Raises:
+            BindingError: If the annotation has no typed reader capability.
         """
-        return repository.get(key)
+        return read_config_value(
+            repository,
+            key,
+            selected.annotation,
+        )
 
     environment.provider.provide(
         read_config,

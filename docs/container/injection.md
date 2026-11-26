@@ -68,7 +68,9 @@ by the application.
 Supported metadata includes `Inject(Implementation)`,
 `FromConfig("path.to.value")`, `Named("service-alias")`, and
 `Tagged("service-group")`. Configuration selection resolves the registered
-`ConfigReader` contract; tagged selection preserves registration order.
+`ConfigReader` contract and its optional `TypedConfigReader` capability;
+tagged selection
+preserves registration order.
 Arbitrary union inference and custom metadata handlers are not implemented.
 Before synchronous resolution, the container inspects the same selected
 contextual, metadata, alias, and tag sources and rejects known async-only

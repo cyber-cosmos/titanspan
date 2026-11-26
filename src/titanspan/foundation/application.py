@@ -87,7 +87,8 @@ _APPLICATION_CONTEXT_ERROR = (
     "Native HTTP dependencies require this application's active context."
 )
 _ACTIVE_APPLICATION_SCOPE_ERROR = (
-    "Application shutdown requires all execution scopes to finish first."
+    "Application shutdown requires all execution scopes and overrides "
+    "to finish first."
 )
 
 
@@ -362,7 +363,10 @@ class Application:
             return
         if self._starting:
             raise RuntimeError(_APPLICATION_SHUTDOWN_DURING_STARTUP_ERROR)
-        if self.container.active_scope_count:
+        if (
+            self.container.active_scope_count
+            or self.container.active_override_count
+        ):
             raise ScopeError(_ACTIVE_APPLICATION_SCOPE_ERROR)
         self._closed = True
         with bind_application_context(self, self.container):

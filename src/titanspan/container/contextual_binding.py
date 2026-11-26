@@ -138,10 +138,10 @@ class NeedsBindingBuilder:
         self._add(ContextualKind.VALUE, value)
 
     def give_config(self, key: str) -> None:
-        """Resolve a value from the registered configuration reader.
+        """Resolve a typed value from the configuration capability.
 
         Args:
-            key: Dotted key retrieved from ``ConfigReader``.
+            key: Dotted key retrieved through ``TypedConfigReader``.
         """
         self._add(ContextualKind.CONFIG, key)
 

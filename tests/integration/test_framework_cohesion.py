@@ -9,7 +9,7 @@ from __future__ import annotations
 import asyncio
 from collections.abc import AsyncIterator, Mapping, Sequence
 from types import MappingProxyType
-from typing import TYPE_CHECKING, cast, overload
+from typing import TYPE_CHECKING, Annotated, cast, overload
 
 import pytest
 
@@ -18,8 +18,13 @@ from titanspan._application_context import (
     ApplicationContextError,
     active_application_context,
 )
-from titanspan.config import ConfigCapabilityError
-from titanspan.container import Scope, ScopeError
+from titanspan.config import ConfigCapabilityError, ConfigValueError
+from titanspan.container import (
+    BindingResolutionError,
+    FromConfig,
+    Scope,
+    ScopeError,
+)
 from titanspan.contracts.config import (
     ConfigDiagnostics,
     ConfigMacroRegistry,
@@ -50,6 +55,27 @@ if TYPE_CHECKING:
     )
 
 pytestmark = [pytest.mark.integration, pytest.mark.architecture]
+
+
+class _ConfiguredIntegerConsumer:
+    """Consume an integer selected from application configuration.
+
+    Attributes:
+        limit: Typed value injected by the application container.
+    """
+
+    def __init__(
+        self,
+        limit: Annotated[int, FromConfig("testing.limit")],
+    ) -> None:
+        """Retain the configured integer.
+
+        Args:
+            limit: A value validated by the typed configuration capability.
+        """
+        self.limit = limit
+
+    limit: int
 
 
 class _Marker:
@@ -602,6 +628,32 @@ def test_facades_resolve_declared_contracts_from_the_shared_base() -> None:
     assert issubclass(Log, Facade)
 
 
+@pytest.mark.anyio
+async def test_application_injects_only_present_typed_configuration() -> None:
+    """Use the application repository's typed accessors for injection.
+
+    Missing and incompatible values fail before an application service can
+    observe them, while both resolution and cleanup use native providers.
+    """
+    configurations: tuple[Mapping[str, object], ...] = (
+        {},
+        {"testing": {"limit": "many"}},
+    )
+    for values in configurations:
+        application = Application(config=values)
+        async with application:
+            with pytest.raises(BindingResolutionError) as error:
+                application.make(_ConfiguredIntegerConsumer)
+
+            cause = error.value.__cause__
+            while cause is not None and not isinstance(
+                cause,
+                ConfigValueError,
+            ):
+                cause = cause.__cause__
+            assert isinstance(cause, ConfigValueError)
+
+
 def test_application_substitutes_an_independent_config_contract() -> None:
     """Use a distinct config implementation through app and facade APIs.
 
@@ -840,6 +892,33 @@ async def test_shutdown_rejects_active_scopes_without_losing_cleanup() -> None:
     await application.shutdown()
 
     assert events[-1] == "resource-closed"
+
+
+@pytest.mark.anyio
+async def test_shutdown_rejects_active_overrides_without_losing_cleanup() -> (
+    None
+):
+    """Leave application resources available until overrides have exited.
+
+    A rejected shutdown must remain retryable after the temporary graph
+    finalizes and restores the application container context.
+    """
+    events: list[str] = []
+    application = Application(
+        service_providers=[_LifecycleProvider(events)],
+    )
+    await application.startup()
+    resource = application.make(_LifecycleResource)
+
+    async with application.container.override({_Marker: _Marker()}):
+        with pytest.raises(ScopeError, match="overrides"):
+            await application.shutdown()
+        assert not resource.closed
+
+    await application.shutdown()
+
+    assert resource.closed
+    assert events.count("resource-closed") == 1
 
 
 @pytest.mark.anyio

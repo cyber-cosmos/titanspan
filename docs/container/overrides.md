@@ -25,10 +25,13 @@ cancellation and awaits async finalizers. Replacement factories and instances
 belong to the temporary graph.
 
 Unaffected application singletons share the same canonical cache and
-initialization locks as the application graph. This holds when the singleton
-is first initialized from an override, so unrelated services are not
-duplicated. Replacing an application service uses an overlay-specific value
-and does not overwrite the application's base binding or cache.
+initialization locks as the application graph. Replacing an application
+service uses an overlay-specific value and does not overwrite the application's
+base binding or cache. Overrides cannot change dependencies already captured
+by an application singleton. If a requested singleton transitively depends on
+a replaced service, resolution raises `ScopeError` instead of silently
+returning an instance built with the original service. Override the singleton
+itself or use a separate container when a fresh dependency graph is needed.
 
 The synchronous form rejects async-only dependencies before initializing them;
 use `async with` for those replacements. Both forms reject entry while an

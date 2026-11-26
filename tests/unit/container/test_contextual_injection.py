@@ -7,15 +7,17 @@ from __future__ import annotations
 
 import asyncio
 from collections.abc import (
-    AsyncIterator,  # noqa: TC003  # The backend resolves factory hints.
-    Awaitable,  # noqa: TC003  # Callback validation resolves return hints.
-    Iterator,  # noqa: TC003  # The backend evaluates resource factory hints.
+    AsyncIterator,  # The backend resolves factory hints.
+    Awaitable,  # Callback validation resolves return hints.
+    Iterator,  # The backend evaluates resource factory hints.
+    Mapping,
 )
 from typing import TYPE_CHECKING, Annotated, Protocol, cast
 
 import anyio
 import pytest
 
+from titanspan.config import ConfigValueError
 from titanspan.config import Repository as ConfigStore
 from titanspan.container import (
     Container,
@@ -29,15 +31,19 @@ from titanspan.container.exceptions import (
     AsyncResolutionRequiredError,
     BindingError,
     BindingResolutionError,
+    ScopeError,
 )
 from titanspan.contracts.config import ConfigReader
 
 if TYPE_CHECKING:
+    from collections.abc import Sequence
+
     from titanspan.contracts import ServiceOverride
 
 pytestmark = pytest.mark.unit
 
 _CONFIG_BATCH_SIZE = 64
+_CONFIG_RATIO = 1.5
 _TAGGED_BATCH_SIZE = 32
 _EXPLICIT_BATCH_SIZE = 7
 _CONTEXTUAL_BATCH_SIZE = 30
@@ -346,6 +352,183 @@ class SharedService:
 
     The test observes its identity across the parent and overlay graph.
     """
+
+
+class BasicConfigReader:
+    """Provide only the base configuration contract for failure checks.
+
+    Typed accessor capability is intentionally absent.
+
+    Attributes:
+        _values: Empty mapping backing the read operations.
+    """
+
+    def __init__(self) -> None:
+        """Create a reader with no stored values.
+
+        The fixture exists only to exercise the base protocol boundary.
+        """
+        self._values: dict[str, object] = {}
+
+    def has(self, key: str) -> bool:
+        """Report that no configuration keys are present.
+
+        Args:
+            key: Dotted key being inspected.
+
+        Returns:
+            Always false for this empty test reader.
+        """
+        return key in self._values
+
+    def get(
+        self,
+        key: str | Sequence[str] | Mapping[str, object],
+        default: object = None,
+    ) -> object:
+        """Return a fallback or empty mapping for a requested key.
+
+        Args:
+            key: Path or collection of paths being read.
+            default: Value returned for a missing scalar path.
+
+        Returns:
+            The fallback or an empty mapping.
+        """
+        if isinstance(key, str):
+            return self._values.get(key, default)
+        return self.get_many(key, default)
+
+    def get_many(
+        self,
+        keys: Sequence[str] | Mapping[str, object],
+        default: object = None,
+    ) -> Mapping[str, object]:
+        """Return no values for the requested paths.
+
+        Args:
+            keys: Paths requested by the caller.
+            default: Unused fallback for missing values.
+
+        Returns:
+            An empty mapping.
+        """
+        names = keys if not isinstance(keys, Mapping) else keys.keys()
+        result: dict[str, object] = {}
+        for name in names:
+            fallback = keys[name] if isinstance(keys, Mapping) else default
+            result[name] = self._values.get(name, fallback)
+        return result
+
+    def all(self) -> Mapping[str, object]:
+        """Return an empty configuration snapshot.
+
+        Returns:
+            An empty read-only-compatible mapping.
+        """
+        return dict(self._values)
+
+
+class MultiTypedConfigService:
+    """Consume values through each existing typed configuration accessor.
+
+    Attributes:
+        label: Configured string.
+        ratio: Configured float.
+        enabled: Configured boolean.
+        options: Configured mapping.
+        steps: Configured list.
+    """
+
+    def __init__(
+        self,
+        label: Annotated[str, FromConfig("values.label")],
+        ratio: Annotated[float, FromConfig("values.ratio")],
+        enabled: Annotated[bool, FromConfig("values.enabled")],
+        options: Annotated[dict[str, object], FromConfig("values.options")],
+        metadata: Annotated[Mapping[str, object], FromConfig("values.meta")],
+        steps: Annotated[list[object], FromConfig("values.steps")],
+    ) -> None:
+        """Retain the configuration values after typed retrieval.
+
+        Args:
+            label: Text value.
+            ratio: Floating-point value.
+            enabled: Boolean value.
+            options: Dictionary value.
+            metadata: Mapping value.
+            steps: List value.
+        """
+        self.label = label
+        self.ratio = ratio
+        self.enabled = enabled
+        self.options = options
+        self.metadata = metadata
+        self.steps = steps
+
+    label: str
+    ratio: float
+    enabled: bool
+    options: dict[str, object]
+    metadata: Mapping[str, object]
+    steps: list[object]
+
+
+class UnsupportedConfigService:
+    """Represent an unsupported config annotation for validation checks.
+
+    Attributes:
+        value: Complex value unsupported by `TypedConfigReader` accessors.
+    """
+
+    def __init__(
+        self,
+        value: Annotated[complex, FromConfig("values.value")],
+    ) -> None:
+        """Retain a value only if config injection supports its annotation.
+
+        Args:
+            value: Complex number from a configuration source.
+        """
+        self.value = value
+
+    value: complex
+
+
+class SingletonDocumentService:
+    """Represent an app singleton whose repository can be substituted.
+
+    Attributes:
+        repository: Repository captured at singleton construction.
+    """
+
+    def __init__(self, repository: DataRepository) -> None:
+        """Retain the repository selected for this singleton.
+
+        Args:
+            repository: The dependency captured for the application lifetime.
+        """
+        self.repository = repository
+
+    repository: DataRepository
+
+
+class SingletonDocumentConsumer:
+    """Represent a transient consumer of the application singleton.
+
+    Attributes:
+        service: Application-owned service reached transitively.
+    """
+
+    def __init__(self, service: SingletonDocumentService) -> None:
+        """Retain the application-owned dependency.
+
+        Args:
+            service: The singleton whose repository was selected earlier.
+        """
+        self.service = service
+
+    service: SingletonDocumentService
 
 
 class ExtendableService:
@@ -842,6 +1025,75 @@ async def test_annotated_injection_and_config_values_use_native_contracts() -> (
 
 
 @pytest.mark.anyio
+async def test_from_config_uses_existing_typed_accessors() -> None:
+    """Resolve supported scalar and container types through config contracts.
+
+    The adapter delegates validation to the real configuration repository.
+    """
+    configuration = ConfigStore(
+        {
+            "values": {
+                "label": "worker",
+                "ratio": _CONFIG_RATIO,
+                "enabled": True,
+                "options": {"retries": 2},
+                "meta": {"source": "config"},
+                "steps": ["read", "write"],
+            },
+        },
+    )
+    async with Container() as container:
+        container.instance(ConfigReader, configuration)
+
+        service = await container.make_async(MultiTypedConfigService)
+
+    assert service.label == "worker"
+    assert service.ratio == _CONFIG_RATIO
+    assert service.enabled is True
+    assert service.options == {"retries": 2}
+    assert service.metadata == {"source": "config"}
+    assert service.steps == ["read", "write"]
+
+
+@pytest.mark.anyio
+async def test_from_config_rejects_unsupported_parameter_annotations() -> None:
+    """Reject config types for which no typed accessor exists.
+
+    No new model validation behavior is inferred by the dependency adapter.
+    """
+    configuration = ConfigStore({"values": {"value": 1 + 2j}})
+    async with Container() as container:
+        container.instance(ConfigReader, configuration)
+
+        with pytest.raises(BindingResolutionError) as error:
+            await container.make_async(UnsupportedConfigService)
+
+    cause = error.value.__cause__
+    while cause is not None and not isinstance(cause, BindingError):
+        cause = cause.__cause__
+    assert isinstance(cause, BindingError)
+
+
+@pytest.mark.anyio
+async def test_from_config_requires_typed_reader_capability() -> None:
+    """Fail clearly when the selected reader lacks typed accessors.
+
+    The base `ConfigReader` contract remains usable without falsely claiming
+    typed value validation.
+    """
+    async with Container() as container:
+        container.instance(ConfigReader, BasicConfigReader())
+
+        with pytest.raises(BindingResolutionError) as error:
+            await container.make_async(ConfiguredService)
+
+    cause = error.value.__cause__
+    while cause is not None and not isinstance(cause, BindingError):
+        cause = cause.__cause__
+    assert isinstance(cause, BindingError)
+
+
+@pytest.mark.anyio
 async def test_explicit_binding_applies_metadata_and_defaults() -> None:
     """Adapt an explicitly registered constructor through its metadata.
 
@@ -855,6 +1107,30 @@ async def test_explicit_binding_applies_metadata_and_defaults() -> None:
 
     assert isinstance(service.repository, SqlRepository)
     assert service.label == "default"
+
+
+@pytest.mark.anyio
+async def test_from_config_rejects_missing_and_incompatible_values() -> None:
+    """Use typed configuration access for missing and mismatched values.
+
+    Invalid settings must fail through the configuration capability before
+    the consumer receives a value of the wrong type.
+    """
+    for values in ({}, {"processing": {"batch_size": "64"}}):
+        configuration = ConfigStore(values)
+        async with Container() as container:
+            container.instance(ConfigReader, configuration)
+
+            with pytest.raises(BindingResolutionError) as error:
+                await container.make_async(ConfiguredService)
+
+            cause = error.value.__cause__
+            while cause is not None and not isinstance(
+                cause,
+                ConfigValueError,
+            ):
+                cause = cause.__cause__
+            assert isinstance(cause, ConfigValueError)
 
 
 @pytest.mark.anyio
@@ -920,11 +1196,38 @@ def test_injection_metadata_rejects_empty_selectors() -> None:
 
 
 @pytest.mark.anyio
+async def test_give_config_rejects_missing_and_incompatible_values() -> None:
+    """Use the same typed accessors for contextual config injection.
+
+    Contextual declarations and Annotated markers share the native config
+    capability and reject missing or mismatched values.
+    """
+    for values in ({}, {"processing": {"batch_size": "64"}}):
+        configuration = ConfigStore(values)
+        async with Container() as container:
+            container.instance(ConfigReader, configuration)
+            container.when(ConfigValueService).needs(
+                "batch_size",
+            ).give_config("processing.batch_size")
+
+            with pytest.raises(BindingResolutionError) as error:
+                await container.make_async(ConfigValueService)
+
+            cause = error.value.__cause__
+            while cause is not None and not isinstance(
+                cause,
+                ConfigValueError,
+            ):
+                cause = cause.__cause__
+            assert isinstance(cause, ConfigValueError)
+
+
+@pytest.mark.anyio
 async def test_callable_metadata_resolves_all_native_sources() -> None:
     """Resolve implementation, config, alias, and tag callable sources.
 
     The sync and async entry points share the same native source metadata and
-    the registered ConfigReader contract.
+    the registered typed configuration contract.
     """
     configuration = ConfigStore(
         {"processing": {"batch_size": _CONFIG_BATCH_SIZE}},
@@ -1025,6 +1328,25 @@ async def test_tagged_and_named_metadata_resolve_registered_services() -> None:
 
 
 @pytest.mark.anyio
+async def test_callable_config_injection_rejects_incompatible_values() -> None:
+    """Validate config values for both sync and async callable injection.
+
+    Public call resolution shares the typed-reader path with graph factories.
+    """
+    configuration = ConfigStore(
+        {"processing": {"batch_size": "64"}},
+    )
+    async with Container() as container:
+        container.instance(ConfigReader, configuration)
+        target = CallableInjectionTarget()
+
+        with pytest.raises(ConfigValueError):
+            container.call(target.process)
+        with pytest.raises(ConfigValueError):
+            await container.call_async(target.process_async)
+
+
+@pytest.mark.anyio
 async def test_contextual_config_and_tags_resolve_constructor_values() -> None:
     """Resolve primitive and collection dependencies contextually.
 
@@ -1084,7 +1406,7 @@ async def test_make_with_resolves_omitted_annotated_dependencies() -> None:
     """Apply injection metadata while constructing an uncached root.
 
     Explicit constructor values take precedence, while omitted dependencies
-    still use the same metadata and ConfigReader contract as normal graphs.
+    still use the same metadata and typed configuration contract as graphs.
     """
     configuration = ConfigStore(
         {"processing": {"batch_size": _CONFIG_BATCH_SIZE}},
@@ -1691,6 +2013,75 @@ async def test_overrides_are_isolated_and_preserve_cached_singletons() -> None:
         assert container.make(SharedService) is original_shared
 
     assert isinstance(restored.repository, SqlRepository)
+
+
+@pytest.mark.anyio
+async def test_override_rejects_transitive_singleton_substitution() -> None:
+    """Reject overrides that cannot affect an app singleton's dependency.
+
+    A singleton cannot be reconstructed in an isolated overlay without
+    changing its application ownership or leaking a temporary value.
+    """
+    async with Container() as container:
+        container.bind(DataRepository, SqlRepository)
+        container.singleton(SingletonDocumentService)
+
+        with pytest.raises(ScopeError, match="application singleton"):
+            async with container.override(
+                {DataRepository: AnalyticsRepository},
+            ):
+                await container.make_async(SingletonDocumentConsumer)
+
+        service = await container.make_async(SingletonDocumentService)
+
+    assert isinstance(service.repository, SqlRepository)
+
+
+@pytest.mark.anyio
+async def test_sync_override_rejects_transitive_singleton_substitution() -> (
+    None
+):
+    """Apply singleton substitution checks to synchronous graph owners.
+
+    The synchronous backend must reject the same unsafe cache semantics as
+    asynchronous graph resolution.
+    """
+    async with Container() as container:
+        container.bind(DataRepository, SqlRepository)
+        container.singleton(SingletonDocumentService)
+
+        with (
+            pytest.raises(ScopeError, match="application singleton"),
+            container.override({DataRepository: AnalyticsRepository}),
+        ):
+            container.make(SingletonDocumentConsumer)
+
+        service = container.make(SingletonDocumentService)
+
+    assert isinstance(service.repository, SqlRepository)
+
+
+@pytest.mark.anyio
+async def test_override_rejects_cached_singleton_dependency_substitution() -> (
+    None
+):
+    """Reject an override when the affected singleton already exists.
+
+    Returning the cached original would make a requested substitution appear
+    successful while keeping its pre-override dependency.
+    """
+    async with Container() as container:
+        container.bind(DataRepository, SqlRepository)
+        container.singleton(SingletonDocumentService)
+        original = await container.make_async(SingletonDocumentService)
+
+        with pytest.raises(ScopeError, match="application singleton"):
+            async with container.override(
+                {DataRepository: AnalyticsRepository},
+            ):
+                await container.make_async(SingletonDocumentService)
+
+        assert await container.make_async(SingletonDocumentService) is original
 
 
 @pytest.mark.anyio

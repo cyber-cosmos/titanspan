@@ -71,7 +71,7 @@ and generator cleanup to the selected dependency engine.
 | Graph generation bound | Verified | `max_graph_generations` limits retained global and active-scope graphs. |
 | Backend provider interop | Advanced | `providers` accepts explicit integration objects. It is an escape hatch,
   not the ordinary registration API. |
-| Active application helper | Verified | `titanspan.app()` returns the canonical container in an active application context. |
+| Active application helper | Verified | `titanspan.app()` returns the active `Application`; use `.container` for its canonical service container. |
 
 The remaining provider escape hatch belongs to `foundation.Application`,
 whose `providers` parameter passes explicit interoperability registrations to
@@ -91,14 +91,21 @@ FastAPI lifecycle and request-scope evidence remains in
 | Scope names | Backend level | Constraint |
 | --- | --- | --- |
 | `APPLICATION` | Application | Owned by the container; cannot be entered as a child. |
-| `REQUEST`, `CONNECTION`, `JOB`, `WORKFLOW` | Request | These names are equivalent at this level and cannot nest within each other. |
-| `NODE`, `AGENT` | Action | These names are equivalent at this level and require an outer execution scope. |
-| `TOOL`, `TASK` | Step | These names are equivalent at this level and require a deeper active scope. |
+| `REQUEST`, `CONNECTION`, `JOB`, `WORKFLOW` | Request | One execution level; these names cannot nest within each other. |
+| `NODE`, `AGENT` | Action | One execution level; these names cannot nest within each other. |
+| `TOOL`, `TASK` | Step | One execution level; these names cannot nest within each other. |
 
-The current backend exposes one ordered scope chain. Titanspan therefore maps
-semantic lifetimes onto that chain rather than claiming independent sibling
-scope trees. Use separate application containers for lifecycles that must not
-share any application-owned state.
+The supported nesting chains are `APPLICATION` → one request-level scope →
+one action-level scope → one step-level scope. A request-level scope may be
+`REQUEST` for HTTP, `JOB` for background work, or `WORKFLOW` for a workflow.
+For example, `REQUEST` → `NODE` → `TOOL` is supported, as is
+`WORKFLOW` → `AGENT` → `TASK`. `REQUEST` → `WORKFLOW`, `NODE` → `AGENT`, and
+`TOOL` → `TASK` are not supported nested combinations because each pair maps
+to the same Dishka level. Use sequential sibling scopes at that level when
+their lifecycles do not overlap. The backend exposes one ordered scope chain,
+not separate HTTP, job, and workflow branches. Lifecycles that must overlap
+as independent request and workflow scopes need separate containers or an
+external owner; separate containers do not share application singletons.
 
 Sync scopes use Dishka's synchronous container graph for sync-only services.
 Async scopes use the asynchronous graph for async operations. A sync graph
@@ -156,7 +163,8 @@ neither returns an awaitable conditionally.
 `Container.when(Consumer).needs(selector)` registers a rule for one or more
 consumer classes. `give` selects a service implementation or typed factory;
 `give_value` supplies a literal; `give_config` reads through the registered
-`ConfigReader`; `give_named` selects a registered alias; and `give_tagged`
+`ConfigReader` and its optional `TypedConfigReader` capability; `give_named`
+selects a registered alias; and `give_tagged`
 resolves tagged services in registration order.
 
 Constructor and callable source precedence is deterministic:
@@ -172,7 +180,13 @@ Constructor and callable source precedence is deterministic:
 Explicit values remain present when they are `None`, `False`, zero, or an
 empty collection. Conflicting supported injection markers raise
 `BindingError`. Contextual rules affect only their selected consumers.
-Configuration injection requires the application to register `ConfigReader`.
+`FromConfig` reads through the registered `ConfigReader`, whose implementation
+must provide the optional `TypedConfigReader` capability. Missing and
+incompatible values use the configuration component's existing typed
+accessors. Supported annotations are `str`, `int`, `float`, `bool`, `dict`,
+`list`, and `Mapping`; other annotations fail during resolution before the
+consumer is constructed. The application provider registers the optional
+capability when its repository implements it.
 
 `extend` decorates a service in registration order through the backend's
 supported graph pipeline. The final value is cached according to the binding
@@ -210,9 +224,15 @@ async with container.override({Repository: FakeRepository}):
 Overrides are context-local and nest in LIFO order. Replacement values and
 their resources belong to the temporary graph. Unaffected application
 singletons share the canonical application cache and per-service locks,
-including when first initialized concurrently from an overlay. Closing an
-overlay does not close borrowed application singletons. Cleanup is shielded
-from cancellation before the previous context is restored.
+including when first initialized concurrently from an overlay. An override
+cannot rewrite dependencies already captured by an application singleton.
+Resolution raises `ScopeError` if a requested singleton's dependency graph
+contains a service replaced by the active override; this applies whether the
+singleton was already initialized or would be initialized during the
+override. Override the singleton itself or use an isolated container when a
+fresh singleton graph is required. Closing an overlay does not close borrowed
+application singletons. Cleanup is shielded from cancellation before the
+previous context is restored.
 
 The synchronous context composes through the supported synchronous backend
 and closes its resources immediately. Async resolution inside that context is
@@ -234,7 +254,9 @@ that point. Arbitrary live rebinding is not supported.
 - `Annotated` injection is limited to the four documented Titanspan markers.
   Arbitrary union inference and custom metadata handlers are not implemented.
 - Contextual rules have no runtime removal or mutation operation.
-  `ConfigReader` must be registered for `FromConfig` or `give_config`.
+  `ConfigReader` must be registered for `FromConfig` or `give_config`, and its
+  implementation must provide `TypedConfigReader`; list and mapping access
+  checks only the outer container shape.
 - Service extensions must preserve the selected contract and forward cleanup
   when wrapping owned resources. Ownership of arbitrary user wrappers cannot
   be inferred.
@@ -245,9 +267,9 @@ that point. Arbitrary live rebinding is not supported.
   services; it resolves through the active application container and request
   scope. Explicit `Application.providers` values remain an advanced
   interoperability boundary with a separate provider graph. The
-  `titanspan.app()` helper resolves the same container while an application
-  context is active; ordinary Titanspan services do not need the provider
-  graph.
+  `titanspan.app()` returns the active `Application`, and its `.container`
+  exposes the same service registry; ordinary Titanspan services do not need
+  the provider graph.
 - Synchronous and asynchronous generator resource factories have lifecycle
   tests, including cleanup when the active task is cancelled. Direct
   context-manager factory forms are not implemented.
@@ -263,6 +285,35 @@ that point. Arbitrary live rebinding is not supported.
 - Async resolution inside a synchronous scope is supported only when the
   dependency graph is sync-safe; it delegates to synchronous resolution.
   Async-only resources require an asynchronous scope.
+
+## Dishka delegation audit
+
+The locked backend is Dishka 1.10.1. The adapter uses its public
+`Provider.provide`, `provide_all`, `from_context`, and `decorate` operations,
+`make_container` / `make_async_container`, async `get`, sync `get_sync`, child
+scope contexts, and `close`. These operations remain responsible for graph
+validation, dependency construction, per-graph caching, and generator resource
+finalization. No backend internals are patched or imported by the native
+container.
+
+Some metadata adaptation remains native because Dishka does not implement
+Titanspan's consumer-specific `when(...).needs(...).give_*` precedence or its
+`FromConfig`, `Named`, and `Tagged` markers. Private synthetic dependency keys
+let Dishka resolve these selected values while retaining its construction,
+cache, and cleanup ownership. Reachable-type inspection is also retained to
+compose only the requested closure, preflight async-only paths, and track
+shared values across the dynamically generated Dishka graphs. Per-service
+locks coordinate first construction across those separate graph caches;
+Dishka's own per-container lock cannot synchronize distinct containers.
+Temporary overlays are composed with the public provider API because a
+validated Dishka graph is fixed after construction. They do not reimplement
+object construction or resource finalization.
+
+No alternative dependency engine or backend is introduced. A future
+consolidation of graph generations would need to preserve automatic concrete
+roots, contextual source precedence, shared identity, async preflight, and
+scope-owned cleanup together; deleting discovery or overlay code alone would
+weaken those behaviors.
 
 ## Scope of this specification
 
