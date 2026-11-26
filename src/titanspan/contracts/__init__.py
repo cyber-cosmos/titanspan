@@ -56,6 +56,12 @@ from titanspan.contracts.logging import (
     LogProcessor,
     LogWriter,
 )
+from titanspan.contracts.pipeline import (
+    AsyncPipelineContinuation,
+    AsyncPipelineMiddlewareHandler,
+    PipelineContinuation,
+    PipelineMiddlewareHandler,
+)
 from titanspan.contracts.routing import (
     ControllerAction,
     RouteAction,
@@ -74,6 +80,8 @@ from titanspan.contracts.support import (
 
 __all__ = [
     "AsyncLogDriver",
+    "AsyncPipelineContinuation",
+    "AsyncPipelineMiddlewareHandler",
     "AsyncServiceContainer",
     "BootableServiceProvider",
     "ConfigArray",
@@ -107,6 +115,8 @@ __all__ = [
     "MessageProvider",
     "MultipartFile",
     "OutgoingRequest",
+    "PipelineContinuation",
+    "PipelineMiddlewareHandler",
     "QueryParameterValue",
     "QueryParameters",
     "RequestHandler",

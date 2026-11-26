@@ -18,6 +18,7 @@ contracts/
 ├── foundation/
 ├── http/
 ├── logging/
+├── pipeline/
 ├── routing/
 └── support/
 ```
@@ -42,6 +43,7 @@ Component-private protocols remain in their owning component.
 | `HttpClient`, `HttpClientResponse` | Share pooled outgoing request behavior | HTTPX adapter; loopback integration tests |
 | `EventDispatcher` | Register, inspect, defer, fake, and dispatch application events | `NativeEventDispatcher`; service-provider and application integration tests |
 | `RouteCatalog`, `RouteInfo`, `UriUrlGenerator` | Share route inspection and URL generation | `titanspan.routing`; route and URI integration tests |
+| `PipelineContinuation`, `PipelineMiddlewareHandler` | Type sequential continuation callbacks | `titanspan.pipeline`; Pipeline unit tests |
 
 `Scope` and `ServiceFactory` are container domain values in Contracts and are
 re-exported by `titanspan.container` with canonical object identity.

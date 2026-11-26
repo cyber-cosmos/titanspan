@@ -64,6 +64,10 @@ export const documentationSidebar = [
         items: [{ autogenerate: { directory: "logging" } }],
       },
       {
+        label: "Pipeline",
+        items: [{ autogenerate: { directory: "pipeline" } }],
+      },
+      {
         label: "Collections",
         items: [{ autogenerate: { directory: "collections" } }],
       },

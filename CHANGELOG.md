@@ -5,6 +5,9 @@ public release.
 
 ## Unreleased
 
+- Added an ordered sync and async Pipeline for transforms, continuation
+  middleware, class stages, conditional inclusion, and native Container
+  resolution. Pipeline owns no task scheduler or workflow state.
 - Added a typed Application builder, trusted provider entry points, path and
   environment helpers, and standalone execution. Lifecycle callbacks and
   native exception rendering use the application Container. Unhandled request

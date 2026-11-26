@@ -11,7 +11,8 @@ the native container. These phases are capability milestones, not calendar
 promises.
 
 The standalone Collections component now provides eager and lazy operations
-for ordinary Python iterables. Data pipelines, async streams, and large-scale
+for ordinary Python iterables. Pipeline provides ordered synchronous and
+asynchronous value transformations. Streaming data pipelines and large-scale
 processing remain planned.
 
 The Events component now provides ordered in-process dispatch, Container-backed

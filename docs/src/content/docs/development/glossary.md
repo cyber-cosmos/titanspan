@@ -24,6 +24,7 @@ not promote roadmap work to an available capability.
 | Facade | A context-aware API for resolving an application-owned service. Config and Log facades are implemented. |
 | Middleware | A component that wraps request processing. Titanspan provides ordered HTTP and route middleware through the application Container. |
 | Provider | An object that registers services or participates in application startup. Service providers are implemented. |
+| Pipeline | An ordered sequence of synchronous or asynchronous value-processing stages. It does not create concurrent tasks. |
 | Scope | A lifetime that controls where a resolved service can be reused. Container scopes are implemented with documented backend limits. |
 | Singleton | A service lifetime whose instance belongs to one application container. |
 | Task | A unit of asynchronous work managed by an execution runtime. |

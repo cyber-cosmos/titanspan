@@ -77,7 +77,7 @@ tracked in [`docs/src/content/docs/specifications/backend-boundaries.md`](docs/s
 | `cache` | Caching, locks, expiration, and backend adapters. | Planned. |
 | `concurrency` | Structured asynchronous concurrency, bounded pools, and cancellation. | Planned. |
 | `parallel` | CPU-bound multiprocessing and parallel computation. | Planned. |
-| `pipeline` | Composable streaming and concurrent transformations. | Planned. |
+| `pipeline` | Ordered synchronous and asynchronous value transformations. | Sequential callable and Container-resolved stages are implemented. Pipeline does not own streaming or concurrent execution. See `docs/src/content/docs/specifications/pipeline.md`. |
 | `events` | Event dispatching, listeners, subscribers, and application event lifecycle integration. | Native Blinker-backed dispatch, listener injection, scoped fakes, deferred and pushed events, and trusted discovery are implemented. Queue, Database, Broadcasting, and Console integrations remain pending. See `docs/src/content/docs/specifications/events.md`. |
 | `queue` | Distributed jobs, workers, retries, chains, and batches. | Planned. |
 | `mail` | Email messages, delivery, templates, and attachments. | Planned. |
