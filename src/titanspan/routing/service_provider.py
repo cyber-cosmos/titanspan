@@ -12,6 +12,7 @@ from titanspan.contracts.routing import RouteCatalog, UriUrlGenerator
 from titanspan.routing.discovery import RouteDiscovery
 from titanspan.routing.router import Router
 from titanspan.routing.url_generator import UrlGenerator
+
 _INVALID_ORIGIN_TYPE_ERROR = "routing.origin must be text when configured."
 
 
