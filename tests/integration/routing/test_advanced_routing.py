@@ -8,10 +8,13 @@ from enum import StrEnum
 from http import HTTPStatus
 from typing import Annotated
 
+import anyio
 import pytest
 from fastapi import Query
 from fastapi.testclient import TestClient
 from pydantic import BaseModel
+from starlette.types import Message
+from starlette.types import Scope as ASGIScope
 from starlette.websockets import WebSocket, WebSocketDisconnect
 
 from titanspan.contracts.container import Scope, ServiceRegistry
@@ -633,3 +636,95 @@ def test_websocket_routes_use_connection_scoped_dependencies() -> None:
     assert values[0].identity != values[1].identity
     assert all(value.closed for value in values)
     assert disconnected == [value.identity for value in values]
+
+
+@pytest.mark.anyio
+@pytest.mark.concurrency
+async def test_cancelled_websocket_closes_connection_dependencies() -> None:
+    """Finalize connection dependencies when ASGI cancels a WebSocket task.
+
+    The ASGI app runs directly so cancellation reaches the route task itself.
+    """
+    values: list[ConnectionValue] = []
+    handler_started = anyio.Event()
+    application = Application(
+        service_providers=(ConnectionValueProvider(values),),
+    )
+
+    async def wait_for_cancellation(
+        websocket: WebSocket,
+        value: ConnectionValue,
+    ) -> None:
+        """Hold the connection open after resolving its scoped dependency.
+
+        Args:
+            websocket: Starlette connection accepted by the handler.
+            value: Dependency owned until cancellation exits the route scope.
+        """
+        _ = value
+        await websocket.accept()
+        handler_started.set()
+        await anyio.sleep_forever()
+
+    application.router.websocket(
+        "/rooms/cancel",
+        wait_for_cancellation,
+    )
+    await application.startup()
+    scope: ASGIScope = {
+        "type": "websocket",
+        "asgi": {"version": "3.0", "spec_version": "2.4"},
+        "http_version": "1.1",
+        "scheme": "ws",
+        "path": "/rooms/cancel",
+        "raw_path": b"/rooms/cancel",
+        "query_string": b"",
+        "root_path": "",
+        "headers": [(b"host", b"testserver")],
+        "client": ("127.0.0.1", 45000),
+        "server": ("testserver", 80),
+        "subprotocols": [],
+        "extensions": {},
+        "state": {},
+    }
+    cancellation_scopes: list[anyio.CancelScope] = []
+    first_receive = True
+
+    async def receive() -> Message:
+        """Provide the ASGI connection event required before acceptance.
+
+        A disconnect is available if the backend requests another message.
+        """
+        nonlocal first_receive
+        if first_receive:
+            first_receive = False
+            return {"type": "websocket.connect"}
+        return {"type": "websocket.disconnect", "code": 1000}
+
+    async def send(message: Message) -> None:
+        """Accept backend output without simulating protocol behavior.
+
+        Args:
+            message: WebSocket ASGI message produced by Starlette.
+        """
+        _ = message
+
+    async def dispatch() -> None:
+        """Run one cancellable application-owned ASGI connection task.
+
+        The local cancel scope makes task ownership explicit in the test.
+        """
+        with anyio.CancelScope() as cancel_scope:
+            cancellation_scopes.append(cancel_scope)
+            await application.asgi(scope, receive, send)
+
+    try:
+        async with anyio.create_task_group() as task_group:
+            task_group.start_soon(dispatch)
+            await handler_started.wait()
+            cancellation_scopes[0].cancel()
+    finally:
+        await application.shutdown()
+
+    assert len(values) == 1
+    assert values[0].closed
