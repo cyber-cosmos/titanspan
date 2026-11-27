@@ -52,7 +52,8 @@ def test_connection_configuration_redacts_secret_options() -> None:
             "redis": {
                 "driver": "redis_stream",
                 "options": {
-                    "url": "redis://user:secret@localhost/0",
+                    "url": "redis://localhost/0",
+                    "opaque": "fixture-value",
                 },
             }
         },

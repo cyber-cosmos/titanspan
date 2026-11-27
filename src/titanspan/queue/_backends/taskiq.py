@@ -7,7 +7,8 @@ backend. Every broker uses Taskiq's JSON serializer.
 from __future__ import annotations
 
 from collections.abc import Mapping
-from typing import TYPE_CHECKING, cast
+from importlib import import_module
+from typing import TYPE_CHECKING, Protocol, cast
 
 from taskiq.serializers.json_serializer import JSONSerializer
 
@@ -21,6 +22,35 @@ if TYPE_CHECKING:
     from taskiq.abc.schedule_source import ScheduleSource
 
     from titanspan.queue.configuration import QueueConnectionConfiguration
+
+
+class _TransportFactory(Protocol):
+    """Describe an optional transport constructor at its adapter boundary.
+
+    Some environments do not install optional broker packages. Keep their
+    imports dynamic and type only the small interface Queue requires.
+    """
+
+    def __call__(self, **kwargs: object) -> AsyncBroker:
+        """Create one Taskiq broker from validated settings."""
+        ...
+
+
+class _ScheduleSourceFactory(Protocol):
+    """Describe the Redis schedule-source constructor."""
+
+    def __call__(self, **kwargs: object) -> ScheduleSource:
+        """Create one Taskiq schedule source."""
+        ...
+
+
+class _RabbitQueueFactory(Protocol):
+    """Describe the RabbitMQ queue declaration constructor."""
+
+    def __call__(self, **kwargs: object) -> object:
+        """Create one durable Taskiq queue declaration."""
+        ...
+
 
 _OPTIONAL_DEPENDENCY_ERROR = (
     "Install the optional Queue backend extra selected by this connection."
@@ -98,12 +128,18 @@ def _create_redis_transport(
     """
     try:
         # Keep Redis optional until this configured backend is selected.
-        from taskiq_redis import (  # noqa: PLC0415
-            ListRedisScheduleSource,
-            RedisStreamBroker,
-        )
+        module = import_module("taskiq_redis")
     except ImportError as error:
         raise QueueCapabilityError(_OPTIONAL_DEPENDENCY_ERROR) from error
+
+    broker_factory = cast(
+        "_TransportFactory",
+        module.__dict__["RedisStreamBroker"],
+    )
+    source_factory = cast(
+        "_ScheduleSourceFactory",
+        module.__dict__["ListRedisScheduleSource"],
+    )
 
     url = _required_text(configuration.options, "url")
     consumer_group = _optional_text(
@@ -111,7 +147,7 @@ def _create_redis_transport(
         "consumer_group",
         f"{namespace}-{connection_name}-{queue}",
     )
-    broker = RedisStreamBroker(
+    broker = broker_factory(
         url=url,
         queue_name=physical_queue,
         consumer_group_name=consumer_group,
@@ -132,7 +168,7 @@ def _create_redis_transport(
         ),
         xread_count=_optional_int(configuration.options, "read_count", 100),
     )
-    source = ListRedisScheduleSource(
+    source = source_factory(
         url=url,
         prefix=f"{namespace}:{connection_name}:{queue}:schedule",
         max_connection_pool_size=_optional_int(
@@ -165,15 +201,24 @@ def _create_rabbitmq_transport(
     """
     try:
         # Keep RabbitMQ optional until this configured backend is selected.
-        from taskiq_aio_pika import AioPikaBroker, Queue  # noqa: PLC0415
+        module = import_module("taskiq_aio_pika")
     except ImportError as error:
         raise QueueCapabilityError(_OPTIONAL_DEPENDENCY_ERROR) from error
 
+    broker_factory = cast(
+        "_TransportFactory",
+        module.__dict__["AioPikaBroker"],
+    )
+    queue_factory = cast(
+        "_RabbitQueueFactory",
+        module.__dict__["Queue"],
+    )
+
     url = _required_text(configuration.options, "url")
-    return AioPikaBroker(
+    return broker_factory(
         url=url,
         qos=_optional_int(configuration.options, "prefetch", 16),
-        task_queues=[Queue(name=physical_queue, durable=True)],
+        task_queues=[queue_factory(name=physical_queue, durable=True)],
     )
 
 
