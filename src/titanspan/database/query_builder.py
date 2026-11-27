@@ -42,6 +42,7 @@ from sqlalchemy import (
     extract,
     func,
     insert,
+    literal,
     literal_column,
     not_,
     or_,
@@ -49,6 +50,7 @@ from sqlalchemy import (
     table,
     text,
     true,
+    tuple_,
     update,
 )
 from sqlalchemy import (
@@ -1074,6 +1076,48 @@ class QueryBuilder(DatabaseQueryBuilder):
             ),
             "and",
         )
+
+    def where_row_values(
+        self,
+        columns: Sequence[str],
+        operator: str,
+        values: Sequence[object],
+    ) -> QueryBuilder:
+        """Compare corresponding columns and values as an SQL row tuple.
+
+        Args:
+            columns: Ordered, safe column references.
+            operator: Supported comparison operator.
+            values: Bound values in the same order as the columns.
+
+        Returns:
+            This builder for further query composition.
+
+        Raises:
+            DatabaseQueryError: If the dialect or tuple shape is unsupported.
+        """
+        return self._where_row_values(columns, operator, values, "and")
+
+    def or_where_row_values(
+        self,
+        columns: Sequence[str],
+        operator: str,
+        values: Sequence[object],
+    ) -> QueryBuilder:
+        """Compare row tuples and join the condition with SQL OR.
+
+        Args:
+            columns: Ordered, safe column references.
+            operator: Supported comparison operator.
+            values: Bound values in the same order as the columns.
+
+        Returns:
+            This builder for further query composition.
+
+        Raises:
+            DatabaseQueryError: If the dialect or tuple shape is unsupported.
+        """
+        return self._where_row_values(columns, operator, values, "or")
 
     def where_json_value(
         self,
@@ -4306,6 +4350,58 @@ class QueryBuilder(DatabaseQueryBuilder):
             msg = "The query comparison operator is not supported."
             raise DatabaseQueryError(msg)
         return cast("_Condition", left.operate(sql_operator, right))
+
+    def _where_row_values(
+        self,
+        columns: Sequence[str],
+        operator: str,
+        values: Sequence[object],
+        boolean: _Boolean,
+    ) -> QueryBuilder:
+        """Build one dialect-supported bound row-value comparison.
+
+        Args:
+            columns: Ordered, safe column references.
+            operator: Allowlisted SQL comparison operator.
+            values: Ordered values bound independently by SQLAlchemy.
+            boolean: Connector used to group the predicate.
+
+        Returns:
+            This builder for further query composition.
+
+        Raises:
+            DatabaseQueryError: If the dialect or tuple shape is unsupported.
+        """
+        if self._connection.dialect_name not in {
+            "mysql",
+            "postgresql",
+            "sqlite",
+        }:
+            msg = "Row-value comparisons are unsupported by this dialect."
+            raise DatabaseQueryError(msg)
+        column_names = _identifier_sequence(columns)
+        if (
+            not column_names
+            or isinstance(values, (str, bytes))
+            or len(column_names) != len(values)
+        ):
+            msg = (
+                "Row comparison requires the same number of columns "
+                "and values."
+            )
+            raise DatabaseQueryError(msg)
+        left = cast(
+            "ColumnElement[object]",
+            tuple_(*(self._column(name) for name in column_names)),
+        )
+        right = cast(
+            "ColumnElement[object]",
+            tuple_(*(literal(value) for value in values)),
+        )
+        return self._add_where(
+            self._compare(left, operator, right),
+            boolean,
+        )
 
     def _where_json_value(
         self,

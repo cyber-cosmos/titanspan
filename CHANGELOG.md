@@ -91,6 +91,8 @@ public release.
   cursor pagination when query ordering is not stable by columns.
 - Add `increment_each()` and `decrement_each()` sync and async operations that
   update multiple numeric columns atomically in one statement.
+- Add bound `where_row_values()` and `or_where_row_values()` comparisons using
+  SQLAlchemy tuple expressions on SQLite, PostgreSQL, and MySQL dialects.
 - Declare Pydantic as a direct runtime dependency for native schema APIs.
 - Add native application Cache services with memory and optional Redis
   backends, explicit backend capabilities, safe JSON serialization, atomic

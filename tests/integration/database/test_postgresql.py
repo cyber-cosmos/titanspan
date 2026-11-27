@@ -591,6 +591,43 @@ async def test_postgresql_right_and_full_outer_joins(
         await DB.statement_async("DROP TABLE postgres_join_users")
 
 
+async def test_postgresql_row_value_comparisons(
+    application: Application,
+) -> None:
+    """Execute a bound row-value comparison against PostgreSQL.
+
+    Args:
+        application: Isolated PostgreSQL integration application.
+    """
+    async with application:
+        await DB.statement_async(
+            "CREATE TABLE postgres_tuple_rows ("
+            "id INTEGER PRIMARY KEY, first_value INTEGER, "
+            "second_value INTEGER)"
+        )
+        await DB.table("postgres_tuple_rows").insert_many_async(
+            [
+                {"id": 1, "first_value": 1, "second_value": 2},
+                {"id": 2, "first_value": 1, "second_value": 3},
+                {"id": 3, "first_value": 2, "second_value": 0},
+            ],
+        )
+
+        rows = await (
+            DB.table("postgres_tuple_rows")
+            .where_row_values(
+                ("first_value", "second_value"),
+                ">",
+                (1, 2),
+            )
+            .order_by("id")
+            .pluck_async("id")
+        )
+
+        assert rows == [2, 3]
+        await DB.statement_async("DROP TABLE postgres_tuple_rows")
+
+
 async def _insert_then_raise() -> None:
     """Roll a PostgreSQL insert back through the application transaction.
 

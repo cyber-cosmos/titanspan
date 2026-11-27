@@ -435,6 +435,42 @@ class DatabaseQueryBuilder(Protocol):
         """
         ...
 
+    def where_row_values(
+        self,
+        columns: Sequence[str],
+        operator: str,
+        values: Sequence[object],
+    ) -> Self:
+        """Compare ordered column and value tuples.
+
+        Args:
+            columns: Ordered, safe column references.
+            operator: Supported comparison operator.
+            values: Bound values matching the column count.
+
+        Returns:
+            This builder for further query composition.
+        """
+        ...
+
+    def or_where_row_values(
+        self,
+        columns: Sequence[str],
+        operator: str,
+        values: Sequence[object],
+    ) -> Self:
+        """Compare ordered tuples through SQL OR.
+
+        Args:
+            columns: Ordered, safe column references.
+            operator: Supported comparison operator.
+            values: Bound values matching the column count.
+
+        Returns:
+            This builder for further query composition.
+        """
+        ...
+
     def where_json_value(
         self,
         column_name: str,

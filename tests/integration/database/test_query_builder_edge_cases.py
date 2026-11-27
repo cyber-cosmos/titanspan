@@ -329,6 +329,65 @@ async def test_random_ordering_rejects_unstable_cursor_pages(
             await query.cursor_paginate_async(per_page=2)
 
 
+async def test_row_value_comparisons_bind_values_and_preserve_groups(
+    application: Application,
+) -> None:
+    """Compare row tuples using SQL ordering and explicit OR grouping.
+
+    Args:
+        application: Application configured by this test.
+    """
+    async with application:
+        await DB.statement_async(
+            "CREATE TABLE tuple_rows ("
+            "id INTEGER PRIMARY KEY, first_value INTEGER, "
+            "second_value INTEGER)"
+        )
+        await DB.table("tuple_rows").insert_many_async(
+            [
+                {"id": 1, "first_value": 1, "second_value": 2},
+                {"id": 2, "first_value": 1, "second_value": 3},
+                {"id": 3, "first_value": 2, "second_value": 0},
+                {"id": 4, "first_value": 0, "second_value": 9},
+            ],
+        )
+
+        greater = await (
+            DB.table("tuple_rows")
+            .where_row_values(
+                ("first_value", "second_value"),
+                ">",
+                (1, 2),
+            )
+            .order_by("id")
+            .pluck_async("id")
+        )
+        either = await (
+            DB.table("tuple_rows")
+            .where_row_values(
+                ("first_value", "second_value"),
+                "=",
+                (1, 2),
+            )
+            .or_where_row_values(
+                ("first_value", "second_value"),
+                ">=",
+                (2, 0),
+            )
+            .order_by("id")
+            .pluck_async("id")
+        )
+
+        assert greater == [2, 3]
+        assert either == [1, 3]
+        with pytest.raises(DatabaseQueryError, match="same number"):
+            DB.table("tuple_rows").where_row_values(
+                ("first_value", "second_value"),
+                "=",
+                (1,),
+            )
+
+
 async def test_date_and_time_predicates_use_database_expressions(
     application: Application,
 ) -> None:
