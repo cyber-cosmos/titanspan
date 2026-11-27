@@ -108,6 +108,60 @@ async def test_provider_shares_manager_and_initializes_sqlite_lazily(
         assert rows == [{"name": "native"}]
 
 
+async def test_database_provider_joins_foundation_default_policy(
+    tmp_path: Path,
+) -> None:
+    """Resolve Database without manually adding its optional provider.
+
+    Args:
+        tmp_path: Temporary application root used for SQLite path resolution.
+    """
+    database_path = (tmp_path / "database" / "default.sqlite").resolve()
+    application = Application(
+        base_path=tmp_path,
+        config={
+            "database": {
+                "default": "sqlite",
+                "connections": {
+                    "sqlite": {
+                        "driver": "sqlite",
+                        "database": "database/default.sqlite",
+                    },
+                },
+            },
+        },
+    )
+
+    async with application:
+        manager = await application.container.make_async(DatabaseManager)
+
+        assert DB.resolve_service() is manager
+        assert manager.connection().engine.url.database == str(database_path)
+        assert not database_path.exists()
+
+
+def test_database_provider_duplicates_rejected_by_builtin_policy() -> None:
+    """Reject multiple explicit providers for the Database component.
+
+    The optional Database default follows Foundation's deterministic
+    provider replacement policy for subclasses as well as the base type.
+    """
+
+    class AlternateDatabaseProvider(DatabaseServiceProvider):
+        """Represent a custom Database provider for this boundary check.
+
+        Subclass identity must continue to match the built-in provider type.
+        """
+
+    with pytest.raises(ValueError, match="at most one provider"):
+        Application(
+            service_providers=(
+                DatabaseServiceProvider(),
+                AlternateDatabaseProvider(),
+            ),
+        )
+
+
 async def test_native_async_application_test_owns_database_lifecycle(
     tmp_path: Path,
 ) -> None:

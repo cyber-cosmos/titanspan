@@ -6,12 +6,9 @@ composition, dependency resolution, startup, and shutdown.
 
 from __future__ import annotations
 
-from collections.abc import Callable
 from dataclasses import dataclass, field
 from functools import partial
-from importlib import import_module
 from importlib.metadata import entry_points
-from importlib.util import find_spec
 from inspect import (
     Parameter,
     Signature,
@@ -27,7 +24,6 @@ from typing import (
     TYPE_CHECKING,
     Annotated,
     TypeGuard,
-    cast,
     get_args,
     get_origin,
     get_type_hints,
@@ -708,17 +704,13 @@ def _build_application(provider: ServiceProvider) -> Application:
     Returns:
         A not-yet-started application with one canonical Container.
     """
-    builder = (
-        Application.builder().with_base_path(Path.cwd()).discover_providers()
+    return (
+        Application.builder()
+        .with_base_path(Path.cwd())
+        .discover_providers()
+        .with_service_provider(provider)
+        .build()
     )
-    if find_spec("sqlalchemy") is not None and find_spec("alembic") is not None:
-        module = import_module("titanspan.database")
-        provider_factory = cast(
-            "Callable[[], ServiceProvider]",
-            module.DatabaseServiceProvider,
-        )
-        builder.with_service_provider(provider_factory())
-    return builder.with_service_provider(provider).build()
 
 
 def _handler_target(
