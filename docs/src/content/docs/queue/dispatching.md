@@ -108,5 +108,21 @@ failure can also leave the current job's outcome uncertain. Use idempotent
 jobs when retrying after an incomplete bulk dispatch.
 
 After-commit dispatch requires the canonical Database transaction lifecycle.
-After-response and conditional dispatch helpers are not implemented. Do not
-infer transaction or publication atomicity from a pending builder.
+After-response dispatch is not implemented. Do not infer transaction or
+publication atomicity from a pending builder.
+
+## Conditional dispatch
+
+Use `dispatch_if()` or `dispatch_unless()` to create a pending operation. The
+builder still requires an explicit dispatch call. Use the `_async` variants
+to perform an enabled dispatch immediately:
+
+```python
+receipt = await Queue.dispatch_unless_async(
+    document_already_processed,
+    ProcessDocument(42),
+)
+```
+
+A false condition returns `None` without validating the job or resolving its
+connection. An enabled condition uses the ordinary Queue dispatch path.

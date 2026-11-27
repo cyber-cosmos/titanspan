@@ -878,6 +878,65 @@ class QueueManager(BusDispatcher):
         )
         return pending if delay is None else pending.delay(delay)
 
+    def dispatch_if(
+        self,
+        condition: bool,
+        job: object,
+        *,
+        connection: str | None = None,
+        queue: str | None = None,
+        delay: float | timedelta | datetime | None = None,
+    ) -> PendingDispatch | None:
+        """Build a pending operation only when ``condition`` is true.
+
+        Args:
+            condition: Whether to create the pending operation.
+            job: Registered job instance.
+            connection: Optional configured connection.
+            queue: Optional logical queue.
+            delay: Optional backend-supported delivery time.
+
+        Returns:
+            A pending operation, or ``None`` when the condition is false.
+        """
+        if not condition:
+            return None
+        return self.dispatch(
+            job,
+            connection=connection,
+            queue=queue,
+            delay=delay,
+        )
+
+    def dispatch_unless(
+        self,
+        condition: bool,
+        job: object,
+        *,
+        connection: str | None = None,
+        queue: str | None = None,
+        delay: float | timedelta | datetime | None = None,
+    ) -> PendingDispatch | None:
+        """Build a pending operation only when ``condition`` is false.
+
+        Args:
+            condition: Whether to skip creating the pending operation.
+            job: Registered job instance.
+            connection: Optional configured connection.
+            queue: Optional logical queue.
+            delay: Optional backend-supported delivery time.
+
+        Returns:
+            A pending operation, or ``None`` when the condition is true.
+        """
+        return self.dispatch_if(
+            not condition,
+            job,
+            connection=connection,
+            queue=queue,
+            delay=delay,
+        )
+
     def chain(self, jobs: Sequence[object]) -> ChainBuilder:
         """Create a Bus chain using this manager's trusted job catalog.
 
@@ -1344,6 +1403,65 @@ class QueueManager(BusDispatcher):
             delay=delay,
         )
         return await pending.dispatch_async()
+
+    async def dispatch_if_async(
+        self,
+        condition: bool,
+        job: object,
+        *,
+        connection: str | None = None,
+        queue: str | None = None,
+        delay: float | timedelta | datetime | None = None,
+    ) -> DispatchReceipt | None:
+        """Dispatch asynchronously only when ``condition`` is true.
+
+        Args:
+            condition: Whether to perform the dispatch.
+            job: Registered job instance.
+            connection: Optional configured connection.
+            queue: Optional logical queue.
+            delay: Optional backend-supported delivery time.
+
+        Returns:
+            A dispatch receipt, or ``None`` when the condition is false.
+        """
+        if not condition:
+            return None
+        return await self.dispatch_async(
+            job,
+            connection=connection,
+            queue=queue,
+            delay=delay,
+        )
+
+    async def dispatch_unless_async(
+        self,
+        condition: bool,
+        job: object,
+        *,
+        connection: str | None = None,
+        queue: str | None = None,
+        delay: float | timedelta | datetime | None = None,
+    ) -> DispatchReceipt | None:
+        """Dispatch asynchronously only when ``condition`` is false.
+
+        Args:
+            condition: Whether to skip the dispatch.
+            job: Registered job instance.
+            connection: Optional configured connection.
+            queue: Optional logical queue.
+            delay: Optional backend-supported delivery time.
+
+        Returns:
+            A dispatch receipt, or ``None`` when the condition is true.
+        """
+        return await self.dispatch_if_async(
+            not condition,
+            job,
+            connection=connection,
+            queue=queue,
+            delay=delay,
+        )
 
     async def dispatch_many_async(
         self,

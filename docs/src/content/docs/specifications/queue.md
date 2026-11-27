@@ -42,6 +42,7 @@ Console registration.
 | Custom Taskiq driver factory | Implemented | Application-supplied trusted factory. Custom backend guarantees remain application-owned. |
 | Single-use pending dispatch | Implemented and verified | Dispatch requires explicit call; reuse fails. |
 | Bounded ordered bulk dispatch | Implemented and verified | Up to 1,000 job registrations and destinations are prevalidated; publication uses single-job operations. |
+| Conditional dispatch | Implemented and verified | Disabled conditions skip registration and backend resolution; enabled calls reuse the standard dispatch path. |
 | Job retry and backoff | Implemented; backend-dependent | Taskiq retry middleware; non-zero delay needs a schedule source. |
 | Dispatch receipts | Implemented and verified | Receipts distinguish queued, executed, and discarded state. |
 | Queue and Bus fakes | Implemented and verified | Fakes intercept facades and direct manager access without broker creation. |
@@ -71,6 +72,10 @@ and destinations before its first side effect. It delegates each publication
 to the single-job path. Taskiq has no public atomic bulk operation. A payload,
 handler, broker failure, or cancellation can leave a published prefix. A
 broker error can also leave the current outcome uncertain.
+
+`dispatch_if()` and `dispatch_unless()` return pending builders or `None`.
+Their `_async` variants perform an enabled operation and return a receipt.
+Disabled conditions do not validate jobs or resolve backend connections.
 
 `dispatch_sync()` only accepts the `sync` connection. It rejects active
 asyncio task execution and incompatible scoped execution. Synchronous job

@@ -58,6 +58,66 @@ class Bus(Facade[BusDispatcher]):
         )
 
     @classmethod
+    def dispatch_if(
+        cls,
+        condition: bool,
+        job: Job,
+        *,
+        connection: str | None = None,
+        queue: str | None = None,
+        delay: float | timedelta | datetime | None = None,
+    ) -> PendingDispatch | None:
+        """Build a pending dispatch only when the condition is true.
+
+        Args:
+            condition: Whether to create the pending operation.
+            job: Registered job instance.
+            connection: Optional configured Queue connection.
+            queue: Optional logical Queue name.
+            delay: Optional backend-supported delivery time.
+
+        Returns:
+            A pending operation, or ``None`` when the condition is false.
+        """
+        return cls.resolve_service().dispatch_if(
+            condition,
+            job,
+            connection=connection,
+            queue=queue,
+            delay=delay,
+        )
+
+    @classmethod
+    def dispatch_unless(
+        cls,
+        condition: bool,
+        job: Job,
+        *,
+        connection: str | None = None,
+        queue: str | None = None,
+        delay: float | timedelta | datetime | None = None,
+    ) -> PendingDispatch | None:
+        """Build a pending dispatch only when the condition is false.
+
+        Args:
+            condition: Whether to skip pending operation creation.
+            job: Registered job instance.
+            connection: Optional configured Queue connection.
+            queue: Optional logical Queue name.
+            delay: Optional backend-supported delivery time.
+
+        Returns:
+            A pending operation, or ``None`` when the condition is true.
+        """
+        return cls.resolve_service().dispatch_unless(
+            condition,
+            job,
+            connection=connection,
+            queue=queue,
+            delay=delay,
+        )
+
+    @classmethod
     async def dispatch_async(
         cls,
         job: Job,
@@ -106,6 +166,66 @@ class Bus(Facade[BusDispatcher]):
         """
         return await cls.resolve_service().dispatch_many_async(
             jobs,
+            connection=connection,
+            queue=queue,
+            delay=delay,
+        )
+
+    @classmethod
+    async def dispatch_if_async(
+        cls,
+        condition: bool,
+        job: Job,
+        *,
+        connection: str | None = None,
+        queue: str | None = None,
+        delay: float | timedelta | datetime | None = None,
+    ) -> DispatchReceipt | None:
+        """Dispatch asynchronously only when the condition is true.
+
+        Args:
+            condition: Whether to perform the dispatch.
+            job: Registered job instance.
+            connection: Optional configured Queue connection.
+            queue: Optional logical Queue name.
+            delay: Optional backend-supported delivery time.
+
+        Returns:
+            A dispatch receipt, or ``None`` when the condition is false.
+        """
+        return await cls.resolve_service().dispatch_if_async(
+            condition,
+            job,
+            connection=connection,
+            queue=queue,
+            delay=delay,
+        )
+
+    @classmethod
+    async def dispatch_unless_async(
+        cls,
+        condition: bool,
+        job: Job,
+        *,
+        connection: str | None = None,
+        queue: str | None = None,
+        delay: float | timedelta | datetime | None = None,
+    ) -> DispatchReceipt | None:
+        """Dispatch asynchronously only when the condition is false.
+
+        Args:
+            condition: Whether to skip the dispatch.
+            job: Registered job instance.
+            connection: Optional configured Queue connection.
+            queue: Optional logical Queue name.
+            delay: Optional backend-supported delivery time.
+
+        Returns:
+            A dispatch receipt, or ``None`` when the condition is true.
+        """
+        return await cls.resolve_service().dispatch_unless_async(
+            condition,
+            job,
             connection=connection,
             queue=queue,
             delay=delay,

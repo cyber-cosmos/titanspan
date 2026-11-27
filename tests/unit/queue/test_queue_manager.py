@@ -48,6 +48,12 @@ class _ValueJob(Job):
         return self.value
 
 
+@dataclass
+class _UnregisteredValueJob(_ValueJob):
+    """Represent a valid Job subclass absent from the trusted catalog.
+    """  # fmt: skip
+
+
 def _application() -> Application:
     """Create an application with real sync and null Queue drivers.
 
@@ -262,6 +268,81 @@ async def test_dispatch_many_is_empty_safe_and_bounded() -> None:
                 )
 
     fake.assert_nothing_pushed()
+
+
+@pytest.mark.anyio
+async def test_conditional_dispatch_skips_or_uses_the_shared_dispatcher() -> (
+    None
+):
+    """Skip false conditions without validating or publishing jobs.
+
+    Enabled operations still use the application's ordinary pending path.
+    """
+    application = _application()
+
+    async with application:
+        manager = application.container.make(QueueManager)
+        dispatcher = application.container.make(QueueDispatcher)
+        with manager.fake() as fake:
+            assert (
+                manager.dispatch_if(
+                    False,
+                    _UnregisteredValueJob("ignored"),
+                )
+                is None
+            )
+            assert (
+                await Queue.dispatch_if_async(
+                    False,
+                    _UnregisteredValueJob("ignored"),
+                    connection="missing",
+                )
+                is None
+            )
+            assert (
+                Bus.dispatch_unless(
+                    True,
+                    _UnregisteredValueJob("ignored"),
+                )
+                is None
+            )
+            assert (
+                await dispatcher.dispatch_unless_async(
+                    True,
+                    _UnregisteredValueJob("ignored"),
+                )
+                is None
+            )
+            assert (
+                await manager.dispatch_if_async(
+                    False,
+                    _UnregisteredValueJob("ignored"),
+                )
+                is None
+            )
+
+            pending = Queue.dispatch_if(True, _ValueJob("pending"))
+            assert pending is not None
+            pending_receipt = await pending.dispatch_async()
+            bus_pending = Bus.dispatch_unless(False, _ValueJob("bus-pending"))
+            assert bus_pending is not None
+            bus_pending_receipt = await bus_pending.dispatch_async()
+            queue_receipt = await Queue.dispatch_if_async(
+                True,
+                _ValueJob("manager"),
+            )
+            bus_receipt = await Bus.dispatch_unless_async(
+                False,
+                _ValueJob("bus"),
+            )
+
+    assert pending_receipt.state == "queued"
+    assert bus_pending_receipt.state == "queued"
+    assert queue_receipt is not None
+    assert queue_receipt.state == "queued"
+    assert bus_receipt is not None
+    assert bus_receipt.state == "queued"
+    fake.assert_pushed_count(_ValueJob, 4)
 
 
 @pytest.mark.anyio

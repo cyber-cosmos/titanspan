@@ -102,6 +102,98 @@ class QueueDispatcher(Protocol):
         """
         ...
 
+    def dispatch_if(
+        self,
+        condition: bool,
+        job: object,
+        *,
+        connection: str | None = None,
+        queue: str | None = None,
+        delay: float | timedelta | datetime | None = None,
+    ) -> PendingDispatch | None:
+        """Build a pending dispatch only when the condition is true.
+
+        Args:
+            condition: Whether to create a pending operation.
+            job: Registered job instance.
+            connection: Optional configured connection.
+            queue: Optional logical queue.
+            delay: Optional backend-supported delivery time.
+
+        Returns:
+            A pending operation, or ``None`` when the condition is false.
+        """
+        ...
+
+    def dispatch_unless(
+        self,
+        condition: bool,
+        job: object,
+        *,
+        connection: str | None = None,
+        queue: str | None = None,
+        delay: float | timedelta | datetime | None = None,
+    ) -> PendingDispatch | None:
+        """Build a pending dispatch only when the condition is false.
+
+        Args:
+            condition: Whether to skip pending operation creation.
+            job: Registered job instance.
+            connection: Optional configured connection.
+            queue: Optional logical queue.
+            delay: Optional backend-supported delivery time.
+
+        Returns:
+            A pending operation, or ``None`` when the condition is true.
+        """
+        ...
+
+    async def dispatch_if_async(
+        self,
+        condition: bool,
+        job: object,
+        *,
+        connection: str | None = None,
+        queue: str | None = None,
+        delay: float | timedelta | datetime | None = None,
+    ) -> DispatchReceipt | None:
+        """Dispatch a job asynchronously only when the condition is true.
+
+        Args:
+            condition: Whether to perform the dispatch.
+            job: Registered job instance.
+            connection: Optional configured connection.
+            queue: Optional logical queue.
+            delay: Optional backend-supported delivery time.
+
+        Returns:
+            A dispatch receipt, or ``None`` when the condition is false.
+        """
+        ...
+
+    async def dispatch_unless_async(
+        self,
+        condition: bool,
+        job: object,
+        *,
+        connection: str | None = None,
+        queue: str | None = None,
+        delay: float | timedelta | datetime | None = None,
+    ) -> DispatchReceipt | None:
+        """Dispatch a job asynchronously only when the condition is false.
+
+        Args:
+            condition: Whether to skip the dispatch.
+            job: Registered job instance.
+            connection: Optional configured connection.
+            queue: Optional logical queue.
+            delay: Optional backend-supported delivery time.
+
+        Returns:
+            A dispatch receipt, or ``None`` when the condition is true.
+        """
+        ...
+
     async def dispatch_async(
         self,
         job: object,
