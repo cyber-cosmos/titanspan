@@ -86,6 +86,60 @@ def test_license_inventory_accepts_official_cffi_mit_zero_license() -> None:
     assert errors == []
 
 
+def test_license_inventory_uses_verified_locked_license_metadata() -> None:
+    """Accept licenses verified from the locked package artifacts.
+
+    aiohttp declares its combined SPDX expression. Taskiq's helper wheel
+    includes an MIT license file but omits machine-readable license metadata.
+    """
+    payload = json.dumps(
+        [
+            {
+                "Name": "aiohttp",
+                "Version": "3.14.5",
+                "License": "Apache-2.0 AND MIT",
+            },
+            {
+                "Name": "taskiq-dependencies",
+                "Version": "1.5.7",
+                "License": "UNKNOWN",
+            },
+        ]
+    )
+
+    rows, errors = validate_license_inventory(
+        payload,
+        expected_packages={"aiohttp", "taskiq-dependencies"},
+    )
+
+    assert rows == [
+        ("aiohttp", "Apache-2.0 AND MIT"),
+        ("taskiq-dependencies", "MIT"),
+    ]
+    assert errors == []
+
+
+def test_license_inventory_rejects_unreviewed_helper_version() -> None:
+    """Do not transfer a reviewed license override to later releases.
+    """  # fmt: skip
+    payload = json.dumps(
+        [
+            {
+                "Name": "taskiq-dependencies",
+                "Version": "1.5.8",
+                "License": "UNKNOWN",
+            }
+        ]
+    )
+
+    _, errors = validate_license_inventory(
+        payload,
+        expected_packages={"taskiq-dependencies"},
+    )
+
+    assert errors == ["unknown license metadata for taskiq-dependencies"]
+
+
 def test_license_inventory_rejects_unreviewed_and_missing_data() -> None:
     """Report metadata gaps and licenses outside the reviewed policy.
 

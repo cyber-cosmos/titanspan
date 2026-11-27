@@ -19,6 +19,7 @@ from packaging.requirements import InvalidRequirement, Requirement
 REQUIREMENT_LINE = re.compile(r"^([A-Za-z0-9][A-Za-z0-9._-]*)==")
 ALLOWED_LICENSES = {
     "Apache-2.0",
+    "Apache-2.0 AND MIT",
     "Apache-2.0 OR BSD-2-Clause",
     "Apache Software License",
     "BSD License",
@@ -35,6 +36,10 @@ ALLOWED_LICENSES = {
     "PSF-2.0",
     "Python Software Foundation License",
     "The Unlicense (Unlicense)",
+}
+_REVIEWED_LICENSE_OVERRIDES = {
+    # Version 1.5.7 ships an MIT LICENSE file but omits license metadata.
+    ("taskiq-dependencies", "1.5.7"): "MIT",
 }
 
 __all__ = [
@@ -123,7 +128,7 @@ def validate_license_inventory(
         return [], ["license report must be a JSON list"]
 
     records = cast("list[object]", parsed)
-    observed: dict[str, str] = {}
+    observed: dict[str, tuple[str, str | None]] = {}
     errors: list[str] = []
     for record in records:
         mapping = _string_mapping(record)
@@ -133,7 +138,11 @@ def validate_license_inventory(
             errors.append("license report contains an invalid package record")
             continue
         normalized = _normalize_package_name(name)
-        observed[normalized] = license_name.strip()
+        version_value = mapping.get("Version") if mapping else None
+        observed[normalized] = (
+            license_name.strip(),
+            version_value if isinstance(version_value, str) else None,
+        )
 
     errors.extend(
         f"missing package license metadata: {package}"
@@ -144,18 +153,30 @@ def validate_license_inventory(
         for package in sorted(set(observed) - expected_packages)
     )
 
-    for package, license_name in sorted(observed.items()):
+    rows: list[tuple[str, str]] = []
+    for package, (license_name, version) in sorted(observed.items()):
+        resolved_license = license_name
         if not license_name or license_name.casefold() in {
             "unknown",
             "unknown license",
             "unlicensed",
         }:
-            errors.append(f"unknown license metadata for {package}")
-        elif license_name not in ALLOWED_LICENSES:
-            errors.append(f"unreviewed license for {package}: {license_name}")
+            license_override = (
+                _REVIEWED_LICENSE_OVERRIDES.get((package, version))
+                if version is not None
+                else None
+            )
+            if license_override is None:
+                errors.append(f"unknown license metadata for {package}")
+                continue
+            resolved_license = license_override
+        elif resolved_license not in ALLOWED_LICENSES:
+            errors.append(
+                f"unreviewed license for {package}: {resolved_license}"
+            )
+        rows.append((package, resolved_license))
 
-    rows = sorted(observed.items())
-    return rows, errors
+    return sorted(rows), errors
 
 
 def _run_command(command: list[str]) -> subprocess.CompletedProcess[str]:
