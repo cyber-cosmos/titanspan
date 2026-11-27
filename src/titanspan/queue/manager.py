@@ -45,6 +45,7 @@ from titanspan.contracts.queue import (
     ChainBuilder,
     DispatchReceipt,
     JobMiddlewareType,
+    JobResultSnapshot,
 )
 from titanspan.pipeline import Pipeline
 from titanspan.queue._backends.taskiq import create_taskiq_transport
@@ -78,9 +79,12 @@ from titanspan.queue.exceptions import (
     QueueConfigurationError,
     QueueDispatchError,
     QueueError,
+    QueueResultError,
+    QueueResultUnavailableError,
     QueueSerializationError,
 )
 from titanspan.queue.job import Job, JobContext, validate_job_policy
+from titanspan.queue.results import QueueResultHandle
 
 if TYPE_CHECKING:
     from types import TracebackType
@@ -93,6 +97,7 @@ if TYPE_CHECKING:
     from titanspan.contracts.events import EventDispatcher
     from titanspan.contracts.logging import LogWriter
     from titanspan.foundation.application import Application
+    from titanspan.queue._backends.results import QueueTaskiqResultBackend
 
 type QueueBrokerFactory = Callable[
     [QueueConnectionConfiguration, str, str],
@@ -208,6 +213,7 @@ class _TaskiqConnection:
     task: _RegisteredTask
     physical_queue: str
     schedule_source: ScheduleSource | None = None
+    result_backend: QueueTaskiqResultBackend | None = None
     started: bool = False
     source_started: bool = False
     closed: bool = False
@@ -1252,6 +1258,28 @@ class QueueManager(BusDispatcher):
         )
         return pending.dispatch_sync()
 
+    def result_for(self, receipt: DispatchReceipt) -> QueueResultHandle:
+        """Create an asynchronous handle for a retained queued result.
+
+        Args:
+            receipt: Queue receipt returned by this application.
+
+        Returns:
+            A result handle backed by the selected Redis connection.
+
+        Raises:
+            QueueCapabilityError: If the receipt or backend has no results.
+        """
+        if receipt.state != "queued":
+            msg = "Only queued jobs can use a persisted result handle."
+            raise QueueCapabilityError(msg)
+        configuration = self.connection_configuration(receipt.connection)
+        if configuration.driver != "redis_stream":
+            msg = "The selected Queue backend does not retain job results."
+            raise QueueCapabilityError(msg)
+        self.validate_queue_name(receipt.queue)
+        return QueueResultHandle(self, receipt)
+
     def fake(self) -> QueueFakeScope:
         """Select an execution-local fake for this canonical manager.
 
@@ -2014,7 +2042,7 @@ class QueueManager(BusDispatcher):
         self,
         encoded: str,
         task_context: TaskiqContext,
-    ) -> None:
+    ) -> object:
         """Validate and execute one broker message without trusting labels.
 
         Args:
@@ -2034,7 +2062,7 @@ class QueueManager(BusDispatcher):
         else:
             msg = "The job attempt metadata is invalid."
             raise QueueSerializationError(msg)
-        await self._execute_async(decoded, attempt=attempt)
+        result = await self._execute_async(decoded, attempt=attempt)
         if decoded.continuation:
             next_job = self._next_chain_job(decoded)
             await self.dispatch_effect_async(
@@ -2050,6 +2078,100 @@ class QueueManager(BusDispatcher):
                     ),
                 ),
             )
+        return self._codec.encode_result(result)
+
+    async def _result_backend_for(
+        self,
+        receipt: DispatchReceipt,
+    ) -> QueueTaskiqResultBackend:
+        """Resolve a result backend owned by this application.
+
+        Args:
+            receipt: Queued result metadata.
+
+        Returns:
+            The safe Taskiq result adapter.
+
+        Raises:
+            QueueCapabilityError: If this connection does not retain results.
+        """
+        self._ensure_open()
+        self._require_application_context()
+        self.connection_configuration(receipt.connection)
+        self.validate_queue_name(receipt.queue)
+        state = self._taskiq_state(receipt.connection, receipt.queue)
+        if state is None or state.result_backend is None:
+            msg = "The selected Queue backend does not retain job results."
+            raise QueueCapabilityError(msg)
+        await self._ensure_started(state)
+        return state.result_backend
+
+    async def result_is_ready(self, receipt: DispatchReceipt) -> bool:
+        """Check result readiness through the application-owned adapter.
+
+        Args:
+            receipt: Queued result metadata.
+
+        Returns:
+            Whether the backend retains a completed result.
+
+        Raises:
+            QueueResultError: If the backend cannot check result readiness.
+        """
+        backend = await self._result_backend_for(receipt)
+        try:
+            return await backend.is_result_ready(receipt.job_id)
+        except Exception:
+            msg = "The Queue result backend could not be queried."
+            raise QueueResultError(msg) from None
+
+    async def read_result(
+        self,
+        receipt: DispatchReceipt,
+    ) -> JobResultSnapshot:
+        """Read and validate one retained Taskiq result.
+
+        Args:
+            receipt: Queued result metadata.
+
+        Returns:
+            Backend-independent status and an optional safe JSON value.
+
+        Raises:
+            QueueResultError: If the backend result is malformed.
+            QueueResultUnavailableError: If a result is pending or expired.
+        """
+        backend = await self._result_backend_for(receipt)
+        try:
+            task_result = await backend.get_result(receipt.job_id)
+        except Exception:
+            msg = "The Queue result is unavailable."
+            raise QueueResultUnavailableError(msg) from None
+        if task_result.is_err:
+            return JobResultSnapshot(
+                job_id=receipt.job_id,
+                state="failed",
+                has_value=False,
+                value=None,
+                execution_time=task_result.execution_time,
+            )
+        raw_payload = task_result.return_value
+        if not isinstance(raw_payload, Mapping):
+            msg = "The retained Queue result is malformed."
+            raise QueueResultError(msg)
+        payload = cast("Mapping[str, object]", raw_payload)
+        has_value = payload.get("has_value")
+        valid_keys = set(payload) == {"has_value", "value"}
+        if not valid_keys or type(has_value) is not bool:
+            msg = "The retained Queue result is malformed."
+            raise QueueResultError(msg)
+        return JobResultSnapshot(
+            job_id=receipt.job_id,
+            state="succeeded",
+            has_value=has_value,
+            value=payload.get("value") if has_value else None,
+            execution_time=task_result.execution_time,
+        )
 
     def _taskiq_state(
         self,
@@ -2073,8 +2195,9 @@ class QueueManager(BusDispatcher):
             existing = self._brokers.get(key)
             if existing is not None:
                 return existing
+            result_backend: QueueTaskiqResultBackend | None = None
             if configuration.driver in {"redis_stream", "rabbitmq"}:
-                broker, source = create_taskiq_transport(
+                broker, source, result_backend = create_taskiq_transport(
                     configuration,
                     namespace=self._configuration.namespace,
                     connection_name=connection_name,
@@ -2111,6 +2234,7 @@ class QueueManager(BusDispatcher):
                 task=cast("_RegisteredTask", task),
                 physical_queue=physical_queue,
                 schedule_source=source,
+                result_backend=result_backend,
             )
             self._brokers[key] = state
             return state
@@ -2623,7 +2747,7 @@ def _register_task(
     async def execute(
         message: str,
         context: TaskiqContext = _TASKIQ_CONTEXT_DEPENDENCY,
-    ) -> None:
+    ) -> object:
         """Run one JSON envelope through the canonical app and Container.
 
         Args:
@@ -2631,7 +2755,7 @@ def _register_task(
             context: Taskiq retry metadata supplied by its worker.
         """
         _ = connection, queue
-        await manager.execute_message(message, context)
+        return await manager.execute_message(message, context)
 
     return broker.register_task(execute, task_name=_TASK_NAME)
 

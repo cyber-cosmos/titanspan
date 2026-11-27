@@ -34,11 +34,29 @@ class UnknownJobError(QueueSerializationError):
     """  # fmt: skip
 
 
+class QueueResultError(QueueError):
+    """Report invalid Queue result access or timing options.
+    """  # fmt: skip
+
+
+class QueueResultUnavailableError(QueueResultError):
+    """Report a pending, expired, or missing retained result.
+    """  # fmt: skip
+
+
+class QueueResultTimeoutError(QueueResultError, TimeoutError):
+    """Report that a job result did not become ready before its deadline.
+    """  # fmt: skip
+
+
 __all__ = [
     "QueueCapabilityError",
     "QueueConfigurationError",
     "QueueDispatchError",
     "QueueError",
+    "QueueResultError",
+    "QueueResultTimeoutError",
+    "QueueResultUnavailableError",
     "QueueSerializationError",
     "UnknownJobError",
 ]

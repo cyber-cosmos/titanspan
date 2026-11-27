@@ -12,6 +12,7 @@ from typing import TYPE_CHECKING, Protocol, cast
 
 from taskiq.serializers.json_serializer import JSONSerializer
 
+from titanspan.queue._backends.results import QueueTaskiqResultBackend
 from titanspan.queue.exceptions import (
     QueueCapabilityError,
     QueueConfigurationError,
@@ -19,6 +20,7 @@ from titanspan.queue.exceptions import (
 
 if TYPE_CHECKING:
     from taskiq.abc.broker import AsyncBroker
+    from taskiq.abc.result_backend import AsyncResultBackend
     from taskiq.abc.schedule_source import ScheduleSource
 
     from titanspan.queue.configuration import QueueConnectionConfiguration
@@ -47,6 +49,16 @@ class _ScheduleSourceFactory(Protocol):
         ...
 
 
+class _ResultBackendFactory(Protocol):
+    """Describe the Redis result backend constructor.
+    """  # fmt: skip
+
+    def __call__(self, **kwargs: object) -> AsyncResultBackend[object]:
+        """Create one Taskiq result backend.
+        """  # fmt: skip
+        ...
+
+
 class _RabbitQueueFactory(Protocol):
     """Describe the RabbitMQ queue declaration constructor.
     """  # fmt: skip
@@ -68,7 +80,11 @@ def create_taskiq_transport(
     namespace: str,
     connection_name: str,
     queue: str,
-) -> tuple[AsyncBroker, ScheduleSource | None]:
+) -> tuple[
+    AsyncBroker,
+    ScheduleSource | None,
+    QueueTaskiqResultBackend | None,
+]:
     """Build one lazily owned broker and optional durable schedule source.
 
     Args:
@@ -78,8 +94,7 @@ def create_taskiq_transport(
         queue: Logical Queue name selected for this worker.
 
     Returns:
-        A Taskiq broker configured with JSON transport serialization and an
-        optional backend-owned scheduling source.
+        A Taskiq broker, optional schedule source, and optional result store.
 
     Raises:
         QueueCapabilityError: If the optional transport package is missing.
@@ -87,7 +102,7 @@ def create_taskiq_transport(
     """
     physical_queue = f"{namespace}:{connection_name}:{queue}"
     if configuration.driver == "redis_stream":
-        broker, source = _create_redis_transport(
+        broker, source, results = _create_redis_transport(
             configuration,
             namespace=namespace,
             connection_name=connection_name,
@@ -100,11 +115,14 @@ def create_taskiq_transport(
             physical_queue=physical_queue,
         )
         source = None
+        results = None
     else:
         msg = "The selected connection does not use a Taskiq transport."
         raise QueueConfigurationError(msg)
     broker.with_serializer(JSONSerializer(ensure_ascii=False))
-    return broker, source
+    if results is not None:
+        broker.with_result_backend(results)
+    return broker, source, results
 
 
 def _create_redis_transport(
@@ -114,7 +132,11 @@ def _create_redis_transport(
     connection_name: str,
     queue: str,
     physical_queue: str,
-) -> tuple[AsyncBroker, ScheduleSource]:
+) -> tuple[
+    AsyncBroker,
+    ScheduleSource,
+    QueueTaskiqResultBackend,
+]:
     """Build acknowledged Redis Streams and JSON-backed delayed schedules.
 
     Args:
@@ -144,6 +166,10 @@ def _create_redis_transport(
     source_factory = cast(
         "_ScheduleSourceFactory",
         module.__dict__["ListRedisScheduleSource"],
+    )
+    result_factory = cast(
+        "_ResultBackendFactory",
+        module.__dict__["RedisAsyncResultBackend"],
     )
 
     url = _required_text(configuration.options, "url")
@@ -183,7 +209,25 @@ def _create_redis_transport(
         ),
         serializer=JSONSerializer(ensure_ascii=False),
     )
-    return broker, source
+    result_backend = QueueTaskiqResultBackend(
+        result_factory(
+            redis_url=url,
+            keep_results=True,
+            result_ex_time=_optional_int(
+                configuration.options,
+                "result_ttl_seconds",
+                86_400,
+            ),
+            max_connection_pool_size=_optional_int(
+                configuration.options,
+                "result_pool_size",
+                4,
+            ),
+            serializer=JSONSerializer(ensure_ascii=False),
+            prefix_str=(f"{namespace}:{connection_name}:{queue}:result"),
+        )
+    )
+    return broker, source, result_backend
 
 
 def _create_rabbitmq_transport(

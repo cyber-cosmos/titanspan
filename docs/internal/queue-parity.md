@@ -100,7 +100,7 @@ or prose.
 | RabbitMQ queue | Backend-dependent | Optional Taskiq adapter exists; live integration remains pending. |
 | SQS queue | Unsupported with a technical justification | No supported, stable Taskiq integration is selected. |
 | Null driver | Equivalent with Python-native syntax | Explicit `discarded` receipt. |
-| Results | Unsupported with a technical justification | No safe JSON result backend or result retention policy is configured. |
+| Results | Backend-dependent | Redis exposes bounded JSON results with finite retention; other built-in drivers do not provide result handles. |
 | Queue size, priority, monitoring | Backend-dependent | No stable cross-backend contract is exposed. |
 | Failed and batch administration | Dependent on another unfinished Titanspan component | Requires persistent queue records and destructive-scope policy. |
 | Console worker and generation commands | Equivalent with Python-native syntax | `queue:work`, `queue:listen`, `make:job`, `make:job-middleware`. |

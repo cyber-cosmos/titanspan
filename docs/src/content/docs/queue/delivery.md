@@ -17,8 +17,9 @@ its configuration.
 | `rabbitmq` | Taskiq RabbitMQ adapter declares a durable queue and configures QoS. | Adapter is present; live RabbitMQ integration is not verified. Delayed scheduling is unavailable. |
 | Custom Taskiq broker | Trusted factory can construct a broker through `QueueServiceProvider`. | The application owner must verify acknowledgement, redelivery, and cleanup semantics. |
 
-Taskiq SQS integration is not included. No universal queue-size, priority,
-result, dead-letter, or administrative API is exposed.
+Taskiq SQS integration is not included. Queue results are available only for
+the Redis Streams driver. No universal queue-size, priority, dead-letter, or
+administrative API is exposed.
 
 ## At-least-once and duplicate execution
 
@@ -40,9 +41,10 @@ attempts. Redis uses a Taskiq schedule source for delayed retry and delayed
 dispatch. RabbitMQ currently supports only zero-delay retries through this
 adapter. Queue does not retry cancellation as an ordinary handler failure.
 
-The receipt for a queued job confirms broker publication only. Queue does not
-provide a durable result backend, result retrieval handle, failed-job
-repository, manual retry command, or failed-job pruning.
+The receipt for a queued job confirms broker publication only. Redis result
+handles report bounded JSON output or sanitized failure status. Result
+retention is finite and does not provide a failed-job repository, manual retry
+command, or failed-job pruning.
 
 ## Payload security
 

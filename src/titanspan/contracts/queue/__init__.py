@@ -20,6 +20,7 @@ from titanspan.contracts.queue.middleware import (
     SyncJobMiddleware,
     SyncJobNext,
 )
+from titanspan.contracts.queue.result import JobResultHandle, JobResultSnapshot
 
 __all__ = [
     "BatchBuilder",
@@ -31,6 +32,8 @@ __all__ = [
     "JobMiddleware",
     "JobMiddlewareType",
     "JobNext",
+    "JobResultHandle",
+    "JobResultSnapshot",
     "PendingDispatch",
     "QueueDispatcher",
     "SyncJobMiddleware",

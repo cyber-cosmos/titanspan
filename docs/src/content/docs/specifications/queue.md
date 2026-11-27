@@ -46,10 +46,11 @@ Console registration.
 | Queue and Bus fakes | Implemented and verified | Fakes intercept facades and direct manager access without broker creation. |
 | Ordered job chains | Implemented and verified | Inline order and Redis continuation integration are tested. Durable atomic continuation is unavailable. |
 | Chain-wide destinations and per-job overrides | Implemented and verified | Inline and real Redis workers verify each job's declared queue. |
+| Redis job results | Implemented and verified | Taskiq Redis results are bounded JSON, sanitized, and retained for a configurable finite period. |
 | Batches | Partial | Inline and fake status are process-local. Distributed batches reject before publication. |
 | Queue Console commands | Partial | `queue:work`, `queue:listen`, `make:job`, and `make:job-middleware` are registered. |
 | Queue lifecycle events | Partial | Metadata events cover dispatch, processing, success, failure, and worker boundaries. Event errors do not change a completed side effect. |
-| Queue result persistence | Unsupported | No Taskiq result backend is configured. |
+| Queue result persistence | Backend-dependent | Redis supports bounded JSON results and finite retention. Other built-in drivers do not expose result handles. |
 | Failed-job persistence and administration | Deferred | Requires a native persistence contract and owner. |
 | Unique jobs and distributed overlap controls | Deferred | Cache lease behavior is not a verified Queue guarantee. |
 | Transaction-aware dispatch | Deferred | Requires the canonical Database transaction lifecycle. |

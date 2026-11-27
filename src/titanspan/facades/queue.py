@@ -10,6 +10,7 @@ from typing import TYPE_CHECKING
 
 from titanspan.contracts.queue import (
     DispatchReceipt,
+    JobResultHandle,
     PendingDispatch,
     QueueDispatcher,
 )
@@ -111,6 +112,18 @@ class Queue(Facade[QueueDispatcher]):
             connection=connection,
             queue=queue,
         )
+
+    @classmethod
+    def result_for(cls, receipt: DispatchReceipt) -> JobResultHandle:
+        """Create a handle for retained results on supported backends.
+
+        Args:
+            receipt: Receipt returned by this application's Queue service.
+
+        Returns:
+            A cancellable asynchronous result handle.
+        """
+        return cls.resolve_service().result_for(receipt)
 
     @classmethod
     def fake(cls) -> QueueFakeScope:

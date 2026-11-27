@@ -13,6 +13,7 @@ if TYPE_CHECKING:
     from datetime import datetime, timedelta
 
     from titanspan.contracts.queue.dispatch import DispatchReceipt
+    from titanspan.contracts.queue.result import JobResultHandle
 
 
 @runtime_checkable
@@ -138,6 +139,17 @@ class QueueDispatcher(Protocol):
 
         Returns:
             Inline execution metadata.
+        """
+        ...
+
+    def result_for(self, receipt: DispatchReceipt) -> JobResultHandle:
+        """Create a result handle for supported queued work.
+
+        Args:
+            receipt: Receipt returned by this application's dispatcher.
+
+        Returns:
+            An asynchronous handle backed by the selected connection.
         """
         ...
 

@@ -264,7 +264,7 @@ class JobCodec:
                 adapter.dump_python(job, mode="json", by_alias=True),
                 strict=True,
             )
-            _validate_payload_depth(payload, self._max_payload_depth)
+            validate_payload_depth(payload, self._max_payload_depth)
             envelope = JobEnvelope(
                 job_id=(
                     UUID(metadata.job_id)
@@ -345,7 +345,7 @@ class JobCodec:
                     adapter.dump_python(job, mode="json", by_alias=True),
                     strict=True,
                 )
-                _validate_payload_depth(payload, self._max_payload_depth)
+                validate_payload_depth(payload, self._max_payload_depth)
                 entries.append(
                     ChainedJobPayload(
                         job_id=uuid5(chain_uuid, str(first_index + offset)),
@@ -367,6 +367,36 @@ class JobCodec:
                 msg = "A chained job payload does not match its schema."
                 raise QueueSerializationError(msg) from error
         return tuple(entries)
+
+    def encode_result(self, value: object) -> dict[str, JsonValue]:
+        """Convert one handler result into a bounded JSON result envelope.
+
+        Unsupported values are omitted after successful execution. Result
+        formatting must not turn completed side effects into retryable jobs.
+
+        Args:
+            value: Handler return value from one completed job attempt.
+
+        Returns:
+            A bounded JSON envelope with an explicit value-availability flag.
+        """
+        try:
+            json_value = _JSON_VALUE_ADAPTER.validate_python(
+                value,
+                strict=True,
+            )
+            validate_payload_depth(json_value, self._max_payload_depth)
+            encoded = json.dumps(
+                json_value,
+                ensure_ascii=False,
+                allow_nan=False,
+                separators=(",", ":"),
+            ).encode("utf-8")
+        except (RecursionError, TypeError, ValueError, ValidationError):
+            return {"has_value": False, "value": None}
+        if len(encoded) > self._max_payload_bytes:
+            return {"has_value": False, "value": None}
+        return {"has_value": True, "value": json_value}
 
     def decode(self, encoded: bytes | str) -> DecodedJob:
         """Validate an untrusted JSON message against registered job schemas.
@@ -406,9 +436,9 @@ class JobCodec:
         if envelope.payload_version != job_type.schema_version:
             msg = "The job payload schema version is unsupported."
             raise QueueSerializationError(msg)
-        _validate_payload_depth(envelope.payload, self._max_payload_depth)
+        validate_payload_depth(envelope.payload, self._max_payload_depth)
         for item in envelope.continuation:
-            _validate_payload_depth(item.payload, self._max_payload_depth)
+            validate_payload_depth(item.payload, self._max_payload_depth)
         job = self._decode_registered_job(
             envelope.job_type,
             envelope.payload_version,
@@ -492,7 +522,7 @@ def _qualified_name(job_type: type[Job]) -> str:
     return f"{job_type.__module__}:{job_type.__qualname__}"
 
 
-def _validate_payload_depth(value: JsonValue, maximum: int) -> None:
+def validate_payload_depth(value: JsonValue, maximum: int) -> None:
     """Reject JSON payloads with too many nested array or object values.
 
     Args:

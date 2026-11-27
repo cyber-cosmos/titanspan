@@ -10,6 +10,7 @@ from titanspan.contracts.queue import (
     BusDispatcher,
     ChainBuilder,
     DispatchReceipt,
+    JobResultHandle,
     PendingDispatch,
 )
 from titanspan.facades.base import Facade
@@ -106,6 +107,18 @@ class Bus(Facade[BusDispatcher]):
             connection=connection,
             queue=queue,
         )
+
+    @classmethod
+    def result_for(cls, receipt: DispatchReceipt) -> JobResultHandle:
+        """Create a result handle through the canonical Queue service.
+
+        Args:
+            receipt: Receipt returned by this application's Bus dispatcher.
+
+        Returns:
+            A cancellable asynchronous result handle.
+        """
+        return cls.resolve_service().result_for(receipt)
 
     @classmethod
     def fake(cls) -> QueueFakeScope:

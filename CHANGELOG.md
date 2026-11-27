@@ -5,16 +5,17 @@ public release.
 
 ## Unreleased
 
-- Add native Queue and Bus dispatch with typed, trusted job registration,
-  bounded versioned JSON envelopes, application-owned Taskiq connections,
-  isolated JOB scopes, Container-backed middleware, Redis Streams workers,
-  retries, delayed Redis delivery, ordered chains, local batch tracking,
-  scoped fakes, and `queue:work`, `queue:listen`, `make:job`, and
-  `make:job-middleware` commands. Redis worker, retry, delay, and chain
-  behavior use real local Redis integration tests. RabbitMQ is an optional
-  adapter without a live broker verification. Durable failed-job records,
-  results, unique jobs, durable batches, queued event listeners, and
-  transaction-aware dispatch remain deferred.
+- Add native Queue and Bus dispatch with typed jobs, bounded JSON envelopes,
+  and Taskiq-backed Redis workers.
+- Keep handler scopes, middleware, retries, delayed delivery, ordered chains,
+  bounded results, local batches, and scoped fakes.
+- Register `queue:work`, `queue:listen`, `make:job`, and
+  `make:job-middleware` through native Console.
+- Verify Redis workers, retries, delays, chains, and result retrieval against
+  a real local Redis service.
+- Keep RabbitMQ optional; live broker behavior is not verified.
+- Defer durable failed-job records, unique jobs, distributed batches, queued
+  listeners, and transaction-aware dispatch.
 - Serialize middleware response models with their declared Pydantic schemas.
   Render middleware errors through Foundation's exception policy.
 - Dispatch asynchronous Cache failover events through Events. Preserve

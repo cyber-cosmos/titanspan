@@ -73,6 +73,16 @@ messages.
 | `schedule_poll_interval` | `1.0` seconds | Taskiq schedule-source refresh interval. |
 | `schedule_loop_interval` | `1.0` seconds | Taskiq schedule loop interval. |
 
+Redis result storage accepts two optional connection settings:
+
+| Setting | Default | Meaning |
+| --- | --- | --- |
+| `result_ttl_seconds` | `86400` | Retain each result for one day. |
+| `result_pool_size` | `4` | Maximum Redis result-backend connections. |
+
+Queue bounds result values to 1 MB and 64 nested containers. These limits
+protect result storage independently of the job-envelope size setting.
+
 Each entry under `connections` has a `driver` and an optional `options`
 mapping. Built-in drivers are `sync`, `null`, `redis_stream`, and `rabbitmq`.
 Custom Taskiq brokers can be registered through a trusted

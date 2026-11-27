@@ -12,12 +12,14 @@ import pytest
 
 from titanspan.contracts.container import ServiceRegistry
 from titanspan.contracts.events import EventDispatcher
+from titanspan.facades.bus import Bus
+from titanspan.facades.queue import Queue
 from titanspan.foundation import Application
 from titanspan.queue import Job, JobContext, QueueManager, QueueServiceProvider
 from titanspan.queue.events import JobProcessed, QueueEvent
 
 if TYPE_CHECKING:
-    from titanspan.contracts.queue import DispatchReceipt
+    from titanspan.contracts.queue import DispatchReceipt, JobResultSnapshot
 
 pytestmark = [pytest.mark.integration, pytest.mark.concurrency]
 _WORKER_QUEUE = "delivery-integration"
@@ -66,6 +68,33 @@ class _DelayedJob(Job):
             observation: Application-owned test observation.
         """
         observation.started_at = datetime.now(UTC)
+
+
+@dataclass
+class _ResultJob(Job):
+    """Return a JSON value that a Redis result handle can retrieve.
+    """  # fmt: skip
+
+    value: str
+
+    def handle(self) -> dict[str, str]:
+        """Return one bounded JSON result.
+        """  # fmt: skip
+        return {"value": self.value}
+
+
+@dataclass
+class _FailingResultJob(Job):
+    """Fail once so result storage can expose status without the message.
+    """  # fmt: skip
+
+    tries = 1
+
+    def handle(self) -> None:
+        """Raise a secret-bearing error for the redaction assertion.
+        """  # fmt: skip
+        message = "synthetic-private-result-detail"
+        raise RuntimeError(message)
 
 
 @dataclass
@@ -378,3 +407,133 @@ async def test_redis_chain_honors_per_job_queue_override(
         ("first", "redis", _CHAIN_FIRST_QUEUE),
         ("second", "redis", _CHAIN_SECOND_QUEUE),
     ]
+
+
+@pytest.mark.anyio
+async def test_redis_result_handle_returns_safe_success_payload(
+    queue_redis_port: int,
+) -> None:
+    """Read a typed result through Taskiq's Redis result backend.
+
+    The handle observes the same registered job and worker lifecycle.
+    """
+    observation = _JobObservation()
+    application = _application(
+        queue_redis_port,
+        observation,
+        (_ResultJob,),
+    )
+    result: JobResultSnapshot | None = None
+
+    async with application:
+        manager = application.container.make(QueueManager)
+        events = application.container.make(EventDispatcher)
+        ready = _register_worker_signals(events, observation)
+
+        async def run_worker() -> None:
+            """Consume one result-producing job until test cancellation.
+            """  # fmt: skip
+            await manager.work_async(
+                connection="redis",
+                queue=_WORKER_QUEUE,
+                concurrency=1,
+                prefetch=1,
+            )
+
+        async with anyio.create_task_group() as task_group:
+            task_group.start_soon(run_worker)
+            with anyio.fail_after(10):
+                await ready.wait()
+            receipt = await manager.dispatch_async(_ResultJob("complete"))
+            handle = Queue.result_for(receipt)
+            assert handle.job_id == receipt.job_id
+            result = await handle.wait_async(
+                timeout=10,
+                poll_interval=0.01,
+            )
+            assert await handle.wait_async(timeout=0) == result
+            assert await handle.wait_async() == result
+            task_group.cancel_scope.cancel()
+
+    assert result is not None
+    assert result.state == "succeeded"
+    assert result.has_value is True
+    assert result.value == {"value": "complete"}
+
+
+@pytest.mark.anyio
+async def test_redis_result_handle_reports_missing_and_zero_timeout(
+    queue_redis_port: int,
+) -> None:
+    """Distinguish a pending result from an expired result record.
+
+    A zero timeout checks readiness once without starting a polling delay.
+    """
+    observation = _JobObservation()
+    application = _application(
+        queue_redis_port,
+        observation,
+        (_ResultJob,),
+    )
+
+    async with application:
+        manager = application.container.make(QueueManager)
+        receipt = await manager.dispatch_async(_ResultJob("pending"))
+        handle = manager.result_for(receipt)
+
+        assert not await handle.is_ready()
+        with pytest.raises(TimeoutError):
+            await handle.wait_async(timeout=0)
+        with pytest.raises(TimeoutError):
+            await handle.wait_async(timeout=0.01, poll_interval=1)
+        with pytest.raises(RuntimeError, match="result is unavailable"):
+            await handle.get_async()
+
+
+@pytest.mark.anyio
+async def test_redis_result_handle_redacts_failure_details(
+    queue_redis_port: int,
+) -> None:
+    """Expose failure state without persisting exception message text.
+
+    Taskiq retains retry and acknowledgement ownership for the failed job.
+    """
+    observation = _JobObservation()
+    application = _application(
+        queue_redis_port,
+        observation,
+        (_FailingResultJob,),
+    )
+    result: JobResultSnapshot | None = None
+
+    async with application:
+        manager = application.container.make(QueueManager)
+        events = application.container.make(EventDispatcher)
+        ready = _register_worker_signals(events, observation)
+
+        async def run_worker() -> None:
+            """Consume one failing result job until test cancellation.
+            """  # fmt: skip
+            await manager.work_async(
+                connection="redis",
+                queue=_WORKER_QUEUE,
+                concurrency=1,
+                prefetch=1,
+            )
+
+        async with anyio.create_task_group() as task_group:
+            task_group.start_soon(run_worker)
+            with anyio.fail_after(10):
+                await ready.wait()
+            receipt = await manager.dispatch_async(_FailingResultJob())
+            handle = Bus.result_for(receipt)
+            result = await handle.wait_async(
+                timeout=10,
+                poll_interval=0.01,
+            )
+            task_group.cancel_scope.cancel()
+
+    assert result is not None
+    assert result.state == "failed"
+    assert result.has_value is False
+    assert "synthetic-private-result-detail" not in repr(result)

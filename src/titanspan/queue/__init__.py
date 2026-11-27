@@ -22,6 +22,9 @@ from titanspan.queue.exceptions import (
     QueueConfigurationError,
     QueueDispatchError,
     QueueError,
+    QueueResultError,
+    QueueResultTimeoutError,
+    QueueResultUnavailableError,
     QueueSerializationError,
     UnknownJobError,
 )
@@ -34,6 +37,7 @@ from titanspan.queue.manager import (
     QueueFakeScope,
     QueueManager,
 )
+from titanspan.queue.results import QueueResultHandle
 from titanspan.queue.service_provider import QueueServiceProvider
 
 __all__ = [
@@ -61,6 +65,10 @@ __all__ = [
     "QueueFake",
     "QueueFakeScope",
     "QueueManager",
+    "QueueResultError",
+    "QueueResultHandle",
+    "QueueResultTimeoutError",
+    "QueueResultUnavailableError",
     "QueueSerializationError",
     "QueueServiceProvider",
     "UnknownJobError",

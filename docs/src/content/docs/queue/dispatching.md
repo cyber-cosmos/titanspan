@@ -64,6 +64,30 @@ The `null` connection intentionally discards the job and returns a
 `discarded` receipt. It is useful only when that behavior is explicitly
 configured.
 
+## Read retained results
+
+Redis Streams stores a bounded JSON result after Taskiq completes an attempt.
+Use `Queue.result_for()` with the queued receipt from the same application:
+
+```python
+receipt = await Queue.dispatch_async(
+    ProcessDocument(42),
+    connection="redis",
+    queue="documents",
+)
+result = await Queue.result_for(receipt).wait_async(timeout=30)
+
+if result.state == "succeeded" and result.has_value:
+    print(result.value)
+```
+
+`wait_async()` uses cancellable polling. Taskiq result records expire after
+`result_ttl_seconds`, which defaults to one day. Results contain JSON values
+only. Unsupported values are omitted without turning completed work into a
+retry. Failed results expose status and execution time, not exception text.
+The `sync`, `null`, RabbitMQ, and custom connections do not provide result
+handles through this API.
+
 ## Unsupported dispatch policies
 
 After-commit dispatch requires the canonical Database transaction lifecycle.
