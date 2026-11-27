@@ -679,7 +679,7 @@ checks both redaction and explicit field access.
 | C-007 | Resolved for current request and response contracts | Real injected multipart and cookie integration. |
 | C-008 | Partially verified | Native parse errors now return safe 400 responses; validation returns 422 and internal failures return generic 500. Startup, post-header streaming, and WebSocket exception cases need more coverage. |
 | C-009 | Resolved | Default Validation, Filesystem, and Hashing providers with explicit replacement tests. |
-| C-010 | Partial | Native schema validation, request validation, and safe 422 handling exist; automatic typed route validation and generated validation schemas remain incomplete. |
+| C-010 | Partially corrected | Native schema validation, request validation, safe 422 rendering, and a stable OpenAPI 422 body schema are verified. Explicit `validate_request` calls do not generate request schemas or automatically apply application rules to route inputs. |
 | C-011 | Pending | Middleware declarations do not carry immutable route-specific parameters. |
 | C-012 | Resolved | Filesystem provider shutdown closes existing manager-owned backend instances and skips unused disks; `tests/integration/test_filesystem.py` covers partial startup and lazy shutdown. |
 | C-013 | Resolved | Cost metadata is bounded before backend verification. |

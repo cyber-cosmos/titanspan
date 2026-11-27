@@ -19,7 +19,8 @@ public release.
 - Added Pydantic-backed Validation with typed schemas, coercion policy, safe
   field issues, sync and async application rules, result helpers, and
   authoritative HTTP request input. Foundation renders uncaught validation
-  failures as safe 422 responses. Routing schema integration remains pending.
+  failures as safe 422 responses. Native typed routes document the same safe
+  422 body schema used by Foundation.
 - Added native commands with typed parameters, groups, trusted discovery,
   Container injection, and per-command Foundation lifecycle. Rich output and
   parser tests use shared contracts. `about` reports framework and Python

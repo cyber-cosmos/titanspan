@@ -138,6 +138,62 @@ def test_fastapi_validation_errors_use_the_safe_native_response() -> None:
         assert dynamic_key not in response.text
 
 
+def test_native_typed_route_documents_the_safe_validation_response() -> None:
+    """Align native Pydantic request validation with its OpenAPI response.
+
+    The schema describes the generic response returned by Foundation.
+    """
+    application = Application()
+
+    async def create(payload: _ExternalRequest) -> dict[str, str]:
+        """Return a marker only after a typed request passes validation.
+
+        Args:
+            payload: Pydantic request body selected by native Routing.
+
+        Returns:
+            A safe marker that excludes request credentials.
+        """
+        return {"status": "accepted", "credential": payload.credential}
+
+    application.router.post("/native", create)
+
+    with TestClient(application.asgi) as client:
+        schema = client.get("/openapi.json").json()
+        response = client.post(
+            "/native",
+            json={
+                "credential": "native-route-secret",
+                "attributes": {"mapping-secret": "not-an-integer"},
+            },
+        )
+
+    response_schema = schema["paths"]["/native"]["post"]["responses"]["422"][
+        "content"
+    ]["application/json"]["schema"]
+
+    assert response_schema == {
+        "$ref": "#/components/schemas/ValidationErrorBody",
+    }
+    body_schema = schema["components"]["schemas"]["ValidationErrorBody"]
+    assert set(body_schema["properties"]) == {"detail", "errors"}
+    assert body_schema["properties"]["detail"]["type"] == "string"
+    errors_schema = body_schema["properties"]["errors"]
+    assert errors_schema["type"] == "object"
+    assert errors_schema["additionalProperties"] == {
+        "items": {"type": "string"},
+        "type": "array",
+    }
+    assert set(body_schema["required"]) == {"detail", "errors"}
+    assert response.status_code == HTTPStatus.UNPROCESSABLE_ENTITY
+    assert response.json() == {
+        "detail": "Request validation failed.",
+        "errors": {"request": ["Input is invalid."]},
+    }
+    assert "native-route-secret" not in response.text
+    assert "mapping-secret" not in response.text
+
+
 def test_malformed_native_json_is_a_safe_client_error() -> None:
     """Render malformed body input as 400 without reflecting its contents.
 

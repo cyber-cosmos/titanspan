@@ -91,7 +91,11 @@ from titanspan.logging.exceptions import LogLifecycleError
 from titanspan.routing import Router, RoutingServiceProvider, UrlGenerator
 from titanspan.routing._backends.fastapi import install_routes
 from titanspan.support.uri import bind_uri_services
-from titanspan.validation import ValidationException, ValidationServiceProvider
+from titanspan.validation import (
+    ValidationErrorBody,
+    ValidationException,
+    ValidationServiceProvider,
+)
 
 if TYPE_CHECKING:
     from collections.abc import (
@@ -143,7 +147,6 @@ _INVALID_EXCEPTION_RESPONSE_ERROR = (
 )
 _DEFAULT_SERVER_ERROR = "Internal server error."
 _INVALID_REQUEST_INPUT_DETAIL = "Invalid request input."
-_VALIDATION_ERROR_DETAIL = "Request validation failed."
 _INVALID_ENVIRONMENT_ERROR = "Application environment must not be empty."
 _LIFECYCLE_REGISTRATION_ERROR = (
     "Lifecycle hooks and exception handlers must be registered before startup."
@@ -1315,14 +1318,15 @@ class Application:
         _ = request
         # Starlette selects this handler only for the registered error type.
         validation_error = cast("ValidationException", error)
-        response = self.container.make(ResponseFactory).json(
-            {
-                "detail": _VALIDATION_ERROR_DETAIL,
-                "errors": {
-                    field: list(messages)
-                    for field, messages in validation_error.field_errors.items()
-                },
+        body = ValidationErrorBody(
+            detail=ValidationErrorBody.DEFAULT_DETAIL,
+            errors={
+                field: list(messages)
+                for field, messages in validation_error.field_errors.items()
             },
+        ).to_json()
+        response = self.container.make(ResponseFactory).json(
+            body,
             status=422,
         )
         return _require_asgi_response(response)
@@ -1367,11 +1371,12 @@ class Application:
             A generic 422 response using the native response factory.
         """
         _ = request, error
+        body = ValidationErrorBody(
+            detail=ValidationErrorBody.DEFAULT_DETAIL,
+            errors={"request": ["Input is invalid."]},
+        ).to_json()
         response = self.container.make(ResponseFactory).json(
-            {
-                "detail": _VALIDATION_ERROR_DETAIL,
-                "errors": {"request": ["Input is invalid."]},
-            },
+            body,
             status=422,
         )
         return _require_asgi_response(response)

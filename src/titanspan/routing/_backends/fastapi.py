@@ -16,6 +16,7 @@ from inspect import Parameter, Signature
 from typing import (
     TYPE_CHECKING,
     Annotated,
+    Any,
     Protocol,
     cast,
     get_args,
@@ -47,6 +48,7 @@ from titanspan.routing.exceptions import (
 )
 from titanspan.routing.helpers import bind_current_route
 from titanspan.routing.router import Router
+from titanspan.validation import ValidationErrorBody
 
 if TYPE_CHECKING:
     from collections.abc import Awaitable, Callable, Mapping, MutableMapping
@@ -84,6 +86,8 @@ _ASYNC_WEBSOCKET_ERROR = "WebSocket route handlers must be asynchronous."
 _INVALID_ROUTE_DEFAULT_ERROR = (
     "A route default cannot be converted to its handler annotation."
 )
+_VALIDATION_RESPONSE_STATUS = 422
+_VALIDATION_RESPONSE_DESCRIPTION = "Request data failed validation."
 _NO_CONTENT_STATUSES = frozenset({204, 205, 304})
 
 
@@ -224,12 +228,7 @@ def install_routes(
                     deprecated=definition.is_deprecated,
                     status_code=definition.response_status,
                     response_model=definition.response_model_type,
-                    responses={
-                        status: dict(metadata)
-                        for status, metadata in (
-                            definition.response_metadata.items()
-                        )
-                    },
+                    responses=_response_metadata(definition),
                     route_class_override=route_class,
                 )
     application.include_router(compiled)
@@ -278,6 +277,31 @@ def _operation_id(
     """
     base = route_name or f"native_route_{index}"
     return f"{base}.{method.lower()}" if multiple_methods else base
+
+
+def _response_metadata(
+    definition: RouteDefinition,
+) -> dict[int | str, dict[str, Any]]:
+    """Combine route responses with the safe native validation schema.
+
+    Args:
+        definition: Frozen route metadata selected for OpenAPI generation.
+
+    Returns:
+        Explicit response metadata plus the default safe 422 response.
+    """
+    responses: dict[int | str, dict[str, Any]] = {
+        status: cast("dict[str, Any]", dict(metadata))
+        for status, metadata in definition.response_metadata.items()
+    }
+    responses.setdefault(
+        _VALIDATION_RESPONSE_STATUS,
+        {
+            "model": ValidationErrorBody,
+            "description": _VALIDATION_RESPONSE_DESCRIPTION,
+        },
+    )
+    return responses
 
 
 def _endpoint(

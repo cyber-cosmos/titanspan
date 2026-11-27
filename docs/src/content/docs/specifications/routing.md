@@ -132,8 +132,9 @@ FastAPI generates OpenAPI operation IDs from route names and generates path,
 query, and supported request-body schemas from handler annotations. Routes
 may declare tags, summary, description, deprecation, status code, response
 model, and response metadata. Container services are excluded from client
-inputs. A future Validation integration needs a supported Pydantic schema
-boundary; Routing does not implement a separate schema engine.
+inputs. Native typed routes document `ValidationErrorBody` as their default
+422 response. Explicit `Validation.validate_request` calls do not add request
+schemas to OpenAPI; endpoint annotations remain the request-schema source.
 
 ## URL generation
 

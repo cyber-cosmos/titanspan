@@ -216,7 +216,9 @@ application.router.post("/accounts", create_account)
 
 `validate_request_async` additionally runs async application rules. Both
 operations consume HTTP's existing authoritative body parser. Routing does
-not yet derive parameter binding or OpenAPI schemas from Validation models.
+not yet derive endpoint inputs or OpenAPI request schemas from
+`validate_request` calls. Typed Pydantic endpoint parameters use FastAPI's
+request parsing and schema generation.
 
 ## Handle errors and test results
 
@@ -246,8 +248,9 @@ The same result methods work through the `Validation` facade inside an active
 application context. Foundation automatically renders an uncaught
 `ValidationException` as a 422 JSON response through the native response
 factory. The response includes safe field messages and excludes rejected
-input values. Applications can register a more specific handler before
-startup.
+input values. Native typed routes and FastAPI interoperability routes document
+the same `ValidationErrorBody` schema for their default 422 response.
+Applications can register a more specific handler before startup.
 
 ## Integration boundaries
 

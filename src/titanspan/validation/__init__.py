@@ -19,6 +19,7 @@ from titanspan.validation.exceptions import (
     ValidationConfigurationError,
     ValidationException,
 )
+from titanspan.validation.response import ValidationErrorBody
 from titanspan.validation.service_provider import ValidationServiceProvider
 from titanspan.validation.validator import Validator
 
@@ -28,6 +29,7 @@ __all__ = [
     "AsyncValidationRuleCheck",
     "ValidationConfiguration",
     "ValidationConfigurationError",
+    "ValidationErrorBody",
     "ValidationException",
     "ValidationIssue",
     "ValidationResult",
