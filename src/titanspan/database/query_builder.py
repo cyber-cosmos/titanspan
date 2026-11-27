@@ -3821,6 +3821,105 @@ class QueryBuilder(DatabaseQueryBuilder):
         """
         return await self._change_integer_column_async(column_name, -amount)
 
+    def increment_each(self, amounts: Mapping[str, int]) -> int:
+        """Atomically increment several numeric columns in one update.
+
+        Args:
+            amounts: Safe column names mapped to non-negative integer deltas.
+
+        Returns:
+            Driver-reported affected rows, or ``-1`` when unknown.
+
+        Raises:
+            DatabaseQueryError: If no columns are provided.
+            ValueError: If a delta is not a non-negative integer.
+        """
+        return self.update(self._integer_column_updates(amounts, 1))
+
+    def decrement_each(self, amounts: Mapping[str, int]) -> int:
+        """Atomically decrement several numeric columns in one update.
+
+        Args:
+            amounts: Safe column names mapped to non-negative integer deltas.
+
+        Returns:
+            Driver-reported affected rows, or ``-1`` when unknown.
+
+        Raises:
+            DatabaseQueryError: If no columns are provided.
+            ValueError: If a delta is not a non-negative integer.
+        """
+        return self.update(self._integer_column_updates(amounts, -1))
+
+    async def increment_each_async(
+        self,
+        amounts: Mapping[str, int],
+    ) -> int:
+        """Asynchronously increment several columns with one SQL update.
+
+        Args:
+            amounts: Safe column names mapped to non-negative integer deltas.
+
+        Returns:
+            Driver-reported affected rows, or ``-1`` when unknown.
+
+        Raises:
+            DatabaseQueryError: If no columns are provided.
+            ValueError: If a delta is not a non-negative integer.
+        """
+        updates = self._integer_column_updates(amounts, 1)
+        return await self.update_async(updates)
+
+    async def decrement_each_async(
+        self,
+        amounts: Mapping[str, int],
+    ) -> int:
+        """Asynchronously decrement several columns with one SQL update.
+
+        Args:
+            amounts: Safe column names mapped to non-negative integer deltas.
+
+        Returns:
+            Driver-reported affected rows, or ``-1`` when unknown.
+
+        Raises:
+            DatabaseQueryError: If no columns are provided.
+            ValueError: If a delta is not a non-negative integer.
+        """
+        updates = self._integer_column_updates(amounts, -1)
+        return await self.update_async(updates)
+
+    def _integer_column_updates(
+        self,
+        amounts: Mapping[str, int],
+        direction: int,
+    ) -> dict[str, ColumnElement[object]]:
+        """Build validated atomic SQL deltas for one or more columns.
+
+        Args:
+            amounts: Column names mapped to non-negative integer deltas.
+            direction: ``1`` for addition or ``-1`` for subtraction.
+
+        Returns:
+            SQLAlchemy column expressions for a single UPDATE statement.
+
+        Raises:
+            DatabaseQueryError: If no columns are provided or names are
+                invalid.
+            ValueError: If any delta is not a non-negative integer.
+        """
+        if not amounts:
+            msg = "A multi-column increment requires at least one column."
+            raise DatabaseQueryError(msg)
+        self._validate_value_columns(amounts)
+        updates: dict[str, ColumnElement[object]] = {}
+        for name, amount in amounts.items():
+            if type(amount) is not int or amount < 0:
+                msg = "Multi-column deltas must be non-negative integers."
+                raise ValueError(msg)
+            updates[name] = self._column(name) + direction * amount
+        return updates
+
     def _change_integer_column(self, column_name: str, amount: int) -> int:
         """Perform an atomic SQL increment or decrement.
 

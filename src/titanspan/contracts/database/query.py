@@ -1988,3 +1988,53 @@ class DatabaseQueryBuilder(Protocol):
             Driver-reported row count, or ``-1`` when unavailable.
         """
         ...
+
+    def increment_each(self, amounts: Mapping[str, int]) -> int:
+        """Atomically increment multiple columns in one update.
+
+        Args:
+            amounts: Safe column names mapped to non-negative integer deltas.
+
+        Returns:
+            Driver-reported row count, or ``-1`` when unavailable.
+        """
+        ...
+
+    def decrement_each(self, amounts: Mapping[str, int]) -> int:
+        """Atomically decrement multiple columns in one update.
+
+        Args:
+            amounts: Safe column names mapped to non-negative integer deltas.
+
+        Returns:
+            Driver-reported row count, or ``-1`` when unavailable.
+        """
+        ...
+
+    async def increment_each_async(
+        self,
+        amounts: Mapping[str, int],
+    ) -> int:
+        """Asynchronously increment multiple columns in one update.
+
+        Args:
+            amounts: Safe column names mapped to non-negative integer deltas.
+
+        Returns:
+            Driver-reported row count, or ``-1`` when unavailable.
+        """
+        ...
+
+    async def decrement_each_async(
+        self,
+        amounts: Mapping[str, int],
+    ) -> int:
+        """Asynchronously decrement multiple columns in one update.
+
+        Args:
+            amounts: Safe column names mapped to non-negative integer deltas.
+
+        Returns:
+            Driver-reported row count, or ``-1`` when unavailable.
+        """
+        ...

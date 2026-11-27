@@ -158,7 +158,8 @@ Implemented operations include selected columns and raw projections, nested
 conditions, comparisons, `IN`, `BETWEEN`, null checks, existence predicates,
 joins, grouping, `HAVING`, ordering, limits, offsets, aggregates, inserts,
 multi-row inserts, insert-from-query, conflict-safe upserts, insert-or-ignore,
-updates, deletes, increments, and decrements. Raw SQL expressions require
+updates, deletes, and atomic single- or multi-column increments and decrements.
+Raw SQL expressions require
 explicit trusted application-authored strings and bound values.
 
 `insert_returning()`, `update_returning()`, and `delete_returning()` expose

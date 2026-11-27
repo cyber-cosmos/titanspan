@@ -89,6 +89,8 @@ public release.
   `where_not_in()`, including their OR variants, through SQLAlchemy Core.
 - Add backend-native random ordering for SQLite, PostgreSQL, and MySQL. Reject
   cursor pagination when query ordering is not stable by columns.
+- Add `increment_each()` and `decrement_each()` sync and async operations that
+  update multiple numeric columns atomically in one statement.
 - Declare Pydantic as a direct runtime dependency for native schema APIs.
 - Add native application Cache services with memory and optional Redis
   backends, explicit backend capabilities, safe JSON serialization, atomic

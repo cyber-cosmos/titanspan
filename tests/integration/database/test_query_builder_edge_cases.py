@@ -626,6 +626,7 @@ async def test_sync_and_async_mutation_validation_edges(
         await DB.statement_async(
             "CREATE TABLE values_table ("
             "id INTEGER PRIMARY KEY, score INTEGER NOT NULL, "
+            "rank INTEGER NOT NULL DEFAULT 0, "
             "label TEXT NOT NULL UNIQUE)"
         )
         await DB.table("values_table").insert_many_async(
@@ -642,6 +643,21 @@ async def test_sync_and_async_mutation_validation_edges(
             )
             == _UPDATED_ROWS
         )
+        assert (
+            await _query("values_table")
+            .where("id", 2)
+            .increment_each_async({"score": 3, "rank": 2})
+            == 1
+        )
+        assert (
+            await _query("values_table")
+            .where("id", 2)
+            .decrement_each_async({"score": 2, "rank": 1})
+            == 1
+        )
+        assert await _query("values_table").select("score", "rank").where(
+            "id", 2
+        ).first_async() == {"score": 17, "rank": 1}
         assert (
             await _query("values_table")
             .where(
@@ -670,6 +686,10 @@ async def test_sync_and_async_mutation_validation_edges(
             query.where("id", "invalid", 1)
         with pytest.raises(DatabaseQueryError, match="identifier"):
             query.update({"values_table.score": 1})
+        with pytest.raises(DatabaseQueryError, match="at least one"):
+            query.increment_each({})
+        with pytest.raises(ValueError, match="non-negative integers"):
+            query.increment_each({"score": True})
 
         with pytest.raises(DatabaseQueryError, match="same columns"):
             query.insert_or_ignore(
@@ -741,6 +761,18 @@ def _exercise_sync_mutations() -> None:
     assert query.where("id", 3).update({"score": 31}) == 1
     assert query.where("id", 3).increment("score", 1) == 1
     assert query.where("id", 3).decrement("score", 2) == 1
+    assert (
+        query.where("id", 3).increment_each(
+            {"score": 2, "rank": 3},
+        )
+        == 1
+    )
+    assert (
+        query.where("id", 3).decrement_each(
+            {"score": 1, "rank": 1},
+        )
+        == 1
+    )
     assert query.where("id", 3).delete() == 1
 
 
