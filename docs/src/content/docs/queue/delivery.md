@@ -14,7 +14,7 @@ its configuration.
 | `sync` | Runs a job inline in the current application. | No broker durability or redelivery. |
 | `null` | Returns a `discarded` receipt without executing a job. | Intentional drop behavior. |
 | `redis_stream` | Taskiq Redis Streams, JSON payloads, delayed scheduling, and Taskiq retry middleware. | Real Redis tests verify worker concurrency, process-crash redelivery after new queue activity, delayed delivery, retries, and chain continuation. |
-| `rabbitmq` | Taskiq RabbitMQ adapter declares a durable queue and configures QoS. | Adapter is present; live RabbitMQ integration is not verified. Delayed scheduling is unavailable. |
+| `rabbitmq` | Taskiq RabbitMQ adapter declares a durable queue and configures QoS. | A real RabbitMQ integration verifies publication, consumption, and cleanup. Crash redelivery and delayed scheduling remain unverified. |
 | Custom Taskiq broker | Trusted factory can construct a broker through `QueueServiceProvider`. | The application owner must verify acknowledgement, redelivery, and cleanup semantics. |
 
 Taskiq SQS integration is not included. Queue results are available only for

@@ -113,9 +113,9 @@ uv add 'titanspan[queue-redis]'
 uv add 'titanspan[queue-rabbitmq]'
 ```
 
-The Redis integration is exercised against a real local or CI Redis server.
-The RabbitMQ adapter has not been verified against a live RabbitMQ service.
-Do not treat its current adapter as a verified production guarantee.
+Redis and RabbitMQ integrations run against real local or CI services.
+RabbitMQ coverage verifies publication, consumption, and cleanup. It does not
+verify crash redelivery or delayed scheduling.
 
 ## Register job classes
 

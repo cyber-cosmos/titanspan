@@ -1873,6 +1873,9 @@ class QueueManager(BusDispatcher):
         if type(selected_prefetch) is not int or selected_prefetch < 0:
             msg = "Worker prefetch must be a non-negative integer."
             raise QueueConfigurationError(msg)
+        # Taskiq's receiver normally sets this before worker startup. Queue
+        # owns that startup so application cleanup can finalize the broker.
+        state.broker.is_worker_process = True
         await self._ensure_started(state)
         await self._emit_async(
             QueueEvent(

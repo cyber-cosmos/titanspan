@@ -264,11 +264,15 @@ def _create_rabbitmq_transport(
     )
 
     url = _required_text(configuration.options, "url")
-    return broker_factory(
+    broker = broker_factory(
         url=url,
         qos=_optional_int(configuration.options, "prefetch", 16),
         task_queues=[queue_factory(name=physical_queue, durable=True)],
     )
+    # This connection can publish before a worker starts in the same app.
+    # Taskiq's RabbitMQ adapter needs worker channels during initial startup.
+    broker.is_worker_process = True
+    return broker
 
 
 def _required_text(options: object, key: str) -> str:

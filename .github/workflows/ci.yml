@@ -404,6 +404,13 @@ jobs:
         options: >-
           --health-cmd "redis-cli ping"
           --health-interval 10s --health-timeout 5s --health-retries 5
+      rabbitmq:
+        image: rabbitmq:4.2.9-alpine
+        ports:
+          - 5672:5672
+        options: >-
+          --health-cmd "rabbitmq-diagnostics -q check_running"
+          --health-interval 10s --health-timeout 5s --health-retries 10
     needs:
       - lint
       - format
@@ -426,6 +433,8 @@ jobs:
       COVERAGE: ${{ matrix.python-version == '3.12' && 'collect' || 'none' }}
       TITANSPAN_REQUIRE_REDIS: "1"
       TITANSPAN_TEST_REDIS_PORT: "6379"
+      TITANSPAN_REQUIRE_RABBITMQ: "1"
+      TITANSPAN_TEST_RABBITMQ_URL: amqp://127.0.0.1:5672/
     steps:
       - name: Check out source
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -436,7 +445,9 @@ jobs:
         with:
           python-version: ${{ matrix.python-version }}
       - name: Install locked dependencies
-        run: uv sync --locked --all-groups --extra redis --extra queue-redis
+        run: >-
+          uv sync --locked --all-groups --extra redis --extra queue-redis
+          --extra queue-rabbitmq
       - name: Run real dependency integrations
         id: tests
         run: make integration-test

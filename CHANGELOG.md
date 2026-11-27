@@ -13,7 +13,9 @@ public release.
   `make:job-middleware` through native Console.
 - Verify Redis workers, retries, delays, chains, and result retrieval against
   a real local Redis service.
-- Keep RabbitMQ optional; live broker behavior is not verified.
+- Keep RabbitMQ optional and verify publication, consumption, and cleanup
+  against a real broker. Crash redelivery and delayed scheduling remain
+  unverified.
 - Add explicit synchronous Bus chain execution with member preflight and
   isolated job scopes.
 - Add bounded ordered Queue and Bus bulk dispatch through the canonical

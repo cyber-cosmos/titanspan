@@ -13,6 +13,7 @@ from importlib import import_module
 from os import environ
 from time import monotonic, sleep
 from typing import TYPE_CHECKING
+from urllib.parse import urlsplit
 
 import pytest
 
@@ -21,6 +22,8 @@ if TYPE_CHECKING:
 
 _REDIS_REQUIRED_ENV = "TITANSPAN_REQUIRE_REDIS"
 _REDIS_PORT_ENV = "TITANSPAN_TEST_REDIS_PORT"
+_RABBITMQ_REQUIRED_ENV = "TITANSPAN_REQUIRE_RABBITMQ"
+_RABBITMQ_URL_ENV = "TITANSPAN_TEST_RABBITMQ_URL"
 
 
 @pytest.fixture
@@ -93,3 +96,46 @@ def queue_redis_port() -> Iterator[int]:
         finally:
             process.terminate()
             process.wait(timeout=3)
+
+
+@pytest.fixture
+def queue_rabbitmq_url() -> str:
+    """Require Taskiq RabbitMQ integration when the test environment does.
+
+    Returns:
+        A trusted local AMQP URL for one real RabbitMQ test service.
+    """
+    required = (
+        environ.get(_RABBITMQ_REQUIRED_ENV) == "1"
+        or environ.get("CI", "").lower() == "true"
+    )
+    try:
+        import_module("taskiq_aio_pika")
+    except ImportError:
+        message = "Install the queue-rabbitmq extra for RabbitMQ tests."
+        if required:
+            pytest.fail(message)
+        pytest.skip(message)
+
+    url = environ.get(
+        _RABBITMQ_URL_ENV,
+        "amqp://127.0.0.1:5672/",
+    )
+    try:
+        parsed = urlsplit(url)
+        host = parsed.hostname
+        port = parsed.port or 5672
+    except ValueError:
+        pytest.fail("The configured RabbitMQ test URL is invalid.")
+    if parsed.scheme not in {"amqp", "amqps"} or host is None:
+        pytest.fail("The configured RabbitMQ test URL is invalid.")
+
+    try:
+        with socket.create_connection((host, port), timeout=0.2):
+            pass
+    except OSError:
+        message = "A local RabbitMQ test service is unavailable."
+        if required:
+            pytest.fail(message)
+        pytest.skip(message)
+    return url
