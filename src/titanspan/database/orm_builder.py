@@ -36,7 +36,11 @@ from titanspan.database.exceptions import (
 )
 from titanspan.database.model_collection import ModelCollection
 from titanspan.database.model_state import remember_service_graph
-from titanspan.database.pagination import LengthAwarePaginator, Paginator
+from titanspan.database.pagination import (
+    CursorPaginator,
+    LengthAwarePaginator,
+    Paginator,
+)
 from titanspan.database.query_builder import QueryBuilder
 
 if TYPE_CHECKING:
@@ -686,6 +690,108 @@ class ModelQueryBuilder[ModelT]:
             per_page,
             page,
             has_more,
+        )
+
+    def cursor_paginate(
+        self,
+        per_page: int = 15,
+        *,
+        cursor: str | None = None,
+    ) -> CursorPaginator[ModelT]:
+        """Retrieve a model page through the Core cursor paginator.
+
+        Args:
+            per_page: Positive maximum number of models to return.
+            cursor: Optional cursor from a previous page.
+
+        Returns:
+            Hydrated models in the Core query's stable cursor order.
+        """
+        key_name = _primary_key_name(self._model)
+        page_query = self._query.clone()
+        page_query.add_select(key_name)
+        page = page_query.cursor_paginate(
+            per_page,
+            cursor=cursor,
+            key_column=key_name,
+        )
+        identifiers = tuple(row[key_name] for row in page.items)
+        if not identifiers:
+            return CursorPaginator(
+                (),
+                page.per_page,
+                page.next_cursor,
+                page.previous_cursor,
+                page.has_more_pages,
+            )
+
+        hydration_query = (
+            self.clone().limit(None).offset(0).where_in(key_name, identifiers)
+        )
+        models = hydration_query.get()
+        models_by_key = {getattr(model, key_name): model for model in models}
+        items = tuple(
+            models_by_key[identifier]
+            for identifier in identifiers
+            if identifier in models_by_key
+        )
+        return CursorPaginator(
+            items,
+            page.per_page,
+            page.next_cursor,
+            page.previous_cursor,
+            page.has_more_pages,
+        )
+
+    async def cursor_paginate_async(
+        self,
+        per_page: int = 15,
+        *,
+        cursor: str | None = None,
+    ) -> CursorPaginator[ModelT]:
+        """Asynchronously retrieve a model page in stable cursor order.
+
+        Args:
+            per_page: Positive maximum number of models to return.
+            cursor: Optional cursor from a previous page.
+
+        Returns:
+            Hydrated models in the Core query's stable cursor order.
+        """
+        key_name = _primary_key_name(self._model)
+        page_query = self._query.clone()
+        page_query.add_select(key_name)
+        page = await page_query.cursor_paginate_async(
+            per_page,
+            cursor=cursor,
+            key_column=key_name,
+        )
+        identifiers = tuple(row[key_name] for row in page.items)
+        if not identifiers:
+            return CursorPaginator(
+                (),
+                page.per_page,
+                page.next_cursor,
+                page.previous_cursor,
+                page.has_more_pages,
+            )
+
+        hydration_query = (
+            self.clone().limit(None).offset(0).where_in(key_name, identifiers)
+        )
+        models = await hydration_query.get_async()
+        models_by_key = {getattr(model, key_name): model for model in models}
+        items = tuple(
+            models_by_key[identifier]
+            for identifier in identifiers
+            if identifier in models_by_key
+        )
+        return CursorPaginator(
+            items,
+            page.per_page,
+            page.next_cursor,
+            page.previous_cursor,
+            page.has_more_pages,
         )
 
     def select(self, *columns: str) -> Self:

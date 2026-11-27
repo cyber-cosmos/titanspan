@@ -363,8 +363,26 @@ Mass assignment accepts only declared `fillable` columns by default. Use
 `force_fill()` only with trusted application values. Mass-assignment rules do
 not replace authorization. `User.query()` supports typed retrieval,
 conditions, ordering, eager loading, aggregates, pagination, and bulk
-mutations. Simple and length-aware pagination are implemented; cursor
-pagination is not.
+mutations. Simple, length-aware, and cursor pagination are implemented.
+
+Cursor pagination uses the model's single-column primary key as its stable
+tie-breaker and returns hydrated models in the selected order:
+
+```python
+page = await User.query().order_by("name").cursor_paginate_async(
+    per_page=50,
+)
+if page.next_cursor is not None:
+    following = await User.query().order_by("name").cursor_paginate_async(
+        per_page=50,
+        cursor=page.next_cursor,
+    )
+```
+
+The cursor query selects identifiers first and hydrates the bounded page
+through the ORM, preserving model scopes and eager-load options. Concurrent
+deletion between these two reads can shorten a page; cursor pages do not
+provide a snapshot across requests.
 
 Apply a typed local transformation with `apply()`. Named global predicate
 factories are applied to root queries, relationship existence checks, and

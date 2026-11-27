@@ -95,6 +95,9 @@ public release.
   committed notifications ordered around the standard model delete lifecycle.
 - Add sync and async ORM model streaming with bounded SQLAlchemy fetch batches
   and deterministic result cleanup on early exit and cancellation.
+- Add sync and async model cursor pagination that delegates keyset ordering and
+  cursor validation to Query Builder and hydrates each bounded page through
+  SQLAlchemy ORM.
 - Add dialect-aware right and full outer joins to the native Query Builder.
   Right joins use SQLAlchemy left-join expressions with the sides reversed.
   Full outer joins use backend support on PostgreSQL and SQLite 3.39 or later.

@@ -145,6 +145,55 @@ async def test_async_model_stream_closes_when_consumer_is_cancelled(
         assert await DB.table("stream_records").count_async() == _RECORD_COUNT
 
 
+async def test_model_cursor_pages_preserve_order(
+    application: Application,
+) -> None:
+    """Hydrate cursor pages as models in stable query order.
+
+    Args:
+        application: Isolated Database application for this test.
+    """
+    async with application:
+        await _create_table()
+        await _insert_records()
+        query = StreamRecord.query().order_by("name", descending=True)
+
+        first = await query.cursor_paginate_async(per_page=2)
+        assert [record.name for record in first.items] == [
+            "record-5",
+            "record-4",
+        ]
+        assert first.next_cursor is not None
+
+        second = await query.cursor_paginate_async(
+            per_page=2,
+            cursor=first.next_cursor,
+        )
+        assert [record.name for record in second.items] == [
+            "record-3",
+            "record-2",
+        ]
+
+
+async def test_sync_model_cursor_page_hydrates_selected_models(
+    application: Application,
+) -> None:
+    """Hydrate a synchronous cursor page from a partial projection.
+
+    Args:
+        application: Isolated Database application for this test.
+    """
+    async with application:
+        await _create_table()
+        await _insert_records()
+        names, next_cursor = await anyio.to_thread.run_sync(
+            _take_sync_cursor_page,
+        )
+
+        assert names == ["record-1", "record-2"]
+        assert next_cursor is not None
+
+
 def _take_first_sync_model() -> int:
     """Read one model and close the synchronous streaming scope.
 
@@ -153,6 +202,21 @@ def _take_first_sync_model() -> int:
     """
     with StreamRecord.query().order_by("id").stream(batch_size=1) as records:
         return next(records).id
+
+
+def _take_sync_cursor_page() -> tuple[list[str], str | None]:
+    """Read a projected model page through the synchronous ORM API.
+
+    Returns:
+        Model names and an optional next-page cursor.
+    """
+    page = (
+        StreamRecord.query()
+        .select("name")
+        .order_by("name")
+        .cursor_paginate(per_page=2)
+    )
+    return [record.name for record in page.items], page.next_cursor
 
 
 async def _create_table() -> None:
