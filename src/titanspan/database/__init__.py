@@ -79,7 +79,9 @@ from titanspan.database.relationships import (
     belongs_to,
     belongs_to_many,
     has_many,
+    has_many_through,
     has_one,
+    has_one_through,
 )
 from titanspan.database.routing import bind_model
 from titanspan.database.schema import Blueprint, ColumnDefinition, Schema
@@ -192,7 +194,9 @@ __all__ = [
     "bind_model",
     "exists_rule",
     "has_many",
+    "has_many_through",
     "has_one",
+    "has_one_through",
     "run_migration",
     "unique_rule",
 ]

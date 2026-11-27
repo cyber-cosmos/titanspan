@@ -619,9 +619,10 @@ caller, but it cannot undo a database write that already committed.
 ## Relationships and loading
 
 Relationship helpers delegate mapping and loading to SQLAlchemy. The current
-native declaration helpers are `has_one`, `has_many`, `belongs_to`, and
-`belongs_to_many`. The related classes and foreign-key metadata must form a
-valid SQLAlchemy mapping.
+native declaration helpers include `has_one`, `has_many`, `belongs_to`,
+`belongs_to_many`, and read-only `has_one_through` and `has_many_through`.
+The related classes and foreign-key metadata must form a valid SQLAlchemy
+mapping.
 
 ```python
 from __future__ import annotations
@@ -644,8 +645,32 @@ class User(Model):
     """Represent a user with related posts."""
 
     table = "users"
+    country_id: Mapped[int] = mapped_column(ForeignKey("countries.id"))
     posts: Mapped[list[Post]] = has_many(Post, back_populates="user")
 ```
+
+Use a mapped intermediate table for through relationships. SQLAlchemy infers
+the joins from foreign keys; provide `primaryjoin` and `secondaryjoin` when a
+schema has multiple paths. Through relationships are read-only because they
+use an intermediate table as a view-only secondary mapping:
+
+```python
+from sqlalchemy.orm import Mapped
+
+from titanspan.database import has_many_through, has_one_through
+
+
+class Country(Model):
+    """Represent posts owned by users in one country."""
+
+    table = "countries"
+    posts: Mapped[list[Post]] = has_many_through(Post, User)
+    first_post: Mapped[Post] = has_one_through(Post, User)
+```
+
+The intermediate `User` table must reference `Country`, and `Post` must
+reference `User`. A one-through relation also requires data and constraints
+that make its single-result semantics valid.
 
 Use `with_()` to load relationships as part of the query:
 
@@ -705,9 +730,8 @@ and mutators. A separate dynamic cast registry is not provided.
 model operations, safe conversion, and batch relationship loading. Ordinary
 collection behavior remains owned by `titanspan.collections`.
 
-Through and polymorphic relationships, relationship persistence helpers,
-relationship aggregates, broad custom cast and accessor APIs, and API
-resources are not implemented yet.
+Polymorphic relationships, one-of-many relationships, relationship persistence
+helpers, relationship aggregates, and API resources are not implemented yet.
 
 ## Schema and migrations
 
