@@ -28,6 +28,17 @@ from sqlalchemy.orm.base import NO_VALUE
 from sqlalchemy.orm.exc import ObjectDeletedError
 from sqlalchemy.orm.session import object_session
 
+from titanspan.database.events import (
+    ModelCreated,
+    ModelCreating,
+    ModelDeleted,
+    ModelDeleting,
+    ModelEvent,
+    ModelSaved,
+    ModelSaving,
+    ModelUpdated,
+    ModelUpdating,
+)
 from titanspan.database.exceptions import (
     DatabaseQueryError,
     DatabaseTransactionError,
@@ -48,6 +59,7 @@ from titanspan.database.model_state import (
 )
 from titanspan.database.orm_builder import ModelQueryBuilder
 from titanspan.facades.database import DB
+from titanspan.facades.event import Event
 
 if TYPE_CHECKING:
     from titanspan.contracts.database import DatabaseService
@@ -810,6 +822,12 @@ class Model(DeclarativeBase):
             self._ensure_session_owner(service, session)
             state = sa_inspect(self)
             created = state.transient or state.pending
+            before_events: tuple[ModelEvent[Self], ...] = (
+                ModelSaving(self),
+                ModelCreating(self) if created else ModelUpdating(self),
+            )
+            if not _dispatch_cancellable_events(before_events):
+                return False
             changes = self._changed_attributes()
             self._set_timestamps(created=created)
             changes.update(self._changed_attributes())
@@ -817,15 +835,21 @@ class Model(DeclarativeBase):
                 session.add(self)
             session.flush()
             remember_service(self, service)
-            service.after_commit(
-                lambda: remember_save(
+
+            def after_commit() -> None:
+                """Record state and dispatch committed save events.
+
+                This callback runs only after the selected transaction commits.
+                """
+                remember_save(
                     self,
                     service,
                     created=created,
                     changes=changes,
-                ),
-                type(self).connection,
-            )
+                )
+                _dispatch_saved_events(self, created)
+
+            service.after_commit(after_commit, type(self).connection)
         return True
 
     async def save_async(self) -> bool:
@@ -843,6 +867,12 @@ class Model(DeclarativeBase):
             self._ensure_session_owner(service, session)
             state = sa_inspect(self)
             created = state.transient or state.pending
+            before_events: tuple[ModelEvent[Self], ...] = (
+                ModelSaving(self),
+                ModelCreating(self) if created else ModelUpdating(self),
+            )
+            if not await _dispatch_cancellable_events_async(before_events):
+                return False
             changes = self._changed_attributes()
             self._set_timestamps(created=created)
             changes.update(self._changed_attributes())
@@ -850,13 +880,22 @@ class Model(DeclarativeBase):
                 session.add(self)
             await session.flush()
             remember_service(self, service)
-            service.after_commit(
-                lambda: remember_save(
+
+            async def after_commit() -> None:
+                """Record state and await committed save listeners.
+
+                The manager preserves its order with other commit callbacks.
+                """
+                remember_save(
                     self,
                     service,
                     created=created,
                     changes=changes,
-                ),
+                )
+                await _dispatch_saved_events_async(self, created)
+
+            await service.after_commit_async(
+                after_commit,
                 type(self).connection,
             )
         return True
@@ -1417,6 +1456,8 @@ class Model(DeclarativeBase):
         """
         if not self.exists:
             return False
+        if not _dispatch_cancellable_events((ModelDeleting(self),)):
+            return False
         service = DB.resolve_service()
         with service.session(type(self).connection) as session:
             self._ensure_session_owner(service, session)
@@ -1424,10 +1465,16 @@ class Model(DeclarativeBase):
                 session.add(self)
             session.delete(self)
             session.flush()
-            service.after_commit(
-                lambda: remember_deleted(self),
-                type(self).connection,
-            )
+
+            def after_commit() -> None:
+                """Record deletion and dispatch its committed event.
+
+                A rollback discards this callback with the row removal.
+                """
+                remember_deleted(self)
+                Event.dispatch(ModelDeleted(self))
+
+            service.after_commit(after_commit, type(self).connection)
         return True
 
     async def _delete_async(self) -> bool:
@@ -1438,6 +1485,10 @@ class Model(DeclarativeBase):
         """
         if not self.exists:
             return False
+        if not await _dispatch_cancellable_events_async(
+            (ModelDeleting(self),),
+        ):
+            return False
         service = DB.resolve_service()
         async with service.session_async(type(self).connection) as session:
             self._ensure_session_owner(service, session)
@@ -1445,8 +1496,17 @@ class Model(DeclarativeBase):
                 session.add(self)
             await session.delete(self)
             await session.flush()
-            service.after_commit(
-                lambda: remember_deleted(self),
+
+            async def after_commit() -> None:
+                """Record deletion and await committed delete listeners.
+
+                A rollback discards this callback with the row removal.
+                """
+                remember_deleted(self)
+                await Event.dispatch_async(ModelDeleted(self))
+
+            await service.after_commit_async(
+                after_commit,
                 type(self).connection,
             )
         return True
@@ -1463,6 +1523,69 @@ def _snake_case(name: str) -> str:
     """
     separated = _SNAKE_CASE_ACRONYM.sub(r"\1_\2", name)
     return _SNAKE_CASE_BOUNDARY.sub(r"\1_\2", separated).casefold()
+
+
+def _dispatch_cancellable_events[ModelT](
+    events: Sequence[ModelEvent[ModelT]],
+) -> bool:
+    """Dispatch synchronous pre-persistence events in order.
+
+    Args:
+        events: Event objects whose listeners may reject the operation.
+
+    Returns:
+        Whether every event allowed persistence to continue.
+    """
+    for event in events:
+        Event.dispatch(event)
+        if event.cancelled:
+            return False
+    return True
+
+
+async def _dispatch_cancellable_events_async[ModelT](
+    events: Sequence[ModelEvent[ModelT]],
+) -> bool:
+    """Await pre-persistence events and check explicit cancellation.
+
+    Args:
+        events: Event objects whose sync or async listeners may reject work.
+
+    Returns:
+        Whether every event allowed persistence to continue.
+    """
+    for event in events:
+        await Event.dispatch_async(event)
+        if event.cancelled:
+            return False
+    return True
+
+
+def _dispatch_saved_events(model: Model, created: bool) -> None:
+    """Dispatch model events after its transaction successfully commits.
+
+    Args:
+        model: Model whose insert or update is durable.
+        created: Whether the committed operation inserted a new row.
+    """
+    Event.dispatch(ModelCreated(model) if created else ModelUpdated(model))
+    Event.dispatch(ModelSaved(model))
+
+
+async def _dispatch_saved_events_async(
+    model: Model,
+    created: bool,
+) -> None:
+    """Await committed model events through the async dispatcher.
+
+    Args:
+        model: Model whose insert or update is durable.
+        created: Whether the committed operation inserted a new row.
+    """
+    await Event.dispatch_async(
+        ModelCreated(model) if created else ModelUpdated(model),
+    )
+    await Event.dispatch_async(ModelSaved(model))
 
 
 def _pluralize(name: str) -> str:

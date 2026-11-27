@@ -9,7 +9,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Protocol, runtime_checkable
 
 if TYPE_CHECKING:
-    from collections.abc import Callable
+    from collections.abc import Awaitable, Callable
     from contextlib import AbstractAsyncContextManager, AbstractContextManager
 
     from sqlalchemy.ext.asyncio import AsyncSession
@@ -120,6 +120,23 @@ class DatabaseService(Protocol):
 
         Args:
             callback: Application-owned callback with no database result.
+            name: Connection whose active transaction owns the callback.
+        """
+        ...
+
+    async def after_commit_async(
+        self,
+        callback: Callable[[], Awaitable[None]],
+        name: str | None = None,
+    ) -> None:
+        """Await a callback after the selected async transaction commits.
+
+        The callback runs immediately when no transaction is active. It may
+        be registered only by the task that owns an async transaction.
+
+        Args:
+            callback: Asynchronous application callback with no database
+                result.
             name: Connection whose active transaction owns the callback.
         """
         ...

@@ -40,11 +40,12 @@ integration coverage. Basic model factories support in-memory construction,
 states, sequences, and sync and async persistence. Explicit route model
 binding resolves configured keys through the active Database service.
 Database-backed async `unique_rule` and `exists_rule` values reuse the native
-Validation service and bind all query values. Relationship factories,
-recycling, advanced relationships, scoped or automatic binding, and model URL
-generation remain in progress. Seeders support sync and async execution
-through Container-owned instances and Database transactions, with native
-`db:seed` and `make:seeder` commands.
+Validation service and bind all query values. Typed model lifecycle events
+use the native Events dispatcher and transaction callbacks. Relationship
+factories, recycling, advanced relationships, scoped or automatic binding,
+and model URL generation remain in progress. Seeders support sync and async
+execution through Container-owned instances and Database transactions
+with native `db:seed` and `make:seeder` commands.
 
 ## Phase 0 — Engineering foundation
 
@@ -89,7 +90,10 @@ through Container-owned instances and Database transactions, with native
 
 ## Phase 4 — Data and concurrency
 
-- SQLAlchemy-backed persistence, migrations, and query conventions.
+- Database persistence, migrations, factories, seeders, model events,
+  validation, route binding, and native Console foundations are implemented.
+  Advanced ORM behavior, relationship factories, and additional commands
+  remain planned.
 - Structured concurrency, CPU parallelism, and bounded streaming pipelines.
 
 ## Phase 5 — Production infrastructure

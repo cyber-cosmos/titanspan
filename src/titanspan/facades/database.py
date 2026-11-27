@@ -16,7 +16,7 @@ from titanspan.contracts.database import (
 from titanspan.facades.base import Facade
 
 if TYPE_CHECKING:
-    from collections.abc import Callable, Mapping
+    from collections.abc import Awaitable, Callable, Mapping
     from contextlib import AbstractAsyncContextManager, AbstractContextManager
 
     from titanspan.contracts.database import DatabaseResult
@@ -125,6 +125,21 @@ class DB(Facade[DatabaseService]):
                 transaction, the callback runs immediately.
         """
         cls.resolve_service().after_commit(callback, connection)
+
+    @classmethod
+    async def after_commit_async(
+        cls,
+        callback: Callable[[], Awaitable[None]],
+        *,
+        connection: str | None = None,
+    ) -> None:
+        """Await a callback after the owning async transaction commits.
+
+        Args:
+            callback: Asynchronous application callback with no result.
+            connection: Connection owning the active async transaction.
+        """
+        await cls.resolve_service().after_commit_async(callback, connection)
 
     @classmethod
     def after_rollback(

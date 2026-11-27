@@ -120,7 +120,9 @@ savepoints where supported. A model save flushes its Unit of Work; the
 outermost transaction owns commit. Operations outside an explicit transaction
 use and finish an operation-owned Unit of Work. `DB.after_commit()` callbacks
 run only after a successful outer commit. Rollback callbacks follow their
-owning transaction or savepoint.
+owning transaction or savepoint. `await DB.after_commit_async()` registers an
+awaited callback on the current task's transaction and preserves registration
+order with synchronous commit callbacks.
 
 Retry policies, distributed transactions, and exactly-once side-effect
 delivery are not provided. A callback registered for commit must not be used
@@ -285,6 +287,37 @@ The `SoftDeletes` mixin adds a nullable deletion timestamp and filters deleted
 rows from model queries by default. `with_trashed()`, `only_trashed()`,
 `restore()`, and `force_delete()` provide explicit visibility and deletion
 operations. Raw table queries intentionally bypass model scopes.
+
+## Model lifecycle events
+
+Register typed model events with the application-owned Events dispatcher.
+Creating and updating events run before SQLAlchemy flushes the model. A
+listener can call `event.cancel()` to stop that write. Created, updated, saved,
+and deleted events run only after the owning transaction commits:
+
+```python
+from app.models import User
+from titanspan.database import ModelCreated
+from titanspan.facades.event import Event
+
+
+def record_creation(event: ModelCreated[User]) -> None:
+    """Observe a committed user insert."""
+    print(event.model.id)
+
+
+def register_database_listeners() -> None:
+    """Register listeners from an application startup callback."""
+    Event.listen(ModelCreated, record_creation)
+```
+
+Synchronous model operations dispatch synchronous listeners. Async model
+operations use `dispatch_async` and await async listeners. Events registered
+inside a savepoint remain pending until the outer transaction commits; rollback
+discards them. Bulk Query Builder mutations bypass per-model events. Observer
+classes, event suppression, and dedicated soft-delete and restore events are
+not implemented. A listener failure after commit is reported to the caller,
+but it cannot undo a database write that already committed.
 
 ## Relationships and loading
 
@@ -453,9 +486,9 @@ boundary. Use SQLAlchemy and Alembic APIs directly for capabilities not yet
 exposed by the native layer.
 
 The Database component does not yet provide scoped or automatic Routing model
-binding, model-based URL generation, model lifecycle events through the Events
-component, database-specific Testing assertions, read replicas, query caching,
-or distributed migration coordination. See
+binding, model-based URL generation, observer classes, soft-delete and restore
+events, database-specific Testing assertions, read replicas, query caching, or
+distributed migration coordination. See
 [ADR 0006](/titanspan/architecture/decisions/0006-sqlalchemy-persistence/) for
 the accepted persistence boundary and
 [the backend boundary specification](/titanspan/specifications/backend-boundaries/)

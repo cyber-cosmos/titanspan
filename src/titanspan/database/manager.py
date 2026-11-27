@@ -7,7 +7,9 @@ checked against the current thread or asyncio task before reuse.
 from __future__ import annotations
 
 import asyncio
+import inspect
 import threading
+from collections.abc import Awaitable, Callable
 from contextlib import (
     AsyncExitStack,
     ExitStack,
@@ -18,7 +20,7 @@ from contextvars import ContextVar
 from dataclasses import dataclass, field
 from pathlib import Path
 from types import MappingProxyType
-from typing import TYPE_CHECKING, Literal, NoReturn, Protocol, cast
+from typing import TYPE_CHECKING, Literal, NoReturn, cast
 
 import anyio
 from sqlalchemy import create_engine, text
@@ -43,7 +45,11 @@ from titanspan.database.exceptions import (
 )
 
 if TYPE_CHECKING:
-    from collections.abc import AsyncGenerator, Generator, Mapping
+    from collections.abc import (
+        AsyncGenerator,
+        Generator,
+        Mapping,
+    )
     from contextvars import Token
 
     from sqlalchemy.engine import URL, CursorResult, Engine
@@ -60,18 +66,21 @@ type _ExecutionMode = Literal["sync", "async"]
 type _Session = Session | AsyncSession
 
 
-class _TransactionCallback(Protocol):
-    """Describe a synchronous callback owned by a transaction boundary.
-    """  # fmt: skip
+type _TransactionCallback = Callable[[], None]
+type _AsyncTransactionCallback = Callable[[], Awaitable[None]]
 
-    def __call__(self) -> None:
-        """Perform one application callback without returning a value.
-        """  # fmt: skip
-        ...
+
+type _CommitCallback = _TransactionCallback | _AsyncTransactionCallback
 
 
 def _new_callback_list() -> list[_TransactionCallback]:
     """Create a fresh typed list for one transaction callback phase.
+    """  # fmt: skip
+    return []
+
+
+def _new_commit_callback_list() -> list[_CommitCallback]:
+    """Create ordered sync and async post-commit callback storage.
     """  # fmt: skip
     return []
 
@@ -85,8 +94,8 @@ class _TransactionCallbacks:
     callbacks immediately.
     """
 
-    after_commit: list[_TransactionCallback] = field(
-        default_factory=_new_callback_list,
+    after_commit: list[_CommitCallback] = field(
+        default_factory=_new_commit_callback_list,
     )
     after_rollback: list[_TransactionCallback] = field(
         default_factory=_new_callback_list,
@@ -227,6 +236,32 @@ class DatabaseManager:
         self._validate_owner(state)
         state.callback_frames[-1].after_commit.append(callback)
 
+    async def after_commit_async(
+        self,
+        callback: _AsyncTransactionCallback,
+        name: str | None = None,
+    ) -> None:
+        """Await a callback after the current task's transaction commits.
+
+        Args:
+            callback: Awaitable callback delivered after confirmed commit.
+            name: Connection whose async transaction owns this callback.
+
+        Raises:
+            DatabaseTransactionOwnershipError: If the active transaction is
+                synchronous or belongs to another task.
+        """
+        connection_name = self._connection_name(name)
+        state = self._scope.get().get(connection_name)
+        if state is None:
+            await callback()
+            return
+        self._validate_owner(state)
+        if state.mode != "async":
+            msg = "Async commit callbacks require an async transaction."
+            raise DatabaseTransactionOwnershipError(msg)
+        state.callback_frames[-1].after_commit.append(callback)
+
     def after_rollback(
         self,
         callback: _TransactionCallback,
@@ -334,7 +369,7 @@ class DatabaseManager:
                 yield
             return
 
-        callbacks: tuple[_TransactionCallback, ...] = ()
+        callbacks: tuple[_CommitCallback, ...] = ()
         operation_error: BaseException | None = None
         try:
             with self._root_sync_scope(connection_name) as (
@@ -392,7 +427,7 @@ class DatabaseManager:
                 yield
             return
 
-        callbacks: tuple[_TransactionCallback, ...] = ()
+        callbacks: tuple[_CommitCallback, ...] = ()
         operation_error: BaseException | None = None
         try:
             async with self._root_async_scope(
@@ -420,7 +455,7 @@ class DatabaseManager:
                 error,
                 "The database transaction cleanup failed.",
             )
-        _finish_transaction(operation_error, callbacks)
+        await _finish_transaction_async(operation_error, callbacks)
 
     @contextmanager
     def _root_sync_scope(
@@ -1312,7 +1347,7 @@ def _rollback_sync(
 def _commit_sync(
     transaction: SessionTransaction,
     state: _ExecutionState,
-) -> tuple[BaseException | None, tuple[_TransactionCallback, ...]]:
+) -> tuple[BaseException | None, tuple[_CommitCallback, ...]]:
     """Commit a sync transaction and select post-commit callbacks.
 
     Args:
@@ -1370,7 +1405,7 @@ async def _rollback_async(
 async def _commit_async(
     transaction: AsyncSessionTransaction,
     state: _ExecutionState,
-) -> tuple[BaseException | None, tuple[_TransactionCallback, ...]]:
+) -> tuple[BaseException | None, tuple[_CommitCallback, ...]]:
     """Commit an async transaction and select post-commit callbacks.
 
     A failed commit has an uncertain outcome, so rollback callbacks are not
@@ -1381,7 +1416,8 @@ async def _commit_async(
         state: Owning callback state for that transaction.
 
     Returns:
-        A commit failure and cleanup details, or its callbacks after commit.
+        A commit failure and cleanup details, or ordered callbacks selected
+        after a confirmed commit.
     """
     try:
         await transaction.__aexit__(None, None, None)
@@ -1399,7 +1435,7 @@ async def _commit_async(
 
 def _finish_transaction(
     operation_error: BaseException | None,
-    callbacks: tuple[_TransactionCallback, ...],
+    callbacks: tuple[_CommitCallback, ...],
 ) -> None:
     """Run callbacks after cleanup and re-raise transaction failures.
 
@@ -1424,7 +1460,7 @@ def _finish_transaction(
 
 
 def _run_callbacks(
-    callbacks: tuple[_TransactionCallback, ...],
+    callbacks: tuple[_CommitCallback, ...],
 ) -> list[Exception]:
     """Run every synchronous transaction callback and collect failures.
 
@@ -1437,10 +1473,48 @@ def _run_callbacks(
     failures: list[Exception] = []
     for callback in callbacks:
         try:
-            callback()
+            result = callback()
+            if inspect.isawaitable(result):
+                if inspect.iscoroutine(result):
+                    result.close()
+                msg = "An async commit callback requires an async transaction."
+                failures.append(DatabaseTransactionOwnershipError(msg))
         except Exception as error:
             failures.append(error)
     return failures
+
+
+async def _finish_transaction_async(
+    operation_error: BaseException | None,
+    callbacks: tuple[_CommitCallback, ...],
+) -> None:
+    """Run sync and awaited callbacks after async transaction cleanup.
+
+    Args:
+        operation_error: Body, commit, or cleanup failure if one occurred.
+        callbacks: Ordered callbacks selected by a confirmed outcome.
+    """
+    callback_errors: list[Exception] = []
+    for callback in callbacks:
+        try:
+            result = callback()
+            if inspect.isawaitable(result):
+                await result
+        except Exception as error:
+            callback_errors.append(error)
+    if operation_error is not None:
+        if callback_errors:
+            operation_error = BaseExceptionGroup(
+                "The database transaction and its callbacks failed.",
+                [operation_error, *callback_errors],
+            )
+        if isinstance(operation_error, SQLAlchemyError):
+            message = "The database transaction failed."
+            raise DatabaseTransactionError(message) from operation_error
+        raise operation_error
+    if callback_errors:
+        message = "One or more database transaction callbacks failed."
+        raise ExceptionGroup(message, callback_errors)
 
 
 def _combine_failures(

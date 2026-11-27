@@ -63,6 +63,10 @@ public release.
   Validation, including model connection defaults, trusted constraints, and
   trusted update ignores. Rules delegate SQL construction and binding to the
   native Query Builder.
+- Add typed model events for creation, update, save, and hard delete.
+  Pre-persistence listeners can cancel writes. Sync and async listeners
+  run after commit, in transaction and savepoint registration order.
+  Add `DB.after_commit_async()` for task-owned transaction callbacks.
 - Declare Pydantic as a direct runtime dependency for native schema APIs.
 - Add native application Cache services with memory and optional Redis
   backends, explicit backend capabilities, safe JSON serialization, atomic

@@ -18,6 +18,17 @@ from titanspan.database.configuration import (
     DatabaseConfiguration,
 )
 from titanspan.database.connection import Connection
+from titanspan.database.events import (
+    ModelCreated,
+    ModelCreating,
+    ModelDeleted,
+    ModelDeleting,
+    ModelEvent,
+    ModelSaved,
+    ModelSaving,
+    ModelUpdated,
+    ModelUpdating,
+)
 from titanspan.database.exceptions import (
     AsyncOperationRequiredError,
     DatabaseConfigurationError,
@@ -90,9 +101,18 @@ __all__ = [
     "MigrationStatus",
     "Model",
     "ModelCollection",
+    "ModelCreated",
+    "ModelCreating",
+    "ModelDeleted",
+    "ModelDeleting",
+    "ModelEvent",
     "ModelFactory",
     "ModelNotFoundError",
     "ModelQueryBuilder",
+    "ModelSaved",
+    "ModelSaving",
+    "ModelUpdated",
+    "ModelUpdating",
     "MultipleModelsFoundError",
     "Paginator",
     "QueryBuilder",
