@@ -4,7 +4,9 @@ These tests exercise the native Container, dispatcher contracts, and facades.
 """
 
 from dataclasses import dataclass
+from typing import cast
 
+import anyio
 import pytest
 from taskiq import InMemoryBroker
 from taskiq.abc.broker import AsyncBroker
@@ -55,6 +57,22 @@ class _UnregisteredValueJob(_ValueJob):
     """  # fmt: skip
 
 
+@dataclass
+class _OtherValueJob(Job):
+    """Return one separate job value through the application Container.
+    """  # fmt: skip
+
+    value: str
+
+    def handle(self) -> str:
+        """Return this job's value from native inline execution.
+
+        Returns:
+            The value supplied when the job was created.
+        """
+        return self.value
+
+
 def _application() -> Application:
     """Create an application with real sync and null Queue drivers.
 
@@ -71,7 +89,9 @@ def _application() -> Application:
                 },
             },
         },
-        service_providers=(QueueServiceProvider(jobs=(_ValueJob,)),),
+        service_providers=(
+            QueueServiceProvider(jobs=(_ValueJob, _OtherValueJob)),
+        ),
     )
 
 
@@ -269,6 +289,124 @@ async def test_dispatch_many_is_empty_safe_and_bounded() -> None:
                 )
 
     fake.assert_nothing_pushed()
+
+
+@pytest.mark.anyio
+async def test_fake_selects_only_registered_job_types() -> None:
+    """Fake selected job classes and execute unmatched sync jobs normally.
+
+    Selective behavior still uses the real Application and Queue manager.
+    """
+    application = _application()
+
+    async with application:
+        manager = application.container.make(QueueManager)
+        with Queue.fake(only=(_ValueJob,)) as fake:
+            fake_receipt = await manager.dispatch_async(
+                _ValueJob("fake"),
+                connection="sync",
+            )
+            executed_receipt = await manager.dispatch_async(
+                _OtherValueJob("executed"),
+                connection="sync",
+            )
+            worker_fake_receipt = await anyio.to_thread.run_sync(
+                manager.dispatch_sync,
+                _ValueJob("worker fake"),
+            )
+            worker_live_receipt = await anyio.to_thread.run_sync(
+                manager.dispatch_sync,
+                _OtherValueJob("worker live"),
+            )
+
+    assert fake_receipt.state == "queued"
+    assert executed_receipt.state == "executed"
+    assert executed_receipt.result == "executed"
+    assert worker_fake_receipt.state == "queued"
+    assert worker_live_receipt.state == "executed"
+    assert worker_live_receipt.result == "worker live"
+    fake.assert_pushed_count(_ValueJob, 2)
+
+
+@pytest.mark.anyio
+async def test_bus_fake_accepts_selected_job_classes() -> None:
+    """Apply selective Bus fake behavior through the shared Queue manager.
+
+    The selected type is recorded while an unselected sync type executes.
+    """
+    application = _application()
+
+    async with application, Bus.fake(only=(_ValueJob,)) as fake:
+        selected = await Bus.dispatch_async(
+            _ValueJob("fake"),
+            connection="sync",
+        )
+        unselected = await Bus.dispatch_async(
+            _OtherValueJob("live"),
+            connection="sync",
+        )
+
+    assert selected.state == "queued"
+    assert unselected.state == "executed"
+    assert unselected.result == "live"
+    fake.assert_pushed_count(_ValueJob, 1)
+
+
+@pytest.mark.anyio
+async def test_selective_fake_rejects_unregistered_or_empty_selection() -> None:
+    """Require a selective fake to name trusted registered classes.
+
+    Invalid filters fail before a fake becomes active.
+    """
+    application = _application()
+
+    async with application:
+        manager = application.container.make(QueueManager)
+        with pytest.raises(QueueConfigurationError):
+            manager.fake(only=(_UnregisteredValueJob,))
+        with pytest.raises(QueueConfigurationError):
+            manager.fake(only=())
+        with pytest.raises(QueueConfigurationError):
+            manager.fake(only=(cast("type[Job]", str),))
+        with pytest.raises(QueueConfigurationError):
+            manager.fake(only=(cast("type[Job]", object()),))
+
+
+@pytest.mark.anyio
+async def test_selective_fake_does_not_split_chains_or_batches() -> None:
+    """Keep orchestration whole when a fake selects only some members.
+
+    Partial selection fails before side effects. Fully unselected work runs.
+    """
+    application = _application()
+
+    async with application:
+        manager = application.container.make(QueueManager)
+        with manager.fake(only=(_ValueJob,)) as fake:
+            with pytest.raises(
+                QueueCapabilityError,
+                match="cannot split a chain or batch",
+            ):
+                await manager.chain(
+                    [_ValueJob("fake"), _OtherValueJob("live")],
+                ).dispatch_async()
+            with pytest.raises(
+                QueueCapabilityError,
+                match="cannot split a chain or batch",
+            ):
+                await manager.batch(
+                    [_ValueJob("fake"), _OtherValueJob("live")],
+                ).dispatch_async()
+            live_chain = await manager.chain(
+                [_OtherValueJob("chain-live")],
+            ).dispatch_async()
+            live_batch = await manager.batch(
+                [_OtherValueJob("batch-live")],
+            ).dispatch_async()
+
+    fake.assert_nothing_pushed()
+    assert live_chain.state == "executed"
+    assert live_batch.state == "completed"
 
 
 @pytest.mark.anyio

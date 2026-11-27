@@ -274,13 +274,20 @@ class Queue(Facade[QueueDispatcher]):
         return cls.resolve_service().result_for(receipt)
 
     @classmethod
-    def fake(cls) -> QueueFakeScope:
+    def fake(
+        cls,
+        only: Sequence[type[Job]] | None = None,
+    ) -> QueueFakeScope:
         """Replace broker effects with an execution-local dispatch recorder.
+
+        Args:
+            only: Optional registered job classes to intercept. Other
+                single-job dispatches use their configured connection.
 
         Returns:
             A sync and async fake scope with Queue assertions.
         """
-        return cls.manager().fake()
+        return cls.manager().fake(only=only)
 
     @classmethod
     async def work_async(

@@ -243,12 +243,19 @@ class QueueFake:
     Fakes are selected by the owning manager's execution-local ContextVar.
     """
 
-    def __init__(self) -> None:
-        """Create an isolated empty dispatch record.
+    def __init__(
+        self,
+        only: frozenset[type[Job]] | None = None,
+    ) -> None:
+        """Create an isolated dispatch recorder.
+
+        Args:
+            only: Optional trusted job classes intercepted by this fake.
         """  # fmt: skip
         self._records: list[QueueDispatchRecord] = []
         self._lock = threading.RLock()
         self._closed = False
+        self._only = only
 
     @property
     def records(self) -> tuple[QueueDispatchRecord, ...]:
@@ -275,6 +282,24 @@ class QueueFake:
                 msg = "A Queue fake cannot record after its scope closes."
                 raise QueueError(msg)
             self._records.append(QueueDispatchRecord(job, job_name, receipt))
+
+    def selects(self, job_type: type[Job]) -> bool:
+        """Check whether this open fake intercepts one registered class.
+
+        Args:
+            job_type: Job class checked against this fake's filter.
+
+        Returns:
+            Whether this fake intercepts the job.
+
+        Raises:
+            QueueError: If a child task uses a fake after its owner exits.
+        """
+        with self._lock:
+            if self._closed:
+                msg = "A Queue fake cannot be used after its scope closes."
+                raise QueueError(msg)
+            return self._only is None or job_type in self._only
 
     def close_scope(self) -> None:
         """Reject inherited child-context writes after scope restoration.
@@ -460,14 +485,19 @@ class QueueFakeScope:
     Nested scopes restore their preceding fake after all exit paths.
     """
 
-    def __init__(self, manager: QueueManager) -> None:
+    def __init__(
+        self,
+        manager: QueueManager,
+        only: frozenset[type[Job]] | None = None,
+    ) -> None:
         """Create a fake scope without activating it.
 
         Args:
             manager: Canonical application-owned Queue manager.
+            only: Optional registered classes intercepted by this fake.
         """
         self._manager = manager
-        self._fake = QueueFake()
+        self._fake = QueueFake(only)
         self._token: Token[QueueFake | None] | None = None
         self._entered = False
 
@@ -1097,7 +1127,7 @@ class QueueManager(BusDispatcher):
         selected_queue = queue or self._configuration.default_queue
         configuration = self.connection_configuration(selected_connection)
         self.validate_queue_name(selected_queue)
-        fake = self._fake.get()
+        fake = self._fake_for_jobs(jobs)
         if configuration.driver not in {"sync", "null"} and fake is None:
             msg = (
                 "Distributed batches require a persistent batch repository; "
@@ -1308,6 +1338,7 @@ class QueueManager(BusDispatcher):
                 job_type.connection or continuation_connection
             )
             self.validate_queue_name(job_type.queue or continuation_queue)
+        fake = self._fake_for_jobs(jobs)
         chain_id = str(uuid4())
         continuation = self._codec.encode_chain(
             jobs[1:],
@@ -1327,7 +1358,6 @@ class QueueManager(BusDispatcher):
                 continuation=continuation,
             ),
         )
-        fake = self._fake.get()
         if fake is not None:
             for job, payload in zip(jobs[1:], continuation, strict=True):
                 fake.record(
@@ -1391,7 +1421,6 @@ class QueueManager(BusDispatcher):
         fallback_queue = queue or self._configuration.default_queue
         chain_id = str(uuid4())
         selected: list[tuple[Job, str, str]] = []
-        fake = self._fake.get()
         for job in jobs:
             job_type = self._job_type(job)
             job_connection = job_type.connection or fallback_connection
@@ -1401,9 +1430,12 @@ class QueueManager(BusDispatcher):
             if settings.driver != "sync":
                 msg = "Synchronous chains require sync connections."
                 raise QueueCapabilityError(msg)
-            if fake is None:
-                self._validate_sync_chain_member(job)
             selected.append((job, job_connection, job_queue))
+
+        fake = self._fake_for_jobs(jobs)
+        if fake is None:
+            for job in jobs:
+                self._validate_sync_chain_member(job)
 
         receipts = tuple(
             self.dispatch_effect_sync(
@@ -1616,13 +1648,24 @@ class QueueManager(BusDispatcher):
         self.validate_queue_name(receipt.queue)
         return QueueResultHandle(self, receipt)
 
-    def fake(self) -> QueueFakeScope:
+    def fake(
+        self,
+        only: Sequence[type[Job]] | None = None,
+    ) -> QueueFakeScope:
         """Select an execution-local fake for this canonical manager.
+
+        Args:
+            only: Optional registered classes to intercept. Other single-job
+                dispatches use their configured connection.
 
         Returns:
             A sync and async context manager that records dispatches.
+
+        Raises:
+            QueueConfigurationError: If a selected class is unregistered.
         """
-        return QueueFakeScope(self)
+        selected = self._validate_fake_selection(only)
+        return QueueFakeScope(self, selected)
 
     async def work_async(
         self,
@@ -1785,7 +1828,7 @@ class QueueManager(BusDispatcher):
         decoded = self._codec.decode(encoded)
         job_id = str(decoded.envelope.job_id)
         fake = self._fake.get()
-        if fake is not None:
+        if fake is not None and fake.selects(type(job)):
             receipt = DispatchReceipt(
                 job_id=job_id,
                 connection=connection,
@@ -2065,7 +2108,7 @@ class QueueManager(BusDispatcher):
             )
         )
         fake = self._fake.get()
-        if fake is not None:
+        if fake is not None and fake.selects(type(job)):
             receipt = DispatchReceipt(
                 job_id=str(decoded.envelope.job_id),
                 connection=connection,
@@ -2824,6 +2867,74 @@ class QueueManager(BusDispatcher):
             msg = "The job class is not registered."
             raise QueueConfigurationError(msg)
         return type(job)
+
+    def _validate_fake_selection(
+        self,
+        only: Sequence[type[Job]] | None,
+    ) -> frozenset[type[Job]] | None:
+        """Validate the optional class filter before entering a fake scope.
+
+        Args:
+            only: Caller-selected classes or no filter.
+
+        Returns:
+            An immutable class filter for the recorder.
+
+        Raises:
+            QueueConfigurationError: If the selection is empty or untrusted.
+        """
+        if only is None:
+            return None
+        selected = tuple(only)
+        if not selected:
+            msg = "A selective Queue fake requires at least one job class."
+            raise QueueConfigurationError(msg)
+        if any(
+            not self._is_registered_job_class(job_type) for job_type in selected
+        ):
+            msg = "A selective Queue fake requires registered job classes."
+            raise QueueConfigurationError(msg)
+        return frozenset(selected)
+
+    def _is_registered_job_class(self, value: object) -> bool:
+        """Check an untrusted runtime value against the frozen job catalog.
+
+        Args:
+            value: Caller-supplied value from a fake selection.
+
+        Returns:
+            Whether the value is a registered Job subclass.
+        """
+        if not isinstance(value, type) or not issubclass(value, Job):
+            return False
+        return self._codec.is_registered(value)
+
+    def _fake_for_jobs(self, jobs: Sequence[Job]) -> QueueFake | None:
+        """Require orchestration to be wholly selected or wholly live.
+
+        Args:
+            jobs: Registered members of one chain or batch.
+
+        Returns:
+            The active fake when it selects every member.
+
+        Raises:
+            QueueCapabilityError: If a fake would split one orchestration.
+            QueueError: If an inherited fake has already closed.
+        """
+        fake = self._fake.get()
+        if fake is None:
+            return None
+        selections = tuple(fake.selects(type(job)) for job in jobs)
+        if all(selections):
+            return fake
+        if any(selections):
+            msg = (
+                "A selective Queue fake cannot split a chain or batch. "
+                "Select all members or none."
+            )
+            raise QueueCapabilityError(msg)
+        return None
 
     def _require_application_context(self) -> ActiveApplicationContext:
         """Require this manager's active application and canonical Container.

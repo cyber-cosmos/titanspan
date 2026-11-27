@@ -268,13 +268,20 @@ class Bus(Facade[BusDispatcher]):
         return cls.resolve_service().result_for(receipt)
 
     @classmethod
-    def fake(cls) -> QueueFakeScope:
+    def fake(
+        cls,
+        only: Sequence[type[Job]] | None = None,
+    ) -> QueueFakeScope:
         """Record Bus dispatches through the same Queue manager fake.
+
+        Args:
+            only: Optional registered job classes to intercept. Other
+                single-job dispatches use their configured connection.
 
         Returns:
             An execution-local fake scope shared with Queue and DI clients.
         """
-        return Queue.fake()
+        return Queue.fake(only=only)
 
     @classmethod
     def chain(cls, jobs: Sequence[Job]) -> ChainBuilder:

@@ -45,7 +45,7 @@ Console registration.
 | Conditional dispatch | Implemented and verified | Disabled conditions skip registration and backend resolution; enabled calls reuse the standard dispatch path. |
 | Job retry and backoff | Implemented; backend-dependent | Taskiq retry middleware; non-zero delay needs a schedule source. |
 | Dispatch receipts | Implemented and verified | Receipts distinguish queued, executed, and discarded state. |
-| Queue and Bus fakes | Implemented and verified | Fakes intercept facades and direct manager access without broker creation. |
+| Queue and Bus fakes | Implemented and verified | Fakes intercept facades and direct manager access without broker creation; selective fakes use registered classes. |
 | Ordered fake chain and batch assertions | Implemented and verified | Async chains record every continuation member; fake assertions compare declared order. |
 | Ordered job chains | Implemented and verified | Sync and async inline order and Redis continuation integration are tested. Durable atomic continuation is unavailable. |
 | Chain-wide destinations and per-job overrides | Implemented and verified | Inline and real Redis workers verify each job's declared queue. |
@@ -77,6 +77,11 @@ broker error can also leave the current outcome uncertain.
 `dispatch_if()` and `dispatch_unless()` return pending builders or `None`.
 Their `_async` variants perform an enabled operation and return a receipt.
 Disabled conditions do not validate jobs or resolve backend connections.
+
+`Queue.fake(only=...)` and `Bus.fake(only=...)` intercept only the selected
+exact registered job classes. Unselected individual jobs use their configured
+connection. A selective fake cannot split one chain or batch. It raises
+before orchestration begins when the filter selects only some members.
 
 `dispatch_sync()` only accepts the `sync` connection. It rejects active
 asyncio task execution and incompatible scoped execution. Synchronous job
