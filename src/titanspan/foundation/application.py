@@ -13,7 +13,7 @@ from contextlib import (
     contextmanager,
 )
 from http import HTTPStatus
-from inspect import isawaitable
+from inspect import isawaitable, iscoroutinefunction
 from pathlib import Path
 from typing import TYPE_CHECKING, Self, cast
 from uuid import uuid4
@@ -401,6 +401,9 @@ class _NativeHttpMiddlewareStack(BaseHTTPMiddleware):
         app: ASGIApp,
         *,
         application: Application,
+        exception_renderer: Callable[
+            [StarletteRequest, Exception], Awaitable[StarletteResponse]
+        ],
         middleware_types: Sequence[type[HttpMiddleware]],
     ) -> None:
         """Retain middleware classes in outer-to-inner order.
@@ -408,10 +411,13 @@ class _NativeHttpMiddlewareStack(BaseHTTPMiddleware):
         Args:
             app: Downstream ASGI application.
             application: Composition root owning the native service graph.
+            exception_renderer: Renderer using the application's exception
+                policy and active request scope.
             middleware_types: Classes in the configured execution order.
         """
         super().__init__(app)
         self._application = application
+        self._exception_renderer = exception_renderer
         self._middleware_types = tuple(middleware_types)
 
     async def dispatch(
@@ -463,7 +469,10 @@ class _NativeHttpMiddlewareStack(BaseHTTPMiddleware):
 
             handler = invoke
 
-        result = await handler(native_request)
+        try:
+            result = await handler(native_request)
+        except Exception as error:
+            result = await self._exception_renderer(request, error)
         if isinstance(result, StarletteResponse):
             return result
         if isinstance(result, _NativeHttpResponseAdapter):
@@ -471,6 +480,9 @@ class _NativeHttpMiddlewareStack(BaseHTTPMiddleware):
         raise TypeError(_INVALID_MIDDLEWARE_RESPONSE_ERROR)
 
     _application: Application
+    _exception_renderer: Callable[
+        [StarletteRequest, Exception], Awaitable[StarletteResponse]
+    ]
     _middleware_types: tuple[type[HttpMiddleware], ...]
 
 
@@ -688,6 +700,7 @@ class Application:
             asgi.add_middleware(
                 _NativeHttpMiddlewareStack,
                 application=self,
+                exception_renderer=self._render_middleware_exception,
                 middleware_types=http_middleware,
             )
 
@@ -1276,6 +1289,50 @@ class Application:
 
         return render
 
+    async def _render_middleware_exception(
+        self,
+        request: StarletteRequest,
+        error: Exception,
+    ) -> StarletteResponse:
+        """Apply the host's exception policy to outer middleware failures.
+
+        Starlette places user middleware outside its exception middleware.
+        This method reuses the same registered handlers for native middleware.
+
+        Args:
+            request: Backend request in the active native request scope.
+            error: Exception raised before middleware returns a response.
+
+        Returns:
+            The response produced by the registered handler.
+
+        Raises:
+            Exception: If the selected handler fails.
+            TypeError: If a handler returns a non-ASGI response.
+        """
+        handlers = self.asgi.exception_handlers
+        handler = next(
+            (
+                candidate
+                for exception_type in type(error).__mro__
+                if (candidate := handlers.get(exception_type)) is not None
+            ),
+            None,
+        )
+        if handler is None:
+            return await self._unhandled_exception(request, error)
+
+        is_async = iscoroutinefunction(handler) or (
+            callable(handler) and iscoroutinefunction(handler.__call__)
+        )
+        if is_async:
+            result = handler(request, error)
+        else:
+            result = await anyio.to_thread.run_sync(handler, request, error)
+        if isawaitable(result):
+            result = await cast("Awaitable[object]", result)
+        return _require_asgi_response(result)
+
     async def _unhandled_exception(
         self,
         request: StarletteRequest,
@@ -1534,7 +1591,7 @@ def _application_environment(repository: ConfigRepository) -> str:
     return value
 
 
-def _require_asgi_response(response: HttpResponse) -> StarletteResponse:
+def _require_asgi_response(response: object) -> StarletteResponse:
     """Validate a native response at the private ASGI adapter boundary.
 
     Args:

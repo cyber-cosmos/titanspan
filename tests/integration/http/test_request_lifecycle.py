@@ -16,7 +16,11 @@ from fastapi.testclient import TestClient
 from starlette.requests import ClientDisconnect
 from starlette.types import Message, Scope
 
-from titanspan.contracts.http import HttpRequest
+from titanspan.contracts.http import (
+    HttpRequest,
+    HttpResponse,
+    RequestHandler,
+)
 from titanspan.foundation import Application
 from titanspan.http import Request
 from titanspan.http.exceptions import HttpContextError
@@ -334,7 +338,33 @@ async def test_stream_failure_after_headers_sends_no_second_response() -> None:
 
     The request scope remains alive through generator finalization.
     """
-    application = Application(config={"app": {"name": "stream failure"}})
+
+    class PassThroughMiddleware:
+        """Exercise stream errors while native global middleware is active.
+
+        The response body remains owned by the downstream ASGI sender.
+        """
+
+        async def handle(
+            self,
+            request: HttpRequest,
+            next_handler: RequestHandler,
+        ) -> HttpResponse:
+            """Forward the request without buffering the response stream.
+
+            Args:
+                request: Active request supplied by Foundation.
+                next_handler: Remaining native middleware and route.
+
+            Returns:
+                The original downstream streaming response.
+            """
+            return await next_handler(request)
+
+    application = Application(
+        config={"app": {"name": "stream failure"}},
+        http_middleware=(PassThroughMiddleware,),
+    )
     observed: list[str] = []
 
     async def endpoint(request: Request) -> object:
@@ -417,8 +447,9 @@ async def test_stream_failure_after_headers_sends_no_second_response() -> None:
     ]
     assert len(starts) == 1
     assert starts[0]["status"] == HTTPStatus.OK
-    assert len(bodies) == 1
     assert bodies[0]["body"] == b"first"
+    assert b"".join(message["body"] for message in bodies) == b"first"
+    assert bodies[-1]["more_body"] is False
     assert observed == ["active"]
 
 

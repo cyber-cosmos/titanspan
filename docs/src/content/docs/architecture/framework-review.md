@@ -8,9 +8,9 @@ title: "Framework engineering review"
 
 The historical source audit started at commit `2afcd31`. This continuation
 reviewed main at `b2de4de`, including the integrated Hashing component. The
-consolidation corrections below were developed from descendant main
-`62bddf3` in an isolated worktree. The review keeps the original F findings
-and adds dispositions for the C findings from the core-completion backlog.
+consolidation corrections used baseline `0eb4feda` in an isolated worktree.
+The review keeps the original F findings and adds dispositions for the C
+findings from the core-completion backlog.
 
 The lockfile pins Blinker 1.9.0, Dishka 1.10.1, FastAPI 0.165.0, and
 Starlette 1.10.0. It also pins HTTPX2 2.16.2, Pydantic 2.14.4, Pydantic
@@ -31,6 +31,27 @@ resolved by an earlier focused correction. This pass also corrected URL
 contract substitution, encoded route reversal, and event subscriber scope
 retention. Semantic scope nesting remains limited by the backend hierarchy
 and affects future workflow architecture.
+
+## Targeted correction update
+
+This follow-up targets findings R-001 through R-012 from the final core
+correction assignment. It does not reopen the framework-wide review. The
+regressions below use the locked dependencies and production application paths.
+
+| Finding | Disposition | Evidence |
+| --- | --- | --- |
+| R-001 | Corrected | `tests/integration/routing/test_dispatch.py` verifies declared-schema serialization for subclasses, nested values, collections, aliases, custom serializers, invalid values, and middleware parity. |
+| R-002 | Corrected | `tests/integration/test_global_middleware_exceptions.py` verifies public and validation errors, sync handlers, default fallback, request scopes, logging, and cancellation. `tests/integration/http/test_request_lifecycle.py` covers post-send errors. |
+| R-003 | Corrected | `tests/integration/cache/test_cache_application.py` exercises sync and async failover listeners and preserves successful mutations when listeners fail. |
+| R-004 | Corrected | `tests/unit/cache/test_lock.py` covers notification cancellation, uncertain grants, and cleanup errors. `tests/unit/cache/test_cache_repository.py` verifies rejected refresh scheduling releases its lease. Redis lease expiry remains a backend limitation. |
+| R-005 | Corrected | `tests/unit/cache/test_cache_manager.py` covers unscoped reads, task inheritance, mutation races, and shared mutable values within one active scope. |
+| R-006 | Corrected with grouped namespace semantics | `tests/unit/cache/test_repository_edges.py` rejects reserved untagged keys. Individual tag membership across groups remains unsupported. |
+| R-007 | CI configured; local integration executed | The integration workflow provisions Redis. All seven tests in `tests/integration/cache/test_redis.py` ran against a local Redis server. |
+| R-008 | Corrected | `tests/unit/cache/test_repository_edges.py` verifies synchronous callbacks use a worker in async Cache APIs. |
+| R-009 | Corrected | `tests/unit/hashing/test_hashing_manager.py` verifies waiting async hashes do not consume the general AnyIO worker pool. |
+| R-010 | Corrected | `tests/integration/http/test_http_fakes.py` verifies an Application-bound fake cannot intercept another Application's client. |
+| R-011 | Intentional security limitation | HTTP does not enforce DNS, redirect, proxy, and connection-destination policy. Do not expose unrestricted AI-generated destinations before that boundary exists. |
+| R-012 | Corrected | Roadmap, changelog, backend boundaries, component specifications, and this review now describe current capabilities and limits. |
 
 ## Import dependency graph
 
@@ -99,8 +120,8 @@ Console-to-package edge reads installed version metadata.
 ## Component readiness matrix
 
 The matrix separates production integration evidence from isolated unit
-coverage. Each component specification lists implemented and pending
-capabilities in more detail.
+coverage. Component specifications list verified capabilities and explicit
+limitations.
 
 | Component | Integration evidence | Current assessment |
 | --- | --- | --- |
@@ -111,11 +132,17 @@ capabilities in more detail.
 | Container | Container thread-safety and lifecycle integration tests | One graph and shared initialization gates protect supported sync and async paths. Request/workflow and node/agent lifetimes cannot overlap. |
 | Facades | Framework cohesion and URI contract substitution tests | Facades resolve declared application contracts. They do not own a second service registry. |
 | Foundation | Lifecycle tests in `tests/integration/test_framework_cohesion.py` | Startup, failure rollback, context, active-scope shutdown rejection, and retryable shutdown have real tests. |
-| HTTP | ASGI, client, streaming, and request lifecycle integration tests | Server and client adapters use application services. Native SSRF destination enforcement remains pending. |
-| Routing | Dispatch, URI integration, and URL generator tests | One catalog drives matching and reversal. Native custom converters and route-file discovery remain unsupported. |
+| HTTP | ASGI, client, streaming, and request lifecycle integration tests | Server and client adapters use application services. Comprehensive connection-level SSRF enforcement remains unavailable and blocks unrestricted untrusted destinations. |
+| Routing | Dispatch, URI integration, and URL generator tests | One catalog drives matching and reversal. Conventional and configured route discovery are supported; custom Starlette converters remain unsupported. |
+| Validation | `tests/integration/validation/` and safe exception rendering tests | Pydantic owns schema validation. Foundation, HTTP, Routing, and OpenAPI share safe native error behavior. |
+| Filesystem | `tests/integration/test_filesystem.py` and local backend tests | The application-owned manager uses fsspec; local and memory disks, scoped fakes, and cleanup are verified. |
+| Hashing | `tests/unit/hashing/` and Foundation integration tests | The application-owned service delegates Argon2 and Bcrypt operations and bounds built-in work. |
+| Cache | `tests/integration/cache/` and optional real Redis tests | Application repositories, fakes, leases, events, memoization, and configured stores use one manager. Redis tests run in mandatory Linux integration CI. |
 | Collections | Collection unit tests and Hypothesis invariants | Eager and lazy operations use Python iterators and preserve documented order. Intersection checks every supplied iterable. |
+| Pipeline | `tests/integration/pipeline/` and unit tests | Ordered sync and async transformations use callables and the native Container; Pipeline does not schedule tasks. |
 | Events | Events application and dispatcher integration tests | Dispatch uses the application Container. Class subscribers now resolve handlers in the active scope; Blinker currently stores receivers. |
 | Console | CLI tests and Foundation integration | Native registration, Container injection, lifecycle, configuration, route, event, and artifact-generation commands are implemented. Full application scaffolding remains deferred. |
+| Testing | `tests/integration/testing/` and installed-package smoke | Test contexts use the production Application, Container, providers, and ASGI stack; Pytest remains the runner. |
 
 This evidence does not establish production readiness for distributed
 execution, Windows, multiprocess pools, AI agents, or nested workflow scopes.

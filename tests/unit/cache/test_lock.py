@@ -16,9 +16,12 @@ from titanspan.cache import (
     CacheStoreConfiguration,
 )
 from titanspan.cache._backends.memory import MemoryStore
+from titanspan.cache.events import CacheEvent
 from titanspan.contracts.cache import CacheStore
+from titanspan.events import NativeEventDispatcher
 
 pytestmark = [pytest.mark.concurrency, pytest.mark.unit]
+_UNCERTAIN_ACQUIRE_ERROR = "transport response lost"
 
 
 def _clocked_manager(now: list[float]) -> CacheManager:
@@ -263,3 +266,211 @@ async def test_async_lock_inspection_and_force_release() -> None:
     assert await owner.acquired_async()
     assert await administrator.force_release_async()
     assert not await owner.acquired_async()
+
+
+@pytest.mark.anyio
+async def test_cancelled_acquisition_notification_releases_owned_lease() -> (
+    None
+):
+    """Release the lease when cancellation interrupts async notification.
+    """  # fmt: skip
+    dispatcher = NativeEventDispatcher()
+    manager = CacheManager(
+        CacheConfiguration(default="memory"),
+        events=dispatcher,
+    )
+    acquired = manager.lock("notify-cancel", ttl=10)
+    competing = manager.lock("notify-cancel", ttl=10)
+    notification_started = anyio.Event()
+    pause_once = True
+
+    async def wait_for_notification(event: CacheEvent) -> None:
+        """Hold acquisition notification until the test cancels its task.
+        """  # fmt: skip
+        nonlocal pause_once
+        if event.action == "lock_acquire" and event.success:
+            if not pause_once:
+                return
+            pause_once = False
+            notification_started.set()
+            await anyio.sleep_forever()
+
+    dispatcher.listen(CacheEvent, wait_for_notification)
+
+    async def acquire() -> None:
+        """Start a lease acquisition whose event listener is suspended.
+        """  # fmt: skip
+        await acquired.acquire_async()
+
+    async with anyio.create_task_group() as tasks:
+        tasks.start_soon(acquire)
+        await notification_started.wait()
+        tasks.cancel_scope.cancel()
+
+    assert await competing.acquire_async()
+
+
+@pytest.mark.anyio
+async def test_failed_lease_cleanup_is_reported_without_secret_text() -> None:
+    """Keep the cancellation cause while reporting owner cleanup failure.
+    """  # fmt: skip
+    notification_started = anyio.Event()
+    release_fails = True
+
+    class FailingReleaseStore(MemoryStore):
+        """Fail one cleanup attempt after acquiring the real memory lease.
+        """  # fmt: skip
+
+        async def release_lock_async(self, key: str, owner: str) -> bool:
+            """Raise once, then delegate owner-checked release.
+            """  # fmt: skip
+            nonlocal release_fails
+            if release_fails:
+                raise OSError(_UNCERTAIN_ACQUIRE_ERROR)
+            return await super().release_lock_async(key, owner)
+
+    dispatcher = NativeEventDispatcher()
+    manager = CacheManager(
+        CacheConfiguration(
+            default="failing_release",
+            stores={"failing_release": {"driver": "failing_release"}},
+        ),
+        drivers={
+            "failing_release": lambda _: FailingReleaseStore(),
+        },
+        events=dispatcher,
+    )
+    owner = manager.lock("cleanup-error", ttl=10)
+    caught: list[BaseException] = []
+
+    async def pause_notification(event: CacheEvent) -> None:
+        """Wait until acquisition notification receives cancellation.
+        """  # fmt: skip
+        if event.action == "lock_acquire" and event.success:
+            notification_started.set()
+            await anyio.sleep_forever()
+
+    dispatcher.listen(CacheEvent, pause_notification)
+
+    async def acquire() -> None:
+        """Capture cancellation after the lease cleanup attempt.
+        """  # fmt: skip
+        try:
+            await owner.acquire_async()
+        except BaseException as error:
+            caught.append(error)
+
+    async with anyio.create_task_group() as tasks:
+        tasks.start_soon(acquire)
+        await notification_started.wait()
+        tasks.cancel_scope.cancel()
+
+    cancellation_type = anyio.get_cancelled_exc_class()
+    assert len(caught) == 1
+    assert isinstance(caught[0], cancellation_type)
+    notes = getattr(caught[0], "__notes__", [])
+    assert any("OSError" in note for note in notes)
+    assert all(_UNCERTAIN_ACQUIRE_ERROR not in note for note in notes)
+
+    release_fails = False
+    assert await owner.release_async()
+
+
+@pytest.mark.anyio
+async def test_uncertain_async_acquisition_releases_only_its_owner() -> None:
+    """Release a lease when a backend reports failure after acquiring it.
+    """  # fmt: skip
+
+    class UncertainStore(MemoryStore):
+        """Acquire one lease, then report a transport failure once.
+        """  # fmt: skip
+
+        uncertain: bool
+
+        def __init__(self) -> None:
+            """Create a store with one uncertain acquisition result.
+
+            The first result simulates a lost backend response.
+            """
+            super().__init__()
+            self.uncertain = True
+
+        async def acquire_lock_async(
+            self,
+            key: str,
+            owner: str,
+            ttl: float,
+        ) -> bool:
+            """Raise after the first successful backend acquisition.
+
+            The lease remains visible until Lock performs cleanup.
+            """
+            acquired = await super().acquire_lock_async(key, owner, ttl)
+            if acquired and self.uncertain:
+                self.uncertain = False
+                raise OSError(_UNCERTAIN_ACQUIRE_ERROR)
+            return acquired
+
+    manager = CacheManager(
+        CacheConfiguration(
+            default="uncertain",
+            stores={"uncertain": {"driver": "uncertain"}},
+        ),
+        drivers={"uncertain": lambda _: UncertainStore()},
+    )
+    failed_owner = manager.lock("uncertain", ttl=10)
+    next_owner = manager.lock("uncertain", ttl=10)
+
+    with pytest.raises(CacheBackendError):
+        await failed_owner.acquire_async()
+
+    assert await next_owner.acquire_async()
+    assert await next_owner.acquired_async()
+    assert not await failed_owner.acquired_async()
+
+
+@pytest.mark.anyio
+async def test_cancelled_backend_acquire_releases_lease() -> None:
+    """Release a grant when backend cancellation occurs before return.
+    """  # fmt: skip
+    acquired = anyio.Event()
+    pause_once = True
+
+    class SuspendedStore(MemoryStore):
+        """Pause after writing a lease but before returning its grant.
+        """  # fmt: skip
+
+        async def acquire_lock_async(
+            self,
+            key: str,
+            owner: str,
+            ttl: float,
+        ) -> bool:
+            """Write the lease and wait until the owner task is cancelled.
+
+            The pause makes acquisition uncertainty deterministic.
+            """
+            nonlocal pause_once
+            result = await super().acquire_lock_async(key, owner, ttl)
+            if result and pause_once:
+                pause_once = False
+                acquired.set()
+                await anyio.sleep_forever()
+            return result
+
+    manager = CacheManager(
+        CacheConfiguration(
+            default="suspended",
+            stores={"suspended": {"driver": "suspended"}},
+        ),
+        drivers={"suspended": lambda _: SuspendedStore()},
+    )
+    owner = manager.lock("cancel-before-return", ttl=10)
+    competitor = manager.lock("cancel-before-return", ttl=10)
+
+    async with anyio.create_task_group() as tasks:
+        tasks.start_soon(owner.acquire_async)
+        await acquired.wait()
+        tasks.cancel_scope.cancel()
+
+    assert await competitor.acquire_async()

@@ -143,10 +143,31 @@ the stale bound, a synchronous-in-the-call async recomputation occurs.
 Refresh failures retain the old value only while it remains within the stale
 bound.
 
-MemoRepository caches successful reads in a ContextVar scope. Its values are
-separated by application, fake identity, backend, and mutation generation.
-Mutations invalidate the active execution memo. The map is bounded to 1,000
-entries. Job and workflow memo integration waits for those components.
+MemoRepository caches successful reads only inside an active execution scope.
+It separates values by application, fake, task or thread, backend, and mutation
+generation. Child tasks do not inherit a parent's memo entries. Operations
+without an active scope do not retain reads. Mutations invalidate memo entries
+and prevent stale in-flight reads from becoming current. The map is bounded to
+1,000 entries. Cached mutable values are shared by reference in that execution
+scope. Job and workflow memo integration waits for those components.
+
+Tagged repositories use a hashed namespace for each canonical tag group.
+Clearing one group removes its entries but does not invalidate that tag across
+other groups. This is grouped namespace behavior, not individual-tag
+membership. Untagged logical keys beginning with `tagset:` are reserved and
+raise `CacheKeyError` to prevent collisions with tagged entries.
+
+Async factories, defaults, and lock callbacks run without blocking the event
+loop. Async callbacks run on the current task. Synchronous callbacks run in an
+AnyIO worker thread, which inherits the active context. Cancellation waits for
+a synchronous callback to finish before it propagates.
+
+Async lock acquisition releases its owner token if notification fails or
+cancellation occurs after the backend grants the lease. Cleanup is
+owner-checked. Flexible refresh releases its lease if the caller's task group
+rejects scheduling. Cleanup failures add type-only notes to the original
+failure. A Redis lease can still expire while work continues; Cache does not
+provide fencing or stronger distributed-lock guarantees.
 
 ## Failover and consistency
 
@@ -157,6 +178,10 @@ If every child fails, the operation raises CacheBackendError. Removal and
 clear attempt every configured child and raise on any partial backend
 failure. Failover events identify the wrapper store and do not expose child
 errors or payloads.
+
+Async operations await async failover listeners. Listener errors are logged
+after the backend operation and do not turn a completed mutation into a
+failed mutation. Cancellation still propagates.
 
 Failover cannot offer atomic add, counters, pull, tags, or locking because
 independent stores do not share atomic state. It is a cache availability

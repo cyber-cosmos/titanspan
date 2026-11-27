@@ -97,13 +97,14 @@ but remains explicitly available to callers.
 
 ## Async operations and cancellation
 
-`make_async`, `check_async`, and `verify_and_rehash_async` use AnyIO's bounded
-default worker limiter around synchronous backend APIs. The built-in driver
-also uses one application-owned limit for synchronous and asynchronous work.
-It defaults to two active operations and accepts values from one through
-eight at `hashing.execution.max_concurrent_operations`. Async calls remain
-subject to AnyIO's process-wide worker limit. Custom drivers own their work
-limits. Neither selected backend provides native async password hashing.
+`make_async`, `check_async`, and `verify_and_rehash_async` use an
+application-owned AnyIO capacity limiter before entering workers. The built-in
+driver also uses one shared limit for synchronous and asynchronous operations.
+It defaults to two active operations and accepts values from one through eight
+at `hashing.execution.max_concurrent_operations`. Async callers wait for this
+component limit without occupying general-purpose worker threads. Custom
+drivers own their work limits. Neither selected backend provides native async
+password hashing.
 
 The worker is not abandoned if its caller is cancelled. Hashing completes in
 the worker, then a cancellation checkpoint propagates pending cancellation to

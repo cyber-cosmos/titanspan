@@ -386,6 +386,57 @@ async def test_fake_blocks_unmatched_requests_without_network_fallback() -> (
 
 
 @pytest.mark.anyio
+async def test_application_fake_does_not_intercept_another_application() -> (
+    None
+):
+    """Reject cross-application fake use while restoring the outer owner.
+    """  # fmt: skip
+    first = Application(config={"app": {"name": "http-fake-first"}})
+    second = Application(config={"app": {"name": "http-fake-second"}})
+    async with first:
+        first_client = first.make(HttpClient)
+        with Http.fake(
+            {
+                "https://example.test/*": Http.fake_response(
+                    {"owner": "first"},
+                ),
+            }
+        ) as fake:
+            first_response = await first_client.request_async(
+                OutgoingRequest(
+                    method="GET",
+                    url="https://example.test/first",
+                )
+            )
+            assert first_response.json() == {"owner": "first"}
+
+            async with second:
+                second_client = second.make(HttpClient)
+                with pytest.raises(
+                    HttpFakeError,
+                    match="another application",
+                ):
+                    await second_client.request_async(
+                        OutgoingRequest(
+                            method="GET",
+                            url="https://example.test/second",
+                        )
+                    )
+
+            assert len(fake.requests) == 1
+            restored_response = await first_client.request_async(
+                OutgoingRequest(
+                    method="GET",
+                    url="https://example.test/restored",
+                )
+            )
+            assert restored_response.json() == {"owner": "first"}
+            fake.assert_sent_count(2)
+            await first_response.aclose()
+            await restored_response.aclose()
+
+
+@pytest.mark.anyio
 async def test_fake_sequence_exhaustion_is_a_recorded_mismatch() -> None:
     """Fail closed when a configured response sequence runs out.
 

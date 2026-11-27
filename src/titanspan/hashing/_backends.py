@@ -74,17 +74,22 @@ def _is_string(value: object) -> TypeGuard[str]:
     return isinstance(value, str)
 
 
-async def _run_in_worker[ResultT](operation: Callable[[], ResultT]) -> ResultT:
-    """Run password work in a bounded thread and then observe cancellation.
+async def _run_in_worker[ResultT](
+    operation: Callable[[], ResultT],
+    limiter: anyio.CapacityLimiter,
+) -> ResultT:
+    """Run password work in an isolated bounded worker pool.
 
     Args:
         operation: Synchronous backend operation with captured arguments.
+        limiter: Async admission limit that does not consume general workers.
 
     Returns:
         The operation result after its worker has completed.
     """
     result = await anyio.to_thread.run_sync(
         operation,
+        limiter=limiter,
         abandon_on_cancel=False,
     )
     # Hashing cannot be forcibly stopped; deliver cancellation after the
@@ -250,6 +255,10 @@ class _NativeHasher(Hasher):
         self._work_limiter = BoundedSemaphore(
             configuration.max_concurrent_operations,
         )
+        # Keep hash waiters out of AnyIO's general-purpose worker capacity.
+        self._worker_limiter = anyio.CapacityLimiter(
+            configuration.max_concurrent_operations,
+        )
 
     @property
     def algorithm(self) -> str:
@@ -303,7 +312,10 @@ class _NativeHasher(Hasher):
         Returns:
             An encoded hash with backend-generated random salt.
         """
-        return await _run_in_worker(partial(self.make, password))
+        return await _run_in_worker(
+            partial(self.make, password),
+            self._worker_limiter,
+        )
 
     def check(self, password: str, hashed_password: str) -> bool:
         """Check a candidate against supported Argon2 or Bcrypt hashes.
@@ -360,6 +372,7 @@ class _NativeHasher(Hasher):
         """
         return await _run_in_worker(
             partial(self.check, password, hashed_password),
+            self._worker_limiter,
         )
 
     def needs_rehash(self, hashed_password: str) -> bool:
@@ -494,6 +507,7 @@ class _NativeHasher(Hasher):
                 password,
                 hashed_password,
             ),
+            self._worker_limiter,
         )
 
     def _settings_at_least(
@@ -539,6 +553,7 @@ class _NativeHasher(Hasher):
     _bcrypt_settings: BcryptConfiguration
     _verification_limits: HashVerificationLimits
     _work_limiter: BoundedSemaphore
+    _worker_limiter: anyio.CapacityLimiter
 
 
 __all__ = ["_NativeHasher"]

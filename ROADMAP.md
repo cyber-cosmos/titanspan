@@ -1,32 +1,32 @@
 # Roadmap
 
-Titanspan is consolidating its engineering foundation and implementing the
-application and web composition lifecycle in tested vertical slices. Native
-configuration, logging, Support, the sync-first container, HTTP, Routing,
-Filesystem, and Hashing integrate with the application lifecycle. Routing covers
-registration, dispatch, discovery, inspection, safe metadata snapshots,
-WebSockets, and OpenAPI through the established ASGI host. Filesystem provides
-application-owned local and memory disks over fsspec. Explicit third-party
-FastAPI providers remain an interoperability boundary; ordinary Titanspan
-route dispatch uses the native container. These phases are capability
-milestones, not calendar promises.
+Titanspan's core application and web lifecycle now composes native
+configuration, logging, Support, the Container, HTTP, Routing, Filesystem,
+Hashing, Validation, Cache, Events, Pipeline, Testing, and Console services.
+Routing handles registration, dispatch, discovery, inspection, WebSockets, and
+OpenAPI through the established ASGI host. Filesystem provides application-
+owned local and memory disks over fsspec. Explicit third-party FastAPI
+providers remain an interoperability boundary; ordinary Titanspan route
+dispatch uses the native Container. These phases are capability milestones,
+not calendar promises.
 
 The standalone Collections component now provides eager and lazy operations
 for ordinary Python iterables. Pipeline provides ordered synchronous and
 asynchronous value transformations. Validation provides Pydantic-backed
 schemas, native field errors, application rules, and HTTP request input.
-Foundation rendering and Routing schema integration remain with their owners.
-Streaming data pipelines and large-scale processing remain planned.
+Foundation renders safe validation errors, and Routing integrates typed input
+schemas with OpenAPI. Streaming data pipelines and large-scale processing
+remain planned.
 
 Hashing provides Argon2id password hashes, Bcrypt verification, safe hash
 upgrades, and explicit async access independently of Authentication. Cache
 provides application-scoped memory and optional Redis stores, safe JSON values,
 leases, named failover, execution-local memoization, and native test fakes.
 
-The Events component now provides ordered in-process dispatch, Container-backed
+The Events component provides ordered in-process dispatch, Container-backed
 listeners, scoped fakes, deferred dispatch, trusted discovery, and Console
-inspection commands. Durable queue, transaction, and broadcasting integration
-remain planned. Console provides native command registration and
+inspection and cache commands. Durable queue, transaction, and broadcasting
+integration remain planned. Console provides native command registration and
 application-aware execution.
 
 ## Phase 0 — Engineering foundation
@@ -37,16 +37,16 @@ application-aware execution.
 - Coding standards and working Hello World example.
 - Initial native logging component and its documented operational limits.
 
-## Phase 1 — Application foundation (in progress)
+## Phase 1 — Application foundation (implemented for current scope)
 
 - Application lifecycle, configuration repository, and execution-local
   facades are implemented. The native container composes framework services,
   and provider registration and boot are lifecycle-integrated.
-- Domain-oriented contracts and a native synchronous-first container API are
-  implemented incrementally, with contract conformance and app identity tests.
-- Remaining work: complete established Container capabilities and expand
-  lifecycle integrations without exposing backend provider types through
-  ordinary APIs.
+- Domain-oriented contracts and the native sync and async Container APIs are
+  implemented with contract conformance and application identity tests.
+- Known execution-scope nesting limits remain documented in the framework
+  engineering review. They constrain future overlapping workflow and request
+  lifetimes.
 
 ## Phase 2 — Web and developer tooling
 
@@ -55,9 +55,9 @@ application-aware execution.
   controller dispatch, URL generation, discovery, inspection, WebSockets,
   and OpenAPI. See the component specifications for verified behavior.
 - Routing integrations remain for Database-backed model binding, key-managed
-  signed URLs, View routes, and parameterized middleware. HTTP fake transports
-  and bounded concurrent HTTP pools are implemented. Structured observability
-  improvements remain with Telemetry.
+  signed URLs, and View routes. Parameterized route middleware is implemented.
+  HTTP fake transports and bounded concurrent HTTP pools are implemented.
+  Structured observability improvements remain with Telemetry.
 - Console provides application-rooted generators for controllers, middleware,
   providers, commands, events, listeners, and smoke tests. A full application
   scaffold remains planned. Testing provides synchronous and asynchronous

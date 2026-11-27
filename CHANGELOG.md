@@ -5,6 +5,16 @@ public release.
 
 ## Unreleased
 
+- Serialize middleware response models with their declared Pydantic schemas.
+  Render middleware errors through Foundation's exception policy.
+- Dispatch asynchronous Cache failover events through Events. Preserve
+  completed operations when listeners fail. Release leases after failed
+  notifications and refresh scheduling. Isolate memo entries by task and scope.
+  Reserve tagged key namespaces. Run synchronous callbacks in AnyIO workers.
+- Run Redis backend tests in mandatory integration CI with a disposable
+  service.
+- Limit async Hashing worker admission before entering AnyIO's general worker
+  pool. Bind HTTP fakes created in an Application context to that Application.
 - Declare Pydantic as a direct runtime dependency for native schema APIs.
 - Add native application Cache services with memory and optional Redis
   backends, explicit backend capabilities, safe JSON serialization, atomic
@@ -122,7 +132,8 @@ public release.
   context-local fakes, deferral, and bounded event pushes.
   Class-based subscriber methods resolve in each active dispatch scope;
   explicit instance subscribers remain registration-owned.
-  Queue, Database, Broadcasting, and event-owned CLI commands remain pending.
+  Queue, Database, and Broadcasting delivery remain pending. Event inspection
+  and cache commands use the native Console registration boundary.
   See `docs/src/content/docs/events/` and
   `docs/src/content/docs/specifications/events.md`.
 - Completed multipart uploads, HTTPX2 fakes, assertions, bounded AnyIO pools,

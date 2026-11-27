@@ -12,11 +12,23 @@ Selected libraries own mature infrastructure behind private adapters.
 | Container | Dishka graph validation, construction, caching, and resource cleanup | Native bindings, discovery, contextual injection, scopes, and exceptions |
 | Config | Pydantic Settings validation and `python-dotenv` parsing | Repository behavior, source precedence, safe diagnostics, and cache format |
 | Logging | Structlog processing and Python logging handlers | Records, channels, redaction, delivery policy, and application lifecycle |
+| Validation | Pydantic `TypeAdapter`, model validation, and schema generation | Native validation service, safe errors, application rules, and request integration |
+| Hashing | `argon2-cffi` and `bcrypt` algorithms and encoded formats | Hasher contract, cost policy, bounded admission, safe failures, and application ownership |
+| Cache | `cachetools` expiry collection and redis-py's sync and async clients | Repository semantics, capabilities, key policy, leases, tags, memo scope, and lifecycle |
+| Filesystem | fsspec filesystem implementations | Disk configuration, key safety, identity, scoped fakes, and resource ownership |
 | HTTP server | Starlette request, response, and ASGI handling | Typed contracts, request limits, and request resource ownership |
 | HTTP client | HTTPX2 transports, pools, and protocol handling | Immutable request options, retry policy, and application ownership |
 | Routing | FastAPI and Starlette matching and ASGI hosting | Route catalog, metadata, controller dispatch, constraints, and URL generation |
 | Collections | Python iterators, mappings, and standard operations | Ordered eager and lazy APIs, including equality for unhashable values |
+| Pipeline | Python callables and the native Container | Ordered sync and async value transformation without task scheduling |
+| Events | Blinker receiver storage | Native ordering, selection, injection, async dispatch, and lifecycle |
 | CLI | Typer parsing and Rich terminal output | Framework commands and application service integration |
+| Testing | Pytest, Starlette test clients, and HTTPX2 ASGI transport | Production Application lifecycle and component test integration |
+
+The outgoing HTTP client rejects unsafe URL forms and embedded credentials,
+but it does not enforce a connection-level destination policy. Do not use it
+for unrestricted AI-generated destinations until DNS, redirects, proxies, and
+the actual connection destination have an explicit security boundary.
 
 ## Public interoperability boundaries
 

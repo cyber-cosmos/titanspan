@@ -7,6 +7,8 @@ import shutil
 import socket
 import subprocess
 import tempfile
+from importlib import import_module
+from os import environ
 from time import monotonic, sleep
 from typing import TYPE_CHECKING
 
@@ -26,15 +28,40 @@ _EXPECTED_COUNTER = 3
 _COUNTER_AFTER_DECREMENT = 2
 _LAST_BATCH_INDEX = 500
 _OTHER_APPLICATION_VALUE = 2
+_REDIS_REQUIRED_ENV = "TITANSPAN_REQUIRE_REDIS"
+_REDIS_PORT_ENV = "TITANSPAN_TEST_REDIS_PORT"
+
+
+@pytest.fixture(scope="module", autouse=True)
+def redis_dependency() -> None:
+    """Require redis-py in mandatory jobs and skip optional local runs.
+    """  # fmt: skip
+    try:
+        import_module("redis")
+    except ImportError:
+        message = "The redis optional dependency is required for Redis tests."
+        if environ.get(_REDIS_REQUIRED_ENV) == "1":
+            pytest.fail(message)
+        pytest.skip(message)
 
 
 @pytest.fixture
 def redis_port() -> Iterator[int]:
-    """Start an isolated Redis process when its free binary is available.
+    """Use the CI Redis service or start an isolated local process.
     """  # fmt: skip
-    pytest.importorskip("redis")
+    required = environ.get(_REDIS_REQUIRED_ENV) == "1"
+    configured_port = environ.get(_REDIS_PORT_ENV)
+    if configured_port is not None:
+        try:
+            port = int(configured_port)
+        except ValueError:
+            pytest.fail("The configured Redis test port must be an integer.")
+        yield port
+        return
     executable = shutil.which("redis-server")
     if executable is None:
+        if required:
+            pytest.fail("Mandatory Redis tests need a Redis service or binary.")
         pytest.skip("redis-server is not installed")
     with socket.socket() as reservation:
         reservation.bind(("127.0.0.1", 0))
@@ -312,7 +339,6 @@ async def test_redis_failover_clears_only_its_child_prefix(
 async def test_redis_connection_failure_uses_native_error() -> None:
     """Report a refused local connection without backend details.
     """  # fmt: skip
-    pytest.importorskip("redis")
     with socket.socket() as reservation:
         reservation.bind(("127.0.0.1", 0))
         port = reservation.getsockname()[1]

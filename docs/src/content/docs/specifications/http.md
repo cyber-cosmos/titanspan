@@ -102,8 +102,10 @@ incrementally from streaming byte iterators and cap each in-progress event at
 or structured request patterns can repeat one response or consume a response
 sequence. Requests are recorded for inspection and assertions. Unmatched
 requests raise without a real-network fallback. Fake selection uses a
-context-local value and nested scopes restore the previous fake. Facade and
-injected-client requests share the active fake.
+context-local value and nested scopes restore the previous fake. A fake
+created in an Application context can intercept only that Application's
+client. A fake created outside an Application context acts as an execution-
+wide network guard. Facade and injected-client requests share the active fake.
 
 `Http.pool(max_concurrency=...)` runs named mappings or indexed sequences
 through a bounded number of AnyIO workers. Per-request timeouts are supported.
@@ -118,6 +120,10 @@ boundary. Redirect following is disabled by default. When enabled, HTTPX2
 follows redirects without a destination allowlist. These checks do not
 resolve DNS, restrict private network ranges, or prevent DNS rebinding and
 must not be treated as comprehensive SSRF protection.
+Applications must not expose unrestricted outgoing requests to AI-generated
+or other untrusted destinations until a connection-level policy also covers
+DNS resolution, redirects, proxies, and the actual connection destination.
+The current HTTP client does not provide that comprehensive policy.
 
 ## External integration requirements
 

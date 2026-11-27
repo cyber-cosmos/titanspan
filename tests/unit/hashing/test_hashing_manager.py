@@ -814,6 +814,90 @@ async def test_sync_and_async_hashing_share_application_work_budget(
 
 @pytest.mark.anyio
 @pytest.mark.concurrency
+async def test_waiting_async_hashes_do_not_occupy_general_workers(
+    monkeypatch: pytest.MonkeyPatch,
+    observed_hashing_limits: list[_ObservedBoundedSemaphore],
+) -> None:
+    """Keep unrelated worker capacity available during hash contention.
+    """  # fmt: skip
+    hasher = HashingManager(
+        HashingConfiguration(
+            max_concurrent_operations=_ONE_HASH_OPERATION,
+        ),
+    ).hasher()
+    assert isinstance(hasher, _NativeHasher)
+    limiter = observed_hashing_limits[0]
+    probe = _HashingWorkProbe(hasher)
+    monkeypatch.setattr(
+        "titanspan.hashing._backends._generate_argon2_hash",
+        probe.generate,
+    )
+    default_limiter = anyio.to_thread.current_default_thread_limiter()
+    previous_tokens = default_limiter.total_tokens
+    default_limiter.total_tokens = _TWO_HASH_OPERATIONS
+    observer = anyio.CapacityLimiter(_ONE_HASH_OPERATION)
+    unrelated_started = anyio.Event()
+    unrelated_finished = anyio.Event()
+    second_call_started = anyio.Event()
+    available_before_release = False
+
+    async def second_hash() -> None:
+        """Submit a second async hash while the first owns the work slot.
+        """  # fmt: skip
+        second_call_started.set()
+        await hasher.make_async("second")
+
+    async def unrelated_worker() -> None:
+        """Request ordinary AnyIO worker capacity during hash contention.
+        """  # fmt: skip
+        unrelated_started.set()
+
+        def finish() -> None:
+            """Mark that an ordinary worker started and completed.
+            """  # fmt: skip
+            unrelated_finished.set()
+
+        await anyio.to_thread.run_sync(finish)
+
+    try:
+        async with anyio.create_task_group() as tasks:
+            tasks.start_soon(probe.make_async)
+            first_entered = await anyio.to_thread.run_sync(
+                probe.first_started.wait,
+                _WORKER_START_TIMEOUT,
+                limiter=observer,
+                abandon_on_cancel=False,
+            )
+            assert first_entered
+            tasks.start_soon(second_hash)
+            await second_call_started.wait()
+            worker_limiter = getattr(hasher, "_worker_limiter", None)
+            if worker_limiter is None:
+                second_waiting = await anyio.to_thread.run_sync(
+                    limiter.second_waiter.wait,
+                    _WORKER_START_TIMEOUT,
+                    limiter=observer,
+                    abandon_on_cancel=False,
+                )
+                assert second_waiting
+            else:
+                await anyio.wait_all_tasks_blocked()
+                assert worker_limiter.statistics().tasks_waiting == 1
+
+            tasks.start_soon(unrelated_worker)
+            await unrelated_started.wait()
+            await anyio.wait_all_tasks_blocked()
+            available_before_release = unrelated_finished.is_set()
+            probe.release_first.set()
+    finally:
+        probe.release_first.set()
+        default_limiter.total_tokens = previous_tokens
+
+    assert available_before_release
+
+
+@pytest.mark.anyio
+@pytest.mark.concurrency
 async def test_async_hashing_finishes_worker_before_cancellation(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

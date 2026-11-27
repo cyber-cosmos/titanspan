@@ -396,6 +396,14 @@ jobs:
     name: "Tests: Integration (Python ${{ matrix.python-version }})"
     runs-on: ubuntu-latest
     timeout-minutes: 35
+    services:
+      redis:
+        image: redis:8.12.0-alpine3.23
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s --health-timeout 5s --health-retries 5
     needs:
       - lint
       - format
@@ -416,6 +424,8 @@ jobs:
         python-version: ["3.12", "3.13", "3.14", "3.15"]
     env:
       COVERAGE: ${{ matrix.python-version == '3.12' && 'collect' || 'none' }}
+      TITANSPAN_REQUIRE_REDIS: "1"
+      TITANSPAN_TEST_REDIS_PORT: "6379"
     steps:
       - name: Check out source
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -426,7 +436,7 @@ jobs:
         with:
           python-version: ${{ matrix.python-version }}
       - name: Install locked dependencies
-        run: uv sync --locked --all-groups
+        run: uv sync --locked --all-groups --extra redis
       - name: Run real dependency integrations
         id: tests
         run: make integration-test

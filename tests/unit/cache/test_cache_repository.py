@@ -6,9 +6,13 @@ semantics and is used here without backend mocks.
 
 from concurrent.futures import ThreadPoolExecutor
 from datetime import UTC, datetime, timedelta
+from typing import TYPE_CHECKING, cast
 
 import anyio
 import pytest
+
+if TYPE_CHECKING:
+    from anyio.abc import TaskGroup
 
 import titanspan.cache.repository as repository_module
 from titanspan.cache import (
@@ -18,6 +22,7 @@ from titanspan.cache import (
     CacheManager,
     CacheSerializationError,
 )
+from titanspan.cache._backends.memory import MemoryStore
 
 pytestmark = pytest.mark.unit
 _EXPECTED_COUNTER = 3
@@ -26,6 +31,7 @@ _CONCURRENT_INCREMENT_COUNT = 100
 _SECONDARY_STORE_VALUE = 2
 _PRIMARY_TAG_VALUE = 3
 _SECONDARY_TAG_VALUE = 4
+_PRIVATE_BACKEND_ERROR = "private backend detail"
 
 
 def test_get_distinguishes_missing_from_stored_none() -> None:
@@ -435,3 +441,117 @@ async def test_flexible_refresh_uses_caller_owned_task_group(
         )
         == "new"
     )
+
+
+@pytest.mark.anyio
+async def test_flexible_schedule_cancellation_releases_refresh_lease(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Release a lease when the caller group rejects refresh scheduling.
+    """  # fmt: skip
+    release_fails = False
+
+    class UncertainReleaseStore(MemoryStore):
+        """Release the lease, then report one uncertain backend result.
+        """  # fmt: skip
+
+        async def release_lock_async(self, key: str, owner: str) -> bool:
+            """Release through memory before simulating a lost response.
+            """  # fmt: skip
+            nonlocal release_fails
+            released = await super().release_lock_async(key, owner)
+            if release_fails and released:
+                raise OSError(_PRIVATE_BACKEND_ERROR)
+            return released
+
+    manager = CacheManager(
+        CacheConfiguration(
+            namespace="schedule-cancel",
+            stores={"refresh": {"driver": "refresh"}},
+            default="refresh",
+        ),
+        drivers={"refresh": lambda _: UncertainReleaseStore()},
+    )
+    cache = manager.store()
+    now = 1_000.0
+    monkeypatch.setattr(repository_module, "time", lambda: now)
+
+    async def old_value() -> str:
+        """Return one value to create the stale entry.
+        """  # fmt: skip
+        return "old"
+
+    assert (
+        await cache.flexible_async(
+            "key",
+            fresh=1,
+            stale=10,
+            callback=old_value,
+        )
+        == "old"
+    )
+    now += 2
+    release_fails = True
+
+    class CancelledTaskGroup:
+        """Reject task creation with the active AnyIO cancellation type.
+        """  # fmt: skip
+
+        def start_soon(
+            self,
+            *args: object,
+            **kwargs: object,
+        ) -> None:
+            """Raise cancellation after the cache acquired its refresh lease.
+            """  # fmt: skip
+            _ = args, kwargs
+            raise anyio.get_cancelled_exc_class()
+
+    with pytest.raises(anyio.get_cancelled_exc_class()) as captured:
+        await cache.flexible_async(
+            "key",
+            fresh=1,
+            stale=10,
+            callback=old_value,
+            task_group=cast("TaskGroup", CancelledTaskGroup()),
+        )
+
+    notes = getattr(captured.value, "__notes__", [])
+    assert any("CacheBackendError" in note for note in notes)
+    assert all(_PRIVATE_BACKEND_ERROR not in note for note in notes)
+    competitor = manager.lock("key", ttl=10)
+    assert await competitor.acquire_async()
+
+
+@pytest.mark.anyio
+async def test_tagged_remember_uses_a_group_specific_lock_key() -> None:
+    """Use the namespaced coordination key for tagged cache groups.
+    """  # fmt: skip
+    manager = CacheManager(CacheConfiguration(namespace="tag-lock-key"))
+    cache = manager.store().tags("documents")
+    calls = 0
+
+    async def calculate() -> str:
+        """Count and return one tagged value.
+        """  # fmt: skip
+        nonlocal calls
+        calls += 1
+        return "stored"
+
+    assert (
+        await cache.remember_async(
+            "document",
+            ttl=30,
+            callback=calculate,
+        )
+        == "stored"
+    )
+    assert (
+        await cache.remember_async(
+            "document",
+            ttl=30,
+            callback=calculate,
+        )
+        == "stored"
+    )
+    assert calls == 1

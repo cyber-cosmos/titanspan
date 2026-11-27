@@ -11,13 +11,14 @@ from dataclasses import dataclass
 from hashlib import sha256
 from inspect import isawaitable, iscoroutine
 from math import isfinite
-from threading import RLock
+from threading import RLock, get_ident
 from time import time
 from typing import TYPE_CHECKING, cast
 
 import anyio
 
 from titanspan._application_context import active_application_context
+from titanspan.cache._callbacks import invoke_async
 from titanspan.cache.exceptions import (
     CacheBackendError,
     CacheCapabilityError,
@@ -52,6 +53,9 @@ _FLEXIBLE_MARKER = "titanspan.cache.flexible.v1"
 _TAG_COUNT_LIMIT = 16
 _TAG_NAME_LIMIT = 128
 _TAG_PREFIX = "tagset:"
+_RESERVED_TAG_NAMESPACE_ERROR = (
+    "The cache tag namespace is reserved for tagged entries."
+)
 _MEMO_ENTRY_LIMIT = 1000
 _INVALID_TAG_ERROR = "Cache tags must be bounded, safe text names."
 
@@ -63,6 +67,7 @@ class _MemoState:
 
     scope: object | None
     fake: object | None
+    execution: tuple[str, int]
     generation: int
     values: dict[str, tuple[int, object]]
 
@@ -962,11 +967,9 @@ class Repository:
             current = await self.get_async(key, _MISSING)
             if current is not _MISSING:
                 return cast("ValueT", current)
-            result = callback()
-            if isawaitable(result):
-                result = await result
+            result = await invoke_async(callback)
             await self.put_async(key, result, ttl=ttl)
-            return cast("ValueT", result)
+            return result
 
         if backend.capabilities.locks:
             lock = self._manager.lock(
@@ -1071,8 +1074,15 @@ class Repository:
                     callback,
                     lock,
                 )
-            except BaseException:
-                await lock.release_async()
+            except BaseException as scheduling_error:
+                with anyio.CancelScope(shield=True):
+                    try:
+                        await lock.release_async()
+                    except Exception as cleanup_error:
+                        scheduling_error.add_note(
+                            "Flexible refresh lease cleanup failed "
+                            f"({type(cleanup_error).__name__})."
+                        )
                 raise
         except CacheBackendError:
             await self._manager.emit_async(
@@ -1102,24 +1112,20 @@ class Repository:
                 )
                 if cached is not _MISSING and age <= stale:
                     return cast("ValueT", cached)
-                value = callback()
-                if isawaitable(value):
-                    value = await value
+                value = await invoke_async(callback)
                 await self.put_async(
                     key,
                     _make_flexible_entry(value),
                     ttl=stale,
                 )
-                return cast("ValueT", value)
-        value = callback()
-        if isawaitable(value):
-            value = await value
+                return value
+        value = await invoke_async(callback)
         await self.put_async(
             key,
             _make_flexible_entry(value),
             ttl=stale,
         )
-        return cast("ValueT", value)
+        return value
 
     async def _refresh_flexible[ValueT](
         self,
@@ -1131,9 +1137,7 @@ class Repository:
         """Refresh one stale value in the caller-owned task group.
         """  # fmt: skip
         try:
-            value = callback()
-            if isawaitable(value):
-                value = await value
+            value = await invoke_async(callback)
             await self.put_async(
                 key,
                 _make_flexible_entry(value),
@@ -1222,6 +1226,8 @@ class Repository:
             for character in key
         ):
             raise CacheKeyError(_KEY_ERROR)
+        if self._tag_group is None and key.startswith(_TAG_PREFIX):
+            raise CacheKeyError(_RESERVED_TAG_NAMESPACE_ERROR)
         prefix = self._manager.key_prefix(self._name)
         if self._tag_group is not None:
             prefix += self._tag_key_prefix
@@ -1244,7 +1250,9 @@ class Repository:
     def _lock_key(self, key: str) -> str:
         """Separate stampede locks for distinct tag groups.
         """  # fmt: skip
-        return self._tag_key_prefix + key
+        if self._tag_group is None:
+            return key
+        return f"tag-lock:{self._tag_group}:{key}"
 
     def _serializer(self) -> JSONSerializer:
         """Return the application's size-limited JSON serializer.
@@ -1307,10 +1315,11 @@ class MemoRepository(Repository):
             entry = state.values.get(key)
         if entry is not None and entry[0] == state.generation:
             return cast("ValueT | None", entry[1])
+        generation = state.generation
         value = super().get(key, _MISSING)
         if value is _MISSING:
             return _resolve_default(default)
-        self._remember(key, state, value)
+        self._remember(key, state, generation, value)
         return cast("ValueT | None", value)
 
     async def get_async[ValueT](
@@ -1327,10 +1336,11 @@ class MemoRepository(Repository):
             entry = state.values.get(key)
         if entry is not None and entry[0] == state.generation:
             return cast("ValueT | None", entry[1])
+        generation = state.generation
         value = await super().get_async(key, _MISSING)
         if value is _MISSING:
             return await _resolve_default_async(default)
-        self._remember(key, state, value)
+        self._remember(key, state, generation, value)
         return cast("ValueT | None", value)
 
     def has(self, key: str) -> bool:
@@ -1362,10 +1372,24 @@ class MemoRepository(Repository):
         active = active_application_context()
         scope = None if active is None else active.scope
         fake = self._manager.fake_identity()
+        execution = _memo_execution_identity()
         generation = self._manager.version(self._name)
+        if scope is None:
+            return _MemoState(
+                scope,
+                fake,
+                execution,
+                generation,
+                {},
+            )
         state = self._state.get()
-        if state is None or state.scope is not scope or state.fake is not fake:
-            state = _MemoState(scope, fake, generation, {})
+        if (
+            state is None
+            or state.scope is not scope
+            or state.fake is not fake
+            or state.execution != execution
+        ):
+            state = _MemoState(scope, fake, execution, generation, {})
             self._state.set(state)
         elif state.generation != generation:
             with self._state_lock:
@@ -1377,17 +1401,32 @@ class MemoRepository(Repository):
         self,
         key: str,
         state: _MemoState,
+        generation: int,
         value: object,
     ) -> None:
-        """Retain one result while keeping per-scope memory bounded.
+        """Retain one current-generation result within the active scope.
         """  # fmt: skip
         with self._state_lock:
+            if (
+                state.generation != generation
+                or self._manager.version(self._name) != generation
+            ):
+                return
             if len(state.values) >= _MEMO_ENTRY_LIMIT:
                 state.values.clear()
-            state.values[key] = (state.generation, value)
+            state.values[key] = (generation, value)
 
     _state: ContextVar[_MemoState | None]
     _state_lock: RLock
+
+
+def _memo_execution_identity() -> tuple[str, int]:
+    """Identify the current AnyIO task or synchronous worker thread.
+    """  # fmt: skip
+    try:
+        return ("task", anyio.get_current_task().id)
+    except anyio.NoEventLoopError:
+        return ("thread", get_ident())
 
 
 def _resolve_default[DefaultT](
@@ -1468,10 +1507,13 @@ async def _resolve_default_async[DefaultT](
     Returns:
         The supplied fallback value.
     """
-    value = default() if callable(default) else default
-    if isawaitable(value):
-        return cast("DefaultT", await value)
-    return cast("DefaultT | None", value)
+    if callable(default):
+        callback = cast(
+            "Callable[[], DefaultT | Awaitable[DefaultT]]",
+            default,
+        )
+        return await invoke_async(callback)
+    return cast("DefaultT | None", default)
 
 
 def _validate_amount(amount: int) -> None:

@@ -11,6 +11,7 @@ from titanspan.contracts.cache import CacheRepository
 from titanspan.contracts.config import ConfigRepository  # noqa: TC001
 from titanspan.contracts.events import EventDispatcher  # noqa: TC001
 from titanspan.contracts.foundation import BootableServiceProvider
+from titanspan.contracts.logging import LogWriter  # noqa: TC001
 
 if TYPE_CHECKING:
     from collections.abc import Mapping
@@ -45,12 +46,14 @@ class CacheServiceProvider(BootableServiceProvider):
         async def provide_manager(
             repository: ConfigRepository,
             dispatcher: EventDispatcher,
+            logger: LogWriter,
         ) -> AsyncIterator[CacheManager]:
             """Own manager shutdown through the Container resource stack.
 
             Args:
                 repository: Canonical application configuration contract.
                 dispatcher: Canonical application event dispatcher.
+                logger: Canonical application logger for diagnostics.
 
             Yields:
                 One application-specific manager with unopened backends.
@@ -59,6 +62,7 @@ class CacheServiceProvider(BootableServiceProvider):
                 repository,
                 drivers=self._drivers,
                 events=dispatcher,
+                logger=logger,
             )
             try:
                 yield manager

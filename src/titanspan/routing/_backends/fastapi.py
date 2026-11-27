@@ -28,7 +28,6 @@ from uuid import UUID
 
 import anyio
 from fastapi import APIRouter, FastAPI
-from fastapi.encoders import jsonable_encoder
 from fastapi.params import Param
 from fastapi.routing import APIRoute
 from pydantic import TypeAdapter, ValidationError
@@ -536,10 +535,18 @@ async def _invoke_with_middleware(
                 return cast("HttpResponse", result)
             # Pydantic accepts model classes and generic aliases through this
             # adapter boundary, while native metadata stores the value broadly.
-            result = TypeAdapter(
+            adapter = TypeAdapter(
                 cast("type[object]", definition.response_model_type),
-            ).validate_python(result)
-            encoded = cast("JsonValue", jsonable_encoder(result))
+            )
+            result = adapter.validate_python(result)
+            encoded = cast(
+                "JsonValue",
+                adapter.dump_python(
+                    result,
+                    mode="json",
+                    by_alias=True,
+                ),
+            )
             return execution.factory.json(
                 encoded,
                 status=(

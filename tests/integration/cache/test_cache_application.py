@@ -26,6 +26,43 @@ pytestmark = [pytest.mark.integration, pytest.mark.architecture]
 _COUNTER_THREE = 3
 _COUNTER_TWO = 2
 _TAG_VALUE = 8
+_PRIVATE_LISTENER_ERROR = "private listener details"
+_PRIMARY_UNAVAILABLE = "primary unavailable"
+
+
+class _FailingCachePrimary(MemoryStore):
+    """Reject primary reads and writes to exercise application failover.
+    """  # fmt: skip
+
+    def get(self, key: str) -> bytes | None:
+        """Fail every synchronous primary read.
+        """  # fmt: skip
+        del key
+        raise OSError(_PRIMARY_UNAVAILABLE)
+
+    async def get_async(self, key: str) -> bytes | None:
+        """Fail every asynchronous primary read.
+        """  # fmt: skip
+        del key
+        raise OSError(_PRIMARY_UNAVAILABLE)
+
+    def set(self, key: str, value: bytes, *, ttl: float | None) -> bool:
+        """Fail every synchronous primary write.
+        """  # fmt: skip
+        del key, value, ttl
+        raise OSError(_PRIMARY_UNAVAILABLE)
+
+    async def set_async(
+        self,
+        key: str,
+        value: bytes,
+        *,
+        ttl: float | None,
+    ) -> bool:
+        """Fail every asynchronous primary write.
+        """  # fmt: skip
+        del key, value, ttl
+        raise OSError(_PRIMARY_UNAVAILABLE)
 
 
 async def _async_factory() -> str:
@@ -260,3 +297,87 @@ def test_foundation_registers_cache_by_default() -> None:
 
     assert response.status_code == HTTPStatus.OK
     assert response.json() == {"complete": True}
+
+
+def test_failover_dispatches_async_events_without_reversing_success() -> None:
+    """Keep fallback mutations successful when event listeners fail.
+    """  # fmt: skip
+
+    def create_primary(_: CacheStoreConfiguration) -> CacheStore:
+        """Create a deterministic unavailable primary store.
+        """  # fmt: skip
+        return _FailingCachePrimary()
+
+    app = Application(
+        config={
+            "app": {"name": "cache-failover-events"},
+            "cache": {
+                "default": "default",
+                "stores": {
+                    "primary": {"driver": "unavailable"},
+                    "backup": {"driver": "memory"},
+                    "default": {
+                        "driver": "failover",
+                        "options": {"stores": ["primary", "backup"]},
+                    },
+                },
+            },
+        },
+        service_providers=(
+            CacheServiceProvider(drivers={"unavailable": create_primary}),
+        ),
+    )
+
+    async def endpoint(cache: CacheRepository) -> dict[str, object]:
+        """Exercise sync and async fallback events through native services.
+        """  # fmt: skip
+        received_sync: list[str] = []
+
+        def receive_sync(event: CacheEvent) -> None:
+            """Record metadata from the synchronous fallback path.
+            """  # fmt: skip
+            received_sync.append(event.action)
+
+        sync_registration = Event.listen(CacheEvent, receive_sync)
+        try:
+            sync_written = cache.put("sync", "stored")
+        finally:
+            sync_registration.close()
+
+        received_async: list[str] = []
+
+        async def receive_async(event: CacheEvent) -> None:
+            """Observe async fallback, then fail only that notification.
+            """  # fmt: skip
+            received_async.append(event.action)
+            if event.action == "failover":
+                raise RuntimeError(_PRIVATE_LISTENER_ERROR)
+
+        async_registration = Event.listen(CacheEvent, receive_async)
+        try:
+            async_written = await cache.put_async("async", "stored")
+            async_value = await cache.get_async("async")
+        finally:
+            async_registration.close()
+
+        return {
+            "sync_written": sync_written,
+            "async_written": async_written,
+            "async_value": async_value,
+            "received_sync": received_sync,
+            "received_async": received_async,
+        }
+
+    app.router.get("/cache-failover-events", endpoint)
+
+    with TestClient(app.asgi) as client:
+        response = client.get("/cache-failover-events")
+
+    assert response.status_code == HTTPStatus.OK
+    assert response.json() == {
+        "sync_written": True,
+        "async_written": True,
+        "async_value": "stored",
+        "received_sync": ["failover", "write"],
+        "received_async": ["failover", "write", "failover", "hit"],
+    }

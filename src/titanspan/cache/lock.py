@@ -3,14 +3,14 @@
 
 from __future__ import annotations
 
-from inspect import isawaitable
 from math import isfinite
 from time import monotonic, sleep
-from typing import TYPE_CHECKING, Self, TypeVar, cast
+from typing import TYPE_CHECKING, Self, TypeVar
 from uuid import uuid4
 
 import anyio
 
+from titanspan.cache._callbacks import invoke_async
 from titanspan.cache.exceptions import (
     CacheBackendError,
     CacheCapabilityError,
@@ -143,18 +143,28 @@ class Lock:
     async def acquire_async(self) -> bool:
         """Asynchronously try acquiring the lease immediately.
         """  # fmt: skip
+        store = self._lock_store()
+        acquired = False
         try:
-            acquired = await self._lock_store().acquire_lock_async(
+            acquired = await store.acquire_lock_async(
                 self.backend_key,
                 self._owner,
                 self._ttl,
             )
         except CacheCapabilityError:
             raise
-        except Exception:
+        except BaseException as error:
+            await self._release_after_failed_acquire(store, error)
+            if not isinstance(error, Exception):
+                raise
             await self._emit_async("lock_acquire", success=False)
             raise _lock_backend_error() from None
-        await self._emit_async("lock_acquire", success=acquired)
+        try:
+            await self._emit_async("lock_acquire", success=acquired)
+        except BaseException as error:
+            if acquired:
+                await self._release_after_failed_acquire(store, error)
+            raise
         return acquired
 
     def release(self) -> bool:
@@ -288,10 +298,7 @@ class Lock:
         """Acquire asynchronously for one sync or async callback.
         """  # fmt: skip
         async with self:
-            result = callback()
-            if isawaitable(result):
-                return await cast("Awaitable[ResultT]", result)
-            return cast("ResultT", result)
+            return await invoke_async(callback)
 
     def transfer(self) -> str:
         """Return the token required to restore this owner elsewhere.
@@ -373,6 +380,22 @@ class Lock:
             )
         except Exception:
             return
+
+    async def _release_after_failed_acquire(
+        self,
+        store: LockStore,
+        cause: BaseException,
+    ) -> None:
+        """Release this token after interrupted or uncertain acquisition.
+        """  # fmt: skip
+        with anyio.CancelScope(shield=True):
+            try:
+                await store.release_lock_async(self.backend_key, self._owner)
+            except Exception as error:
+                cause.add_note(
+                    "Owner-checked cache lease cleanup failed "
+                    f"({type(error).__name__})."
+                )
 
     _manager: CacheManager
     _store: str

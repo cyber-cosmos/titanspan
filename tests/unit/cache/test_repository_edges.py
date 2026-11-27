@@ -7,6 +7,8 @@ failure adapter exercises the repository's error translation.
 from collections.abc import Awaitable, Callable
 from datetime import timedelta
 from decimal import Decimal
+from hashlib import sha256
+from threading import get_ident
 from traceback import format_exception
 from typing import cast
 
@@ -38,11 +40,81 @@ _ASYNC_REMEMBER_VALUE = 2
 _ASYNC_FOREVER_VALUE = 3
 _FLEXIBLE_VALUE = 4
 _ASYNC_ADD_VALUE = 5
+_ASYNC_DEFAULT_CALLBACK_VALUE = 1
+_ASYNC_FLEXIBLE_CALLBACK_VALUE = 3
+_ASYNC_LOCK_CALLBACK_VALUE = 4
+_ASYNC_CALLBACK_COUNT = 4
 _MAX_INVALID_TTL = 315_576_001
 _MEMO_ENTRY_CAPACITY = 1_000
 _MEMO_ENTRY_COUNT = 1_001
 _REFRESH_FAILURE = "refresh failed"
 _PRIVATE_EVENT_ERROR = "private event failure"
+
+
+@pytest.mark.anyio
+async def test_async_cache_apis_offload_sync_callbacks() -> None:
+    """Run synchronous factories outside the active event-loop thread.
+    """  # fmt: skip
+    manager = CacheManager(CacheConfiguration(default="memory"))
+    repository = manager.store()
+    callback_threads: list[int] = []
+    event_thread = get_ident()
+
+    def callback() -> int:
+        """Record the execution thread and return a stable value.
+        """  # fmt: skip
+        callback_threads.append(get_ident())
+        return len(callback_threads)
+
+    assert (
+        await repository.get_async(
+            "missing",
+            default=callback,
+        )
+        == _ASYNC_DEFAULT_CALLBACK_VALUE
+    )
+    assert (
+        await repository.remember_async(
+            "remember",
+            ttl=30,
+            callback=callback,
+        )
+        == _ASYNC_REMEMBER_VALUE
+    )
+    assert (
+        await repository.flexible_async(
+            "flexible",
+            fresh=0,
+            stale=30,
+            callback=callback,
+        )
+        == _ASYNC_FLEXIBLE_CALLBACK_VALUE
+    )
+    assert (
+        await manager.lock("callback", ttl=10).run_async(callback)
+        == _ASYNC_LOCK_CALLBACK_VALUE
+    )
+    assert len(callback_threads) == _ASYNC_CALLBACK_COUNT
+    assert all(thread_id != event_thread for thread_id in callback_threads)
+
+
+def test_reserved_tag_namespace_cannot_be_used_by_ordinary_keys() -> None:
+    """Keep user keys outside prefixes that tagged clearing owns.
+    """  # fmt: skip
+    manager = CacheManager(CacheConfiguration(default="memory"))
+    repository = manager.store()
+    group = sha256(b"reports").hexdigest()
+    colliding_key = f"tagset:{group}:ordinary-entry"
+    assert repository.put("ordinary", "preserved")
+    assert repository.tags("reports").put("tagged", "removed")
+
+    with pytest.raises(CacheKeyError, match="reserved"):
+        repository.put(colliding_key, "must-not-be-stored")
+
+    repository.tags("reports").flush()
+
+    assert repository.get("ordinary") == "preserved"
+    assert repository.missing("tagged")
 
 
 class _NoLockStore(MemoryStore):

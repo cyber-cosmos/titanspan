@@ -15,6 +15,7 @@ from typing import TYPE_CHECKING
 
 from pydantic import TypeAdapter, ValidationError
 
+from titanspan._application_context import active_application_context
 from titanspan.contracts.http import JsonValue
 from titanspan.http.exceptions import (
     HttpFakeError,
@@ -40,6 +41,9 @@ _INVALID_FAKE_CONTENT_ERROR = "Fake JSON content must be a JSON value."
 _NEGATIVE_REQUEST_COUNT_ERROR = "HTTP request counts cannot be negative."
 _FAKE_REENTRY_ERROR = "An HTTP fake context cannot be re-entered."
 _FAKE_NOT_ACTIVE_ERROR = "The HTTP fake context is not active."
+_FAKE_APPLICATION_MISMATCH_ERROR = (
+    "An application-bound HTTP fake cannot intercept another application."
+)
 _MIN_HTTP_STATUS = 100
 _MAX_HTTP_STATUS = 599
 _JSON_ADAPTER = TypeAdapter(JsonValue)
@@ -202,10 +206,11 @@ _ACTIVE_FAKE: ContextVar[HttpFake | None] = ContextVar(
 
 
 class HttpFake:
-    """Intercept requests in one sync or async execution context.
+    """Intercept requests in one application or execution context.
 
-    An unmatched request raises instead of reaching the network. Nested fake
-    contexts restore the outer context when they exit.
+    A fake created inside an application context belongs to that application.
+    A fake created outside one guards all applications in its execution
+    context. Unmatched requests never reach the network.
     """
 
     def __init__(self, responses: HttpFakeResponses) -> None:
@@ -227,6 +232,8 @@ class HttpFake:
         self._requests: list[SentRequest] = []
         self._lock = Lock()
         self._token: Token[HttpFake | None] | None = None
+        active = active_application_context()
+        self._application = None if active is None else active.application
 
     def __enter__(self) -> Self:
         """Bind this fake to the synchronous execution context.
@@ -235,6 +242,17 @@ class HttpFake:
         """
         self._bind()
         return self
+
+    def belongs_to_application(self, application: object | None) -> bool:
+        """Check whether this fake can serve the selected application.
+
+        Args:
+            application: Active application identity, if one is bound.
+
+        Returns:
+            Whether the fake is execution-wide or belongs to this application.
+        """
+        return self._application is None or self._application is application
 
     def __exit__(
         self,
@@ -385,7 +403,14 @@ def current_http_fake() -> HttpFake | None:
 
     The selected value does not cross unrelated context boundaries.
     """
-    return _ACTIVE_FAKE.get()
+    fake = _ACTIVE_FAKE.get()
+    if fake is None:
+        return fake
+    active = active_application_context()
+    application = None if active is None else active.application
+    if not fake.belongs_to_application(application):
+        raise HttpFakeError(_FAKE_APPLICATION_MISMATCH_ERROR)
+    return fake
 
 
 def _normalize_response_definition(

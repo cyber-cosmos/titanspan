@@ -9,6 +9,7 @@ from __future__ import annotations
 from collections import deque
 from collections.abc import Callable, Mapping
 from contextvars import ContextVar, Token
+from logging import getLogger
 from threading import RLock
 from typing import TYPE_CHECKING, cast
 
@@ -34,6 +35,7 @@ from titanspan.contracts.cache import (
     CacheTTL,
     PrefixClearStore,
 )
+from titanspan.contracts.logging import LogWriter  # noqa: TC001
 
 if TYPE_CHECKING:
     from collections.abc import Awaitable
@@ -51,6 +53,9 @@ _DRIVER_FAILURE_ERROR = "The configured cache backend could not be created."
 _LOCK_OWNER_TOKEN_LENGTH = 32
 _MINIMUM_FAILOVER_STORES = 2
 _FAKE_OPERATION_LIMIT = 10_000
+_FAILOVER_EVENT_ERROR = (
+    "Cache failover event listener failed after a completed operation."
+)
 
 
 class CacheManager:
@@ -68,6 +73,7 @@ class CacheManager:
         *,
         drivers: Mapping[str, CacheDriverFactory] | None = None,
         events: EventDispatcher | None = None,
+        logger: LogWriter | None = None,
     ) -> None:
         """Create an application-owned manager without opening connections.
 
@@ -92,6 +98,7 @@ class CacheManager:
             0,
         )
         self._events = events
+        self._logger = logger
         self._lock = RLock()
         self._fake: ContextVar[CacheFake | None] = ContextVar(
             f"titanspan_cache_fake_{id(self)}",
@@ -107,6 +114,7 @@ class CacheManager:
         *,
         drivers: Mapping[str, CacheDriverFactory] | None = None,
         events: EventDispatcher | None = None,
+        logger: LogWriter | None = None,
     ) -> CacheManager:
         """Build one manager from the canonical application configuration.
 
@@ -114,6 +122,7 @@ class CacheManager:
             repository: Application-owned Config repository.
             drivers: Trusted additional backend constructors.
             events: Optional application-owned event dispatcher.
+            logger: Optional application-owned logger for event failures.
 
         Returns:
             A manager that owns only its own lazily initialized stores.
@@ -122,6 +131,7 @@ class CacheManager:
             CacheConfiguration.from_repository(repository),
             drivers=drivers,
             events=events,
+            logger=logger,
         )
 
     @property
@@ -404,6 +414,37 @@ class CacheManager:
             return
         await self._events.dispatch_async(CacheEvent(action, store, success))
 
+    def _notify_failover(self, store: str) -> None:
+        """Report fallback without reversing a completed cache operation.
+        """  # fmt: skip
+        try:
+            self.emit("failover", store)
+        except Exception as error:
+            self._report_failover_listener_failure(error)
+
+    async def _notify_failover_async(self, store: str) -> None:
+        """Dispatch fallback events asynchronously and preserve the result.
+        """  # fmt: skip
+        try:
+            await self.emit_async("failover", store)
+        except Exception as error:
+            self._report_failover_listener_failure(error)
+
+    def _report_failover_listener_failure(self, error: Exception) -> None:
+        """Log only the listener error type after a successful cache action.
+        """  # fmt: skip
+        context = {"exception_type": type(error).__name__}
+        try:
+            if self._logger is None:
+                getLogger("titanspan.cache").warning(
+                    _FAILOVER_EVENT_ERROR,
+                    extra=context,
+                )
+            else:
+                self._logger.warning(_FAILOVER_EVENT_ERROR, context=context)
+        except Exception:
+            return
+
     async def aclose(self) -> None:
         """Close initialized stores in reverse construction order.
 
@@ -544,7 +585,8 @@ class CacheManager:
             tuple(stores),
             tuple(clear_stores),
             self.key_prefix(name),
-            lambda: self.emit("failover", name),
+            lambda: self._notify_failover(name),
+            lambda: self._notify_failover_async(name),
         )
 
     def record_fake(
@@ -589,6 +631,7 @@ class CacheManager:
     _fake: ContextVar[CacheFake | None]
     _closed: bool
     serializer: JSONSerializer
+    _logger: LogWriter | None
 
 
 class CacheFake:

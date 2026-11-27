@@ -48,9 +48,11 @@ worker lookups to the owning application loop, preserving application,
 request, and connection scopes.
 
 Response models use FastAPI and Pydantic filtering with and without route
-middleware. Adding middleware does not change response status, media type,
-scalar JSON encoding, or declared response fields. Explicit native responses
-bypass response-model serialization as they do in FastAPI.
+middleware. The declared schema serializes validated values, including model
+subclasses and nested collections. Adding middleware does not change response
+status, media type, scalar JSON encoding, aliases, custom serializers, or
+declared response fields. Explicit native responses bypass response-model
+serialization as they do in FastAPI.
 
 An endpoint returning `None` produces an empty response. The default status is
 204. An explicit 200, 201, or 202 remains an empty response with that status.

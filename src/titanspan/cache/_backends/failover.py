@@ -12,7 +12,7 @@ from titanspan.cache.exceptions import (
 from titanspan.contracts.cache import CacheCapabilities
 
 if TYPE_CHECKING:
-    from collections.abc import Callable
+    from collections.abc import Awaitable, Callable
 
     from titanspan.contracts.cache import CacheStore, PrefixClearStore
 
@@ -47,6 +47,7 @@ class FailoverStore:
         clear_stores: tuple[PrefixClearStore, ...],
         prefix: str,
         on_fallback: Callable[[], None],
+        on_fallback_async: Callable[[], Awaitable[None]] | None = None,
     ) -> None:
         """Bind child stores and the exact namespace reserved for this view.
         """  # fmt: skip
@@ -59,6 +60,7 @@ class FailoverStore:
         self._clear_stores = clear_stores
         self._prefix = prefix
         self._on_fallback = on_fallback
+        self._on_fallback_async = on_fallback_async
 
     def get(self, key: str) -> bytes | None:
         """Read by priority, skipping backend errors and continuing misses.
@@ -95,10 +97,10 @@ class FailoverStore:
             responses += 1
             if value is not None:
                 if index:
-                    self._on_fallback()
+                    await self._notify_fallback_async()
                 return value
         if failures and responses:
-            self._on_fallback()
+            await self._notify_fallback_async()
         self._raise_if_all_failed(failures, responses)
         return None
 
@@ -143,10 +145,10 @@ class FailoverStore:
             responses += 1
             if written:
                 if index:
-                    self._on_fallback()
+                    await self._notify_fallback_async()
                 return True
         if failures and responses:
-            self._on_fallback()
+            await self._notify_fallback_async()
         self._raise_if_all_failed(failures, responses)
         return False
 
@@ -189,10 +191,10 @@ class FailoverStore:
             responses += 1
             removed = removed or result
             if index and result:
-                self._on_fallback()
+                await self._notify_fallback_async()
                 fallback_emitted = True
         if failures and responses and not fallback_emitted:
-            self._on_fallback()
+            await self._notify_fallback_async()
         self._raise_if_any_failed(failures)
         return removed
 
@@ -225,7 +227,7 @@ class FailoverStore:
                 continue
             responses += 1
         if failures and responses:
-            self._on_fallback()
+            await self._notify_fallback_async()
         self._raise_if_any_failed(failures)
 
     def touch(self, key: str, *, ttl: float | None) -> bool:
@@ -272,10 +274,10 @@ class FailoverStore:
             responses += 1
             touched = touched or result
             if index and result:
-                self._on_fallback()
+                await self._notify_fallback_async()
                 fallback_emitted = True
         if failures and responses and not fallback_emitted:
-            self._on_fallback()
+            await self._notify_fallback_async()
         self._raise_if_any_failed(failures)
         return touched
 
@@ -326,6 +328,15 @@ class FailoverStore:
         """Leave child cleanup to their application-owned CacheManager.
         """  # fmt: skip
 
+    async def _notify_fallback_async(self) -> None:
+        """Dispatch fallback metadata through the async event boundary.
+        """  # fmt: skip
+        callback = self._on_fallback_async
+        if callback is None:
+            self._on_fallback()
+            return
+        await callback()
+
     @staticmethod
     def _raise_if_all_failed(
         failures: list[Exception],
@@ -347,6 +358,7 @@ class FailoverStore:
     _clear_stores: tuple[PrefixClearStore, ...]
     _prefix: str
     _on_fallback: Callable[[], None]
+    _on_fallback_async: Callable[[], Awaitable[None]] | None
 
 
 __all__ = ["FailoverStore"]

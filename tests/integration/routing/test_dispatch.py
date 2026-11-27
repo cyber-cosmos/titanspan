@@ -9,7 +9,7 @@ from threading import get_ident
 
 import pytest
 from fastapi.testclient import TestClient
-from pydantic import BaseModel
+from pydantic import BaseModel, Field, field_serializer
 
 from titanspan import app, route
 from titanspan.container import Scope
@@ -31,6 +31,7 @@ _TRACE: list[str] = []
 _ROUTE_MIDDLEWARE_NAMES: list[str] = []
 _EXPECTED_PATH = "/documents/create"
 _MIDDLEWARE_THREAD_IDS: list[int] = []
+_PRIVATE_FIELD_VALUE = "sensitive-omitted-value"
 
 
 class DocumentCatalog:
@@ -208,6 +209,55 @@ class PublicPayload(BaseModel):
     """
 
     name: str
+
+
+class PublicNestedPayload(BaseModel):
+    """Expose only the declared nested response fields.
+
+    Runtime subclasses can carry additional private fields.
+    """
+
+    label: str
+
+
+class PrivateNestedPayload(PublicNestedPayload):
+    """Add a nested secret excluded by the public response schema.
+
+    The regression verifies schema-directed nested serialization.
+    """
+
+    token: str
+
+
+class PublicSerializedPayload(BaseModel):
+    """Declare aliases and a serializer for a public response shape.
+
+    The declared model must control serialization of runtime subclasses.
+    """
+
+    display_name: str = Field(alias="displayName")
+    nested: PublicNestedPayload
+
+    @field_serializer("display_name")
+    def serialize_display_name(self, value: str) -> str:
+        """Apply the declared schema's serializer.
+
+        Args:
+            value: Validated public display name.
+
+        Returns:
+            The display name in its public wire format.
+        """
+        return value.upper()
+
+
+class PrivateSerializedPayload(PublicSerializedPayload):
+    """Carry a secret field that the declared response model must omit.
+
+    FastAPI must serialize this instance as its declared parent model.
+    """
+
+    password: str
 
 
 def _ok() -> dict[str, str]:
@@ -539,6 +589,126 @@ def test_route_middleware_preserves_response_model_serialization() -> None:
             "internal": "explicit",
         }
     )
+
+
+def test_declared_response_schema_serializes_runtime_subclasses() -> None:
+    """Exclude runtime subclass fields through every response path.
+
+    The same Pydantic schema must control direct and middleware responses.
+    """
+    application = Application()
+    payload = PrivateSerializedPayload(
+        displayName="public",
+        nested=PrivateNestedPayload(
+            label="safe",
+            token=_PRIVATE_FIELD_VALUE,
+        ),
+        password=_PRIVATE_FIELD_VALUE,
+    )
+
+    def direct_payload() -> PrivateSerializedPayload:
+        """Return a subclass instance for the direct response path.
+
+        The declared route model excludes subclass-only fields.
+        """
+        return payload
+
+    def middleware_payload() -> PrivateSerializedPayload:
+        """Return the same subclass instance through route middleware.
+
+        The declared route model must filter all nested subclass fields.
+        """
+        return payload
+
+    def direct_collection() -> list[PrivateSerializedPayload]:
+        """Return subclass instances inside the direct collection path.
+
+        The collection's declared item schema must filter private fields.
+        """
+        return [payload]
+
+    def middleware_collection() -> list[PrivateSerializedPayload]:
+        """Return subclass instances through middleware normalization.
+
+        The collection's declared item schema remains authoritative.
+        """
+        return [payload]
+
+    application.router.get("/schema/direct", direct_payload).response_model(
+        PublicSerializedPayload,
+    )
+    application.router.get(
+        "/schema/middleware",
+        middleware_payload,
+    ).response_model(PublicSerializedPayload).middleware(
+        ForwardingMiddleware,
+    )
+    application.router.get(
+        "/schema/direct-list",
+        direct_collection,
+    ).response_model(list[PublicSerializedPayload])
+    application.router.get(
+        "/schema/middleware-list",
+        middleware_collection,
+    ).response_model(list[PublicSerializedPayload]).middleware(
+        ForwardingMiddleware,
+    )
+
+    with TestClient(application.asgi) as client:
+        results = [
+            client.get(path)
+            for path in (
+                "/schema/direct",
+                "/schema/middleware",
+                "/schema/direct-list",
+                "/schema/middleware-list",
+            )
+        ]
+
+    expected = {
+        "displayName": "PUBLIC",
+        "nested": {"label": "safe"},
+    }
+    assert results[0].json() == results[1].json() == expected
+    assert results[2].json() == results[3].json() == [expected]
+    for result in results:
+        assert _PRIVATE_FIELD_VALUE not in result.text
+
+
+def test_invalid_response_model_fails_consistently_with_middleware() -> None:
+    """Keep invalid response models as server errors on both paths.
+
+    Invalid endpoint output is not reported as client input validation.
+    """
+    application = Application()
+
+    def invalid_payload() -> dict[str, object]:
+        """Return endpoint output that omits a required response field.
+
+        Both response-model paths must reject the invalid value.
+        """
+        return {"nested": {"label": "safe"}}
+
+    application.router.get(
+        "/schema/invalid",
+        invalid_payload,
+    ).response_model(PublicSerializedPayload)
+    application.router.get(
+        "/schema/invalid-middleware",
+        invalid_payload,
+    ).response_model(PublicSerializedPayload).middleware(
+        ForwardingMiddleware,
+    )
+
+    with TestClient(
+        application.asgi,
+        raise_server_exceptions=False,
+    ) as client:
+        direct = client.get("/schema/invalid")
+        middleware = client.get("/schema/invalid-middleware")
+
+    assert direct.status_code == HTTPStatus.INTERNAL_SERVER_ERROR
+    assert middleware.status_code == direct.status_code
 
 
 def test_callable_and_classmethod_controllers_resolve() -> None:
