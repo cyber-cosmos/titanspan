@@ -565,10 +565,11 @@ async with DB.transaction_async():
 
 Suppression applies to the current task or thread and application execution
 scope, and remains in effect for that operation's after-commit callbacks.
-Child tasks do not inherit their parent's quiet persistence authority. Dedicated
-soft-delete and restore events are not implemented. A listener failure after
-commit is reported to the caller, but it cannot undo a database write that
-already committed.
+Child tasks do not inherit their parent's quiet persistence authority.
+Soft-delete and restore operations dispatch cancellable pre-events and
+after-commit events. Force deletion dispatches force-delete events around the
+standard delete events. A listener failure after commit is reported to the
+caller, but it cannot undo a database write that already committed.
 
 ## Relationships and loading
 

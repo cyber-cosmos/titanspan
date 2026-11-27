@@ -54,7 +54,10 @@ class ScopedRecord(Model):
 
 
 class ScopedPost(Model):
-    """Represent parent rows with globally filtered comments."""
+    """Represent posts that own comments.
+
+    Comment visibility is controlled by a related model scope.
+    """
 
     table = "scope_posts"
     fillable = ("name",)
@@ -66,7 +69,10 @@ class ScopedPost(Model):
 
 
 class ScopedComment(Model):
-    """Represent comments whose visibility is enforced by a global scope."""
+    """Represent comments filtered by their public visibility.
+
+    A global scope keeps private comments out of relation results.
+    """
 
     table = "scope_comments"
     fillable = ("post_id", "is_public", "body")
@@ -81,17 +87,26 @@ class ScopedComment(Model):
 
 
 def _active_scope() -> ColumnElement[bool]:
-    """Return the active-row predicate for the scoped record model."""
+    """Return the active-row predicate for scoped records.
+
+    The expression is compiled by SQLAlchemy as part of model queries.
+    """
     return ScopedRecord.active.is_(True)
 
 
 def _tenant_scope() -> ColumnElement[bool]:
-    """Return the default tenant predicate for scoped records."""
+    """Return the default tenant predicate for scoped records.
+
+    The test uses it to verify named scope removal and composition.
+    """
     return ScopedRecord.tenant_id == 1
 
 
 def _visible_comment_scope() -> ColumnElement[bool]:
-    """Return the visibility predicate for related comment queries."""
+    """Return the visibility predicate for related comments.
+
+    The expression also applies to eager-loaded relationship targets.
+    """
     return ScopedComment.is_public.is_(True)
 
 
@@ -304,7 +319,10 @@ def _published_comment(
 
 
 async def _create_scope_tables() -> None:
-    """Create tables for scoped model and relationship integration tests."""
+    """Create tables for model and relationship scope integration tests.
+
+    The fixture schema contains the mapped columns used by these tests.
+    """
     await DB.statement_async(
         "CREATE TABLE scope_records ("
         "id INTEGER PRIMARY KEY, name TEXT NOT NULL, "

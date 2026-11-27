@@ -61,8 +61,14 @@ from titanspan.database.events import (
     ModelDeleted,
     ModelDeleting,
     ModelEvent,
+    ModelForceDeleted,
+    ModelForceDeleting,
+    ModelRestored,
+    ModelRestoring,
     ModelSaved,
     ModelSaving,
+    ModelSoftDeleted,
+    ModelSoftDeleting,
     ModelUpdated,
     ModelUpdating,
 )
@@ -220,8 +226,27 @@ class SoftDeletes:
         """
         if not self.trashed():
             return False
-        setattr(self, self.deleted_at_name, None)
-        return cast("Model", self).save()
+        model = cast("Model", self)
+        service = DB.resolve_service()
+        events_suppressed = _model_events_suppressed(model)
+        with service.transaction(model.connection):
+            if not _dispatch_cancellable_events((ModelRestoring(model),)):
+                return False
+            setattr(self, self.deleted_at_name, None)
+            if not model.save():
+                return False
+
+            def after_commit() -> None:
+                """Dispatch restoration after the transaction commits.
+
+                The callback is discarded if the outer transaction rolls
+                back.
+                """
+                if not events_suppressed:
+                    Event.dispatch(ModelRestored(model))
+
+            service.after_commit(after_commit, model.connection)
+        return True
 
     async def restore_async(self) -> bool:
         """Asynchronously clear and persist the deletion timestamp.
@@ -231,8 +256,28 @@ class SoftDeletes:
         """
         if not self.trashed():
             return False
-        setattr(self, self.deleted_at_name, None)
-        return await cast("Model", self).save_async()
+        model = cast("Model", self)
+        service = DB.resolve_service()
+        events_suppressed = _model_events_suppressed(model)
+        async with service.transaction_async(model.connection):
+            if not await _dispatch_cancellable_events_async(
+                (ModelRestoring(model),),
+            ):
+                return False
+            setattr(self, self.deleted_at_name, None)
+            if not await model.save_async():
+                return False
+
+            async def after_commit() -> None:
+                """Await restoration listeners after transaction commit.
+
+                The event belongs to the model's durable state transition.
+                """
+                if not events_suppressed:
+                    await Event.dispatch_async(ModelRestored(model))
+
+            await service.after_commit_async(after_commit, model.connection)
+        return True
 
 
 class Model(DeclarativeBase):
@@ -364,6 +409,12 @@ class Model(DeclarativeBase):
             ("updated", ModelUpdated),
             ("deleting", ModelDeleting),
             ("deleted", ModelDeleted),
+            ("soft_deleting", ModelSoftDeleting),
+            ("soft_deleted", ModelSoftDeleted),
+            ("restoring", ModelRestoring),
+            ("restored", ModelRestored),
+            ("force_deleting", ModelForceDeleting),
+            ("force_deleted", ModelForceDeleted),
         )
         registrations: list[ListenerRegistration] = []
         for method_name, event_type in hooks:
@@ -1291,8 +1342,32 @@ class Model(DeclarativeBase):
         if isinstance(self, SoftDeletes):
             if not self.exists or self.trashed():
                 return False
-            setattr(self, type(self).deleted_at_name, datetime.now(UTC))
-            return self.save()
+            service = DB.resolve_service()
+            events_suppressed = _model_events_suppressed(self)
+            with service.transaction(type(self).connection):
+                if not _dispatch_cancellable_events(
+                    (ModelSoftDeleting(self),),
+                ):
+                    return False
+                setattr(
+                    self,
+                    type(self).deleted_at_name,
+                    datetime.now(UTC),
+                )
+                if not self.save():
+                    return False
+
+                def after_commit() -> None:
+                    """Dispatch the soft-delete event after commit.
+
+                    The callback is discarded if the outer transaction rolls
+                    back.
+                    """
+                    if not events_suppressed:
+                        Event.dispatch(ModelSoftDeleted(self))
+
+                service.after_commit(after_commit, type(self).connection)
+            return True
         return self._delete_sync()
 
     async def delete_async(self) -> bool:
@@ -1304,8 +1379,35 @@ class Model(DeclarativeBase):
         if isinstance(self, SoftDeletes):
             if not self.exists or self.trashed():
                 return False
-            setattr(self, type(self).deleted_at_name, datetime.now(UTC))
-            return await self.save_async()
+            service = DB.resolve_service()
+            events_suppressed = _model_events_suppressed(self)
+            async with service.transaction_async(type(self).connection):
+                if not await _dispatch_cancellable_events_async(
+                    (ModelSoftDeleting(self),),
+                ):
+                    return False
+                setattr(
+                    self,
+                    type(self).deleted_at_name,
+                    datetime.now(UTC),
+                )
+                if not await self.save_async():
+                    return False
+
+                async def after_commit() -> None:
+                    """Await soft-delete listeners after transaction commit.
+
+                    The callback is discarded if the outer transaction rolls
+                    back.
+                    """
+                    if not events_suppressed:
+                        await Event.dispatch_async(ModelSoftDeleted(self))
+
+                await service.after_commit_async(
+                    after_commit,
+                    type(self).connection,
+                )
+            return True
         return await self._delete_async()
 
     def force_delete(self) -> bool:
@@ -1314,7 +1416,7 @@ class Model(DeclarativeBase):
         Returns:
             Whether SQLAlchemy flushed a delete for this model.
         """
-        return self._delete_sync()
+        return self._delete_sync(force=True)
 
     async def force_delete_async(self) -> bool:
         """Asynchronously hard-delete this row.
@@ -1322,7 +1424,7 @@ class Model(DeclarativeBase):
         Returns:
             Whether SQLAlchemy flushed a delete for this model.
         """
-        return await self._delete_async()
+        return await self._delete_async(force=True)
 
     def increment(self, column_name: str, amount: int = 1) -> bool:
         """Atomically increase a persisted numeric column.
@@ -1975,7 +2077,7 @@ class Model(DeclarativeBase):
             raise DatabaseQueryError(msg)
         return current
 
-    def _delete_sync(self) -> bool:
+    def _delete_sync(self, *, force: bool = False) -> bool:
         """Delete a persisted model synchronously and mark its state.
 
         Returns:
@@ -1984,7 +2086,12 @@ class Model(DeclarativeBase):
         if not self.exists:
             return False
         events_suppressed = _model_events_suppressed(self)
-        if not _dispatch_cancellable_events((ModelDeleting(self),)):
+        before_events: tuple[ModelEvent[Self], ...] = (
+            (ModelForceDeleting(self), ModelDeleting(self))
+            if force
+            else (ModelDeleting(self),)
+        )
+        if not _dispatch_cancellable_events(before_events):
             return False
         service = DB.resolve_service()
         with service.session(type(self).connection) as session:
@@ -2002,11 +2109,13 @@ class Model(DeclarativeBase):
                 remember_deleted(self)
                 if not events_suppressed:
                     Event.dispatch(ModelDeleted(self))
+                    if force:
+                        Event.dispatch(ModelForceDeleted(self))
 
             service.after_commit(after_commit, type(self).connection)
         return True
 
-    async def _delete_async(self) -> bool:
+    async def _delete_async(self, *, force: bool = False) -> bool:
         """Asynchronously delete a persisted model and record the outcome.
 
         Returns:
@@ -2015,9 +2124,12 @@ class Model(DeclarativeBase):
         if not self.exists:
             return False
         events_suppressed = _model_events_suppressed(self)
-        if not await _dispatch_cancellable_events_async(
-            (ModelDeleting(self),),
-        ):
+        before_events: tuple[ModelEvent[Self], ...] = (
+            (ModelForceDeleting(self), ModelDeleting(self))
+            if force
+            else (ModelDeleting(self),)
+        )
+        if not await _dispatch_cancellable_events_async(before_events):
             return False
         service = DB.resolve_service()
         async with service.session_async(type(self).connection) as session:
@@ -2035,6 +2147,8 @@ class Model(DeclarativeBase):
                 remember_deleted(self)
                 if not events_suppressed:
                     await Event.dispatch_async(ModelDeleted(self))
+                    if force:
+                        await Event.dispatch_async(ModelForceDeleted(self))
 
             await service.after_commit_async(
                 after_commit,

@@ -181,7 +181,10 @@ async def test_model_upsert_uses_strict_mass_assignment(
 
 
 async def _create_schema() -> None:
-    """Create the model's table with a real unique conflict target."""
+    """Create the model table with a real unique conflict target.
+
+    SQLite enforces the same conflict boundary used by model upsert tests.
+    """
     await DB.statement_async(
         "CREATE TABLE model_upsert_records ("
         "id INTEGER PRIMARY KEY, email TEXT NOT NULL UNIQUE, "

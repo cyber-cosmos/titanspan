@@ -864,7 +864,9 @@ class ModelQueryBuilder[ModelT]:
         cloned = copy(self)
         cloned._query = self._query.clone()  # noqa: SLF001  # Copy query.
         cloned._eager_paths = self._eager_paths.copy()  # noqa: SLF001
-        cloned._eager_constraints = self._eager_constraints.copy()  # noqa: SLF001
+        cloned._eager_constraints = (  # noqa: SLF001
+            self._eager_constraints.copy()
+        )
         cloned._selected_columns = self._selected_columns  # noqa: SLF001
         cloned._global_scope_conditions = (  # noqa: SLF001
             self._global_scope_conditions.copy()

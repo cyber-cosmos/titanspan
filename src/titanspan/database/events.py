@@ -92,14 +92,68 @@ class ModelDeleted[ModelT](ModelEvent[ModelT]):
     """
 
 
+@dataclass(slots=True)
+class ModelSoftDeleting[ModelT](ModelEvent[ModelT]):
+    """Signal a cancellable model soft-delete attempt.
+
+    Listeners receive this event before mapped state changes.
+    """
+
+
+@dataclass(slots=True)
+class ModelSoftDeleted[ModelT](ModelEvent[ModelT]):
+    """Signal that a model's soft deletion committed successfully.
+
+    The event is dispatched after the owning transaction commits.
+    """
+
+
+@dataclass(slots=True)
+class ModelRestoring[ModelT](ModelEvent[ModelT]):
+    """Signal a cancellable model restoration attempt.
+
+    Listeners receive this event before the deletion timestamp is cleared.
+    """
+
+
+@dataclass(slots=True)
+class ModelRestored[ModelT](ModelEvent[ModelT]):
+    """Signal that a model restoration committed successfully.
+
+    The event is dispatched after the owning transaction commits.
+    """
+
+
+@dataclass(slots=True)
+class ModelForceDeleting[ModelT](ModelEvent[ModelT]):
+    """Signal a cancellable hard-delete attempt.
+
+    This event precedes the standard model delete event.
+    """
+
+
+@dataclass(slots=True)
+class ModelForceDeleted[ModelT](ModelEvent[ModelT]):
+    """Signal that a model's force deletion committed successfully.
+
+    This event follows the standard model deleted event.
+    """
+
+
 __all__ = [
     "ModelCreated",
     "ModelCreating",
     "ModelDeleted",
     "ModelDeleting",
     "ModelEvent",
+    "ModelForceDeleted",
+    "ModelForceDeleting",
+    "ModelRestored",
+    "ModelRestoring",
     "ModelSaved",
     "ModelSaving",
+    "ModelSoftDeleted",
+    "ModelSoftDeleting",
     "ModelUpdated",
     "ModelUpdating",
 ]

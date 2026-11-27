@@ -310,7 +310,10 @@ async def test_without_events_does_not_suppress_inherited_child_task_events(
     proceed = anyio.Event()
 
     async def create_in_child() -> None:
-        """Create one model after the parent releases the task barrier."""
+        """Create one model after the parent releases the task barrier.
+
+        The operation runs under a child task's independent event owner.
+        """
         ready.set()
         await proceed.wait()
         await EventRecord.create_async({"name": "child"})
@@ -916,7 +919,10 @@ async def _rollback_record(callback: Callable[[], Awaitable[None]]) -> None:
 
 
 async def _create_event_records_table() -> None:
-    """Create the table used by quiet model-event integration tests."""
+    """Create the table used by quiet model-event integration tests.
+
+    The helper uses the active application's async Database service.
+    """
     await DB.statement_async(
         "CREATE TABLE event_records ("
         "id INTEGER PRIMARY KEY, name TEXT NOT NULL, "
@@ -925,7 +931,11 @@ async def _create_event_records_table() -> None:
 
 
 def _quiet_sync_create() -> EventRecord:
-    """Create one model while suppressing sync lifecycle events."""
+    """Create one model while suppressing sync lifecycle events.
+
+    Returns:
+        The created model after its transaction commits.
+    """
     with EventRecord.without_events():
         return EventRecord.create({"name": "quiet sync"})
 
