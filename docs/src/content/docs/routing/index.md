@@ -131,7 +131,11 @@ codes, response models, and response declarations. FastAPI and Pydantic
 provide supported path, query, and request-body schemas. Container-injected
 services are excluded from client input schemas. Typed routes document the
 stable safe 422 response body. Explicit `Validation.validate_request` calls
-do not add request schemas to OpenAPI.
+do not add request schemas to OpenAPI. Use
+`.validate_input("payload", rules=..., async_rules=...)` to apply the canonical
+Validation service to an annotated HTTP input. Route middleware can reject a
+request before these application rules run. WebSocket routes do not support
+HTTP input validation.
 
 ## Lifecycle and pending integrations
 

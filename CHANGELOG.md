@@ -21,6 +21,10 @@ public release.
   authoritative HTTP request input. Foundation renders uncaught validation
   failures as safe 422 responses. Native typed routes document the same safe
   422 body schema used by Foundation.
+- Added `RouteDefinition.validate_input()` to apply Validation rules to typed
+  HTTP inputs while preserving Pydantic request schemas and safe 422 handling.
+  `ValidationService.apply_rules_async()` applies those rules without running
+  the endpoint schema a second time.
 - Added native commands with typed parameters, groups, trusted discovery,
   Container injection, and per-command Foundation lifecycle. Rich output and
   parser tests use shared contracts. `about` reports framework and Python

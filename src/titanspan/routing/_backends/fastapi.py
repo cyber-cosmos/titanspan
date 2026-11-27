@@ -44,6 +44,7 @@ from titanspan.contracts.http import (
     ParameterizedHttpMiddleware,
     ResponseFactory,
 )
+from titanspan.contracts.validation import ValidationService
 from titanspan.http.request import Request
 from titanspan.routing.exceptions import (
     EndpointResponseError,
@@ -87,8 +88,14 @@ _ROUTE_REVERSAL_ERROR = "The registered route could not be reversed."
 _BINDING_NOT_FOUND_ERROR = "The route parameter did not match a resource."
 _MISSING_WEBSOCKET_ERROR = "WebSocket routes need one typed connection value."
 _ASYNC_WEBSOCKET_ERROR = "WebSocket route handlers must be asynchronous."
+_WEBSOCKET_INPUT_VALIDATION_ERROR = (
+    "WebSocket routes cannot declare HTTP input validation."
+)
 _INVALID_ROUTE_DEFAULT_ERROR = (
     "A route default cannot be converted to its handler annotation."
+)
+_INVALID_INPUT_VALIDATION_PARAMETER_ERROR = (
+    "Route input validation must target a typed endpoint parameter."
 )
 _VALIDATION_RESPONSE_STATUS = 422
 _VALIDATION_RESPONSE_DESCRIPTION = "Request data failed validation."
@@ -341,6 +348,7 @@ def _endpoint(
         target,
         definition.default_values,
     )
+    _validate_input_declarations(definition, target)
     signature = _dispatch_signature(
         definition,
         target,
@@ -435,11 +443,38 @@ async def _prepare_call(
     dispatch_values.update(
         await _resolve_route_bindings(configuration.router, path_values),
     )
-    return (
-        native_request,
-        factory,
-        _call_parameters(configuration.target, dispatch_values),
-    )
+    call_values = _call_parameters(configuration.target, dispatch_values)
+    return native_request, factory, call_values
+
+
+async def _validated_call_values(
+    execution: _RouteExecution,
+) -> dict[str, object]:
+    """Apply route input rules after middleware accepts the request.
+
+    Args:
+        execution: Per-request route and already parsed input values.
+
+    Returns:
+        A copy of the endpoint arguments with declared rules applied.
+    """
+    configuration = execution.configuration
+    validations = configuration.definition.input_validations
+    call_values = dict(execution.call_values)
+    if validations:
+        validator = await configuration.container.make_async(
+            ValidationService,
+        )
+        for name, policy in validations.items():
+            # FastAPI parsed this value with the declared schema. Apply only
+            # application rules so the endpoint schema runs once per request.
+            call_values[name] = await validator.apply_rules_async(
+                call_values[name],
+                rules=policy.rules,
+                async_rules=policy.async_rules,
+                stop_on_first_error=policy.stop_on_first_error,
+            )
+    return call_values
 
 
 async def _invoke_route(execution: _RouteExecution) -> object:
@@ -454,10 +489,11 @@ async def _invoke_route(execution: _RouteExecution) -> object:
     configuration = execution.configuration
     if configuration.middleware_types:
         return await _invoke_with_middleware(execution)
+    call_values = await _validated_call_values(execution)
     result = await _invoke_action(
         configuration.action,
         configuration.container,
-        execution.call_values,
+        call_values,
     )
     definition = configuration.definition
     if definition.response_model_type is not None:
@@ -489,10 +525,11 @@ async def _invoke_with_middleware(
         Returns:
             Native response produced by the endpoint and response factory.
         """
+        call_values = await _validated_call_values(execution)
         result = await _invoke_action(
             configuration.action,
             configuration.container,
-            execution.call_values,
+            call_values,
         )
         if definition.response_model_type is not None:
             if isinstance(result, StarletteResponse):
@@ -607,6 +644,8 @@ def _websocket_endpoint(
         target,
         definition.default_values,
     )
+    if definition.input_validations:
+        raise InvalidRouteError(_WEBSOCKET_INPUT_VALIDATION_ERROR)
     if not _is_async_callable(target):
         raise InvalidRouteError(_ASYNC_WEBSOCKET_ERROR)
     connection_parameter = _websocket_parameter(target)
@@ -903,6 +942,38 @@ def _dispatch_signature(
                     )
                 )
     return Signature(visible)
+
+
+def _validate_input_declarations(
+    definition: RouteDefinition,
+    target: Callable[..., object],
+) -> None:
+    """Validate declared input targets before the application serves traffic.
+
+    Args:
+        definition: Route carrying optional application validation policies.
+        target: Original endpoint or controller method.
+
+    Raises:
+        InvalidRouteError: If a policy targets an untyped or injected service.
+    """
+    if not definition.input_validations:
+        return
+    parameters = inspect.signature(target).parameters
+    try:
+        hints = get_type_hints(target, include_extras=True)
+    except (NameError, TypeError, ValueError):
+        hints = {}
+    for name in definition.input_validations:
+        parameter = parameters.get(name)
+        annotation = hints.get(
+            name,
+            None if parameter is None else parameter.annotation,
+        )
+        if parameter is None or not _is_openapi_input(annotation):
+            raise InvalidRouteError(
+                _INVALID_INPUT_VALIDATION_PARAMETER_ERROR,
+            )
 
 
 def _is_request_parameter(annotation: object) -> bool:

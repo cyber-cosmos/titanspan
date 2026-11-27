@@ -20,10 +20,12 @@ application-rule sequencing, request integration, and safe native errors.
 | Safe field issues | `ValidationException`, `ValidationIssue` | Validator unit tests |
 | Sync application rules | `ValidationRule` | Validator unit tests |
 | Async application rules | `AsyncValidationRule`, `validate_async` | Validator unit tests |
+| Rules on prevalidated values | `apply_rules_async` | Validator and route integration tests |
 | Non-raising test results | `make`, `make_async` | Validator unit tests |
 | Default Container and Config integration | Foundation's `ValidationServiceProvider` | `tests/integration/validation/test_validation_application.py`, `tests/integration/test_framework_cohesion.py` |
 | Safe HTTP 422 rendering | Foundation's default `ValidationException` handler | `tests/integration/test_validation_exception_rendering.py` |
 | HTTP request input | `validate_request`, `validate_request_async` | Real ASGI application integration test |
+| Typed route application rules | `RouteDefinition.validate_input` | `tests/integration/validation/test_validation_application.py` |
 | Safe 422 OpenAPI schema | Routing's typed route adapter | `test_native_typed_route_documents_the_safe_validation_response` |
 
 ## Schemas and errors
@@ -71,6 +73,10 @@ uniqueness and existence require a future Database-owned implementation with
 transaction and session guarantees. Authorization, session, and storage
 checks remain with their respective owners.
 
+`apply_rules_async` accepts values already validated by a trusted schema
+boundary. It preserves the value and runs only application rules. Routing uses
+this operation after FastAPI and Pydantic parse typed endpoint inputs.
+
 ## HTTP and framework integration
 
 Foundation registers `ValidationServiceProvider` by default. The provider
@@ -96,9 +102,13 @@ Custom rule messages and explicit `messages` overrides are application-owned
 public text. Do not include rejected values, credentials, tokens, or other
 secrets in them. Routing uses FastAPI request parsing and applies the same
 safe 422 rendering policy. Native typed routes document the stable
-`ValidationErrorBody` schema for status 422. Explicit `validate_request`
-calls do not add request schemas to OpenAPI; endpoint annotations remain the
-source of generated request schemas.
+`ValidationErrorBody` schema for status 422. An HTTP route can declare
+`validate_input(parameter, rules=..., async_rules=...)` for a typed endpoint
+input. FastAPI and Pydantic provide its request schema and parsed value. The
+canonical `ValidationService` applies application rules after route middleware
+continues to the endpoint. WebSocket routes do not accept HTTP input rules.
+Explicit `validate_request` calls remain imperative and do not add schemas to
+OpenAPI; endpoint annotations remain the schema source.
 
 ## Verification
 

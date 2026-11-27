@@ -133,6 +133,60 @@ class Validator:
             raise ValidationException(issues)
         return validated
 
+    async def apply_rules_async[DataT](
+        self,
+        value: DataT,
+        *,
+        rules: Sequence[ValidationRule] = (),
+        async_rules: Sequence[AsyncValidationRule] = (),
+        messages: Mapping[str, str] | None = None,
+        attribute_labels: Mapping[str, str] | None = None,
+        stop_on_first_error: bool = False,
+    ) -> DataT:
+        """Apply application rules to a typed value without parsing a schema.
+
+        Args:
+            value: Value already accepted by its declared schema.
+            rules: Ordered synchronous application checks.
+            async_rules: Ordered asynchronous application checks.
+            messages: Error-code or field-path message overrides.
+            attribute_labels: Display labels keyed by dotted field path.
+            stop_on_first_error: Stop after the first failed rule.
+
+        Returns:
+            The same value after all application rules pass.
+
+        Raises:
+            ValidationException: If an application rule rejects the value.
+        """
+        issues = _sync_rule_issues(
+            value,
+            rules,
+            messages=messages,
+            attribute_labels=attribute_labels,
+            stop_on_first_error=stop_on_first_error,
+        )
+        if stop_on_first_error and issues:
+            raise ValidationException(issues)
+        for rule in async_rules:
+            if await rule.check(value):
+                continue
+            issues = (
+                *issues,
+                _rule_issue(
+                    rule.field,
+                    rule.message,
+                    rule.code,
+                    messages=messages,
+                    attribute_labels=attribute_labels,
+                ),
+            )
+            if stop_on_first_error:
+                break
+        if issues:
+            raise ValidationException(issues)
+        return value
+
     async def validate_async[OutputT](  # noqa: PLR0913
         self,
         value: object,
@@ -179,33 +233,14 @@ class Validator:
             messages=messages,
             attribute_labels=attribute_labels,
         )
-        issues = _sync_rule_issues(
+        return await self.apply_rules_async(
             validated,
-            rules,
+            rules=rules,
+            async_rules=async_rules,
             messages=messages,
             attribute_labels=attribute_labels,
             stop_on_first_error=stop_on_first_error,
         )
-        if stop_on_first_error and issues:
-            raise ValidationException(issues)
-        for rule in async_rules:
-            if await rule.check(validated):
-                continue
-            issues = (
-                *issues,
-                _rule_issue(
-                    rule.field,
-                    rule.message,
-                    rule.code,
-                    messages=messages,
-                    attribute_labels=attribute_labels,
-                ),
-            )
-            if stop_on_first_error:
-                break
-        if issues:
-            raise ValidationException(issues)
-        return validated
 
     def make[OutputT](  # noqa: PLR0913
         self,

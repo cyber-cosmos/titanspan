@@ -181,6 +181,37 @@ class ValidationService(Protocol):
         """
         ...
 
+    async def apply_rules_async[DataT](
+        self,
+        value: DataT,
+        *,
+        rules: Sequence[ValidationRule] = (),
+        async_rules: Sequence[AsyncValidationRule] = (),
+        messages: Mapping[str, str] | None = None,
+        attribute_labels: Mapping[str, str] | None = None,
+        stop_on_first_error: bool = False,
+    ) -> DataT:
+        """Apply application rules to an already schema-validated value.
+
+        Use this operation when another trusted boundary, such as FastAPI,
+        has already produced typed data from the declared schema.
+
+        Args:
+            value: Typed value produced by its owning schema boundary.
+            rules: Ordered synchronous application checks.
+            async_rules: Ordered asynchronous application checks.
+            messages: Error-code or field-path message overrides.
+            attribute_labels: Display labels keyed by dotted field path.
+            stop_on_first_error: Stop after the first failed rule.
+
+        Returns:
+            The same typed value after all rules pass.
+
+        Raises:
+            ValidationException: If an application rule rejects the value.
+        """
+        ...
+
     def make[OutputT](  # noqa: PLR0913
         self,
         value: object,

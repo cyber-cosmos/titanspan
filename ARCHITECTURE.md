@@ -82,7 +82,7 @@ tracked in [`docs/src/content/docs/specifications/backend-boundaries.md`](docs/s
 | `concurrency` | Structured asynchronous concurrency, bounded pools, and cancellation. | Planned. |
 | `parallel` | CPU-bound multiprocessing and parallel computation. | Planned. |
 | `pipeline` | Ordered synchronous and asynchronous value transformations. | Sequential callable and Container-resolved stages are implemented. Pipeline does not own streaming or concurrent execution. See `docs/src/content/docs/specifications/pipeline.md`. |
-| `validation` | Pydantic-backed schema validation, safe field issues, and ordered application rules. | Native sync and async service, standalone validator, and HTTP request integration are implemented. Foundation exception rendering and Routing schema integration remain owner changes. See `docs/src/content/docs/specifications/validation.md`. |
+| `validation` | Pydantic-backed schema validation, safe field issues, and ordered application rules. | Native sync and async services, explicit HTTP input validation, typed route rules, and safe Foundation rendering are implemented. Endpoint annotations own OpenAPI schemas. See `docs/src/content/docs/specifications/validation.md`. |
 | `events` | Event dispatching, listeners, subscribers, and application event lifecycle integration. | Native Blinker-backed dispatch, listener injection, scoped fakes, deferred and pushed events, and trusted discovery are implemented. Queue, Database, Broadcasting, and event-owned CLI commands remain pending. See `docs/src/content/docs/specifications/events.md`. |
 | `queue` | Distributed jobs, workers, retries, chains, and batches. | Planned. |
 | `mail` | Email messages, delivery, templates, and attachments. | Planned. |

@@ -679,7 +679,7 @@ checks both redaction and explicit field access.
 | C-007 | Resolved for current request and response contracts | Real injected multipart and cookie integration. |
 | C-008 | Partially verified | Native parse errors now return safe 400 responses; validation returns 422 and internal failures return generic 500. Startup, post-header streaming, and WebSocket exception cases need more coverage. |
 | C-009 | Resolved | Default Validation, Filesystem, and Hashing providers with explicit replacement tests. |
-| C-010 | Partially corrected | Native schema validation, request validation, safe 422 rendering, and a stable OpenAPI 422 body schema are verified. Explicit `validate_request` calls do not generate request schemas or automatically apply application rules to route inputs. |
+| C-010 | Resolved for declarative typed HTTP inputs | Route input rules use the canonical Validation service and the endpoint's OpenAPI schema. Imperative `validate_request` remains runtime-only by design. |
 | C-011 | Resolved for route middleware | `MiddlewareDeclaration` carries parameters through aliases, groups, resources, and controllers. The Container resolves middleware. Startup rejects unsupported classes. Global middleware remains unparameterized. |
 | C-012 | Resolved | Filesystem provider shutdown closes existing manager-owned backend instances and skips unused disks; `tests/integration/test_filesystem.py` covers partial startup and lazy shutdown. |
 | C-013 | Resolved | Cost metadata is bounded before backend verification. |
@@ -692,6 +692,35 @@ checks both redaction and explicit field access.
 | C-020 | Resolved as a dependency decision | Hashing keeps direct `argon2-cffi` and `bcrypt` adapters; `pwdlib` was not added. |
 | C-021 | Resolved | Framework-generated request and exception logs resolve active service substitutions. |
 | C-022 | Partial | The installed-package smoke exercises native providers, contract injection, logging, URL generation, route dispatch, and lifecycle. A broader reference application and HTTP, Routing, and storage performance evidence remain open. |
+
+### C-010 — Typed route inputs did not apply application rules
+
+**Severity:** P2 — confirmed integration gap, resolved for typed HTTP inputs.
+
+**Affected components:** Validation, Routing, Foundation.
+
+**Evidence:** Pydantic endpoint annotations generated request schemas and
+safe backend 422 responses. Application rules only ran through explicit
+Validation calls inside handlers, so a route could not declare both behaviors
+through one native path.
+
+**Correction:** `RouteDefinition.validate_input()` binds sync and async
+application rules to an annotated endpoint parameter. FastAPI and Pydantic
+retain request parsing and OpenAPI ownership. Routing resolves the canonical
+`ValidationService` after route middleware continues to the endpoint. The
+service's `apply_rules_async()` does not parse the schema again or read the
+body. Routing does not create another validator.
+
+**Verification:**
+`tests/integration/validation/test_validation_application.py::test_route_applies_validation_rules_to_typed_request_body`
+checks the generated request schema, sync and async rule failures, safe 422
+responses, and middleware short-circuiting. The same test verifies malformed
+schema input does not expose its rejected value. The startup test rejects
+validation declarations on injected services.
+
+**Boundary:** Explicit `Validation.validate_request()` calls remain
+imperative. Routing cannot derive static OpenAPI schemas from calls made
+inside endpoint code. WebSocket routes do not support HTTP input rules.
 
 ## Open findings
 

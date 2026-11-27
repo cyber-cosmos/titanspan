@@ -136,6 +136,39 @@ class Validation(Facade[ValidationService]):
         )
 
     @classmethod
+    async def apply_rules_async[DataT](
+        cls,
+        value: DataT,
+        *,
+        rules: Sequence[ValidationRule] = (),
+        async_rules: Sequence[AsyncValidationRule] = (),
+        messages: Mapping[str, str] | None = None,
+        attribute_labels: Mapping[str, str] | None = None,
+        stop_on_first_error: bool = False,
+    ) -> DataT:
+        """Apply rules to data already accepted by its schema.
+
+        Args:
+            value: Typed value produced by an upstream schema boundary.
+            rules: Ordered synchronous application rules.
+            async_rules: Ordered asynchronous application rules.
+            messages: Error-code or field-path message overrides.
+            attribute_labels: Display labels keyed by dotted field path.
+            stop_on_first_error: Stop after the first failed rule.
+
+        Returns:
+            The same typed value after all rules pass.
+        """
+        return await cls.resolve_service().apply_rules_async(
+            value,
+            rules=rules,
+            async_rules=async_rules,
+            messages=messages,
+            attribute_labels=attribute_labels,
+            stop_on_first_error=stop_on_first_error,
+        )
+
+    @classmethod
     def make[OutputT](  # noqa: PLR0913
         cls,
         value: object,

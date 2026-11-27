@@ -18,6 +18,10 @@ if TYPE_CHECKING:
 
     from titanspan.contracts.http import HttpMiddleware, MiddlewareItem
     from titanspan.contracts.routing import RouteAction
+    from titanspan.contracts.validation import (
+        AsyncValidationRule,
+        ValidationRule,
+    )
 
 _PARAMETER_PATTERN = re.compile(
     r"\{([A-Za-z_][A-Za-z0-9_]*)(?::([^{}?]+))?(\?)?\}",
@@ -40,6 +44,9 @@ _INVALID_DOMAIN_ERROR = "Route domains must be host names only."
 _INVALID_STATUS_ERROR = "HTTP response status must be 100-599."
 _INVALID_PROTOCOL_ERROR = "Route protocol must be HTTP or WebSocket."
 _INVALID_RESPONSES_ERROR = "OpenAPI responses must use HTTP status codes."
+_INVALID_INPUT_VALIDATION_ERROR = (
+    "A route input must have one validation declaration."
+)
 _MIN_HTTP_STATUS = 100
 _MAX_HTTP_STATUS = 599
 _MAX_CONSTRAINT_LENGTH = 256
@@ -67,6 +74,19 @@ class RouteMetadata:
     deprecated: bool = False
     status_code: int | None = None
     protocol: str = "http"
+
+
+@dataclass(frozen=True, slots=True)
+class _InputValidation:
+    """Store one immutable validation policy for a typed route input.
+
+    Pydantic parses the declared endpoint input. The Validation service then
+    applies application rules to that typed value.
+    """
+
+    rules: tuple[ValidationRule, ...]
+    async_rules: tuple[AsyncValidationRule, ...]
+    stop_on_first_error: bool
 
 
 class RouteDefinition:
@@ -129,6 +149,7 @@ class RouteDefinition:
         self._status_code = metadata.status_code
         self._response_model: object | None = None
         self._responses: dict[int, Mapping[str, object]] = {}
+        self._input_validations: dict[str, _InputValidation] = {}
         for parameter, pattern in self._constraints.items():
             _validate_constraint(self._path, parameter, pattern)
         _validate_default_values(
@@ -289,6 +310,15 @@ class RouteDefinition:
             A read-only mapping copied from route registration.
         """
         return MappingProxyType(self._responses)
+
+    @property
+    def input_validations(self) -> Mapping[str, _InputValidation]:
+        """Return immutable policies for endpoint input parameters.
+
+        Returns:
+            Parameter names mapped to application validation policies.
+        """
+        return MappingProxyType(self._input_validations)
 
     def name(self, value: str) -> Self:
         """Assign a unique name, applying any inherited group prefix.
@@ -571,6 +601,42 @@ class RouteDefinition:
         """
         self._ensure_mutable()
         self._response_model = value
+        return self
+
+    def validate_input(
+        self,
+        parameter: str,
+        *,
+        rules: Sequence[ValidationRule] = (),
+        async_rules: Sequence[AsyncValidationRule] = (),
+        stop_on_first_error: bool = False,
+    ) -> Self:
+        """Apply application rules to one typed HTTP input.
+
+        The endpoint annotation remains the input schema used by FastAPI and
+        Pydantic. This declaration adds reusable application rules after that
+        schema has succeeded.
+
+        Args:
+            parameter: Endpoint parameter that receives validated input.
+            rules: Ordered synchronous application checks.
+            async_rules: Ordered asynchronous application checks.
+            stop_on_first_error: Stop rule execution after its first failure.
+
+        Returns:
+            This route definition for further fluent configuration.
+
+        Raises:
+            InvalidRouteError: If the declaration is invalid or repeated.
+        """
+        self._ensure_mutable()
+        if not parameter.isidentifier() or parameter in self._input_validations:
+            raise InvalidRouteError(_INVALID_INPUT_VALIDATION_ERROR)
+        self._input_validations[parameter] = _InputValidation(
+            rules=tuple(rules),
+            async_rules=tuple(async_rules),
+            stop_on_first_error=stop_on_first_error,
+        )
         return self
 
     def responses(

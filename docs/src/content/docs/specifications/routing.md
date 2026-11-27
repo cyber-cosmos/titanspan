@@ -141,8 +141,13 @@ query, and supported request-body schemas from handler annotations. Routes
 may declare tags, summary, description, deprecation, status code, response
 model, and response metadata. Container services are excluded from client
 inputs. Native typed routes document `ValidationErrorBody` as their default
-422 response. Explicit `Validation.validate_request` calls do not add request
-schemas to OpenAPI; endpoint annotations remain the request-schema source.
+422 response. `RouteDefinition.validate_input` attaches sync and async
+application rules to a typed HTTP endpoint parameter. The route uses the
+existing Validation service after route middleware continues to the endpoint.
+Pydantic still owns schema parsing and OpenAPI generation. WebSocket routes do
+not accept HTTP input rules. Explicit `Validation.validate_request` calls do
+not add request schemas to OpenAPI; endpoint annotations remain the
+request-schema source.
 
 ## URL generation
 

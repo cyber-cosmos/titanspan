@@ -167,6 +167,10 @@ Use `stop_on_first_error=True` to stop application-rule evaluation after the
 first failure. Pydantic field aggregation follows the schema's own policy,
 including `Field(fail_fast=True)` for supported collections.
 
+Use `apply_rules_async()` when a trusted framework boundary has already
+validated a typed value. This applies application rules without running its
+schema a second time.
+
 ## Validate HTTP input
 
 Validation reads request input through the canonical `HttpRequest.all()`
@@ -216,9 +220,59 @@ application.router.post("/accounts", create_account)
 
 `validate_request_async` additionally runs async application rules. Both
 operations consume HTTP's existing authoritative body parser. Routing does
-not yet derive endpoint inputs or OpenAPI request schemas from
-`validate_request` calls. Typed Pydantic endpoint parameters use FastAPI's
-request parsing and schema generation.
+not infer request schemas from calls made inside a handler. Typed Pydantic
+endpoint parameters provide a declarative schema and can apply application
+rules through the same Validation service:
+
+```python
+from titanspan.contracts.validation import ValidationRule
+
+
+def name_is_available(value: object) -> bool:
+    """Reject one reserved account name.
+
+    Args:
+        value: Typed account request produced by Pydantic.
+
+    Returns:
+        Whether the requested name is available.
+    """
+    return isinstance(value, CreateAccountInput) and value.name != "reserved"
+
+
+async def create_typed_account(
+    payload: CreateAccountInput,
+) -> dict[str, str]:
+    """Return fields from a validated account request.
+
+    Args:
+        payload: Pydantic model parsed from the JSON body.
+
+    Returns:
+        Public account fields.
+    """
+    return {"name": payload.name, "email": str(payload.email)}
+
+
+application.router.post(
+    "/typed-accounts",
+    create_typed_account,
+).validate_input(
+    "payload",
+    rules=(
+        ValidationRule(
+            field="name",
+            check=name_is_available,
+            message="This name is unavailable.",
+        ),
+    ),
+)
+```
+
+The endpoint annotation supplies the OpenAPI request schema. FastAPI parses
+the body once, then the application-owned `ValidationService` runs configured
+rules before the endpoint. Route middleware can reject a request before
+these rules run. Use `async_rules` for asynchronous application checks.
 
 ## Handle errors and test results
 
