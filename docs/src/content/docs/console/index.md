@@ -177,6 +177,19 @@ result = ConsoleTester(console).invoke(["greet", "Ada"])
 assert result.exit_code == 0
 ```
 
+Call `execute_async()` when an application already owns an async runtime:
+
+```python
+status = await console.execute_async(
+    "cache clear",
+    {"force": True},
+)
+```
+
+The method accepts typed Python values and skips command-line parsing. It
+reuses the active Application. Otherwise, it starts and shuts down one through
+the configured application factory. It returns the command's process status.
+
 The installed command provides `about`, configuration, route, and event
 inspection commands. `route:list` displays the active catalog used for
 matching and URL generation. `route:cache` writes a validated metadata
@@ -209,7 +222,7 @@ Console does not generate a complete application scaffold. Other components
 can add commands through the shared `CommandRegistrar` contract.
 
 Synchronous `run()` and `invoke()` cannot start inside an active async task.
-Async handlers run in the CLI-owned AnyIO runtime. Synchronous handlers run
-in AnyIO worker threads and must use thread-safe services. Use an async
-handler with thread-affine resources. Do not call synchronous process entry
-points from application async code.
+Use `execute_async()` from async application code. It skips the parser and
+requires typed input values. Synchronous handlers run in AnyIO worker threads
+and must use thread-safe services. Use an async handler with thread-affine
+resources.

@@ -17,6 +17,7 @@ from starlette.types import Message
 from starlette.types import Scope as ASGIScope
 from starlette.websockets import WebSocket, WebSocketDisconnect
 
+from titanspan._application_context import active_application_context
 from titanspan.contracts.container import Scope, ServiceRegistry
 from titanspan.contracts.routing import UriUrlGenerator
 from titanspan.foundation import Application
@@ -25,6 +26,7 @@ from titanspan.routing import InvalidRouteError, RouteUrlError
 pytestmark = pytest.mark.integration
 _TWO_CONNECTIONS = 2
 _POLICY_VIOLATION_CODE = 1008
+_WEBSOCKET_FAILURE = "synthetic WebSocket failure"
 
 
 class BoundDocument:
@@ -726,5 +728,85 @@ async def test_cancelled_websocket_closes_connection_dependencies() -> None:
     finally:
         await application.shutdown()
 
+    assert len(values) == 1
+    assert values[0].closed
+
+
+@pytest.mark.anyio
+async def test_websocket_failure_finalizes_scope() -> None:
+    """Finalize connection resources when a handler fails after acceptance.
+
+    The ASGI server owns connection failure reporting after acceptance.
+    """
+    values: list[ConnectionValue] = []
+    application = Application(
+        service_providers=(ConnectionValueProvider(values),),
+    )
+
+    async def fail_after_accept(
+        websocket: WebSocket,
+        value: ConnectionValue,
+    ) -> None:
+        """Raise after the server accepts the scoped connection.
+
+        Args:
+            websocket: Active connection managed by the ASGI host.
+            value: Connection-owned dependency finalized on handler failure.
+        """
+        _ = value
+        await websocket.accept()
+        raise RuntimeError(_WEBSOCKET_FAILURE)
+
+    application.router.websocket(
+        "/rooms/failure",
+        fail_after_accept,
+    )
+    await application.startup()
+    scope: ASGIScope = {
+        "type": "websocket",
+        "asgi": {"version": "3.0", "spec_version": "2.4"},
+        "http_version": "1.1",
+        "scheme": "ws",
+        "path": "/rooms/failure",
+        "raw_path": b"/rooms/failure",
+        "query_string": b"",
+        "root_path": "",
+        "headers": [(b"host", b"testserver")],
+        "client": ("127.0.0.1", 45000),
+        "server": ("testserver", 80),
+        "subprotocols": [],
+        "extensions": {},
+        "state": {},
+    }
+    messages: list[Message] = []
+    first_receive = True
+
+    async def receive() -> Message:
+        """Provide the connection event required before WebSocket acceptance.
+
+        A later receive reports a disconnect if the host requests one.
+        """
+        nonlocal first_receive
+        if first_receive:
+            first_receive = False
+            return {"type": "websocket.connect"}
+        return {"type": "websocket.disconnect", "code": 1000}
+
+    async def send(message: Message) -> None:
+        """Record messages sent by the actual ASGI application.
+
+        Args:
+            message: ASGI protocol message emitted by Starlette.
+        """
+        messages.append(message)
+
+    try:
+        with pytest.raises(RuntimeError, match=_WEBSOCKET_FAILURE):
+            await application.asgi(scope, receive, send)
+        assert active_application_context() is None
+    finally:
+        await application.shutdown()
+
+    assert [message["type"] for message in messages] == ["websocket.accept"]
     assert len(values) == 1
     assert values[0].closed

@@ -25,6 +25,7 @@ from titanspan.http.helpers import response
 
 pytestmark = pytest.mark.integration
 _CLIENT_DISCONNECTED_MESSAGE = "client disconnected"
+_STREAM_GENERATION_FAILURE = "stream generation failed"
 
 
 def test_native_request_is_injected_and_resolved_from_one_scope() -> None:
@@ -324,6 +325,100 @@ async def test_cancelled_stream_finalizes_before_request_scope_closes() -> None:
     finally:
         await application.shutdown()
 
+    assert observed == ["active"]
+
+
+@pytest.mark.anyio
+async def test_stream_failure_after_headers_sends_no_second_response() -> None:
+    """Propagate a stream error without rendering a second HTTP response.
+
+    The request scope remains alive through generator finalization.
+    """
+    application = Application(config={"app": {"name": "stream failure"}})
+    observed: list[str] = []
+
+    async def endpoint(request: Request) -> object:
+        """Return a stream that fails after sending one body chunk.
+
+        Args:
+            request: Request-scoped service retained during stream cleanup.
+
+        Returns:
+            A streaming response whose body source raises after one chunk.
+        """
+
+        async def content() -> AsyncIterator[bytes]:
+            """Yield one chunk, then raise a stable test error.
+
+            Record that the request context remains active during finalization.
+            """
+            try:
+                yield b"first"
+                raise RuntimeError(_STREAM_GENERATION_FAILURE)
+            finally:
+                observed.append(
+                    "active" if active_request() is request else "different"
+                )
+
+        return response().stream(content(), content_type="text/plain")
+
+    application.router.get("/stream-failure", endpoint)
+    await application.startup()
+    scope: Scope = {
+        "type": "http",
+        "asgi": {"version": "3.0", "spec_version": "2.4"},
+        "http_version": "1.1",
+        "method": "GET",
+        "scheme": "http",
+        "path": "/stream-failure",
+        "raw_path": b"/stream-failure",
+        "query_string": b"",
+        "root_path": "",
+        "headers": [(b"host", b"testserver")],
+        "server": ("testserver", 80),
+        "client": ("127.0.0.1", 45000),
+        "extensions": {},
+        "state": {},
+    }
+    messages: list[Message] = []
+
+    async def receive() -> Message:
+        """Return one empty request body for this GET operation.
+
+        The request has no payload.
+        """
+        return {"type": "http.request", "body": b"", "more_body": False}
+
+    async def send(message: Message) -> None:
+        """Record ASGI messages without a client abstraction.
+
+        Args:
+            message: Response message emitted by the application.
+        """
+        messages.append(message)
+
+    try:
+        with pytest.raises(RuntimeError, match=_STREAM_GENERATION_FAILURE):
+            await application.asgi(scope, receive, send)
+        with pytest.raises(HttpContextError):
+            active_request()
+    finally:
+        await application.shutdown()
+
+    starts = [
+        message
+        for message in messages
+        if message["type"] == "http.response.start"
+    ]
+    bodies = [
+        message
+        for message in messages
+        if message["type"] == "http.response.body"
+    ]
+    assert len(starts) == 1
+    assert starts[0]["status"] == HTTPStatus.OK
+    assert len(bodies) == 1
+    assert bodies[0]["body"] == b"first"
     assert observed == ["active"]
 
 

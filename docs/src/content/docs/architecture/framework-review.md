@@ -677,7 +677,7 @@ checks both redaction and explicit field access.
 | C-005 | Resolved | Real middleware response-model comparison. |
 | C-006 | Resolved | Empty status and explicit JSON null tests. |
 | C-007 | Resolved for current request and response contracts | Real injected multipart and cookie integration. |
-| C-008 | Partially verified | Native parse errors now return safe 400 responses; validation returns 422 and internal failures return generic 500. Startup, post-header streaming, and WebSocket exception cases need more coverage. |
+| C-008 | Resolved for implemented request and connection lifecycles | Startup rollback, native handlers, streamed response failure after headers, and accepted WebSocket failure now have real lifecycle evidence. |
 | C-009 | Resolved | Default Validation, Filesystem, and Hashing providers with explicit replacement tests. |
 | C-010 | Resolved for declarative typed HTTP inputs | Route input rules use the canonical Validation service and the endpoint's OpenAPI schema. Imperative `validate_request` remains runtime-only by design. |
 | C-011 | Resolved for route middleware | `MiddlewareDeclaration` carries parameters through aliases, groups, resources, and controllers. The Container resolves middleware. Startup rejects unsupported classes. Global middleware remains unparameterized. |
@@ -686,7 +686,7 @@ checks both redaction and explicit field access.
 | C-014 | Resolved | Built-in synchronous and asynchronous hashing share a bounded application-owned semaphore; `test_sync_and_async_hashing_share_application_work_budget` verifies contention. |
 | C-015 | Resolved | Replacement hashes are omitted from ordinary representations. |
 | C-016 | Resolved | Safe Console and Foundation diagnostics have regression coverage. |
-| C-017 | Partially verified | Sync handlers use AnyIO worker threads; invocation from an already active async runtime remains unsupported. |
+| C-017 | Resolved for async programmatic execution | `Console.execute_async()` reuses an active app or owns a standalone lifecycle. Sync handlers use AnyIO worker threads. |
 | C-018 | Partial | `about`, configuration, route, event, and seven artifact commands use component APIs. A complete application scaffold and package-installed generator verification remain open. |
 | C-019 | Resolved with C-009 | Built-in providers follow one deterministic Foundation registration policy. |
 | C-020 | Resolved as a dependency decision | Hashing keeps direct `argon2-cffi` and `bcrypt` adapters; `pwdlib` was not added. |
@@ -721,6 +721,62 @@ validation declarations on injected services.
 **Boundary:** Explicit `Validation.validate_request()` calls remain
 imperative. Routing cannot derive static OpenAPI schemas from calls made
 inside endpoint code. WebSocket routes do not support HTTP input rules.
+
+### C-008 — Exception lifecycle coverage was incomplete
+
+**Severity:** P2 — confirmed verification gap; no lifecycle defect reproduced.
+
+**Affected components:** Foundation, HTTP, Routing, Container.
+
+**Evidence:** Existing integration tests covered safe request parsing,
+validation, internal HTTP errors, injected native handlers, and startup
+rollback. They did not assert behavior after HTTP headers or WebSocket
+acceptance had been sent.
+
+**Correction:** No runtime change was needed. Starlette propagates failures
+after response transmission starts instead of sending a second HTTP response.
+It also propagates accepted WebSocket handler failures to the ASGI host.
+Foundation's outer lifecycle middleware restores application context, while
+the owning HTTP or connection scope finalizes its resources.
+
+**Verification:**
+`tests/integration/http/test_request_lifecycle.py::test_stream_failure_after_headers_sends_no_second_response`
+records actual ASGI messages and checks request context during generator
+finalization. `tests/integration/routing/test_advanced_routing.py::test_websocket_failure_finalizes_scope`
+checks the accept message, connection resource finalization, and context
+restoration after a handler failure. Existing Foundation tests cover startup
+rollback and injected exception handlers.
+
+**Boundary:** Once HTTP headers or WebSocket acceptance are sent, Foundation
+cannot replace the protocol response. The ASGI server owns connection
+termination after an unhandled post-start failure.
+
+### C-017 — Console lacked async programmatic execution
+
+**Severity:** P2 — confirmed execution gap, resolved for registered commands.
+
+**Affected components:** Console, Foundation, Container.
+
+**Evidence:** `Console.run()` and `Console.invoke()` reject calls from an
+active asynchronous runtime. The command execution operation was private, so
+applications could not execute registered commands without starting a second
+runtime or application graph.
+
+**Correction:** `Console.execute_async()` accepts a registered command path
+and typed Python values. It reuses the active Application context and its
+Container. Outside an active context, it creates one Application through the
+configured factory and owns startup and shutdown. Synchronous handlers still
+run in AnyIO worker threads. Cancellation propagates through Foundation
+cleanup. Invalid command paths and input keys raise `CommandInvocationError`.
+
+**Verification:** `tests/integration/console/test_console_lifecycle.py`
+checks active app, Container, injected output, and dependency identity;
+standalone startup and shutdown; explicit exit status; invalid values; and
+cancellation cleanup.
+
+**Boundary:** `run()` and `invoke()` remain synchronous parser entry points.
+`execute_async()` does not parse strings or coerce input values. Callers must
+provide typed Python values for declared command arguments and options.
 
 ## Open findings
 

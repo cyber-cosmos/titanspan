@@ -31,9 +31,11 @@ from typing import (
 
 import anyio
 
+from titanspan._application_context import active_application_context
 from titanspan.console._backends.typer import TyperBridge
 from titanspan.console.exceptions import (
     CommandDiscoveryError,
+    CommandInvocationError,
     CommandRegistrationError,
     ConsoleExitError,
     ConsoleRuntimeError,
@@ -59,7 +61,26 @@ _APPLICATION_RUNTIME_ERROR = (
     "Console execution cannot start inside an active async runtime. "
     "Invoke the command from the process entry point."
 )
+_INVALID_ACTIVE_APPLICATION_ERROR = (
+    "Console execution found an invalid active application context."
+)
+_INVALID_COMMAND_VALUES_ERROR = (
+    "Programmatic command values must match registered CLI parameters."
+)
+_UNKNOWN_COMMAND_ERROR = "The requested command is not registered."
 _MAX_EXCEPTION_DETAILS = 8192
+
+
+@dataclass(frozen=True, slots=True)
+class _RegisteredCommand:
+    """Retain one command's handler and explicit CLI inputs.
+
+    Programmatic execution uses this metadata without running another parser.
+    """
+
+    handler: CommandHandler | type[ConsoleCommand]
+    parameters: tuple[tuple[Parameter, Argument | Option], ...]
+    with_application: bool
 
 
 @dataclass(slots=True)
@@ -74,6 +95,9 @@ class _RegistrationState:
     group_paths: set[str] = field(default_factory=set[str])
     entry_points: set[tuple[str, str, str]] = field(
         default_factory=set[tuple[str, str, str]]
+    )
+    commands: dict[str, _RegisteredCommand] = field(
+        default_factory=dict[str, _RegisteredCommand]
     )
 
 
@@ -225,6 +249,11 @@ class Console:
             )
             raise CommandRegistrationError(message) from error
         self._state.command_paths.add(command_path)
+        self._state.commands[command_path] = _RegisteredCommand(
+            handler=handler,
+            parameters=parameters,
+            with_application=with_application,
+        )
 
     def add_group(
         self,
@@ -348,6 +377,53 @@ class Console:
         code, stdout, stderr = self._backend.invoke(arguments, stdin=stdin)
         return ConsoleResult(code, stdout, stderr)
 
+    async def execute_async(
+        self,
+        command_path: str,
+        values: Mapping[str, object] | None = None,
+    ) -> int:
+        """Execute one registered command from an existing async runtime.
+
+        This method skips CLI parsing. Supply typed Python values for declared
+        command arguments and options. It reuses the active Application or
+        owns a fresh Application lifecycle when no context is active.
+
+        Args:
+            command_path: Registered command path, with spaces between groups.
+            values: Typed values for declared CLI parameters.
+
+        Returns:
+            A process-style status code from the command handler.
+
+        Raises:
+            CommandInvocationError: If the command or values are invalid.
+            ConsoleRuntimeError: If the active application context is invalid.
+        """
+        registration = self._state.commands.get(command_path)
+        if registration is None:
+            raise CommandInvocationError(_UNKNOWN_COMMAND_ERROR)
+        command_values = self._validate_programmatic_values(
+            registration,
+            {} if values is None else values,
+        )
+        try:
+            await self._execute(
+                registration.handler,
+                command_values,
+                command_path,
+                registration.with_application,
+            )
+        except ConsoleExitError as exit_request:
+            return exit_request.code
+        except ConsoleRuntimeError:
+            raise
+        except Exception as error:
+            self._output.write_error(
+                self._failure_message(command_path, error),
+            )
+            return 1
+        return 0
+
     @property
     def output(self) -> ConsoleOutput:
         """Return the configured output contract.
@@ -436,8 +512,7 @@ class Console:
             await self._execute_without_application(handler, values)
             return
 
-        provider = ConsoleServiceProvider(self._output)
-        application = self._application_factory(provider)
+        application, owns_application = self._application_for_execution()
 
         async def operation() -> object:
             """Resolve a command class and invoke its handler.
@@ -495,7 +570,31 @@ class Console:
                 )
                 raise
 
-        await application.run(operation)
+        if owns_application:
+            await application.run(operation)
+        else:
+            await operation()
+
+    def _application_for_execution(self) -> tuple[Application, bool]:
+        """Select the current app or create one owned by this command.
+
+        Returns:
+            The Application and whether this invocation owns its lifecycle.
+
+        Raises:
+            ConsoleRuntimeError: If the active context is not a valid native
+                Application binding.
+        """
+        active = active_application_context()
+        if active is None:
+            provider = ConsoleServiceProvider(self._output)
+            return self._application_factory(provider), True
+        if (
+            isinstance(active.application, Application)
+            and active.container is active.application.container
+        ):
+            return active.application, False
+        raise ConsoleRuntimeError(_INVALID_ACTIVE_APPLICATION_ERROR)
 
     async def _execute_without_application(
         self,
@@ -526,6 +625,45 @@ class Console:
             )
         if isawaitable(result):
             await result
+
+    @staticmethod
+    def _validate_programmatic_values(
+        registration: _RegisteredCommand,
+        values: Mapping[str, object],
+    ) -> dict[str, object]:
+        """Require supplied values to match declared CLI parameters.
+
+        Args:
+            registration: Command registration with explicit CLI parameters.
+            values: Values supplied by a Python caller.
+
+        Returns:
+            A shallow copy safe for one command invocation.
+
+        Raises:
+            CommandInvocationError: If a value is unknown or required input is
+                missing.
+        """
+        parameters = tuple(
+            parameter for parameter, _ in registration.parameters
+        )
+        declared = {parameter.name for parameter in parameters}
+        if any(name not in declared for name in values):
+            raise CommandInvocationError(_INVALID_COMMAND_VALUES_ERROR)
+        missing = sorted(
+            parameter.name
+            for parameter in parameters
+            if parameter.default is Parameter.empty
+            and parameter.name not in values
+        )
+        if missing:
+            missing_names = ", ".join(missing)
+            message = (
+                "Programmatic command values are missing required inputs: "
+                f"{missing_names}."
+            )
+            raise CommandInvocationError(message)
+        return dict(values)
 
     def _validate_name(self, name: str) -> str:
         """Validate one path segment before passing it to the parser.

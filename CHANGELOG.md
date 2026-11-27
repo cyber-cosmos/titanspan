@@ -31,6 +31,12 @@ public release.
   versions. Route and event inspection commands use their owning components.
   Native artifact generators write typed starter files without replacing
   existing application files.
+- Added `Console.execute_async()` for programmatic command execution from an
+  active async runtime. It reuses the active Application or owns a fresh
+  Foundation lifecycle when no application context is bound.
+- Added real ASGI regressions for stream and WebSocket failures after protocol
+  transmission starts. They verify scoped cleanup, context restoration, and
+  that Foundation does not send a second HTTP response.
 - Added an ordered sync and async Pipeline for transforms, continuation
   middleware, class stages, conditional inclusion, and native Container
   resolution. Pipeline owns no task scheduler or workflow state.

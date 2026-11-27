@@ -24,6 +24,7 @@ application composition and resource cleanup.
 | Installed application provider discovery | Implemented | Default factory uses Foundation provider discovery |
 | Terminal text, tables, prompts, and progress | Implemented | `TerminalOutput` implements `ConsoleOutput` |
 | Process status and error reporting | Implemented | Exit-code, failure, and cleanup tests |
+| Async programmatic execution | Implemented | Active app reuse, standalone lifecycle, input checks, and cancellation tests |
 | Parser-backed command tests | Implemented | `ConsoleTester` delegates to the production parser |
 | Configuration commands | Implemented | `tests/unit/config/test_config_cli.py` |
 | Framework information command | Implemented | `about` reports Titanspan and Python versions without starting an application |
@@ -44,6 +45,7 @@ application composition and resource cleanup.
 | `discover_commands(group=...)` | Load trusted installed entry points once |
 | `run()` | Parse process arguments and execute one command |
 | `invoke(arguments, stdin=...)` | Run the real parser with captured streams |
+| `execute_async(command_path, values=None)` | Run a registered command from Python without CLI parsing |
 | `output` | Return the configured `ConsoleOutput` implementation |
 | `command_names` | Return registered command paths in sorted order |
 | `Argument(...)`, `Option(...)` | Mark typed parameters as CLI values |
@@ -56,13 +58,14 @@ primitive parameters must use `Argument` or `Option` metadata.
 
 ## Application ownership
 
-Each application-aware command creates a fresh Application through its
+Each CLI application-aware command creates a fresh Application through its
 configured factory. The factory receives `ConsoleServiceProvider`, which
 registers the selected output instance through the shared `ServiceRegistry`
 contract before Container composition. The default factory first discovers
 trusted `titanspan.providers` entry points through Foundation. It then adds
 the Console provider, so application services and Console output share one
-Container.
+Container. `execute_async()` reuses an active Application. Without an active
+context, it creates and closes one Application through the same factory.
 
 Foundation starts the Application, activates its context, runs provider boot
 and invokes the handler through the Container. Foundation then shuts down the
@@ -121,7 +124,8 @@ commands without importing Typer.
 
 `run()` and `invoke()` are synchronous process boundaries. They reject calls
 from an active asynchronous task instead of starting a nested runtime.
-Async handlers execute in the Console-owned AnyIO runtime. Synchronous
+`execute_async()` runs async handlers in the current runtime. It accepts
+typed Python values and skips command-line parsing. Synchronous
 handlers execute in AnyIO worker threads. Dependency injection still uses the
 application Container. Synchronous handlers must use thread-safe services;
 thread-affine resources require an async handler.
@@ -147,9 +151,8 @@ Rich types.
 Console does not scan arbitrary application modules or generate a complete
 application scaffold. Event cache commands require `events.manifest_path`.
 
-Nested command groups are supported. Invoking a second command from inside an
-active command is unsupported because the synchronous entry point cannot
-start another runtime.
+`execute_async()` does not invoke the parser or coerce input strings. Callers
+must provide typed values for the command's declared arguments and options.
 
 ## Verification
 

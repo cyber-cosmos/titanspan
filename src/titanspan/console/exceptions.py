@@ -18,6 +18,13 @@ class CommandRegistrationError(ConsoleError, ValueError):
     """
 
 
+class CommandInvocationError(ConsoleError, ValueError):
+    """Report an invalid programmatic command name or input mapping.
+
+    The error omits arbitrary supplied values.
+    """
+
+
 class CommandDiscoveryError(ConsoleError, ImportError):
     """Report a trusted command entry point that failed to load.
 
@@ -72,6 +79,7 @@ class ConsoleExitError(Exception):
 __all__ = [
     "CommandDiscoveryError",
     "CommandGenerationError",
+    "CommandInvocationError",
     "CommandRegistrationError",
     "ConsoleError",
     "ConsoleExitError",

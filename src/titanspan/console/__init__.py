@@ -7,6 +7,7 @@ from titanspan.console.application import Console
 from titanspan.console.exceptions import (
     CommandDiscoveryError,
     CommandGenerationError,
+    CommandInvocationError,
     CommandRegistrationError,
     ConsoleError,
     ConsoleExitError,
@@ -22,6 +23,7 @@ __all__ = [
     "Argument",
     "CommandDiscoveryError",
     "CommandGenerationError",
+    "CommandInvocationError",
     "CommandRegistrationError",
     "Console",
     "ConsoleError",

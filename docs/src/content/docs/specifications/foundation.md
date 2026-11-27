@@ -18,7 +18,7 @@ This specification records the behavior verified by Foundation tests.
 | Standalone execution | Implemented | `Application.run()` and async context tests verify startup and shutdown. |
 | ASGI lifecycle | Implemented | FastAPI lifespan delegates to native application startup and shutdown. |
 | Request scope and context | Implemented | Real ASGI tests cover scope identity, streaming lifetime, and isolation. |
-| Exception rendering | Implemented | Native handlers receive the request and exception through Container injection. |
+| Exception rendering | Implemented | Native handlers receive request-scoped dependencies; startup rollback and post-start stream and WebSocket failures retain lifecycle ownership. |
 | Request parsing errors | Implemented | Malformed native request input returns a safe 400 response; oversized input returns 413. |
 | Generic error response | Implemented | Unhandled request failures are logged and return a generic JSON 500 response. |
 | Validation response | Implemented | `ValidationException` uses the canonical response factory and returns safe field errors with status 422. |
@@ -84,6 +84,10 @@ resolved from the active request scope.
 
 Cancellation is not converted to an application error response. The ASGI
 stack propagates cancellation and finalizes request resources.
+Failures after HTTP headers or WebSocket acceptance have been sent also
+propagate to the ASGI host. Foundation does not send a replacement response
+after protocol transmission starts. HTTP stream and WebSocket integration
+tests verify scoped cleanup and application-context restoration on failure.
 
 ## Verification
 
