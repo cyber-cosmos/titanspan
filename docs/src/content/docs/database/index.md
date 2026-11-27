@@ -271,11 +271,17 @@ Date, time, year, month, and day predicates use bound SQLAlchemy expressions.
 Date and time predicates are integration-tested on SQLite and PostgreSQL.
 Other dialects depend on their SQLAlchemy dialect implementation.
 
-`where_json_value()` compares a scalar at a dot-separated object path. Path
-segments accept identifier characters only, and values remain bound query
-parameters. SQLite and PostgreSQL JSON or JSONB behavior is integration-tested.
-MySQL expression construction exists but does not yet have live-server
-verification. Array indexing and nested JSON containment are not provided.
+JSON predicates accept dot-separated object paths containing identifier
+characters only, and values remain bound query parameters. `where_json_value()`
+compares a scalar; `where_json_contains_key()` tests key existence even when a
+stored value is JSON null; and `where_json_length()` compares array lengths.
+These key and length operations use SQLite JSON1, PostgreSQL JSONB, or MySQL
+and MariaDB JSON functions. `where_json_contains()` and its negated form use
+PostgreSQL JSONB containment or the MySQL and MariaDB JSON containment
+function. PostgreSQL containment requires JSONB columns. SQLite containment is
+rejected because SQLite has no equivalent JSON containment operator. SQLite
+and PostgreSQL behavior is integration-tested; MySQL and MariaDB expressions
+have no live-server verification. Arbitrary array indexing is not provided.
 
 For long-running processing that may update rows as it proceeds, use keyset
 pages over a unique, non-null, orderable column:

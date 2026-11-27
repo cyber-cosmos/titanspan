@@ -750,6 +750,90 @@ async def test_full_text_queries_use_sqlite_fts(
             DB.table("search_documents").where_full_text((), "guide")
 
 
+async def test_json_key_and_array_length_predicates(
+    application: Application,
+) -> None:
+    """Query nested JSON keys and array lengths with SQLite JSON1.
+
+    Args:
+        application: Application configured by this test.
+    """
+    async with application:
+        await DB.statement_async(
+            "CREATE TABLE json_advanced_rows ("
+            "id INTEGER PRIMARY KEY, payload TEXT NOT NULL)"
+        )
+        await DB.table("json_advanced_rows").insert_many_async(
+            [
+                {
+                    "id": 1,
+                    "payload": (
+                        '{"labels":["agents","python"],'
+                        '"metadata":{"reviewed":true}}'
+                    ),
+                },
+                {
+                    "id": 2,
+                    "payload": (
+                        '{"labels":["python"],"metadata":{"reviewed":false}}'
+                    ),
+                },
+                {"id": 3, "payload": '{"labels":[]}'},
+            ],
+        )
+
+        with_key = await (
+            DB.table("json_advanced_rows")
+            .select("id")
+            .where_json_contains_key("payload", "metadata.reviewed")
+            .order_by("id")
+            .get_async()
+        )
+        missing_key = await (
+            DB.table("json_advanced_rows")
+            .select("id")
+            .where_json_doesnt_contain_key("payload", "metadata.reviewed")
+            .get_async()
+        )
+        long_arrays = await (
+            DB.table("json_advanced_rows")
+            .select("id")
+            .where_json_length("payload", "labels", ">", 1)
+            .get_async()
+        )
+        or_missing_key = await (
+            DB.table("json_advanced_rows")
+            .select("id")
+            .where("id", 1)
+            .or_where_json_doesnt_contain_key(
+                "payload",
+                "metadata.reviewed",
+            )
+            .order_by("id")
+            .get_async()
+        )
+        or_long_arrays = await (
+            DB.table("json_advanced_rows")
+            .select("id")
+            .where("id", 3)
+            .or_where_json_length("payload", "labels", ">", 1)
+            .order_by("id")
+            .get_async()
+        )
+
+        assert with_key == [{"id": 1}, {"id": 2}]
+        assert missing_key == [{"id": 3}]
+        assert long_arrays == [{"id": 1}]
+        assert or_missing_key == [{"id": 1}, {"id": 3}]
+        assert or_long_arrays == [{"id": 1}, {"id": 3}]
+        with pytest.raises(DatabaseQueryError, match="supported dialects"):
+            DB.table("json_advanced_rows").where_json_contains(
+                "payload",
+                "labels",
+                ["python"],
+            )
+
+
 async def test_cursor_pagination_stabilizes_order_and_supports_reverse_pages(
     application: Application,
 ) -> None:

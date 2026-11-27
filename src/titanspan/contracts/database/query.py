@@ -601,6 +601,182 @@ class DatabaseQueryBuilder(Protocol):
         """
         ...
 
+    def where_json_contains(
+        self,
+        column_name: str,
+        path: str,
+        value: object,
+    ) -> Self:
+        """Require a JSON value at a validated path to contain a value.
+
+        Args:
+            column_name: Safe JSON column reference.
+            path: Dot-separated object keys using identifier characters.
+            value: JSON-compatible containment candidate.
+
+        Returns:
+            This builder for further query composition.
+        """
+        ...
+
+    def or_where_json_contains(
+        self,
+        column_name: str,
+        path: str,
+        value: object,
+    ) -> Self:
+        """Join a JSON containment predicate using SQL OR.
+
+        Args:
+            column_name: Safe JSON column reference.
+            path: Dot-separated object keys using identifier characters.
+            value: JSON-compatible containment candidate.
+
+        Returns:
+            This builder for further query composition.
+        """
+        ...
+
+    def where_json_doesnt_contain(
+        self,
+        column_name: str,
+        path: str,
+        value: object,
+    ) -> Self:
+        """Exclude JSON values containing a candidate at a validated path.
+
+        Args:
+            column_name: Safe JSON column reference.
+            path: Dot-separated object keys using identifier characters.
+            value: JSON-compatible containment candidate.
+
+        Returns:
+            This builder for further query composition.
+        """
+        ...
+
+    def or_where_json_doesnt_contain(
+        self,
+        column_name: str,
+        path: str,
+        value: object,
+    ) -> Self:
+        """Join a negated JSON containment predicate using SQL OR.
+
+        Args:
+            column_name: Safe JSON column reference.
+            path: Dot-separated object keys using identifier characters.
+            value: JSON-compatible containment candidate.
+
+        Returns:
+            This builder for further query composition.
+        """
+        ...
+
+    def where_json_contains_key(
+        self,
+        column_name: str,
+        path: str,
+    ) -> Self:
+        """Require a nested key to exist, including a JSON null value.
+
+        Args:
+            column_name: Safe JSON column reference.
+            path: Dot-separated object keys using identifier characters.
+
+        Returns:
+            This builder for further query composition.
+        """
+        ...
+
+    def or_where_json_contains_key(
+        self,
+        column_name: str,
+        path: str,
+    ) -> Self:
+        """Join a nested JSON key-existence predicate using SQL OR.
+
+        Args:
+            column_name: Safe JSON column reference.
+            path: Dot-separated object keys using identifier characters.
+
+        Returns:
+            This builder for further query composition.
+        """
+        ...
+
+    def where_json_doesnt_contain_key(
+        self,
+        column_name: str,
+        path: str,
+    ) -> Self:
+        """Require a nested JSON key not to exist.
+
+        Args:
+            column_name: Safe JSON column reference.
+            path: Dot-separated object keys using identifier characters.
+
+        Returns:
+            This builder for further query composition.
+        """
+        ...
+
+    def or_where_json_doesnt_contain_key(
+        self,
+        column_name: str,
+        path: str,
+    ) -> Self:
+        """Join a negated JSON key-existence predicate using SQL OR.
+
+        Args:
+            column_name: Safe JSON column reference.
+            path: Dot-separated object keys using identifier characters.
+
+        Returns:
+            This builder for further query composition.
+        """
+        ...
+
+    def where_json_length(
+        self,
+        column_name: str,
+        path: str,
+        operator_or_length: object,
+        length: object = ...,
+    ) -> Self:
+        """Compare the array length at a validated JSON path.
+
+        Args:
+            column_name: Safe JSON column reference.
+            path: Dot-separated object keys using identifier characters.
+            operator_or_length: Expected length or comparison operator.
+            length: Expected length when an operator is supplied.
+
+        Returns:
+            This builder for further query composition.
+        """
+        ...
+
+    def or_where_json_length(
+        self,
+        column_name: str,
+        path: str,
+        operator_or_length: object,
+        length: object = ...,
+    ) -> Self:
+        """Join a JSON array length comparison using SQL OR.
+
+        Args:
+            column_name: Safe JSON column reference.
+            path: Dot-separated object keys using identifier characters.
+            operator_or_length: Expected length or comparison operator.
+            length: Expected length when an operator is supplied.
+
+        Returns:
+            This builder for further query composition.
+        """
+        ...
+
     def where_raw(
         self,
         expression: str,

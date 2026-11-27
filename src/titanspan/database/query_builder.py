@@ -29,6 +29,7 @@ from typing import TYPE_CHECKING, Literal, Protocol, cast
 from uuid import UUID
 
 from sqlalchemy import (
+    JSON,
     Boolean,
     Date,
     Float,
@@ -67,6 +68,7 @@ from sqlalchemy import (
 )
 from sqlalchemy.dialects.mysql import insert as mysql_insert
 from sqlalchemy.dialects.mysql import match as mysql_match
+from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.dialects.postgresql import array as postgresql_array
 from sqlalchemy.dialects.postgresql import insert as postgresql_insert
 from sqlalchemy.dialects.sqlite import insert as sqlite_insert
@@ -1223,6 +1225,241 @@ class QueryBuilder(DatabaseQueryBuilder):
             path,
             operator_or_value,
             value,
+            "or",
+        )
+
+    def where_json_contains(
+        self,
+        column_name: str,
+        path: str,
+        value: object,
+    ) -> QueryBuilder:
+        """Require a JSON value to contain a candidate at a nested path.
+
+        Args:
+            column_name: Safe JSON column reference.
+            path: Dot-separated object path using identifier characters.
+            value: JSON-compatible containment candidate.
+
+        Returns:
+            This builder for further query composition.
+
+        Raises:
+            DatabaseQueryError: If the dialect lacks containment support.
+        """
+        return self._where_json_contains(
+            column_name,
+            path,
+            value,
+            "and",
+            negated=False,
+        )
+
+    def or_where_json_contains(
+        self,
+        column_name: str,
+        path: str,
+        value: object,
+    ) -> QueryBuilder:
+        """Join a nested JSON containment predicate using SQL OR.
+
+        Args:
+            column_name: Safe JSON column reference.
+            path: Dot-separated object path using identifier characters.
+            value: JSON-compatible containment candidate.
+
+        Returns:
+            This builder for further query composition.
+        """
+        return self._where_json_contains(
+            column_name,
+            path,
+            value,
+            "or",
+            negated=False,
+        )
+
+    def where_json_doesnt_contain(
+        self,
+        column_name: str,
+        path: str,
+        value: object,
+    ) -> QueryBuilder:
+        """Exclude JSON values containing a candidate at a nested path.
+
+        Args:
+            column_name: Safe JSON column reference.
+            path: Dot-separated object path using identifier characters.
+            value: JSON-compatible containment candidate.
+
+        Returns:
+            This builder for further query composition.
+        """
+        return self._where_json_contains(
+            column_name,
+            path,
+            value,
+            "and",
+            negated=True,
+        )
+
+    def or_where_json_doesnt_contain(
+        self,
+        column_name: str,
+        path: str,
+        value: object,
+    ) -> QueryBuilder:
+        """Join a negated JSON containment predicate using SQL OR.
+
+        Args:
+            column_name: Safe JSON column reference.
+            path: Dot-separated object path using identifier characters.
+            value: JSON-compatible containment candidate.
+
+        Returns:
+            This builder for further query composition.
+        """
+        return self._where_json_contains(
+            column_name,
+            path,
+            value,
+            "or",
+            negated=True,
+        )
+
+    def where_json_contains_key(
+        self,
+        column_name: str,
+        path: str,
+    ) -> QueryBuilder:
+        """Require a nested JSON key to exist, including JSON null values.
+
+        Args:
+            column_name: Safe JSON column reference.
+            path: Dot-separated object path using identifier characters.
+
+        Returns:
+            This builder for further query composition.
+        """
+        return self._where_json_contains_key(
+            column_name,
+            path,
+            "and",
+            negated=False,
+        )
+
+    def or_where_json_contains_key(
+        self,
+        column_name: str,
+        path: str,
+    ) -> QueryBuilder:
+        """Join nested JSON key existence using SQL OR.
+
+        Args:
+            column_name: Safe JSON column reference.
+            path: Dot-separated object path using identifier characters.
+
+        Returns:
+            This builder for further query composition.
+        """
+        return self._where_json_contains_key(
+            column_name,
+            path,
+            "or",
+            negated=False,
+        )
+
+    def where_json_doesnt_contain_key(
+        self,
+        column_name: str,
+        path: str,
+    ) -> QueryBuilder:
+        """Require a nested JSON key not to exist.
+
+        Args:
+            column_name: Safe JSON column reference.
+            path: Dot-separated object path using identifier characters.
+
+        Returns:
+            This builder for further query composition.
+        """
+        return self._where_json_contains_key(
+            column_name,
+            path,
+            "and",
+            negated=True,
+        )
+
+    def or_where_json_doesnt_contain_key(
+        self,
+        column_name: str,
+        path: str,
+    ) -> QueryBuilder:
+        """Join absent nested JSON key checks using SQL OR.
+
+        Args:
+            column_name: Safe JSON column reference.
+            path: Dot-separated object path using identifier characters.
+
+        Returns:
+            This builder for further query composition.
+        """
+        return self._where_json_contains_key(
+            column_name,
+            path,
+            "or",
+            negated=True,
+        )
+
+    def where_json_length(
+        self,
+        column_name: str,
+        path: str,
+        operator_or_length: object,
+        length: object = _MISSING,
+    ) -> QueryBuilder:
+        """Compare the array length at a validated JSON object path.
+
+        Args:
+            column_name: Safe JSON column reference.
+            path: Dot-separated object path using identifier characters.
+            operator_or_length: Expected length or comparison operator.
+            length: Expected length when an operator is supplied.
+
+        Returns:
+            This builder for further query composition.
+        """
+        return self._where_json_length(
+            column_name,
+            path,
+            operator_or_length,
+            length,
+            "and",
+        )
+
+    def or_where_json_length(
+        self,
+        column_name: str,
+        path: str,
+        operator_or_length: object,
+        length: object = _MISSING,
+    ) -> QueryBuilder:
+        """Join a JSON array length comparison using SQL OR.
+
+        Args:
+            column_name: Safe JSON column reference.
+            path: Dot-separated object path using identifier characters.
+            operator_or_length: Expected length or comparison operator.
+            length: Expected length when an operator is supplied.
+
+        Returns:
+            This builder for further query composition.
+        """
+        return self._where_json_length(
+            column_name,
+            path,
+            operator_or_length,
+            length,
             "or",
         )
 
@@ -4819,6 +5056,159 @@ class QueryBuilder(DatabaseQueryBuilder):
         )
         return self._add_where(
             self._compare(expression, operator, comparison_value),
+            boolean,
+        )
+
+    def _where_json_contains(
+        self,
+        column_name: str,
+        path: str,
+        value: object,
+        boolean: _Boolean,
+        *,
+        negated: bool,
+    ) -> QueryBuilder:
+        """Add one dialect-supported JSON containment comparison.
+
+        Args:
+            column_name: Safe JSON column reference.
+            path: Validated nested object path.
+            value: Candidate JSON value bound by SQLAlchemy.
+            boolean: SQL connector for the new condition.
+            negated: Whether the containment result is negated.
+
+        Returns:
+            This builder for further query composition.
+
+        Raises:
+            DatabaseQueryError: If the dialect lacks JSON containment.
+        """
+        parts = _json_path_parts(path)
+        source = self._column(column_name)
+        dialect = self._connection.dialect_name
+        if dialect == "postgresql":
+            target = source.op("#>")(postgresql_array(list(parts)))
+            condition = target.op("@>")(literal(value, type_=JSONB))
+        elif dialect in {"mysql", "mariadb"}:
+            json_path = "$" + "".join(f".{part}" for part in parts)
+            condition = (
+                func.json_contains(
+                    source,
+                    literal(value, type_=JSON),
+                    json_path,
+                )
+                == 1
+            )
+        else:
+            msg = (
+                f"JSON containment is unsupported by {dialect}; supported "
+                "dialects are PostgreSQL, MySQL, and MariaDB."
+            )
+            raise DatabaseQueryError(msg)
+        expression = cast("_Condition", condition)
+        if negated:
+            expression = not_(expression)
+        return self._add_where(expression, boolean)
+
+    def _where_json_contains_key(
+        self,
+        column_name: str,
+        path: str,
+        boolean: _Boolean,
+        *,
+        negated: bool,
+    ) -> QueryBuilder:
+        """Add one dialect-supported nested JSON key-existence check.
+
+        Args:
+            column_name: Safe JSON column reference.
+            path: Validated nested object path.
+            boolean: SQL connector for the new condition.
+            negated: Whether the existence result is negated.
+
+        Returns:
+            This builder for further query composition.
+
+        Raises:
+            DatabaseQueryError: If the dialect lacks safe JSON path support.
+        """
+        parts = _json_path_parts(path)
+        source = self._column(column_name)
+        json_path = "$" + "".join(f".{part}" for part in parts)
+        dialect = self._connection.dialect_name
+        if dialect == "postgresql":
+            target = source.op("#>")(postgresql_array(list(parts)))
+            condition = target.is_not(None)
+        elif dialect in {"mysql", "mariadb"}:
+            condition = (
+                func.json_contains_path(
+                    source,
+                    "one",
+                    json_path,
+                )
+                == 1
+            )
+        elif dialect == "sqlite":
+            condition = func.json_type(source, json_path).is_not(None)
+        else:
+            msg = f"JSON key checks are unsupported by the {dialect} dialect."
+            raise DatabaseQueryError(msg)
+        expression = cast("_Condition", condition)
+        if negated:
+            expression = not_(expression)
+        return self._add_where(expression, boolean)
+
+    def _where_json_length(
+        self,
+        column_name: str,
+        path: str,
+        operator_or_length: object,
+        length: object,
+        boolean: _Boolean,
+    ) -> QueryBuilder:
+        """Compare a native JSON array-length expression with a bound integer.
+
+        Args:
+            column_name: Safe JSON column reference.
+            path: Validated nested object path.
+            operator_or_length: Expected length or comparison operator.
+            length: Expected length when an operator is supplied.
+            boolean: SQL connector for the new condition.
+
+        Returns:
+            This builder for further query composition.
+
+        Raises:
+            DatabaseQueryError: If the dialect or comparison is unsupported.
+        """
+        if length is _MISSING:
+            operator = "="
+            expected = operator_or_length
+        else:
+            if not isinstance(operator_or_length, str):
+                _raise_invalid_condition()
+            operator = operator_or_length
+            expected = length
+        if type(expected) is not int:
+            msg = "JSON array length comparisons require an integer value."
+            raise DatabaseQueryError(msg)
+
+        parts = _json_path_parts(path)
+        source = self._column(column_name)
+        json_path = "$" + "".join(f".{part}" for part in parts)
+        dialect = self._connection.dialect_name
+        if dialect == "postgresql":
+            target = source.op("#>")(postgresql_array(list(parts)))
+            expression = func.jsonb_array_length(target)
+        elif dialect in {"mysql", "mariadb"}:
+            expression = func.json_length(source, json_path)
+        elif dialect == "sqlite":
+            expression = func.json_array_length(source, json_path)
+        else:
+            msg = f"JSON array lengths are unsupported by {dialect}."
+            raise DatabaseQueryError(msg)
+        return self._add_where(
+            self._compare(expression, operator, expected),
             boolean,
         )
 

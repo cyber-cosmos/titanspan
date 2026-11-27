@@ -473,6 +473,87 @@ async def test_postgresql_json_path_predicates(
         await DB.statement_async("DROP TABLE postgres_json_rows")
 
 
+async def test_postgresql_json_containment_key_and_array_length(
+    application: Application,
+) -> None:
+    """Query JSONB containment, nested keys, and array lengths.
+
+    Args:
+        application: Isolated PostgreSQL integration application.
+    """
+    async with application:
+        await DB.statement_async(
+            "CREATE TABLE postgres_json_advanced_rows ("
+            "id INTEGER PRIMARY KEY, payload JSONB NOT NULL)"
+        )
+        await DB.statement_async(
+            "INSERT INTO postgres_json_advanced_rows (id, payload) VALUES "
+            "(1, CAST(:first AS JSONB)), (2, CAST(:second AS JSONB)), "
+            "(3, CAST(:third AS JSONB))",
+            {
+                "first": (
+                    '{"labels":["agents","python"],'
+                    '"metadata":{"reviewed":true,"nullable":null}}'
+                ),
+                "second": '{"labels":["python"],"metadata":{}}',
+                "third": '{"labels":[],"metadata":{}}',
+            },
+        )
+
+        contained = await (
+            DB.table("postgres_json_advanced_rows")
+            .select("id")
+            .where_json_contains("payload", "labels", ["python"])
+            .order_by("id")
+            .get_async()
+        )
+        with_nullable_key = await (
+            DB.table("postgres_json_advanced_rows")
+            .where_json_contains_key("payload", "metadata.nullable")
+            .first_async()
+        )
+        without_contained_value = await (
+            DB.table("postgres_json_advanced_rows")
+            .select("id")
+            .where_json_doesnt_contain(
+                "payload",
+                "labels",
+                ["agents"],
+            )
+            .order_by("id")
+            .get_async()
+        )
+        without_key = await (
+            DB.table("postgres_json_advanced_rows")
+            .select("id")
+            .where_json_doesnt_contain_key("payload", "metadata.nullable")
+            .order_by("id")
+            .get_async()
+        )
+        long_arrays = await (
+            DB.table("postgres_json_advanced_rows")
+            .where_json_length("payload", "labels", ">", 1)
+            .get_async()
+        )
+        or_long_arrays = await (
+            DB.table("postgres_json_advanced_rows")
+            .select("id")
+            .where("id", 3)
+            .or_where_json_length("payload", "labels", ">", 1)
+            .order_by("id")
+            .get_async()
+        )
+
+        assert contained == [{"id": 1}, {"id": 2}]
+        assert with_nullable_key is not None
+        assert with_nullable_key["id"] == 1
+        assert without_contained_value == [{"id": 2}, {"id": 3}]
+        assert without_key == [{"id": 2}, {"id": 3}]
+        assert [row["id"] for row in long_arrays] == [1]
+        assert or_long_arrays == [{"id": 1}, {"id": 3}]
+        await DB.statement_async("DROP TABLE postgres_json_advanced_rows")
+
+
 async def test_postgresql_mutations_return_rows(
     application: Application,
 ) -> None:

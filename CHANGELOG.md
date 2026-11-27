@@ -102,6 +102,8 @@ public release.
 - Add PostgreSQL inner and left LATERAL joins for correlated query builders.
 - Add dialect-native full-text Query Builder predicates for PostgreSQL,
   SQLite FTS, MySQL, and MariaDB.
+- Add safe JSON containment, nested key-existence, and array-length predicates
+  through supported database JSON functions.
 - Declare Pydantic as a direct runtime dependency for native schema APIs.
 - Add native application Cache services with memory and optional Redis
   backends, explicit backend capabilities, safe JSON serialization, atomic
