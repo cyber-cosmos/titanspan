@@ -9,7 +9,11 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Protocol, runtime_checkable
 
 if TYPE_CHECKING:
-    from collections.abc import Mapping
+    from collections.abc import AsyncIterator, Iterator, Mapping
+    from contextlib import (
+        AbstractAsyncContextManager,
+        AbstractContextManager,
+    )
 
     from sqlalchemy.sql import Executable
 
@@ -28,6 +32,15 @@ class DatabaseConnectionService(Protocol):
 
         Returns:
             The configured name used for this logical connection.
+        """
+        ...
+
+    @property
+    def transaction_level(self) -> int:
+        """Return this connection's active transaction depth in this scope.
+
+        Returns:
+            Zero outside a transaction or the active savepoint depth.
         """
         ...
 
@@ -121,6 +134,40 @@ class DatabaseConnectionService(Protocol):
 
         Returns:
             Detached result rows and affected-row metadata.
+        """
+        ...
+
+    def stream_statement(
+        self,
+        statement: Executable,
+        *,
+        batch_size: int = 1000,
+    ) -> AbstractContextManager[Iterator[Mapping[str, object]]]:
+        """Stream detached mapping rows while owning a live sync session.
+
+        Args:
+            statement: SQLAlchemy statement built through supported APIs.
+            batch_size: Maximum number of rows buffered by SQLAlchemy.
+
+        Returns:
+            A context manager that closes its result and session on exit.
+        """
+        ...
+
+    def stream_statement_async(
+        self,
+        statement: Executable,
+        *,
+        batch_size: int = 1000,
+    ) -> AbstractAsyncContextManager[AsyncIterator[Mapping[str, object]]]:
+        """Stream mapping rows without blocking the active asyncio task.
+
+        Args:
+            statement: SQLAlchemy statement built through supported APIs.
+            batch_size: Maximum number of rows buffered by SQLAlchemy.
+
+        Returns:
+            An async context manager that closes its result and session.
         """
         ...
 

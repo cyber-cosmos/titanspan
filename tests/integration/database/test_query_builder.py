@@ -538,3 +538,190 @@ async def test_query_builder_filters_and_aggregates_composed_results(
             .order_by("active")
         )
         assert await grouped.get_async() == [{"active": True}]
+
+
+async def test_subquery_join_preserves_fluent_alias_columns(
+    application: Application,
+) -> None:
+    """Join a composed subquery through validated alias-qualified columns.
+
+    Args:
+        application: Application configured with an isolated SQLite database.
+    """
+    async with application:
+        await DB.statement_async(
+            "CREATE TABLE users (id INTEGER PRIMARY KEY, name TEXT NOT NULL)"
+        )
+        await DB.statement_async(
+            "CREATE TABLE posts (id INTEGER PRIMARY KEY, user_id INTEGER, "
+            "title TEXT NOT NULL, views INTEGER NOT NULL)"
+        )
+        await DB.table("users").insert_many_async(
+            ({"id": 1, "name": "Ada"}, {"id": 2, "name": "Grace"}),
+        )
+        await DB.table("posts").insert_many_async(
+            (
+                {
+                    "id": 1,
+                    "user_id": 1,
+                    "title": "Popular",
+                    "views": 100,
+                },
+                {
+                    "id": 2,
+                    "user_id": 2,
+                    "title": "Quiet",
+                    "views": 10,
+                },
+            ),
+        )
+        popular_posts = (
+            DB.table("posts")
+            .select("user_id", "title")
+            .where("views", ">=", 50)
+        )
+
+        rows = await (
+            DB.table("users")
+            .join_sub(
+                popular_posts,
+                "popular",
+                "users.id",
+                "=",
+                "popular.user_id",
+            )
+            .select("users.name", "popular.title")
+            .get_async()
+        )
+
+        assert rows == [{"name": "Ada", "title": "Popular"}]
+
+        all_users = await (
+            DB.table("users")
+            .left_join_sub(
+                popular_posts,
+                "popular",
+                "users.id",
+                "=",
+                "popular.user_id",
+            )
+            .select("users.name", "popular.title")
+            .order_by("users.id")
+            .get_async()
+        )
+        assert all_users == [
+            {"name": "Ada", "title": "Popular"},
+            {"name": "Grace", "title": None},
+        ]
+
+
+async def test_generated_ids_and_atomic_update_or_insert(
+    application: Application,
+) -> None:
+    """Retrieve generated IDs and delegate insert-or-update atomically.
+
+    Args:
+        application: Application configured with an isolated SQLite database.
+    """
+    async with application:
+        await DB.statement_async(
+            "CREATE TABLE settings (id INTEGER PRIMARY KEY, "
+            "name TEXT NOT NULL UNIQUE, value TEXT NOT NULL)"
+        )
+
+        identifier = await DB.table("settings").insert_get_id_async(
+            {"name": "mode", "value": "old"},
+        )
+        assert identifier == 1
+
+        await DB.table("settings").update_or_insert_async(
+            {"name": "mode"},
+            {"value": "new"},
+        )
+        await DB.table("settings").update_or_insert_async(
+            {"name": "region"},
+            {"value": "west"},
+        )
+
+        rows = await DB.table("settings").order_by("id").get_async()
+        assert rows == [
+            {"id": 1, "name": "mode", "value": "new"},
+            {"id": 2, "name": "region", "value": "west"},
+        ]
+        conditional = await (
+            DB.table("settings")
+            .when(
+                False,
+                lambda builder: builder.where("name", "missing"),
+                lambda builder: builder.where("name", "mode"),
+            )
+            .unless(
+                False,
+                lambda builder: builder.where("value", "new"),
+            )
+            .sole_async()
+        )
+        assert conditional["id"] == 1
+
+        with pytest.raises(DatabaseQueryError, match="cannot change"):
+            await DB.table("settings").update_or_insert_async(
+                {"name": "mode"},
+                {"name": "changed"},
+            )
+
+
+async def test_ctes_unions_and_outer_union_filters(
+    application: Application,
+) -> None:
+    """Compose CTE, UNION, UNION ALL, and post-union conditions.
+
+    Args:
+        application: Application configured with an isolated SQLite database.
+    """
+    async with application:
+        await DB.statement_async(
+            "CREATE TABLE entries (id INTEGER PRIMARY KEY, "
+            "category TEXT NOT NULL)"
+        )
+        await DB.table("entries").insert_many_async(
+            (
+                {"id": 1, "category": "alpha"},
+                {"id": 2, "category": "alpha"},
+                {"id": 3, "category": "beta"},
+            ),
+        )
+        counts = (
+            DB.table("entries")
+            .select("category")
+            .select_raw("COUNT(*) AS total")
+            .group_by("category")
+        )
+        cte_rows = await (
+            DB.table("entry_counts")
+            .with_cte("entry_counts", counts)
+            .select("category", "total")
+            .order_by("category")
+            .get_async()
+        )
+        assert cte_rows == [
+            {"category": "alpha", "total": 2},
+            {"category": "beta", "total": 1},
+        ]
+
+        first = DB.table("entries").select("id").where("id", "<=", 2)
+        second = DB.table("entries").select("id").where("id", ">=", 2)
+        unique_rows = await (
+            first.union(second).where("id", ">", 1).order_by("id").get_async()
+        )
+        repeated_rows = await (
+            DB.table("entries")
+            .select("id")
+            .where("id", 2)
+            .union_all(
+                DB.table("entries").select("id").where("id", 2),
+            )
+            .get_async()
+        )
+
+        assert unique_rows == [{"id": 2}, {"id": 3}]
+        assert repeated_rows == [{"id": 2}, {"id": 2}]

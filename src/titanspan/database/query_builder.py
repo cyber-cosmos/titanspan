@@ -7,14 +7,27 @@ builder before branching it into independent query variations.
 from __future__ import annotations
 
 import re
-from collections.abc import Callable, Mapping, Sequence
+from collections.abc import (
+    AsyncGenerator,
+    AsyncIterator,
+    Callable,
+    Generator,
+    Iterator,
+    Mapping,
+    Sequence,
+)
+from contextlib import asynccontextmanager, contextmanager
 from copy import copy
-from typing import TYPE_CHECKING, Literal, cast
+from itertools import islice
+from typing import TYPE_CHECKING, Literal, Protocol, cast
 
 from sqlalchemy import (
+    Date,
+    Time,
     and_,
     column,
     delete,
+    extract,
     func,
     insert,
     literal_column,
@@ -27,27 +40,43 @@ from sqlalchemy import (
     update,
 )
 from sqlalchemy import (
+    cast as sql_cast,
+)
+from sqlalchemy import (
     exists as sql_exists,
+)
+from sqlalchemy import (
+    union as sql_union,
+)
+from sqlalchemy import (
+    union_all as sql_union_all,
 )
 from sqlalchemy.dialects.mysql import insert as mysql_insert
 from sqlalchemy.dialects.postgresql import insert as postgresql_insert
 from sqlalchemy.dialects.sqlite import insert as sqlite_insert
 from sqlalchemy.sql import operators
 from sqlalchemy.sql.elements import ColumnElement, TextClause
+from sqlalchemy.sql.selectable import TableClause
 
 from titanspan.contracts.database import DatabaseQueryBuilder
-from titanspan.database.exceptions import DatabaseQueryError
+from titanspan.database.exceptions import (
+    DatabaseQueryError,
+    DatabaseTransactionError,
+    ModelNotFoundError,
+    MultipleModelsFoundError,
+)
 from titanspan.database.pagination import LengthAwarePaginator, Paginator
 
 if TYPE_CHECKING:
+    from contextlib import AbstractAsyncContextManager, AbstractContextManager
     from typing import NoReturn
 
     from sqlalchemy.sql import Executable
     from sqlalchemy.sql.schema import Table
     from sqlalchemy.sql.selectable import (
+        CTE,
         FromClause,
         Select,
-        TableClause,
     )
 
     from titanspan.contracts.database.connection import (
@@ -57,6 +86,22 @@ if TYPE_CHECKING:
 type _Condition = ColumnElement[bool]
 type _Projection = ColumnElement[object] | TextClause
 type _Boolean = Literal["and", "or"]
+type _LockMode = Literal["update", "share"]
+
+
+class _ColumnCollectionSource(Protocol):
+    """Narrow SQLAlchemy FROM objects to their public column collection.
+    """  # fmt: skip
+
+    @property
+    def c(self) -> Mapping[str, ColumnElement[object]]:
+        """Expose named columns for safe identifier resolution.
+
+        Returns:
+            The selectable's named SQLAlchemy column expressions.
+        """
+        ...
+
 
 _IDENTIFIER = re.compile(r"^[A-Za-z_][A-Za-z0-9_$]*$")
 _MISSING = object()
@@ -77,6 +122,8 @@ _COMPARISON_OPERATORS = {
 }
 _FIRST_PAGE = 1
 _MINIMUM_PAGE_SIZE = 1
+_NO_ROWS_FOUND = "The database query returned no rows."
+_MULTIPLE_ROWS_FOUND = "The database query returned multiple rows."
 
 
 class QueryBuilder(DatabaseQueryBuilder):
@@ -112,8 +159,11 @@ class QueryBuilder(DatabaseQueryBuilder):
             table_key = table_name
             self._allow_unknown_columns = False
         self._entity = entity
-        self._tables: dict[str, TableClause] = {table_key: self._table}
+        self._tables: dict[str, FromClause] = {table_key: self._table}
+        self._ctes: list[CTE] = []
         self._from: FromClause = self._table
+        self._default_source: FromClause = self._table
+        self._is_derived = False
         self._selection: list[_Projection] | None = None
         self._where_groups: list[list[_Condition]] = []
         self._scope_condition: _Condition | None = None
@@ -123,6 +173,9 @@ class QueryBuilder(DatabaseQueryBuilder):
         self._limit: int | None = None
         self._offset: int | None = None
         self._is_distinct = False
+        self._lock_mode: _LockMode | None = None
+        self._lock_nowait = False
+        self._lock_skip_locked = False
 
     def select(self, *columns: str) -> QueryBuilder:
         """Replace the selected projection.
@@ -176,6 +229,35 @@ class QueryBuilder(DatabaseQueryBuilder):
         if self._selection is None:
             self._selection = []
         self._selection.append(projection)
+        return self
+
+    def with_cte(
+        self,
+        name: str,
+        query: DatabaseQueryBuilder,
+        *,
+        recursive: bool = False,
+    ) -> QueryBuilder:
+        """Attach a SQLAlchemy common table expression to this query.
+
+        Args:
+            name: Safe CTE identifier referenced by the query's FROM clause.
+            query: Fluent query whose statement defines the CTE.
+            recursive: Whether SQLAlchemy should render a recursive CTE.
+
+        Returns:
+            This builder for further query composition.
+
+        Raises:
+            DatabaseQueryError: If the CTE name is unsafe or duplicated.
+        """
+        parts = _identifier_parts(name)
+        if len(parts) != 1 or any(cte.name == name for cte in self._ctes):
+            msg = "A common table expression requires a unique safe name."
+            raise DatabaseQueryError(msg)
+        self._ctes.append(
+            query.to_statement().cte(name, recursive=recursive),
+        )
         return self
 
     def distinct(self, enabled: bool = True) -> QueryBuilder:
@@ -457,6 +539,199 @@ class QueryBuilder(DatabaseQueryBuilder):
             This builder for further query composition.
         """
         return self._add_where(self._column(column_name).is_not(None), "and")
+
+    def where_date(
+        self,
+        column_name: str,
+        operator_or_value: object,
+        value: object = _MISSING,
+    ) -> QueryBuilder:
+        """Compare the date portion of a date or timestamp column.
+
+        Args:
+            column_name: Safe date or timestamp column reference.
+            operator_or_value: Equality value or supported comparison operator.
+            value: Comparison value when an operator is supplied.
+
+        Returns:
+            This builder for further query composition.
+        """
+        expression = self._date_expression(column_name)
+        return self._where_temporal(
+            expression,
+            operator_or_value,
+            value,
+            "and",
+        )
+
+    def or_where_date(
+        self,
+        column_name: str,
+        operator_or_value: object,
+        value: object = _MISSING,
+    ) -> QueryBuilder:
+        """Compare a date portion as an SQL OR predicate.
+
+        Args:
+            column_name: Safe date or timestamp column reference.
+            operator_or_value: Equality value or supported comparison operator.
+            value: Comparison value when an operator is supplied.
+
+        Returns:
+            This builder for further query composition.
+        """
+        return self._where_temporal(
+            self._date_expression(column_name),
+            operator_or_value,
+            value,
+            "or",
+        )
+
+    def where_time(
+        self,
+        column_name: str,
+        operator_or_value: object,
+        value: object = _MISSING,
+    ) -> QueryBuilder:
+        """Compare the time portion using a supported dialect expression.
+
+        Args:
+            column_name: Safe date or timestamp column reference.
+            operator_or_value: Equality value or supported comparison operator.
+            value: Comparison value when an operator is supplied.
+
+        Returns:
+            This builder for further query composition.
+        """
+        source = self._column(column_name)
+        if self._connection.dialect_name == "postgresql":
+            expression = cast(
+                "ColumnElement[object]",
+                sql_cast(source, Time()),
+            )
+        elif self._connection.dialect_name in {"sqlite", "mysql"}:
+            expression = cast("ColumnElement[object]", func.time(source))
+        else:
+            msg = "Time-part predicates are unsupported by this dialect."
+            raise DatabaseQueryError(msg)
+        return self._where_temporal(
+            expression,
+            operator_or_value,
+            value,
+            "and",
+        )
+
+    def or_where_time(
+        self,
+        column_name: str,
+        operator_or_value: object,
+        value: object = _MISSING,
+    ) -> QueryBuilder:
+        """Compare a time portion as an SQL OR predicate.
+
+        Args:
+            column_name: Safe date or timestamp column reference.
+            operator_or_value: Equality value or supported comparison operator.
+            value: Comparison value when an operator is supplied.
+
+        Returns:
+            This builder for further query composition.
+        """
+        source = self._column(column_name)
+        if self._connection.dialect_name == "postgresql":
+            expression = cast(
+                "ColumnElement[object]",
+                sql_cast(source, Time()),
+            )
+        elif self._connection.dialect_name in {"sqlite", "mysql"}:
+            expression = cast("ColumnElement[object]", func.time(source))
+        else:
+            msg = "Time-part predicates are unsupported by this dialect."
+            raise DatabaseQueryError(msg)
+        return self._where_temporal(
+            expression,
+            operator_or_value,
+            value,
+            "or",
+        )
+
+    def where_year(
+        self,
+        column_name: str,
+        operator_or_value: object,
+        value: object = _MISSING,
+    ) -> QueryBuilder:
+        """Compare the year extracted from a date or timestamp.
+
+        Args:
+            column_name: Safe date or timestamp column reference.
+            operator_or_value: Equality value or supported comparison operator.
+            value: Comparison value when an operator is supplied.
+
+        Returns:
+            This builder for further query composition.
+        """
+        return self._where_temporal(
+            cast(
+                "ColumnElement[object]",
+                extract("year", self._column(column_name)),
+            ),
+            operator_or_value,
+            value,
+            "and",
+        )
+
+    def where_month(
+        self,
+        column_name: str,
+        operator_or_value: object,
+        value: object = _MISSING,
+    ) -> QueryBuilder:
+        """Compare the month extracted from a date or timestamp.
+
+        Args:
+            column_name: Safe date or timestamp column reference.
+            operator_or_value: Equality value or supported comparison operator.
+            value: Comparison value when an operator is supplied.
+
+        Returns:
+            This builder for further query composition.
+        """
+        return self._where_temporal(
+            cast(
+                "ColumnElement[object]",
+                extract("month", self._column(column_name)),
+            ),
+            operator_or_value,
+            value,
+            "and",
+        )
+
+    def where_day(
+        self,
+        column_name: str,
+        operator_or_value: object,
+        value: object = _MISSING,
+    ) -> QueryBuilder:
+        """Compare the day of month extracted from a date or timestamp.
+
+        Args:
+            column_name: Safe date or timestamp column reference.
+            operator_or_value: Equality value or supported comparison operator.
+            value: Comparison value when an operator is supplied.
+
+        Returns:
+            This builder for further query composition.
+        """
+        return self._where_temporal(
+            cast(
+                "ColumnElement[object]",
+                extract("day", self._column(column_name)),
+            ),
+            operator_or_value,
+            value,
+            "and",
+        )
 
     def where_in(
         self,
@@ -743,6 +1018,64 @@ class QueryBuilder(DatabaseQueryBuilder):
             outer=True,
         )
 
+    def join_sub(
+        self,
+        query: DatabaseQueryBuilder,
+        alias: str,
+        left: str,
+        operator_or_right: str,
+        right: str | object = _MISSING,
+    ) -> QueryBuilder:
+        """Join a fluent subquery using validated alias columns.
+
+        Args:
+            query: Query whose statement becomes a SQL subquery.
+            alias: Safe unique name used to reference the subquery.
+            left: Safe left column reference.
+            operator_or_right: Right column or comparison operator.
+            right: Right column when an operator is supplied.
+
+        Returns:
+            This builder for further query composition.
+        """
+        return self._join_sub(
+            query,
+            alias,
+            left,
+            operator_or_right,
+            right,
+            outer=False,
+        )
+
+    def left_join_sub(
+        self,
+        query: DatabaseQueryBuilder,
+        alias: str,
+        left: str,
+        operator_or_right: str,
+        right: str | object = _MISSING,
+    ) -> QueryBuilder:
+        """Left-join a fluent subquery using validated alias columns.
+
+        Args:
+            query: Query whose statement becomes a SQL subquery.
+            alias: Safe unique name used to reference the subquery.
+            left: Safe left column reference.
+            operator_or_right: Right column or comparison operator.
+            right: Right column when an operator is supplied.
+
+        Returns:
+            This builder for further query composition.
+        """
+        return self._join_sub(
+            query,
+            alias,
+            left,
+            operator_or_right,
+            right,
+            outer=True,
+        )
+
     def cross_join(self, table_name: str) -> QueryBuilder:
         """Join every row from another table to every current row.
 
@@ -757,6 +1090,84 @@ class QueryBuilder(DatabaseQueryBuilder):
         target = self._ensure_table(table_name)
         self._from = self._from.join(target, true())
         return self
+
+    def lock_for_update(
+        self,
+        *,
+        nowait: bool = False,
+        skip_locked: bool = False,
+    ) -> QueryBuilder:
+        """Request a dialect-supported exclusive row lock.
+
+        Lock operations require an explicit active transaction and are
+        supported only by the configured PostgreSQL and MySQL dialects.
+
+        Args:
+            nowait: Fail immediately if a selected row is already locked.
+            skip_locked: Omit rows that another transaction has locked.
+
+        Returns:
+            This builder for further query composition.
+
+        Raises:
+            DatabaseQueryError: If the dialect or lock options are invalid.
+            DatabaseTransactionError: If no transaction is active.
+        """
+        self._set_lock("update", nowait=nowait, skip_locked=skip_locked)
+        return self
+
+    def shared_lock(
+        self,
+        *,
+        nowait: bool = False,
+        skip_locked: bool = False,
+    ) -> QueryBuilder:
+        """Request a dialect-supported shared row lock.
+
+        Args:
+            nowait: Fail immediately if a selected row is already locked.
+            skip_locked: Omit rows that another transaction has locked.
+
+        Returns:
+            This builder for further query composition.
+
+        Raises:
+            DatabaseQueryError: If the dialect or lock options are invalid.
+            DatabaseTransactionError: If no transaction is active.
+        """
+        self._set_lock("share", nowait=nowait, skip_locked=skip_locked)
+        return self
+
+    def _set_lock(
+        self,
+        mode: _LockMode,
+        *,
+        nowait: bool,
+        skip_locked: bool,
+    ) -> None:
+        """Validate and store one dialect-supported row-lock request.
+
+        Args:
+            mode: Exclusive update lock or shared read lock.
+            nowait: Whether to fail instead of waiting for a lock.
+            skip_locked: Whether to omit already locked rows.
+
+        Raises:
+            DatabaseQueryError: If the dialect or options are unsupported.
+            DatabaseTransactionError: If the connection has no active scope.
+        """
+        if self._connection.dialect_name not in {"postgresql", "mysql"}:
+            msg = "Pessimistic row locks are unsupported by this dialect."
+            raise DatabaseQueryError(msg)
+        if nowait and skip_locked:
+            msg = "Choose either nowait or skip_locked for a row lock."
+            raise DatabaseQueryError(msg)
+        if self._connection.transaction_level < 1:
+            msg = "Pessimistic row locks require an active transaction."
+            raise DatabaseTransactionError(msg)
+        self._lock_mode = mode
+        self._lock_nowait = nowait
+        self._lock_skip_locked = skip_locked
 
     def order_by(
         self,
@@ -1085,6 +1496,28 @@ class QueryBuilder(DatabaseQueryBuilder):
             default(self)
         return self
 
+    def unless(
+        self,
+        condition: object,
+        callback: Callable[[QueryBuilder], object],
+        default: Callable[[QueryBuilder], object] | None = None,
+    ) -> QueryBuilder:
+        """Apply a callback when a condition is false.
+
+        Args:
+            condition: Value whose falsey state selects the callback.
+            callback: Query transformation used for a falsey value.
+            default: Optional transformation used for a truthy value.
+
+        Returns:
+            This builder for further query composition.
+        """
+        if not condition:
+            callback(self)
+        elif default is not None:
+            default(self)
+        return self
+
     def clone(self) -> QueryBuilder:
         """Copy mutable query state for an independent query branch.
 
@@ -1093,6 +1526,7 @@ class QueryBuilder(DatabaseQueryBuilder):
         """
         cloned = copy(self)
         cloned._tables = self._tables.copy()  # noqa: SLF001  # Copy state.
+        cloned._ctes = self._ctes.copy()  # noqa: SLF001  # Copy state.
         cloned._selection = (  # noqa: SLF001  # Copy state.
             None if self._selection is None else self._selection.copy()
         )
@@ -1106,6 +1540,80 @@ class QueryBuilder(DatabaseQueryBuilder):
         cloned._group_columns = self._group_columns.copy()  # noqa: SLF001
         cloned._orders = self._orders.copy()  # noqa: SLF001
         return cloned
+
+    def union(self, query: DatabaseQueryBuilder) -> QueryBuilder:
+        """Combine this query with another using duplicate-eliminating UNION.
+
+        Existing clauses apply to their respective branches. Later clauses
+        apply to the combined result through an outer SQLAlchemy query.
+
+        Args:
+            query: Query selecting the same number of compatible columns.
+
+        Returns:
+            This builder with the union result as its new source.
+        """
+        return self._union_query(query, all_rows=False)
+
+    def union_all(self, query: DatabaseQueryBuilder) -> QueryBuilder:
+        """Combine this query with another while retaining duplicate rows.
+
+        Args:
+            query: Query selecting the same number of compatible columns.
+
+        Returns:
+            This builder with the union-all result as its new source.
+        """
+        return self._union_query(query, all_rows=True)
+
+    def _union_query(
+        self,
+        query: DatabaseQueryBuilder,
+        *,
+        all_rows: bool,
+    ) -> QueryBuilder:
+        """Replace this query source with a SQLAlchemy compound subquery.
+
+        Args:
+            query: Query selecting compatible union columns.
+            all_rows: Whether to preserve duplicate result rows.
+
+        Returns:
+            This builder with reset outer query state.
+
+        Raises:
+            DatabaseQueryError: If an ORM entity projection is present.
+        """
+        if self._entity is not None:
+            msg = "Query Builder unions do not accept ORM entity queries."
+            raise DatabaseQueryError(msg)
+        if self._lock_mode is not None:
+            msg = "Pessimistic locks cannot be combined with query unions."
+            raise DatabaseQueryError(msg)
+        left = self.to_statement()
+        right = query.to_statement()
+        combined = (
+            sql_union_all(left, right) if all_rows else sql_union(left, right)
+        ).subquery("__titanspan_union")
+        self._from = combined
+        self._default_source = combined
+        self._tables = {"__titanspan_union": combined}
+        self._ctes = []
+        self._selection = None
+        self._where_groups = []
+        self._scope_condition = None
+        self._group_columns = []
+        self._having_groups = []
+        self._orders = []
+        self._limit = None
+        self._offset = None
+        self._is_distinct = False
+        self._lock_mode = None
+        self._lock_nowait = False
+        self._lock_skip_locked = False
+        self._allow_unknown_columns = False
+        self._is_derived = True
+        return self
 
     def to_statement(
         self,
@@ -1143,7 +1651,70 @@ class QueryBuilder(DatabaseQueryBuilder):
             statement = statement.offset(self._offset)
         if self._is_distinct:
             statement = statement.distinct()
-        return cast("Select[tuple[object, ...]]", statement)
+        statement = self._attach_ctes(
+            cast("Select[tuple[object, ...]]", statement),
+        )
+        return self._apply_lock(statement)
+
+    def _apply_lock(
+        self,
+        statement: Select[tuple[object, ...]],
+    ) -> Select[tuple[object, ...]]:
+        """Apply an already validated row-lock mode to a SELECT expression.
+
+        Args:
+            statement: SQLAlchemy SELECT expression.
+
+        Returns:
+            The statement with the requested SQLAlchemy lock option.
+        """
+        if self._lock_mode is None:
+            return statement
+        return statement.with_for_update(
+            read=self._lock_mode == "share",
+            nowait=self._lock_nowait,
+            skip_locked=self._lock_skip_locked,
+        )
+
+    def _ensure_lock_transaction(self) -> None:
+        """Reject locked execution after its explicit transaction has ended.
+
+        Raises:
+            DatabaseTransactionError: If the current scope does not own the
+                transaction required by a configured row lock.
+        """
+        if (
+            self._lock_mode is not None
+            and self._connection.transaction_level < 1
+        ):
+            msg = "Pessimistic row locks require an active transaction."
+            raise DatabaseTransactionError(msg)
+
+    def _reject_lock_for_aggregate(self) -> None:
+        """Reject lock modifiers on scalar operations that return no rows.
+
+        Raises:
+            DatabaseQueryError: If a row lock was applied to this builder.
+        """
+        if self._lock_mode is not None:
+            msg = "Pessimistic row locks require row retrieval operations."
+            raise DatabaseQueryError(msg)
+
+    def _attach_ctes(
+        self,
+        statement: Select[tuple[object, ...]],
+    ) -> Select[tuple[object, ...]]:
+        """Attach configured CTEs through SQLAlchemy's Select API.
+
+        Args:
+            statement: Fully composed base SELECT statement.
+
+        Returns:
+            The original or CTE-extended statement.
+        """
+        if not self._ctes:
+            return statement
+        return statement.add_cte(*self._ctes)
 
     def get(self) -> list[Mapping[str, object]]:
         """Execute the query synchronously and detach its mapping rows.
@@ -1151,6 +1722,7 @@ class QueryBuilder(DatabaseQueryBuilder):
         Returns:
             Rows detached from the SQLAlchemy result and session.
         """
+        self._ensure_lock_transaction()
         return list(
             self._connection.execute_statement(
                 self.to_statement(),
@@ -1163,10 +1735,234 @@ class QueryBuilder(DatabaseQueryBuilder):
         Returns:
             Rows detached from the SQLAlchemy result and session.
         """
+        self._ensure_lock_transaction()
         result = await self._connection.execute_statement_async(
             self.to_statement(),
         )
         return list(result.rows)
+
+    def cursor(
+        self,
+        *,
+        batch_size: int = 1000,
+    ) -> AbstractContextManager[Iterator[Mapping[str, object]]]:
+        """Open a bounded stream whose resources live through context exit.
+
+        Args:
+            batch_size: Positive maximum batch size used by SQLAlchemy.
+
+        Returns:
+            A context manager yielding detached mapping rows.
+        """
+        _validate_batch_size(batch_size)
+        return self._stream_rows(batch_size)
+
+    def cursor_async(
+        self,
+        *,
+        batch_size: int = 1000,
+    ) -> AbstractAsyncContextManager[AsyncIterator[Mapping[str, object]]]:
+        """Open a bounded async stream owned by this context manager.
+
+        Args:
+            batch_size: Positive maximum batch size used by SQLAlchemy.
+
+        Returns:
+            An async context manager yielding detached mapping rows.
+        """
+        _validate_batch_size(batch_size)
+        return self._stream_rows_async(batch_size)
+
+    @contextmanager
+    def _stream_rows(
+        self,
+        batch_size: int,
+    ) -> Generator[Iterator[Mapping[str, object]], None, None]:
+        """Validate execution ownership when a cursor context is entered.
+
+        Args:
+            batch_size: Maximum number of rows buffered by SQLAlchemy.
+
+        Yields:
+            The live stream owned by the connection context.
+        """
+        self._ensure_lock_transaction()
+        with self._connection.stream_statement(
+            self.to_statement(),
+            batch_size=batch_size,
+        ) as rows:
+            yield rows
+
+    @asynccontextmanager
+    async def _stream_rows_async(
+        self,
+        batch_size: int,
+    ) -> AsyncGenerator[
+        AsyncIterator[Mapping[str, object]],
+        None,
+    ]:
+        """Validate execution ownership when an async cursor is entered.
+
+        Args:
+            batch_size: Maximum number of rows buffered by SQLAlchemy.
+
+        Yields:
+            The live async stream owned by the connection context.
+        """
+        self._ensure_lock_transaction()
+        async with self._connection.stream_statement_async(
+            self.to_statement(),
+            batch_size=batch_size,
+        ) as rows:
+            yield rows
+
+    @contextmanager
+    def chunks(
+        self,
+        batch_size: int = 1000,
+    ) -> Generator[Iterator[list[Mapping[str, object]]], None, None]:
+        """Yield bounded row groups while holding a sync stream open.
+
+        Args:
+            batch_size: Positive number of rows yielded in each group.
+
+        Yields:
+            An iterator of at most ``batch_size`` detached rows per group.
+        """
+        _validate_batch_size(batch_size)
+        with self.cursor(batch_size=batch_size) as rows:
+            yield _chunk_rows(rows, batch_size)
+
+    @asynccontextmanager
+    async def chunks_async(
+        self,
+        batch_size: int = 1000,
+    ) -> AsyncGenerator[
+        AsyncIterator[list[Mapping[str, object]]],
+        None,
+    ]:
+        """Yield bounded row groups while holding an async stream open.
+
+        Args:
+            batch_size: Positive number of rows yielded in each group.
+
+        Yields:
+            An async iterator of at most ``batch_size`` detached rows.
+        """
+        _validate_batch_size(batch_size)
+        async with self.cursor_async(batch_size=batch_size) as rows:
+
+            async def grouped() -> AsyncIterator[list[Mapping[str, object]]]:
+                """Collect one bounded group at a time from the live cursor.
+
+                Yields:
+                    Groups no larger than the requested batch size.
+                """
+                group: list[Mapping[str, object]] = []
+                async for row in rows:
+                    group.append(row)
+                    if len(group) == batch_size:
+                        yield group
+                        group = []
+                if group:
+                    yield group
+
+            yield grouped()
+
+    def chunks_by_id(
+        self,
+        batch_size: int = 1000,
+        *,
+        key_column: str = "id",
+    ) -> Iterator[list[Mapping[str, object]]]:
+        """Retrieve bounded keyset pages for mutation-safe processing.
+
+        Each page owns and closes its operation session before it is yielded.
+        The key column must be unique, non-null, and orderable.
+
+        Args:
+            batch_size: Maximum number of rows in each page.
+            key_column: Unique key used for ascending keyset continuation.
+
+        Yields:
+            Detached rows in key order without exposing an internal key
+            column added for the next-page boundary.
+        """
+        _validate_batch_size(batch_size)
+        last_key: object = _MISSING
+        first_page = True
+        remaining = self._limit
+
+        while remaining is None or remaining > 0:
+            self._ensure_lock_transaction()
+            page_size = (
+                batch_size if remaining is None else min(batch_size, remaining)
+            )
+            offset = (self._offset or 0) if first_page else 0
+            statement, key_alias = self._id_chunk_statement(
+                key_column,
+                last_key,
+                page_size,
+                offset,
+            )
+            result = self._connection.execute_statement(statement)
+            chunk, last_key = _remove_chunk_key(result.rows, key_alias)
+            if not chunk:
+                return
+            yield chunk
+            first_page = False
+            if remaining is not None:
+                remaining -= len(chunk)
+            if len(chunk) < page_size:
+                return
+
+    async def chunks_by_id_async(
+        self,
+        batch_size: int = 1000,
+        *,
+        key_column: str = "id",
+    ) -> AsyncIterator[list[Mapping[str, object]]]:
+        """Asynchronously retrieve mutation-safe keyset pages.
+
+        Each page owns and closes its operation session before it is yielded.
+        The key column must be unique, non-null, and orderable.
+
+        Args:
+            batch_size: Maximum number of rows in each page.
+            key_column: Unique key used for ascending keyset continuation.
+
+        Yields:
+            Detached rows without exposing the internal continuation key.
+        """
+        _validate_batch_size(batch_size)
+        last_key: object = _MISSING
+        first_page = True
+        remaining = self._limit
+
+        while remaining is None or remaining > 0:
+            self._ensure_lock_transaction()
+            page_size = (
+                batch_size if remaining is None else min(batch_size, remaining)
+            )
+            offset = (self._offset or 0) if first_page else 0
+            statement, key_alias = self._id_chunk_statement(
+                key_column,
+                last_key,
+                page_size,
+                offset,
+            )
+            result = await self._connection.execute_statement_async(
+                statement,
+            )
+            chunk, last_key = _remove_chunk_key(result.rows, key_alias)
+            if not chunk:
+                return
+            yield chunk
+            first_page = False
+            if remaining is not None:
+                remaining -= len(chunk)
+            if len(chunk) < page_size:
+                return
 
     def first(self) -> Mapping[str, object] | None:
         """Return the first row synchronously, if one exists.
@@ -1201,6 +1997,165 @@ class QueryBuilder(DatabaseQueryBuilder):
         """
         rows = await self.clone().limit(1).get_async()
         return rows[0] if rows else None
+
+    def first_or_fail(self) -> Mapping[str, object]:
+        """Return the first matching row or raise a not-found error.
+
+        Returns:
+            The first detached row.
+
+        Raises:
+            ModelNotFoundError: If the query matched no rows.
+        """
+        row = self.first()
+        if row is None:
+            raise ModelNotFoundError(_NO_ROWS_FOUND)
+        return row
+
+    async def first_or_fail_async(self) -> Mapping[str, object]:
+        """Asynchronously return the first row or raise a not-found error.
+
+        Returns:
+            The first detached row.
+
+        Raises:
+            ModelNotFoundError: If the query matched no rows.
+        """
+        row = await self.first_async()
+        if row is None:
+            raise ModelNotFoundError(_NO_ROWS_FOUND)
+        return row
+
+    def find(
+        self,
+        identifier: object,
+        *,
+        key_column: str = "id",
+    ) -> Mapping[str, object] | None:
+        """Find one row by a safe key column.
+
+        Args:
+            identifier: Bound key value to match.
+            key_column: Validated key column name.
+
+        Returns:
+            The matching detached row or ``None``.
+        """
+        return self.clone().where(key_column, identifier).first()
+
+    async def find_async(
+        self,
+        identifier: object,
+        *,
+        key_column: str = "id",
+    ) -> Mapping[str, object] | None:
+        """Asynchronously find one row by a safe key column.
+
+        Args:
+            identifier: Bound key value to match.
+            key_column: Validated key column name.
+
+        Returns:
+            The matching detached row or ``None``.
+        """
+        return await self.clone().where(key_column, identifier).first_async()
+
+    def find_many(
+        self,
+        identifiers: Sequence[object],
+        *,
+        key_column: str = "id",
+    ) -> list[Mapping[str, object]]:
+        """Find rows whose key is included in a bound sequence.
+
+        Args:
+            identifiers: Key values selected by trusted application code.
+            key_column: Validated key column name.
+
+        Returns:
+            Matching detached rows in database result order.
+        """
+        return self.clone().where_in(key_column, identifiers).get()
+
+    async def find_many_async(
+        self,
+        identifiers: Sequence[object],
+        *,
+        key_column: str = "id",
+    ) -> list[Mapping[str, object]]:
+        """Asynchronously find rows matching a bound key sequence.
+
+        Args:
+            identifiers: Key values selected by trusted application code.
+            key_column: Validated key column name.
+
+        Returns:
+            Matching detached rows in database result order.
+        """
+        return await self.clone().where_in(key_column, identifiers).get_async()
+
+    def sole(self) -> Mapping[str, object]:
+        """Require exactly one row using a query capped at two results.
+
+        Returns:
+            The one matching detached row.
+
+        Raises:
+            ModelNotFoundError: If the query matched no row.
+            MultipleModelsFoundError: If the query matched multiple rows.
+        """
+        return _sole_row(self.clone().limit(2).get())
+
+    async def sole_async(self) -> Mapping[str, object]:
+        """Asynchronously require exactly one matching row.
+
+        Returns:
+            The one matching detached row.
+
+        Raises:
+            ModelNotFoundError: If the query matched no row.
+            MultipleModelsFoundError: If the query matched multiple rows.
+        """
+        rows = await self.clone().limit(2).get_async()
+        return _sole_row(rows)
+
+    def sole_value(self, column_name: str) -> object:
+        """Return a selected value when exactly one row matches.
+
+        Args:
+            column_name: Safe selected column name.
+
+        Returns:
+            The value from the sole matching row.
+
+        Raises:
+            ModelNotFoundError: If the query matched no row.
+            MultipleModelsFoundError: If the query matched multiple rows.
+        """
+        row = self.clone().select(f"{column_name} as __sole_value").sole()
+        return row["__sole_value"]
+
+    async def sole_value_async(self, column_name: str) -> object:
+        """Asynchronously return a value when exactly one row matches.
+
+        Args:
+            column_name: Safe selected column name.
+
+        Returns:
+            The value from the sole matching row.
+
+        Raises:
+            ModelNotFoundError: If the query matched no row.
+            MultipleModelsFoundError: If the query matched multiple rows.
+        """
+        row = (
+            await self.clone()
+            .select(
+                f"{column_name} as __sole_value",
+            )
+            .sole_async()
+        )
+        return row["__sole_value"]
 
     def value(self, column_name: str) -> object | None:
         """Return one selected column from the first matching row.
@@ -1276,6 +2231,7 @@ class QueryBuilder(DatabaseQueryBuilder):
         Returns:
             The database count for the current filters.
         """
+        self._reject_lock_for_aggregate()
         result = self._connection.execute_statement(
             self._count_statement(),
         )
@@ -1287,6 +2243,7 @@ class QueryBuilder(DatabaseQueryBuilder):
         Returns:
             The database count for the current filters.
         """
+        self._reject_lock_for_aggregate()
         result = await self._connection.execute_statement_async(
             self._count_statement(),
         )
@@ -1428,6 +2385,87 @@ class QueryBuilder(DatabaseQueryBuilder):
         )
         return True
 
+    def insert_get_id(
+        self,
+        values: Mapping[str, object],
+        *,
+        key_column: str = "id",
+    ) -> object:
+        """Insert one row and return its generated or supplied key.
+
+        SQLite and PostgreSQL use SQLAlchemy's ``RETURNING`` support. Other
+        dialects reject this operation until their key semantics are verified.
+
+        Args:
+            values: Column values for the inserted row.
+            key_column: Safe key column returned by the database.
+
+        Returns:
+            The value returned for the inserted key column.
+
+        Raises:
+            DatabaseQueryError: If the dialect lacks RETURNING or no key is
+                returned by the database.
+        """
+        statement = self._insert_returning_statement(values, key_column)
+        result = self._connection.execute_statement(statement)
+        return _inserted_id(result.rows)
+
+    async def insert_get_id_async(
+        self,
+        values: Mapping[str, object],
+        *,
+        key_column: str = "id",
+    ) -> object:
+        """Asynchronously insert one row and return its database key.
+
+        Args:
+            values: Column values for the inserted row.
+            key_column: Safe key column returned by the database.
+
+        Returns:
+            The value returned for the inserted key column.
+
+        Raises:
+            DatabaseQueryError: If the dialect lacks RETURNING or no key is
+                returned by the database.
+        """
+        statement = self._insert_returning_statement(values, key_column)
+        result = await self._connection.execute_statement_async(statement)
+        return _inserted_id(result.rows)
+
+    def _insert_returning_statement(
+        self,
+        values: Mapping[str, object],
+        key_column: str,
+    ) -> Executable:
+        """Build a validated single-row insert with a returned key.
+
+        Args:
+            values: Column values for one inserted row.
+            key_column: Validated key column name.
+
+        Returns:
+            A SQLAlchemy INSERT statement with a labeled RETURNING column.
+
+        Raises:
+            DatabaseQueryError: If input is empty or the dialect is unsupported.
+        """
+        if self._connection.dialect_name not in {"sqlite", "postgresql"}:
+            msg = "Inserted-key retrieval is unsupported by this dialect."
+            raise DatabaseQueryError(msg)
+        if not values:
+            msg = "Inserted-key retrieval requires at least one value."
+            raise DatabaseQueryError(msg)
+        self._validate_value_columns(values)
+        return (
+            insert(self._table)
+            .values(dict(values))
+            .returning(
+                self._column(key_column).label("__inserted_id"),
+            )
+        )
+
     def insert_many(self, rows: Sequence[Mapping[str, object]]) -> int:
         """Insert multiple rows through one SQLAlchemy Core statement.
 
@@ -1562,6 +2600,66 @@ class QueryBuilder(DatabaseQueryBuilder):
             return 0
         result = await self._connection.execute_statement_async(statement)
         return result.rowcount
+
+    def update_or_insert(
+        self,
+        attributes: Mapping[str, object],
+        values: Mapping[str, object],
+    ) -> int:
+        """Atomically insert or update using unique matching attributes.
+
+        The keys in ``attributes`` must match a database unique constraint.
+        Values cannot change those keys because one native upsert cannot match
+        one key and insert a different value for it.
+
+        Args:
+            attributes: Values identifying the database unique constraint.
+            values: Non-key values inserted or updated on conflict.
+
+        Returns:
+            Driver-reported affected rows, or ``-1`` when unavailable.
+
+        Raises:
+            DatabaseQueryError: If matching attributes are empty or changed.
+        """
+        row, unique_by, update_columns = _update_or_insert_values(
+            attributes,
+            values,
+            self._connection.dialect_name,
+        )
+        return self.upsert(
+            [row],
+            unique_by=unique_by,
+            update=update_columns,
+        )
+
+    async def update_or_insert_async(
+        self,
+        attributes: Mapping[str, object],
+        values: Mapping[str, object],
+    ) -> int:
+        """Asynchronously atomically insert or update a unique-key row.
+
+        Args:
+            attributes: Values identifying the database unique constraint.
+            values: Non-key values inserted or updated on conflict.
+
+        Returns:
+            Driver-reported affected rows, or ``-1`` when unavailable.
+
+        Raises:
+            DatabaseQueryError: If matching attributes are empty or changed.
+        """
+        row, unique_by, update_columns = _update_or_insert_values(
+            attributes,
+            values,
+            self._connection.dialect_name,
+        )
+        return await self.upsert_async(
+            [row],
+            unique_by=unique_by,
+            update=update_columns,
+        )
 
     def _insert_or_ignore_statement(
         self,
@@ -1809,6 +2907,7 @@ class QueryBuilder(DatabaseQueryBuilder):
         Returns:
             Driver-reported affected rows, or ``-1`` when unknown.
         """
+        self._validate_value_columns({})
         statement = delete(self._table)
         condition = self._where_expression()
         if condition is not None:
@@ -1824,6 +2923,7 @@ class QueryBuilder(DatabaseQueryBuilder):
         Returns:
             Driver-reported affected rows, or ``-1`` when unknown.
         """
+        self._validate_value_columns({})
         statement = delete(self._table)
         condition = self._where_expression()
         if condition is not None:
@@ -1899,6 +2999,7 @@ class QueryBuilder(DatabaseQueryBuilder):
         Returns:
             Driver-reported affected rows, or ``-1`` when unknown.
         """
+        self._validate_value_columns({column_name: amount})
         expression = self._column(column_name) + amount
         statement = update(self._table).values({column_name: expression})
         condition = self._where_expression()
@@ -1943,6 +3044,7 @@ class QueryBuilder(DatabaseQueryBuilder):
         Returns:
             The first scalar value or ``None``.
         """
+        self._reject_lock_for_aggregate()
         result = self._connection.execute_statement(
             self._aggregate_statement(expression),
         )
@@ -1960,6 +3062,7 @@ class QueryBuilder(DatabaseQueryBuilder):
         Returns:
             The first scalar value or ``None``.
         """
+        self._reject_lock_for_aggregate()
         result = await self._connection.execute_statement_async(
             self._aggregate_statement(expression),
         )
@@ -1982,6 +3085,46 @@ class QueryBuilder(DatabaseQueryBuilder):
         if where is not None:
             statement = statement.where(where)
         return cast("Select[tuple[object]]", statement)
+
+    def _id_chunk_statement(
+        self,
+        key_column: str,
+        last_key: object,
+        limit: int,
+        offset: int,
+    ) -> tuple[Select[tuple[object, ...]], str]:
+        """Build one keyset page with a hidden continuation projection.
+
+        Args:
+            key_column: Validated unique ordering key.
+            last_key: Previous page key or the initial sentinel.
+            limit: Maximum rows in this page.
+            offset: Initial offset or zero for subsequent pages.
+
+        Returns:
+            A SQLAlchemy statement and collision-free continuation label.
+        """
+        if self._is_distinct or self._group_columns:
+            msg = "ID chunking requires an ungrouped, non-distinct query."
+            raise DatabaseQueryError(msg)
+        query = self.clone()
+        query.reorder(key_column).limit(limit).offset(offset)
+        if last_key is not _MISSING:
+            predicate = self._compare(
+                self._column(key_column),
+                ">",
+                last_key,
+            )
+            condition = self._scope_condition
+            query.set_scope_condition(
+                predicate if condition is None else and_(condition, predicate),
+            )
+        statement = query.to_statement()
+        key_alias = _unique_chunk_key(statement)
+        statement = statement.add_columns(
+            self._column(key_column).label(key_alias),
+        )
+        return cast("Select[tuple[object, ...]]", statement), key_alias
 
     def _count_statement(self) -> Select[tuple[object]]:
         """Count rows from a pagination-free subquery.
@@ -2030,6 +3173,47 @@ class QueryBuilder(DatabaseQueryBuilder):
         self._from = self._from.join(target, condition, isouter=outer)
         return self
 
+    def _join_sub(
+        self,
+        query: DatabaseQueryBuilder,
+        alias: str,
+        left: str,
+        operator_or_right: str,
+        right: str | object,
+        *,
+        outer: bool,
+    ) -> QueryBuilder:
+        """Join a safely named SQLAlchemy subquery expression.
+
+        Args:
+            query: Query whose statement becomes a subquery.
+            alias: Safe unique local table alias.
+            left: Validated left column reference.
+            operator_or_right: Right column or comparison operator.
+            right: Optional right column when an operator is supplied.
+            outer: Whether unmatched left-side rows remain visible.
+
+        Returns:
+            This builder with the subquery join appended.
+
+        Raises:
+            DatabaseQueryError: If the alias is invalid or already in use.
+        """
+        parts = _identifier_parts(alias)
+        if len(parts) != 1 or alias in self._tables:
+            msg = "A subquery join requires a unique safe alias."
+            raise DatabaseQueryError(msg)
+        target = query.to_statement().subquery(alias)
+        self._tables[alias] = target
+        operator, right_name = _join_arguments(operator_or_right, right)
+        condition = self._compare(
+            self._column(left),
+            operator,
+            self._column(right_name),
+        )
+        self._from = self._from.join(target, condition, isouter=outer)
+        return self
+
     def _validate_value_columns(
         self,
         values: Mapping[str, object],
@@ -2039,6 +3223,12 @@ class QueryBuilder(DatabaseQueryBuilder):
         Args:
             values: Mutation values keyed by SQL column names.
         """
+        if self._is_derived:
+            msg = "Mutations require a table-backed query builder."
+            raise DatabaseQueryError(msg)
+        if self._lock_mode is not None:
+            msg = "Pessimistic locks apply only to row retrieval queries."
+            raise DatabaseQueryError(msg)
         for raw_name in values:
             name = _identifier_text(raw_name)
             parts = _identifier_parts(name)
@@ -2075,7 +3265,7 @@ class QueryBuilder(DatabaseQueryBuilder):
         """
         parts = _identifier_parts(reference)
         if len(parts) == 1:
-            source = self._table
+            source = self._default_source
             column_name = parts[0]
         else:
             table_key = ".".join(parts[:-1])
@@ -2084,14 +3274,19 @@ class QueryBuilder(DatabaseQueryBuilder):
                 msg = "A qualified column must refer to a table in this query."
                 raise DatabaseQueryError(msg)
             column_name = parts[-1]
-        if column_name not in source.c:
+        columns = cast("_ColumnCollectionSource", source).c
+        if column_name not in columns:
+            if not isinstance(source, TableClause):
+                msg = "The joined query does not expose the selected column."
+                raise DatabaseQueryError(msg)
             if not self._allow_unknown_columns and source is self._table:
                 msg = "The selected model column is not mapped."
                 raise DatabaseQueryError(msg)
             source.append_column(column(column_name))
-        return cast("ColumnElement[object]", source.c[column_name])
+            columns = cast("_ColumnCollectionSource", source).c
+        return columns[column_name]
 
-    def _ensure_table(self, name: str) -> TableClause:
+    def _ensure_table(self, name: str) -> FromClause:
         """Get or add a safe table reference for a join.
 
         Args:
@@ -2131,6 +3326,63 @@ class QueryBuilder(DatabaseQueryBuilder):
             msg = "The query comparison operator is not supported."
             raise DatabaseQueryError(msg)
         return cast("_Condition", left.operate(sql_operator, right))
+
+    def _date_expression(
+        self,
+        column_name: str,
+    ) -> ColumnElement[object]:
+        """Build a date-only expression supported by verified dialects.
+
+        Args:
+            column_name: Safe date or timestamp column reference.
+
+        Returns:
+            A SQLAlchemy expression returning the date component.
+
+        Raises:
+            DatabaseQueryError: If the current dialect has no supported form.
+        """
+        source = self._column(column_name)
+        if self._connection.dialect_name in {"sqlite", "mysql"}:
+            return cast("ColumnElement[object]", func.date(source))
+        if self._connection.dialect_name == "postgresql":
+            return cast("ColumnElement[object]", sql_cast(source, Date()))
+        msg = "Date-part predicates are unsupported by this dialect."
+        raise DatabaseQueryError(msg)
+
+    def _where_temporal(
+        self,
+        expression: ColumnElement[object],
+        operator_or_value: object,
+        value: object,
+        boolean: _Boolean,
+    ) -> QueryBuilder:
+        """Add a bound comparison against one date or time expression.
+
+        Args:
+            expression: SQLAlchemy date-part or time-part expression.
+            operator_or_value: Equality value or comparison operator.
+            value: Explicit comparison value or the missing sentinel.
+            boolean: SQL connector for the new predicate.
+
+        Returns:
+            This builder for further query composition.
+
+        Raises:
+            DatabaseQueryError: If the comparison arguments are invalid.
+        """
+        if value is _MISSING:
+            operator = "="
+            right = operator_or_value
+        else:
+            if not isinstance(operator_or_value, str):
+                _raise_invalid_condition()
+            operator = operator_or_value
+            right = value
+        return self._add_where(
+            self._compare(expression, operator, right),
+            boolean,
+        )
 
     def _add_where(
         self,
@@ -2308,6 +3560,84 @@ def _first_value(
     return next(iter(rows[0].values()), None)
 
 
+def _inserted_id(rows: Sequence[Mapping[str, object]]) -> object:
+    """Read the returned key from a single-row INSERT result.
+
+    Args:
+        rows: Detached RETURNING rows from the database.
+
+    Returns:
+        The inserted key value.
+
+    Raises:
+        DatabaseQueryError: If the database did not return the key column.
+    """
+    if not rows or "__inserted_id" not in rows[0]:
+        msg = "The database did not return the inserted key."
+        raise DatabaseQueryError(msg)
+    return rows[0]["__inserted_id"]
+
+
+def _update_or_insert_values(
+    attributes: Mapping[str, object],
+    values: Mapping[str, object],
+    dialect: str,
+) -> tuple[dict[str, object], tuple[str, ...], tuple[str, ...]]:
+    """Prepare one atomic upsert from matching and update values.
+
+    Args:
+        attributes: Unique key values used to identify a conflict.
+        values: Additional or same-valued fields to insert or update.
+        dialect: Normalized SQLAlchemy dialect identifier.
+
+    Returns:
+        Insert values, conflict columns, and conflict update columns.
+
+    Raises:
+        DatabaseQueryError: If match attributes are empty or changed.
+    """
+    if not attributes:
+        msg = "Update-or-insert requires at least one unique match value."
+        raise DatabaseQueryError(msg)
+    changed_keys = [
+        key
+        for key, value in values.items()
+        if key in attributes and attributes[key] != value
+    ]
+    if changed_keys:
+        msg = "Update-or-insert cannot change its unique match values."
+        raise DatabaseQueryError(msg)
+    inserted = dict(attributes)
+    inserted.update(values)
+    unique_by = tuple(attributes)
+    updates = tuple(key for key in values if key not in attributes)
+    if not updates and dialect == "mysql":
+        updates = (unique_by[0],)
+    return inserted, unique_by, updates
+
+
+def _sole_row(
+    rows: Sequence[Mapping[str, object]],
+) -> Mapping[str, object]:
+    """Require exactly one row from a result limited to at most two.
+
+    Args:
+        rows: Bounded result rows selected by ``sole``.
+
+    Returns:
+        The only matching row.
+
+    Raises:
+        ModelNotFoundError: If no row matched.
+        MultipleModelsFoundError: If multiple rows matched.
+    """
+    if not rows:
+        raise ModelNotFoundError(_NO_ROWS_FOUND)
+    if len(rows) > 1:
+        raise MultipleModelsFoundError(_MULTIPLE_ROWS_FOUND)
+    return rows[0]
+
+
 def _raise_invalid_identifier() -> NoReturn:
     """Reject identifier strings that cannot be represented safely.
     """  # fmt: skip
@@ -2406,6 +3736,83 @@ def _validate_page(per_page: int, page: int) -> None:
     if type(page) is not int or page < _FIRST_PAGE:
         msg = "Page number must be a positive integer."
         raise ValueError(msg)
+
+
+def _validate_batch_size(batch_size: int) -> None:
+    """Require a positive integer before any stream acquires resources.
+
+    Args:
+        batch_size: Requested SQLAlchemy fetch batch size.
+
+    Raises:
+        ValueError: If the batch size is not a positive integer.
+    """
+    if type(batch_size) is not int or batch_size < 1:
+        msg = "The stream batch size must be a positive integer."
+        raise ValueError(msg)
+
+
+def _chunk_rows(
+    rows: Iterator[Mapping[str, object]],
+    batch_size: int,
+) -> Iterator[list[Mapping[str, object]]]:
+    """Group a live row iterator without buffering beyond one batch.
+
+    Args:
+        rows: Live mapping iterator owned by an outer context manager.
+        batch_size: Maximum number of mappings in each yielded list.
+
+    Yields:
+        Non-empty lists containing no more than ``batch_size`` mappings.
+    """
+    while chunk := list(islice(rows, batch_size)):
+        yield chunk
+
+
+def _unique_chunk_key(statement: Select[tuple[object, ...]]) -> str:
+    """Choose an internal label that cannot replace a selected value.
+
+    Args:
+        statement: Current SQLAlchemy projection.
+
+    Returns:
+        A label absent from the statement's public selected columns.
+    """
+    selected = set(statement.selected_columns.keys())
+    alias = "__titanspan_chunk_key"
+    suffix = 1
+    while alias in selected:
+        alias = f"__titanspan_chunk_key_{suffix}"
+        suffix += 1
+    return alias
+
+
+def _remove_chunk_key(
+    rows: Sequence[Mapping[str, object]],
+    key_alias: str,
+) -> tuple[list[Mapping[str, object]], object]:
+    """Remove an internal key projection and preserve its final value.
+
+    Args:
+        rows: Detached page rows with the internal key column.
+        key_alias: Collision-free internal projection label.
+
+    Returns:
+        Public rows without the key and the last row's continuation value.
+
+    Raises:
+        DatabaseQueryError: If the key is absent or null in a result row.
+    """
+    visible_rows: list[Mapping[str, object]] = []
+    last_key: object = _MISSING
+    for row in rows:
+        values = dict(row)
+        last_key = values.pop(key_alias, _MISSING)
+        if last_key is _MISSING or last_key is None:
+            msg = "The ID chunk key must be selected and non-null."
+            raise DatabaseQueryError(msg)
+        visible_rows.append(values)
+    return visible_rows, last_key
 
 
 def _raw_clause(

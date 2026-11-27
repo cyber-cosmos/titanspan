@@ -118,6 +118,78 @@ async def test_grouped_conditions_and_subquery_inputs(
         assert raw_first == {"label": "!A"}
 
 
+async def test_row_locks_reject_unsupported_sqlite(
+    application: Application,
+) -> None:
+    """Reject row-lock requests on SQLite instead of silently ignoring them.
+
+    Args:
+        application: Application configured by this test.
+    """
+    async with application:
+        with pytest.raises(DatabaseQueryError, match="row locks"):
+            DB.table("entries").lock_for_update()
+
+
+async def test_date_and_time_predicates_use_database_expressions(
+    application: Application,
+) -> None:
+    """Filter temporal values through SQLAlchemy expressions on SQLite.
+
+    Args:
+        application: Application configured by this test.
+    """
+    async with application:
+        await DB.statement_async(
+            "CREATE TABLE date_rows ("
+            "id INTEGER PRIMARY KEY, occurred_at TEXT NOT NULL)"
+        )
+        await DB.table("date_rows").insert_many_async(
+            [
+                {"id": 1, "occurred_at": "2026-11-27 08:30:00"},
+                {"id": 2, "occurred_at": "2026-11-27 14:45:00"},
+                {"id": 3, "occurred_at": "2026-11-28 08:30:00"},
+            ],
+        )
+
+        date_rows = (
+            await DB.table("date_rows")
+            .where_date(
+                "occurred_at",
+                "2026-11-27",
+            )
+            .order_by("id")
+            .get_async()
+        )
+        assert [row["id"] for row in date_rows] == [1, 2]
+
+        time_rows = (
+            await DB.table("date_rows")
+            .where_time(
+                "occurred_at",
+                ">=",
+                "12:00:00",
+            )
+            .get_async()
+        )
+        assert [row["id"] for row in time_rows] == [2]
+
+        component_rows = (
+            await DB.table("date_rows")
+            .where_year(
+                "occurred_at",
+                2026,
+            )
+            .where_month("occurred_at", 11)
+            .where_day(
+                "occurred_at",
+                28,
+            )
+            .get_async()
+        )
+        assert [row["id"] for row in component_rows] == [3]
+
+
 async def test_sync_retrieval_and_pagination_edges(
     application: Application,
 ) -> None:

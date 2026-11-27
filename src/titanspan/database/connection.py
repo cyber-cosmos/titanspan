@@ -15,7 +15,8 @@ from titanspan.contracts.database import (
 from titanspan.database.query_builder import QueryBuilder
 
 if TYPE_CHECKING:
-    from collections.abc import Mapping
+    from collections.abc import AsyncIterator, Iterator, Mapping
+    from contextlib import AbstractAsyncContextManager, AbstractContextManager
 
     from sqlalchemy.engine import Engine
     from sqlalchemy.ext.asyncio import AsyncEngine
@@ -46,6 +47,15 @@ class Connection(DatabaseConnectionService):
             The configured name used for this logical connection.
         """
         return self._name
+
+    @property
+    def transaction_level(self) -> int:
+        """Return this named connection's depth in the current execution.
+
+        Returns:
+            Zero outside a transaction or the active savepoint depth.
+        """
+        return self._manager.connection_transaction_level(self._name)
 
     @property
     def dialect_name(self) -> str:
@@ -125,6 +135,48 @@ class Connection(DatabaseConnectionService):
             self._name,
             statement,
             parameters,
+        )
+
+    def stream_statement(
+        self,
+        statement: Executable,
+        *,
+        batch_size: int = 1000,
+    ) -> AbstractContextManager[Iterator[Mapping[str, object]]]:
+        """Stream mapping rows using this connection's sync session policy.
+
+        Args:
+            statement: SQLAlchemy Core statement to execute.
+            batch_size: Maximum result batch buffered by SQLAlchemy.
+
+        Returns:
+            A context manager that owns the result until it exits.
+        """
+        return self._manager.stream_statement_sync(
+            self._name,
+            statement,
+            batch_size=batch_size,
+        )
+
+    def stream_statement_async(
+        self,
+        statement: Executable,
+        *,
+        batch_size: int = 1000,
+    ) -> AbstractAsyncContextManager[AsyncIterator[Mapping[str, object]]]:
+        """Stream mapping rows using this connection's async session policy.
+
+        Args:
+            statement: SQLAlchemy Core statement to execute.
+            batch_size: Maximum result batch buffered by SQLAlchemy.
+
+        Returns:
+            An async context manager that owns the result until it exits.
+        """
+        return self._manager.stream_statement_async(
+            self._name,
+            statement,
+            batch_size=batch_size,
         )
 
     def table(self, name: str) -> QueryBuilder:

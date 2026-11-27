@@ -6,7 +6,16 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Protocol, Self, overload, runtime_checkable
 
 if TYPE_CHECKING:
-    from collections.abc import Callable, Mapping, Sequence
+    from collections.abc import (
+        AsyncIterator,
+        Callable,
+        Iterator,
+        Mapping,
+        Sequence,
+    )
+    from contextlib import AbstractAsyncContextManager, AbstractContextManager
+
+    from sqlalchemy.sql.selectable import SelectBase
 
     from titanspan.contracts.database.pagination import (
         LengthAwarePage,
@@ -229,6 +238,132 @@ class DatabaseQueryBuilder(Protocol):
 
         Args:
             column_name: Safe column name or qualified name.
+
+        Returns:
+            This builder for further query composition.
+        """
+        ...
+
+    def where_date(
+        self,
+        column_name: str,
+        operator_or_value: object,
+        value: object = ...,
+    ) -> Self:
+        """Compare the date portion using a supported database expression.
+
+        Args:
+            column_name: Safe date or timestamp column reference.
+            operator_or_value: Equality value or comparison operator.
+            value: Comparison value when an operator is supplied.
+
+        Returns:
+            This builder for further query composition.
+        """
+        ...
+
+    def or_where_date(
+        self,
+        column_name: str,
+        operator_or_value: object,
+        value: object = ...,
+    ) -> Self:
+        """Compare the date portion as an SQL OR predicate.
+
+        Args:
+            column_name: Safe date or timestamp column reference.
+            operator_or_value: Equality value or comparison operator.
+            value: Comparison value when an operator is supplied.
+
+        Returns:
+            This builder for further query composition.
+        """
+        ...
+
+    def where_time(
+        self,
+        column_name: str,
+        operator_or_value: object,
+        value: object = ...,
+    ) -> Self:
+        """Compare the time portion through a supported dialect expression.
+
+        Args:
+            column_name: Safe date or timestamp column reference.
+            operator_or_value: Equality value or comparison operator.
+            value: Comparison value when an operator is supplied.
+
+        Returns:
+            This builder for further query composition.
+        """
+        ...
+
+    def or_where_time(
+        self,
+        column_name: str,
+        operator_or_value: object,
+        value: object = ...,
+    ) -> Self:
+        """Compare the time portion as an SQL OR predicate.
+
+        Args:
+            column_name: Safe date or timestamp column reference.
+            operator_or_value: Equality value or comparison operator.
+            value: Comparison value when an operator is supplied.
+
+        Returns:
+            This builder for further query composition.
+        """
+        ...
+
+    def where_year(
+        self,
+        column_name: str,
+        operator_or_value: object,
+        value: object = ...,
+    ) -> Self:
+        """Compare the year extracted from a temporal column.
+
+        Args:
+            column_name: Safe date or timestamp column reference.
+            operator_or_value: Equality value or comparison operator.
+            value: Comparison value when an operator is supplied.
+
+        Returns:
+            This builder for further query composition.
+        """
+        ...
+
+    def where_month(
+        self,
+        column_name: str,
+        operator_or_value: object,
+        value: object = ...,
+    ) -> Self:
+        """Compare the month extracted from a temporal column.
+
+        Args:
+            column_name: Safe date or timestamp column reference.
+            operator_or_value: Equality value or comparison operator.
+            value: Comparison value when an operator is supplied.
+
+        Returns:
+            This builder for further query composition.
+        """
+        ...
+
+    def where_day(
+        self,
+        column_name: str,
+        operator_or_value: object,
+        value: object = ...,
+    ) -> Self:
+        """Compare the day extracted from a temporal column.
+
+        Args:
+            column_name: Safe date or timestamp column reference.
+            operator_or_value: Equality value or comparison operator.
+            value: Comparison value when an operator is supplied.
 
         Returns:
             This builder for further query composition.
@@ -485,11 +620,89 @@ class DatabaseQueryBuilder(Protocol):
         """
         ...
 
+    def join_sub(
+        self,
+        query: DatabaseQueryBuilder,
+        alias: str,
+        left: str,
+        operator_or_right: str,
+        right: str | object = ...,
+    ) -> Self:
+        """Join a composed query using a safe local alias.
+
+        Args:
+            query: Query whose statement becomes a subquery.
+            alias: Safe alias exposed to selected expressions.
+            left: Safe left column reference.
+            operator_or_right: Right column or comparison operator.
+            right: Right column when an operator is supplied.
+
+        Returns:
+            This builder for further query composition.
+        """
+        ...
+
+    def left_join_sub(
+        self,
+        query: DatabaseQueryBuilder,
+        alias: str,
+        left: str,
+        operator_or_right: str,
+        right: str | object = ...,
+    ) -> Self:
+        """Left-join a composed query using a safe local alias.
+
+        Args:
+            query: Query whose statement becomes a subquery.
+            alias: Safe alias exposed to selected expressions.
+            left: Safe left column reference.
+            operator_or_right: Right column or comparison operator.
+            right: Right column when an operator is supplied.
+
+        Returns:
+            This builder for further query composition.
+        """
+        ...
+
     def cross_join(self, table_name: str) -> Self:
         """Join every row from the named table to every current row.
 
         Args:
             table_name: Safe joined table name.
+
+        Returns:
+            This builder for further query composition.
+        """
+        ...
+
+    def lock_for_update(
+        self,
+        *,
+        nowait: bool = False,
+        skip_locked: bool = False,
+    ) -> Self:
+        """Request an exclusive row lock inside an active transaction.
+
+        Args:
+            nowait: Fail immediately when a selected row is already locked.
+            skip_locked: Omit rows held by another transaction.
+
+        Returns:
+            This builder for further query composition.
+        """
+        ...
+
+    def shared_lock(
+        self,
+        *,
+        nowait: bool = False,
+        skip_locked: bool = False,
+    ) -> Self:
+        """Request a shared row lock inside an active transaction.
+
+        Args:
+            nowait: Fail immediately when a selected row is already locked.
+            skip_locked: Omit rows held by another transaction.
 
         Returns:
             This builder for further query composition.
@@ -587,11 +800,96 @@ class DatabaseQueryBuilder(Protocol):
         """
         ...
 
+    def when(
+        self,
+        condition: object,
+        callback: Callable[[Self], object],
+        default: Callable[[Self], object] | None = None,
+    ) -> Self:
+        """Apply a query transformation when the condition is truthy.
+
+        Args:
+            condition: Value tested using Python truthiness.
+            callback: Transformation selected for a truthy value.
+            default: Optional transformation selected otherwise.
+
+        Returns:
+            This builder for further query composition.
+        """
+        ...
+
+    def unless(
+        self,
+        condition: object,
+        callback: Callable[[Self], object],
+        default: Callable[[Self], object] | None = None,
+    ) -> Self:
+        """Apply a query transformation when the condition is falsey.
+
+        Args:
+            condition: Value tested using Python truthiness.
+            callback: Transformation selected for a falsey value.
+            default: Optional transformation selected otherwise.
+
+        Returns:
+            This builder for further query composition.
+        """
+        ...
+
     def clone(self) -> Self:
         """Copy builder state before composing an independent query branch.
 
         Returns:
             A builder with isolated mutable query lists.
+        """
+        ...
+
+    def to_statement(self) -> SelectBase:
+        """Expose the composed statement for explicit SQLAlchemy interop.
+
+        Returns:
+            A SQLAlchemy statement representing the current query.
+        """
+        ...
+
+    def with_cte(
+        self,
+        name: str,
+        query: DatabaseQueryBuilder,
+        *,
+        recursive: bool = False,
+    ) -> Self:
+        """Attach a SQLAlchemy common table expression.
+
+        Args:
+            name: Safe CTE name used by the query's FROM clause.
+            query: Query defining the CTE statement.
+            recursive: Whether to create a recursive CTE.
+
+        Returns:
+            This builder for further query composition.
+        """
+        ...
+
+    def union(self, query: DatabaseQueryBuilder) -> Self:
+        """Combine this query with another and remove duplicate rows.
+
+        Args:
+            query: Query selecting compatible columns.
+
+        Returns:
+            This builder with the union result as its source.
+        """
+        ...
+
+    def union_all(self, query: DatabaseQueryBuilder) -> Self:
+        """Combine this query with another while preserving duplicates.
+
+        Args:
+            query: Query selecting compatible columns.
+
+        Returns:
+            This builder with the union result as its source.
         """
         ...
 
@@ -611,6 +909,98 @@ class DatabaseQueryBuilder(Protocol):
         """
         ...
 
+    def cursor(
+        self,
+        *,
+        batch_size: int = 1000,
+    ) -> AbstractContextManager[Iterator[Mapping[str, object]]]:
+        """Open a bounded sync stream owned by the returned context manager.
+
+        Args:
+            batch_size: Positive maximum buffer size used by SQLAlchemy.
+
+        Returns:
+            A context manager yielding rows until it is closed.
+        """
+        ...
+
+    def cursor_async(
+        self,
+        *,
+        batch_size: int = 1000,
+    ) -> AbstractAsyncContextManager[AsyncIterator[Mapping[str, object]]]:
+        """Open a bounded async stream owned by the returned context manager.
+
+        Args:
+            batch_size: Positive maximum buffer size used by SQLAlchemy.
+
+        Returns:
+            An async context manager yielding rows until it is closed.
+        """
+        ...
+
+    def chunks(
+        self,
+        batch_size: int = 1000,
+    ) -> AbstractContextManager[Iterator[list[Mapping[str, object]]]]:
+        """Yield bounded groups of rows from a sync cursor.
+
+        Args:
+            batch_size: Positive number of rows yielded in each group.
+
+        Returns:
+            A context manager yielding bounded row lists.
+        """
+        ...
+
+    def chunks_async(
+        self,
+        batch_size: int = 1000,
+    ) -> AbstractAsyncContextManager[AsyncIterator[list[Mapping[str, object]]]]:
+        """Yield bounded groups of rows from an async cursor.
+
+        Args:
+            batch_size: Positive number of rows yielded in each group.
+
+        Returns:
+            An async context manager yielding bounded row lists.
+        """
+        ...
+
+    def chunks_by_id(
+        self,
+        batch_size: int = 1000,
+        *,
+        key_column: str = "id",
+    ) -> Iterator[list[Mapping[str, object]]]:
+        """Yield bounded pages using a unique key for continuation.
+
+        Args:
+            batch_size: Maximum number of rows per page.
+            key_column: Unique, non-null, orderable key column.
+
+        Yields:
+            Detached rows in ascending key order.
+        """
+        ...
+
+    def chunks_by_id_async(
+        self,
+        batch_size: int = 1000,
+        *,
+        key_column: str = "id",
+    ) -> AsyncIterator[list[Mapping[str, object]]]:
+        """Asynchronously yield bounded unique-key continuation pages.
+
+        Args:
+            batch_size: Maximum number of rows per page.
+            key_column: Unique, non-null, orderable key column.
+
+        Yields:
+            Detached rows in ascending key order.
+        """
+        ...
+
     def first(self) -> Mapping[str, object] | None:
         """Return the first result row or ``None``.
 
@@ -624,6 +1014,128 @@ class DatabaseQueryBuilder(Protocol):
 
         Returns:
             The first detached row when one exists.
+        """
+        ...
+
+    def first_or_fail(self) -> Mapping[str, object]:
+        """Return the first row or raise a native not-found error.
+
+        Returns:
+            The first detached row.
+        """
+        ...
+
+    async def first_or_fail_async(self) -> Mapping[str, object]:
+        """Asynchronously return the first row or raise not found.
+
+        Returns:
+            The first detached row.
+        """
+        ...
+
+    def find(
+        self,
+        identifier: object,
+        *,
+        key_column: str = "id",
+    ) -> Mapping[str, object] | None:
+        """Find a row by a bound value in a validated key column.
+
+        Args:
+            identifier: Key value to match.
+            key_column: Validated column name used as the key.
+
+        Returns:
+            The matching detached row or ``None``.
+        """
+        ...
+
+    async def find_async(
+        self,
+        identifier: object,
+        *,
+        key_column: str = "id",
+    ) -> Mapping[str, object] | None:
+        """Asynchronously find a row by a bound key value.
+
+        Args:
+            identifier: Key value to match.
+            key_column: Validated column name used as the key.
+
+        Returns:
+            The matching detached row or ``None``.
+        """
+        ...
+
+    def find_many(
+        self,
+        identifiers: Sequence[object],
+        *,
+        key_column: str = "id",
+    ) -> list[Mapping[str, object]]:
+        """Find rows whose key appears in a bound sequence.
+
+        Args:
+            identifiers: Key values to match.
+            key_column: Validated column name used as the key.
+
+        Returns:
+            Matching detached rows.
+        """
+        ...
+
+    async def find_many_async(
+        self,
+        identifiers: Sequence[object],
+        *,
+        key_column: str = "id",
+    ) -> list[Mapping[str, object]]:
+        """Asynchronously find rows matching a bound key sequence.
+
+        Args:
+            identifiers: Key values to match.
+            key_column: Validated column name used as the key.
+
+        Returns:
+            Matching detached rows.
+        """
+        ...
+
+    def sole(self) -> Mapping[str, object]:
+        """Require one and only one matching row.
+
+        Returns:
+            The sole detached row.
+        """
+        ...
+
+    async def sole_async(self) -> Mapping[str, object]:
+        """Asynchronously require one and only one matching row.
+
+        Returns:
+            The sole detached row.
+        """
+        ...
+
+    def sole_value(self, column_name: str) -> object:
+        """Return one column value when exactly one row matches.
+
+        Args:
+            column_name: Safe column name to retrieve.
+
+        Returns:
+            The selected value from the sole matching row.
+        """
+        ...
+
+    async def sole_value_async(self, column_name: str) -> object:
+        """Asynchronously return one value from the sole matching row.
+
+        Args:
+            column_name: Safe column name to retrieve.
+
+        Returns:
+            The selected value from the sole matching row.
         """
         ...
 
@@ -907,6 +1419,40 @@ class DatabaseQueryBuilder(Protocol):
         """
         ...
 
+    def insert_get_id(
+        self,
+        values: Mapping[str, object],
+        *,
+        key_column: str = "id",
+    ) -> object:
+        """Insert one row and return its generated or supplied key.
+
+        Args:
+            values: Values for the inserted row.
+            key_column: Safe key column returned by the database.
+
+        Returns:
+            The inserted key value.
+        """
+        ...
+
+    async def insert_get_id_async(
+        self,
+        values: Mapping[str, object],
+        *,
+        key_column: str = "id",
+    ) -> object:
+        """Asynchronously insert a row and return its database key.
+
+        Args:
+            values: Values for the inserted row.
+            key_column: Safe key column returned by the database.
+
+        Returns:
+            The inserted key value.
+        """
+        ...
+
     def insert_many(self, rows: Sequence[Mapping[str, object]]) -> int:
         """Insert rows through SQLAlchemy Core executemany behavior.
 
@@ -992,6 +1538,38 @@ class DatabaseQueryBuilder(Protocol):
             rows: Row mappings with the same inserted columns.
             unique_by: Columns matching a unique index or constraint.
             update: Inserted columns to update, defaulting to non-key columns.
+
+        Returns:
+            Driver-reported affected rows, or ``-1`` when unavailable.
+        """
+        ...
+
+    def update_or_insert(
+        self,
+        attributes: Mapping[str, object],
+        values: Mapping[str, object],
+    ) -> int:
+        """Insert or update using attributes matching a unique constraint.
+
+        Args:
+            attributes: Unique match values.
+            values: Non-key values inserted or updated.
+
+        Returns:
+            Driver-reported affected rows, or ``-1`` when unavailable.
+        """
+        ...
+
+    async def update_or_insert_async(
+        self,
+        attributes: Mapping[str, object],
+        values: Mapping[str, object],
+    ) -> int:
+        """Asynchronously insert or update a unique-key row.
+
+        Args:
+            attributes: Unique match values.
+            values: Non-key values inserted or updated.
 
         Returns:
             Driver-reported affected rows, or ``-1`` when unavailable.

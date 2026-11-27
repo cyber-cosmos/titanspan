@@ -5,6 +5,7 @@ The required CI flag turns a missing URL into a test failure.
 
 from __future__ import annotations
 
+from datetime import UTC, date, datetime, time
 from typing import TYPE_CHECKING
 
 import anyio
@@ -17,6 +18,7 @@ from tests.integration.database.postgresql_support import (
 
 from titanspan.database import (
     DatabaseServiceProvider,
+    DatabaseTransactionError,
     MigrationManager,
     Model,
     Schema,
@@ -277,6 +279,153 @@ async def test_postgresql_upsert_and_insert_or_ignore_are_atomic(
         assert row["score"] == _EXPECTED_UPSERTED_SCORE
         assert await query.count_async() == 1
         await DB.statement_async("DROP TABLE postgres_upsert_rows")
+
+
+async def test_postgresql_row_locks_require_and_use_transactions(
+    application: Application,
+) -> None:
+    """Execute row-lock SQL only inside the owning PostgreSQL transaction.
+
+    Args:
+        application: Isolated PostgreSQL integration application.
+    """
+    async with application:
+        await DB.statement_async("DROP TABLE IF EXISTS postgres_lock_rows")
+        await DB.statement_async(
+            "CREATE TABLE postgres_lock_rows ("
+            "id BIGSERIAL PRIMARY KEY, value TEXT NOT NULL)"
+        )
+        await DB.table("postgres_lock_rows").insert_async(
+            {"value": "available"},
+        )
+
+        with pytest.raises(
+            DatabaseTransactionError,
+            match="active transaction",
+        ):
+            DB.table("postgres_lock_rows").lock_for_update()
+
+        async with DB.transaction_async():
+            locked = (
+                DB.table("postgres_lock_rows")
+                .where("value", "available")
+                .lock_for_update(skip_locked=True)
+            )
+            row = await locked.first_async()
+            assert row is not None
+            assert row["value"] == "available"
+
+        with pytest.raises(
+            DatabaseTransactionError,
+            match="active transaction",
+        ):
+            await locked.get_async()
+
+        async with DB.transaction_async():
+            stale_cursor = (
+                DB.table("postgres_lock_rows").lock_for_update().cursor_async()
+            )
+
+        with pytest.raises(
+            DatabaseTransactionError,
+            match="active transaction",
+        ):
+            async with stale_cursor:
+                pass
+
+        await DB.statement_async("DROP TABLE postgres_lock_rows")
+
+
+async def test_postgresql_temporal_query_predicates(
+    application: Application,
+) -> None:
+    """Compare temporal predicates against real timestamptz data.
+
+    Args:
+        application: Isolated PostgreSQL integration application.
+    """
+    async with application:
+        await DB.statement_async(
+            "DROP TABLE IF EXISTS postgres_temporal_rows",
+        )
+        await DB.statement_async(
+            "CREATE TABLE postgres_temporal_rows ("
+            "id BIGSERIAL PRIMARY KEY, occurred_at TIMESTAMPTZ NOT NULL)"
+        )
+        await DB.table("postgres_temporal_rows").insert_many_async(
+            [
+                {
+                    "occurred_at": datetime(
+                        2026,
+                        11,
+                        27,
+                        8,
+                        30,
+                        tzinfo=UTC,
+                    ),
+                },
+                {
+                    "occurred_at": datetime(
+                        2026,
+                        11,
+                        27,
+                        14,
+                        45,
+                        tzinfo=UTC,
+                    ),
+                },
+                {
+                    "occurred_at": datetime(
+                        2026,
+                        11,
+                        28,
+                        8,
+                        30,
+                        tzinfo=UTC,
+                    ),
+                },
+            ],
+        )
+
+        date_rows = (
+            await DB.table("postgres_temporal_rows")
+            .where_date(
+                "occurred_at",
+                date(2026, 11, 27),
+            )
+            .order_by("id")
+            .get_async()
+        )
+        assert [row["id"] for row in date_rows] == [1, 2]
+
+        time_rows = (
+            await DB.table("postgres_temporal_rows")
+            .where_time(
+                "occurred_at",
+                ">=",
+                time(12),
+            )
+            .get_async()
+        )
+        assert [row["id"] for row in time_rows] == [2]
+
+        component_rows = (
+            await DB.table(
+                "postgres_temporal_rows",
+            )
+            .where_year(
+                "occurred_at",
+                2026,
+            )
+            .where_month("occurred_at", 11)
+            .where_day(
+                "occurred_at",
+                28,
+            )
+            .get_async()
+        )
+        assert [row["id"] for row in component_rows] == [3]
+        await DB.statement_async("DROP TABLE postgres_temporal_rows")
 
 
 async def _insert_then_raise() -> None:

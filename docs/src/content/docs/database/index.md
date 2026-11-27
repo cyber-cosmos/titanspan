@@ -193,12 +193,50 @@ data errors as warnings, following that backend's behavior. Returned affected
 row counts follow each driver's semantics. Other dialects reject these
 operations explicitly.
 
-Retrieval methods include `get`, `first`, `value`, `pluck`, `count`, `sum`,
-`avg`, `min`, `max`, and `exists`. The current pagination API offers
+Retrieval methods include `get`, `first`, `first_or_fail`, `sole`, `find`,
+`find_many`, `value`, `sole_value`, `pluck`, `count`, `sum`, `avg`, `min`,
+`max`, and `exists`. Inner and left subquery joins are available through
+`join_sub()` and `left_join_sub()`. The current pagination API offers
 length-aware and simple page results. Equivalent asynchronous terminal methods
-use an `_async` suffix. Streaming cursors, chunk iteration, unions, cursor
-pagination, and dialect-aware locking are not yet available through the
-native builder.
+use an `_async` suffix. Use a stream context when a result must remain bounded
+in memory:
+
+```python
+async with DB.table("events").cursor_async(batch_size=500) as rows:
+    async for row in rows:
+        await process_event(row)
+```
+
+Synchronous applications can use `cursor()` and `chunks()`. Async applications
+can use `cursor_async()` and `chunks_async()`. The context owns the SQLAlchemy
+result and session; exit it when iteration ends, including on early exit.
+SQLAlchemy applies the requested `yield_per` size. `union()` and
+`union_all()` compose compatible projections through SQLAlchemy compound
+queries. `with_cte()` attaches a named common table expression. Postgres and
+MySQL builders can request `lock_for_update()` or `shared_lock()` inside an
+active transaction. Unsupported dialects reject row locks, and aggregate
+terminals reject lock modifiers because they do not return lockable rows.
+Cursor pagination is not yet available through the native builder.
+
+Date, time, year, month, and day predicates use bound SQLAlchemy expressions.
+Date and time extraction is verified for SQLite; PostgreSQL uses native casts
+and extraction expressions. Predicate support on other dialects depends on
+their SQLAlchemy dialect implementation.
+
+For long-running processing that may update rows as it proceeds, use keyset
+pages over a unique, non-null, orderable column:
+
+```python
+async for rows in DB.table("events").select("payload").chunks_by_id_async(
+    500,
+    key_column="id",
+):
+    await process_events(rows)
+```
+
+Keyset pages close their operation session before yielding each page and do not
+provide one snapshot transaction across the entire iteration. The continuation
+column is selected internally and removed from projected result mappings.
 
 ## Models
 

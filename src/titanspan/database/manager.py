@@ -53,7 +53,9 @@ from titanspan.database.exceptions import (
 if TYPE_CHECKING:
     from collections.abc import (
         AsyncGenerator,
+        AsyncIterator,
         Generator,
+        Iterator,
         Mapping,
     )
     from contextvars import Token
@@ -1092,6 +1094,103 @@ class DatabaseManager:
                 return _detach_result(result)
         except SQLAlchemyError as error:
             msg = "The database statement failed."
+            raise DatabaseQueryError(msg) from error
+
+    @contextmanager
+    def stream_statement_sync(
+        self,
+        name: str,
+        statement: Executable,
+        *,
+        batch_size: int = 1000,
+    ) -> Generator[Iterator[Mapping[str, object]], None, None]:
+        """Stream query mappings within an owned synchronous session.
+
+        Args:
+            name: Validated configured connection name.
+            statement: SQLAlchemy statement built through supported APIs.
+            batch_size: Maximum result batch buffered by SQLAlchemy.
+
+        Yields:
+            A live iterator that must not outlive this context manager.
+        """
+        if type(batch_size) is not int or batch_size < 1:
+            msg = "The stream batch size must be a positive integer."
+            raise ValueError(msg)
+        self._ensure_sync_allowed()
+        try:
+            with self._session_sync(name) as session:
+                result = session.execute(
+                    statement.execution_options(yield_per=batch_size),
+                )
+
+                def rows() -> Iterator[Mapping[str, object]]:
+                    """Yield copied mappings from the live sync result.
+
+                    Yields:
+                        A copied mapping for each selected row.
+                    """
+                    for row in result.mappings():
+                        yield dict(row)
+
+                try:
+                    yield rows()
+                finally:
+                    result.close()
+        except SQLAlchemyError as error:
+            msg = "The database stream failed."
+            raise DatabaseQueryError(msg) from error
+
+    @asynccontextmanager
+    async def stream_statement_async(
+        self,
+        name: str,
+        statement: Executable,
+        *,
+        batch_size: int = 1000,
+    ) -> AsyncGenerator[
+        AsyncIterator[Mapping[str, object]],
+        None,
+    ]:
+        """Stream query mappings within an owned asynchronous session.
+
+        SQLAlchemy async results own a live cursor. Cleanup runs in a shielded
+        scope so cancellation cannot strand a checked-out connection.
+
+        Args:
+            name: Validated configured connection name.
+            statement: SQLAlchemy statement built through supported APIs.
+            batch_size: Maximum result batch buffered by SQLAlchemy.
+
+        Yields:
+            An async iterator that must not outlive this context manager.
+        """
+        if type(batch_size) is not int or batch_size < 1:
+            msg = "The stream batch size must be a positive integer."
+            raise ValueError(msg)
+        self._current_async_task()
+        try:
+            async with self._session_async(name) as session:
+                result = await session.stream(
+                    statement.execution_options(yield_per=batch_size),
+                )
+
+                async def rows() -> AsyncIterator[Mapping[str, object]]:
+                    """Yield detached mappings from the live async result.
+
+                    Yields:
+                        A copied mapping for each selected row.
+                    """
+                    async for row in result.mappings():
+                        yield dict(row)
+
+                try:
+                    yield rows()
+                finally:
+                    with anyio.CancelScope(shield=True):
+                        await result.close()
+        except SQLAlchemyError as error:
+            msg = "The database stream failed."
             raise DatabaseQueryError(msg) from error
 
     @contextmanager
