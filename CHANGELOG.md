@@ -67,6 +67,9 @@ public release.
   Pre-persistence listeners can cancel writes. Sync and async listeners
   run after commit, in transaction and savepoint registration order.
   Add `DB.after_commit_async()` for task-owned transaction callbacks.
+- Add sync and async database, model, and soft-delete assertions.
+  The helpers run real Query Builder and ORM queries through the active
+  Database service and reuse the existing Testing lifecycle.
 - Declare Pydantic as a direct runtime dependency for native schema APIs.
 - Add native application Cache services with memory and optional Redis
   backends, explicit backend capabilities, safe JSON serialization, atomic

@@ -41,7 +41,8 @@ states, sequences, and sync and async persistence. Explicit route model
 binding resolves configured keys through the active Database service.
 Database-backed async `unique_rule` and `exists_rule` values reuse the native
 Validation service and bind all query values. Typed model lifecycle events
-use the native Events dispatcher and transaction callbacks. Relationship
+use the native Events dispatcher and transaction callbacks. Query-backed
+assertions reuse the existing Testing lifecycle. Relationship
 factories, recycling, advanced relationships, scoped or automatic binding,
 and model URL generation remain in progress. Seeders support sync and async
 execution through Container-owned instances and Database transactions
@@ -92,7 +93,8 @@ with native `db:seed` and `make:seeder` commands.
 
 - Database persistence, migrations, factories, seeders, model events,
   validation, route binding, and native Console foundations are implemented.
-  Advanced ORM behavior, relationship factories, and additional commands
+  Native database assertions are implemented. Advanced ORM behavior,
+  relationship factories, query-count assertions, and database test isolation
   remain planned.
 - Structured concurrency, CPU parallelism, and bounded streaming pipelines.
 

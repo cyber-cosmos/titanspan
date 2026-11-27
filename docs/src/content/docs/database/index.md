@@ -421,6 +421,13 @@ Current integration tests use temporary SQLite databases and a disposable
 PostgreSQL database. PostgreSQL integration is mandatory in CI; it fails if
 the job's required URL is missing.
 
+Database assertions run real Query Builder and ORM queries through the active
+application service. Import `assert_database_has`, `assert_database_count`,
+`assert_model_exists`, and their `_async` variants from `titanspan.database`.
+The helpers also include missing-row, empty-table, and soft-delete assertions.
+They do not create, migrate, or reset a test database. Query-count assertions
+remain unavailable until Database query monitoring is implemented.
+
 ## Database-backed Validation rules
 
 Use asynchronous `unique_rule` and `exists_rule` values with the existing
@@ -487,8 +494,8 @@ exposed by the native layer.
 
 The Database component does not yet provide scoped or automatic Routing model
 binding, model-based URL generation, observer classes, soft-delete and restore
-events, database-specific Testing assertions, read replicas, query caching, or
-distributed migration coordination. See
+events, query-count assertions, database test isolation helpers, read replicas,
+query caching, or distributed migration coordination. See
 [ADR 0006](/titanspan/architecture/decisions/0006-sqlalchemy-persistence/) for
 the accepted persistence boundary and
 [the backend boundary specification](/titanspan/specifications/backend-boundaries/)
