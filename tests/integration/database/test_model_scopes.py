@@ -199,6 +199,7 @@ async def test_global_scopes_filter_relationship_queries_and_eager_loads(
         await DB.table("scope_comments").insert_many_async(
             [
                 {"post_id": 1, "is_public": True, "body": "published"},
+                {"post_id": 1, "is_public": True, "body": "internal"},
                 {"post_id": 2, "is_public": False, "body": "draft"},
             ],
         )
@@ -217,7 +218,16 @@ async def test_global_scopes_filter_relationship_queries_and_eager_loads(
         )
 
         assert len(posts) == _POST_COUNT
-        assert [len(post.comments) for post in posts] == [1, 0]
+        assert [len(post.comments) for post in posts] == [2, 0]
+        filtered = await (
+            ScopedPost.query()
+            .with_where("comments", _published_comment)
+            .order_by("id")
+            .get_async()
+        )
+        assert [
+            [comment.body for comment in post.comments] for post in filtered
+        ] == [["published"], []]
 
 
 async def test_sync_global_scope_queries_accept_orm_expressions(
@@ -277,6 +287,20 @@ def _tenant_two(
         The same builder with its tenant predicate added.
     """
     return query.where("tenant_id", 2)
+
+
+def _published_comment(
+    query: ModelQueryBuilder[ScopedComment],
+) -> ModelQueryBuilder[ScopedComment]:
+    """Limit eager-loaded comments to published rows.
+
+    Args:
+        query: Typed query builder for a related comment model.
+
+    Returns:
+        The configured related query builder.
+    """
+    return query.where("body", "published")
 
 
 async def _create_scope_tables() -> None:

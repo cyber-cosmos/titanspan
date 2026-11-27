@@ -90,6 +90,7 @@ public release.
 - Apply named model global predicates to root queries, relationship existence
   checks, and eager-loaded related models. Add reusable typed query
   transformations and per-query global-scope removal.
+- Add typed `with_where()` constraints for eager-loaded relationship paths.
 - Add dialect-aware right and full outer joins to the native Query Builder.
   Right joins use SQLAlchemy left-join expressions with the sides reversed.
   Full outer joins use backend support on PostgreSQL and SQLite 3.39 or later.

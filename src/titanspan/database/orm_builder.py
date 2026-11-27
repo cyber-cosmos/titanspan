@@ -51,6 +51,9 @@ _MINIMUM_PAGE_SIZE = 1
 _INVALID_GLOBAL_SCOPES_ERROR = (
     "Global model scopes must be named SQLAlchemy predicate factories."
 )
+_INVALID_EAGER_CONSTRAINT_ERROR = (
+    "An eager-load constraint must return its related query builder."
+)
 
 
 class ModelQueryBuilder[ModelT]:
@@ -103,6 +106,7 @@ class ModelQueryBuilder[ModelT]:
         self._global_scope_conditions = _resolve_global_scopes(model)
         self._apply_scope_conditions()
         self._eager_paths: list[str] = []
+        self._eager_constraints: dict[str, ColumnElement[bool]] = {}
         self._prevent_lazy = False
         self._selected_columns: tuple[str, ...] = ()
 
@@ -708,6 +712,49 @@ class ModelQueryBuilder[ModelT]:
             self._eager_paths.append(path)
         return self
 
+    def with_where[RelatedT](
+        self,
+        path: str,
+        constraint: Callable[
+            [ModelQueryBuilder[RelatedT]],
+            ModelQueryBuilder[RelatedT],
+        ],
+    ) -> Self:
+        """Eager-load a relationship with a typed related-model filter.
+
+        Args:
+            path: Relationship name or dot-separated nested path.
+            constraint: Query transformation for the final related model.
+
+        Returns:
+            This builder with the constrained path eager-loaded.
+
+        Raises:
+            DatabaseQueryError: If the path is invalid or its callback
+                replaces the related query builder.
+        """
+        self._validate_relationship_path(path)
+        related_model = cast("type[object]", self._model)
+        for name in path.split("."):
+            relationship = _mapper(related_model).relationships[name]
+            related_model = cast("type[object]", relationship.mapper.class_)
+        query = cast(
+            "ModelQueryBuilder[RelatedT]",
+            ModelQueryBuilder(related_model, self._service),
+        )
+        constrained = constraint(query)
+        if constrained is not query:
+            raise DatabaseQueryError(_INVALID_EAGER_CONSTRAINT_ERROR)
+        condition = query.to_statement().whereclause
+        if condition is not None:
+            previous = self._eager_constraints.get(path)
+            self._eager_constraints[path] = (
+                condition if previous is None else and_(previous, condition)
+            )
+        if path not in self._eager_paths:
+            self._eager_paths.append(path)
+        return self
+
     def with_trashed(self) -> Self:
         """Include soft-deleted rows in this query when supported.
 
@@ -817,6 +864,7 @@ class ModelQueryBuilder[ModelT]:
         cloned = copy(self)
         cloned._query = self._query.clone()  # noqa: SLF001  # Copy query.
         cloned._eager_paths = self._eager_paths.copy()  # noqa: SLF001
+        cloned._eager_constraints = self._eager_constraints.copy()  # noqa: SLF001
         cloned._selected_columns = self._selected_columns  # noqa: SLF001
         cloned._global_scope_conditions = (  # noqa: SLF001
             self._global_scope_conditions.copy()
@@ -1426,7 +1474,9 @@ class ModelQueryBuilder[ModelT]:
         """
         current = self._model
         option: ExecutableOption | None = None
+        path_parts: list[str] = []
         for name in path.split("."):
+            path_parts.append(name)
             relationship = _mapper(current).relationships[name]
             target = relationship.mapper.class_
             attribute = cast(
@@ -1448,6 +1498,12 @@ class ModelQueryBuilder[ModelT]:
                         "QueryableAttribute[object]",
                         attribute.and_(scope),
                     )
+            condition = self._eager_constraints.get(".".join(path_parts))
+            if condition is not None:
+                attribute = cast(
+                    "QueryableAttribute[object]",
+                    attribute.and_(condition),
+                )
             option = (
                 selectinload(attribute)
                 if option is None

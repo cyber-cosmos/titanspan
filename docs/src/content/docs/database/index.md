@@ -612,6 +612,27 @@ async def users_with_posts() -> ModelCollection[User]:
     return await User.query().with_("posts").get_async()
 ```
 
+Constrain a loaded relationship through a typed related-model builder:
+
+```python
+from titanspan.database import ModelQueryBuilder
+
+
+def titled_posts(
+    query: ModelQueryBuilder[Post],
+) -> ModelQueryBuilder[Post]:
+    """Load posts with a non-null title."""
+    return query.where_not_null("title")
+
+
+async def users_with_titled_posts() -> ModelCollection[User]:
+    """Return users with only titled posts loaded."""
+    return await User.query().with_where("posts", titled_posts).get_async()
+```
+
+The callback mutates and returns its related query builder. Nested relationship
+paths may be constrained with the same method.
+
 Async model results are detached after the operation. Accessing an unloaded
 relationship does not initiate hidden async I/O. Serialization includes only
 already-loaded relationships and omits attributes listed in `hidden`; it does
