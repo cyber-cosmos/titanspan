@@ -428,6 +428,98 @@ async def test_postgresql_temporal_query_predicates(
         await DB.statement_async("DROP TABLE postgres_temporal_rows")
 
 
+async def test_postgresql_json_path_predicates(
+    application: Application,
+) -> None:
+    """Compare typed scalars extracted from a real PostgreSQL JSONB value.
+
+    Args:
+        application: Isolated PostgreSQL integration application.
+    """
+    async with application:
+        await DB.statement_async("DROP TABLE IF EXISTS postgres_json_rows")
+        await DB.statement_async(
+            "CREATE TABLE postgres_json_rows ("
+            "id BIGSERIAL PRIMARY KEY, payload JSONB NOT NULL)"
+        )
+        await DB.statement_async(
+            "INSERT INTO postgres_json_rows (payload) "
+            "VALUES (CAST(:payload AS JSONB))",
+            {"payload": '{"profile":{"active":true,"score":12}}'},
+        )
+
+        active = (
+            await DB.table("postgres_json_rows")
+            .where_json_value(
+                "payload",
+                "profile.active",
+                True,
+            )
+            .first_async()
+        )
+        high_score = (
+            await DB.table("postgres_json_rows")
+            .where_json_value(
+                "payload",
+                "profile.score",
+                ">=",
+                10,
+            )
+            .first_async()
+        )
+        assert active is not None
+        assert high_score is not None
+        assert active["id"] == high_score["id"]
+        await DB.statement_async("DROP TABLE postgres_json_rows")
+
+
+async def test_postgresql_mutations_return_rows(
+    application: Application,
+) -> None:
+    """Use native PostgreSQL RETURNING for insert, update, and delete.
+
+    Args:
+        application: Isolated PostgreSQL integration application.
+    """
+    async with application:
+        await DB.statement_async(
+            "DROP TABLE IF EXISTS postgres_returning_rows",
+        )
+        await DB.statement_async(
+            "CREATE TABLE postgres_returning_rows ("
+            "id BIGSERIAL PRIMARY KEY, label TEXT NOT NULL)"
+        )
+        inserted = await DB.table(
+            "postgres_returning_rows",
+        ).insert_returning_async(
+            {"label": "before"},
+            "id",
+            "label",
+        )
+        assert inserted == [{"id": 1, "label": "before"}]
+
+        updated = (
+            await DB.table("postgres_returning_rows")
+            .where(
+                "id",
+                1,
+            )
+            .update_returning_async({"label": "after"}, "id", "label")
+        )
+        assert updated == [{"id": 1, "label": "after"}]
+
+        deleted = (
+            await DB.table("postgres_returning_rows")
+            .where(
+                "id",
+                1,
+            )
+            .delete_returning_async("id", "label")
+        )
+        assert deleted == [{"id": 1, "label": "after"}]
+        await DB.statement_async("DROP TABLE postgres_returning_rows")
+
+
 async def _insert_then_raise() -> None:
     """Roll a PostgreSQL insert back through the application transaction.
 

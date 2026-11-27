@@ -183,4 +183,81 @@ class SimplePage[ItemT](Protocol):
         ...
 
 
-__all__ = ["LengthAwarePage", "SimplePage"]
+class CursorPage[ItemT](Protocol):
+    """Describe a page navigated by validated cursor tokens.
+
+    Cursor tokens contain bound order values, not executable query content.
+    """
+
+    @property
+    def items(self) -> tuple[ItemT, ...]:
+        """Return items in natural query order.
+
+        Returns:
+            The immutable sequence of page items.
+        """
+        ...
+
+    @property
+    def per_page(self) -> int:
+        """Return the configured page size.
+
+        Returns:
+            The positive maximum number of returned items.
+        """
+        ...
+
+    @property
+    def next_cursor(self) -> str | None:
+        """Return the token for the following page when one exists.
+
+        Returns:
+            An opaque cursor or ``None``.
+        """
+        ...
+
+    @property
+    def previous_cursor(self) -> str | None:
+        """Return the token for the previous page when one exists.
+
+        Returns:
+            An opaque cursor or ``None``.
+        """
+        ...
+
+    @property
+    def has_more_pages(self) -> bool:
+        """Report whether an additional page follows this page.
+
+        Returns:
+            Whether the query found a lookahead row.
+        """
+        ...
+
+    @property
+    def has_previous_pages(self) -> bool:
+        """Report whether a previous-page cursor is available.
+
+        Returns:
+            Whether the result includes a previous cursor.
+        """
+        ...
+
+    def __iter__(self) -> Iterator[ItemT]:
+        """Iterate through the page items.
+
+        Yields:
+            Items in natural query order.
+        """
+        ...
+
+    def __len__(self) -> int:
+        """Return the number of returned items.
+
+        Returns:
+            The result item count.
+        """
+        ...
+
+
+__all__ = ["CursorPage", "LengthAwarePage", "SimplePage"]

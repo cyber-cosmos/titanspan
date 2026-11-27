@@ -29,6 +29,7 @@ _PAGE_SIZE = 2
 _SECOND_PAGE = 2
 _THIRD_PAGE = 3
 _EXPECTED_PAGE_TOTAL = 5
+_EXPECTED_INSERT_USING_ROWS = 2
 _EXPECTED_SECOND_PAGE_IDS = (3, 4)
 _EXPECTED_LAST_PAGE_IDS = (5,)
 
@@ -156,6 +157,111 @@ async def test_raw_expressions_bind_values_explicitly(
         )
 
         assert rows == [{"label": "Ada!"}]
+
+
+async def test_insert_using_copies_a_query_projection(
+    application: Application,
+) -> None:
+    """Insert selected source rows into a target table with Core expressions.
+
+    Args:
+        application: Application configured by this test.
+    """
+    async with application:
+        await DB.statement_async(
+            "CREATE TABLE source_rows ("
+            "id INTEGER PRIMARY KEY, label TEXT NOT NULL, active BOOLEAN)"
+        )
+        await DB.statement_async(
+            "CREATE TABLE target_rows ("
+            "id INTEGER PRIMARY KEY, label TEXT NOT NULL)"
+        )
+        await DB.table("source_rows").insert_many_async(
+            [
+                {"id": 1, "label": "keep", "active": True},
+                {"id": 2, "label": "skip", "active": False},
+                {"id": 3, "label": "also keep", "active": True},
+            ],
+        )
+
+        inserted = await DB.table("target_rows").insert_using_async(
+            ("id", "label"),
+            DB.table("source_rows").select("id", "label").where("active", True),
+        )
+
+        assert inserted == _EXPECTED_INSERT_USING_ROWS
+        assert await DB.table("target_rows").order_by("id").get_async() == [
+            {"id": 1, "label": "keep"},
+            {"id": 3, "label": "also keep"},
+        ]
+
+        await DB.table("source_rows").insert_async(
+            {"id": 4, "label": "sync", "active": True},
+        )
+        sync_inserted = await anyio.to_thread.run_sync(_insert_one_sync)
+        assert sync_inserted == 1
+        assert (
+            await DB.table("target_rows")
+            .where("id", 4)
+            .value_async(
+                "label",
+            )
+            == "sync"
+        )
+
+
+def _insert_one_sync() -> int:
+    """Insert one filtered source row through the synchronous builder.
+
+    Returns:
+        Driver-reported affected row count.
+    """
+    return DB.table("target_rows").insert_using(
+        ("id", "label"),
+        DB.table("source_rows").select("id", "label").where("id", 4),
+    )
+
+
+async def test_mutations_can_return_changed_rows(
+    application: Application,
+) -> None:
+    """Return database-produced values from SQLite insert/update/delete.
+
+    Args:
+        application: Application configured by this test.
+    """
+    async with application:
+        await DB.statement_async(
+            "CREATE TABLE returning_rows ("
+            "id INTEGER PRIMARY KEY, label TEXT NOT NULL)"
+        )
+
+        inserted = await DB.table("returning_rows").insert_returning_async(
+            {"label": "before"},
+            "id",
+            "label",
+        )
+        assert inserted == [{"id": 1, "label": "before"}]
+
+        updated = (
+            await DB.table("returning_rows")
+            .where(
+                "id",
+                1,
+            )
+            .update_returning_async({"label": "after"}, "id", "label")
+        )
+        assert updated == [{"id": 1, "label": "after"}]
+
+        deleted = (
+            await DB.table("returning_rows")
+            .where(
+                "id",
+                1,
+            )
+            .delete_returning_async("id", "label")
+        )
+        assert deleted == [{"id": 1, "label": "after"}]
 
 
 async def test_where_exists_and_not_exists_accept_trusted_sqlalchemy_text(

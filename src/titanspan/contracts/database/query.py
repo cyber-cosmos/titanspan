@@ -18,6 +18,7 @@ if TYPE_CHECKING:
     from sqlalchemy.sql.selectable import SelectBase
 
     from titanspan.contracts.database.pagination import (
+        CursorPage,
         LengthAwarePage,
         SimplePage,
     )
@@ -362,6 +363,46 @@ class DatabaseQueryBuilder(Protocol):
 
         Args:
             column_name: Safe date or timestamp column reference.
+            operator_or_value: Equality value or comparison operator.
+            value: Comparison value when an operator is supplied.
+
+        Returns:
+            This builder for further query composition.
+        """
+        ...
+
+    def where_json_value(
+        self,
+        column_name: str,
+        path: str,
+        operator_or_value: object,
+        value: object = ...,
+    ) -> Self:
+        """Compare a scalar at a validated JSON object path.
+
+        Args:
+            column_name: Safe JSON column reference.
+            path: Dot-separated object keys using identifier characters.
+            operator_or_value: Equality value or comparison operator.
+            value: Comparison value when an operator is supplied.
+
+        Returns:
+            This builder for further query composition.
+        """
+        ...
+
+    def or_where_json_value(
+        self,
+        column_name: str,
+        path: str,
+        operator_or_value: object,
+        value: object = ...,
+    ) -> Self:
+        """Compare a scalar at a JSON path as an SQL OR predicate.
+
+        Args:
+            column_name: Safe JSON column reference.
+            path: Dot-separated object keys using identifier characters.
             operator_or_value: Equality value or comparison operator.
             value: Comparison value when an operator is supplied.
 
@@ -1277,6 +1318,44 @@ class DatabaseQueryBuilder(Protocol):
         """
         ...
 
+    def cursor_paginate(
+        self,
+        per_page: int = 15,
+        *,
+        cursor: str | None = None,
+        key_column: str = "id",
+    ) -> CursorPage[Mapping[str, object]]:
+        """Retrieve a page using validated keyset cursor navigation.
+
+        Args:
+            per_page: Positive maximum number of page rows.
+            cursor: Optional opaque cursor returned by a prior page.
+            key_column: Unique, non-null tie-breaker column.
+
+        Returns:
+            Cursor page items and navigation tokens.
+        """
+        ...
+
+    async def cursor_paginate_async(
+        self,
+        per_page: int = 15,
+        *,
+        cursor: str | None = None,
+        key_column: str = "id",
+    ) -> CursorPage[Mapping[str, object]]:
+        """Asynchronously retrieve a keyset-paginated page.
+
+        Args:
+            per_page: Positive maximum number of page rows.
+            cursor: Optional opaque cursor returned by a prior page.
+            key_column: Unique, non-null tie-breaker column.
+
+        Returns:
+            Cursor page items and navigation tokens.
+        """
+        ...
+
     def sum(self, column_name: str) -> object | None:
         """Sum a safe numeric column in the database.
 
@@ -1419,6 +1498,38 @@ class DatabaseQueryBuilder(Protocol):
         """
         ...
 
+    def insert_returning(
+        self,
+        values: Mapping[str, object],
+        *columns: str,
+    ) -> list[Mapping[str, object]]:
+        """Insert one row and return selected database-produced values.
+
+        Args:
+            values: Safe column names and values.
+            columns: Safe columns returned by the database.
+
+        Returns:
+            Detached database rows.
+        """
+        ...
+
+    async def insert_returning_async(
+        self,
+        values: Mapping[str, object],
+        *columns: str,
+    ) -> list[Mapping[str, object]]:
+        """Asynchronously insert a row and return selected values.
+
+        Args:
+            values: Safe column names and values.
+            columns: Safe columns returned by the database.
+
+        Returns:
+            Detached database rows.
+        """
+        ...
+
     def insert_get_id(
         self,
         values: Mapping[str, object],
@@ -1450,6 +1561,38 @@ class DatabaseQueryBuilder(Protocol):
 
         Returns:
             The inserted key value.
+        """
+        ...
+
+    def insert_using(
+        self,
+        columns: Sequence[str],
+        query: DatabaseQueryBuilder,
+    ) -> int:
+        """Insert a selected source query into safe target columns.
+
+        Args:
+            columns: Target column names in projection order.
+            query: Source query selecting the same number of expressions.
+
+        Returns:
+            Driver-reported affected rows, or ``-1`` when unavailable.
+        """
+        ...
+
+    async def insert_using_async(
+        self,
+        columns: Sequence[str],
+        query: DatabaseQueryBuilder,
+    ) -> int:
+        """Asynchronously insert rows selected by a source query.
+
+        Args:
+            columns: Target column names in projection order.
+            query: Source query selecting the same number of expressions.
+
+        Returns:
+            Driver-reported affected rows, or ``-1`` when unavailable.
         """
         ...
 
@@ -1598,6 +1741,38 @@ class DatabaseQueryBuilder(Protocol):
         """
         ...
 
+    def update_returning(
+        self,
+        values: Mapping[str, object],
+        *columns: str,
+    ) -> list[Mapping[str, object]]:
+        """Update matching rows and return selected changed values.
+
+        Args:
+            values: Safe column names and replacement values.
+            columns: Safe columns returned by the database.
+
+        Returns:
+            Detached database rows.
+        """
+        ...
+
+    async def update_returning_async(
+        self,
+        values: Mapping[str, object],
+        *columns: str,
+    ) -> list[Mapping[str, object]]:
+        """Asynchronously update rows and return selected values.
+
+        Args:
+            values: Safe column names and replacement values.
+            columns: Safe columns returned by the database.
+
+        Returns:
+            Detached database rows.
+        """
+        ...
+
     def delete(self) -> int:
         """Delete rows that match the query's current conditions.
 
@@ -1611,6 +1786,34 @@ class DatabaseQueryBuilder(Protocol):
 
         Returns:
             Driver-reported row count, or ``-1`` when unavailable.
+        """
+        ...
+
+    def delete_returning(
+        self,
+        *columns: str,
+    ) -> list[Mapping[str, object]]:
+        """Delete matching rows and return selected deleted values.
+
+        Args:
+            columns: Safe columns returned by the database.
+
+        Returns:
+            Detached database rows.
+        """
+        ...
+
+    async def delete_returning_async(
+        self,
+        *columns: str,
+    ) -> list[Mapping[str, object]]:
+        """Asynchronously delete matching rows and return selected values.
+
+        Args:
+            columns: Safe columns returned by the database.
+
+        Returns:
+            Detached database rows.
         """
         ...
 

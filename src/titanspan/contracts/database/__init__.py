@@ -10,6 +10,7 @@ from titanspan.contracts.database.manager import (
     TransactionReceipt,
 )
 from titanspan.contracts.database.pagination import (
+    CursorPage,
     LengthAwarePage,
     SimplePage,
 )
@@ -17,6 +18,7 @@ from titanspan.contracts.database.query import DatabaseQueryBuilder
 from titanspan.contracts.database.result import DatabaseResult
 
 __all__ = [
+    "CursorPage",
     "DatabaseConnectionService",
     "DatabaseQueryBuilder",
     "DatabaseResult",

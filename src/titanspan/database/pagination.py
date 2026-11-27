@@ -164,4 +164,63 @@ class Paginator[T]:
         }
 
 
-__all__ = ["LengthAwarePaginator", "Paginator"]
+@dataclass(frozen=True, slots=True)
+class CursorPaginator[T]:
+    """Store a bounded cursor page with validated navigation tokens.
+
+    Attributes:
+        items: Selected page items in natural query order.
+        per_page: Requested maximum page size.
+        next_cursor: Token for the next page, when one is available.
+        previous_cursor: Token for the previous page, when one is available.
+        has_more_pages: Whether another page follows this one.
+    """
+
+    items: tuple[T, ...]
+    per_page: int
+    next_cursor: str | None
+    previous_cursor: str | None
+    has_more_pages: bool
+
+    @property
+    def has_previous_pages(self) -> bool:
+        """Report whether the result provides a previous-page cursor.
+
+        Returns:
+            Whether a previous cursor is available.
+        """
+        return self.previous_cursor is not None
+
+    def __iter__(self) -> Iterator[T]:
+        """Iterate through this page's items.
+
+        Yields:
+            Page items in natural query order.
+        """
+        return iter(self.items)
+
+    def __len__(self) -> int:
+        """Return the number of items present on this page.
+
+        Returns:
+            The number of returned items.
+        """
+        return len(self.items)
+
+    def to_dict(self) -> dict[str, object]:
+        """Return cursor metadata and page items as a native mapping.
+
+        Returns:
+            Serializable result data and cursor navigation metadata.
+        """
+        return {
+            "data": list(self.items),
+            "per_page": self.per_page,
+            "next_cursor": self.next_cursor,
+            "previous_cursor": self.previous_cursor,
+            "has_more_pages": self.has_more_pages,
+            "has_previous_pages": self.has_previous_pages,
+        }
+
+
+__all__ = ["CursorPaginator", "LengthAwarePaginator", "Paginator"]

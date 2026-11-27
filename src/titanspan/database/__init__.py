@@ -6,6 +6,7 @@ configuration, connection selection, sessions, and transaction conventions.
 """
 
 from titanspan.contracts.database import (
+    CursorPage,
     DatabaseConnectionService,
     DatabaseQueryBuilder,
     DatabaseResult,
@@ -61,7 +62,11 @@ from titanspan.database.migrations import Migration, run_migration
 from titanspan.database.model import Model, SoftDeletes
 from titanspan.database.model_collection import ModelCollection
 from titanspan.database.orm_builder import ModelQueryBuilder
-from titanspan.database.pagination import LengthAwarePaginator, Paginator
+from titanspan.database.pagination import (
+    CursorPaginator,
+    LengthAwarePaginator,
+    Paginator,
+)
 from titanspan.database.query_builder import QueryBuilder
 from titanspan.database.relationships import (
     belongs_to,
@@ -99,6 +104,8 @@ __all__ = [
     "ColumnDefinition",
     "Connection",
     "ConnectionConfiguration",
+    "CursorPage",
+    "CursorPaginator",
     "DatabaseCommitOutcomeUnknownError",
     "DatabaseConfiguration",
     "DatabaseConfigurationError",

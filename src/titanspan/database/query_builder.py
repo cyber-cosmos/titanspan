@@ -6,6 +6,10 @@ builder before branching it into independent query variations.
 
 from __future__ import annotations
 
+import base64
+import binascii
+import json
+import math
 import re
 from collections.abc import (
     AsyncGenerator,
@@ -18,11 +22,19 @@ from collections.abc import (
 )
 from contextlib import asynccontextmanager, contextmanager
 from copy import copy
+from datetime import date, datetime, time
+from decimal import Decimal, InvalidOperation
 from itertools import islice
 from typing import TYPE_CHECKING, Literal, Protocol, cast
+from uuid import UUID
 
 from sqlalchemy import (
+    Boolean,
     Date,
+    Float,
+    Integer,
+    Numeric,
+    String,
     Time,
     and_,
     column,
@@ -52,6 +64,7 @@ from sqlalchemy import (
     union_all as sql_union_all,
 )
 from sqlalchemy.dialects.mysql import insert as mysql_insert
+from sqlalchemy.dialects.postgresql import array as postgresql_array
 from sqlalchemy.dialects.postgresql import insert as postgresql_insert
 from sqlalchemy.dialects.sqlite import insert as sqlite_insert
 from sqlalchemy.sql import operators
@@ -65,7 +78,11 @@ from titanspan.database.exceptions import (
     ModelNotFoundError,
     MultipleModelsFoundError,
 )
-from titanspan.database.pagination import LengthAwarePaginator, Paginator
+from titanspan.database.pagination import (
+    CursorPaginator,
+    LengthAwarePaginator,
+    Paginator,
+)
 
 if TYPE_CHECKING:
     from contextlib import AbstractAsyncContextManager, AbstractContextManager
@@ -87,6 +104,11 @@ type _Condition = ColumnElement[bool]
 type _Projection = ColumnElement[object] | TextClause
 type _Boolean = Literal["and", "or"]
 type _LockMode = Literal["update", "share"]
+type _CursorDirection = Literal["after", "before"]
+type _CursorOrder = tuple[str, bool]
+type _CursorScalar = (
+    bool | int | float | str | Decimal | datetime | date | time | UUID
+)
 
 
 class _ColumnCollectionSource(Protocol):
@@ -104,6 +126,7 @@ class _ColumnCollectionSource(Protocol):
 
 
 _IDENTIFIER = re.compile(r"^[A-Za-z_][A-Za-z0-9_$]*$")
+_JSON_PATH_PART = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
 _MISSING = object()
 _SCHEMA_PART_COUNT = 2
 _SCHEMA_COLUMN_PART_COUNT = 3
@@ -124,6 +147,9 @@ _FIRST_PAGE = 1
 _MINIMUM_PAGE_SIZE = 1
 _NO_ROWS_FOUND = "The database query returned no rows."
 _MULTIPLE_ROWS_FOUND = "The database query returned multiple rows."
+_MAXIMUM_CURSOR_LENGTH = 4096
+_MAXIMUM_JSON_PATH_LENGTH = 512
+_CURSOR_PAIR_LENGTH = 2
 
 
 class QueryBuilder(DatabaseQueryBuilder):
@@ -170,6 +196,7 @@ class QueryBuilder(DatabaseQueryBuilder):
         self._group_columns: list[ColumnElement[object]] = []
         self._having_groups: list[list[_Condition]] = []
         self._orders: list[ColumnElement[object]] = []
+        self._order_specs: list[_CursorOrder] = []
         self._limit: int | None = None
         self._offset: int | None = None
         self._is_distinct = False
@@ -962,6 +989,58 @@ class QueryBuilder(DatabaseQueryBuilder):
             "and",
         )
 
+    def where_json_value(
+        self,
+        column_name: str,
+        path: str,
+        operator_or_value: object,
+        value: object = _MISSING,
+    ) -> QueryBuilder:
+        """Compare one scalar value at a validated JSON object path.
+
+        Args:
+            column_name: Safe JSON column reference.
+            path: Dot-separated object keys using identifier characters.
+            operator_or_value: Equality value or supported comparison operator.
+            value: Comparison value when an operator is supplied.
+
+        Returns:
+            This builder for further query composition.
+        """
+        return self._where_json_value(
+            column_name,
+            path,
+            operator_or_value,
+            value,
+            "and",
+        )
+
+    def or_where_json_value(
+        self,
+        column_name: str,
+        path: str,
+        operator_or_value: object,
+        value: object = _MISSING,
+    ) -> QueryBuilder:
+        """Compare one JSON scalar value as an SQL OR predicate.
+
+        Args:
+            column_name: Safe JSON column reference.
+            path: Dot-separated object keys using identifier characters.
+            operator_or_value: Equality value or supported comparison operator.
+            value: Comparison value when an operator is supplied.
+
+        Returns:
+            This builder for further query composition.
+        """
+        return self._where_json_value(
+            column_name,
+            path,
+            operator_or_value,
+            value,
+            "or",
+        )
+
     def join(
         self,
         table_name: str,
@@ -1188,6 +1267,7 @@ class QueryBuilder(DatabaseQueryBuilder):
         self._orders.append(
             expression.desc() if descending else expression.asc()
         )
+        self._order_specs.append((column_name, descending))
         return self
 
     def latest(self, column_name: str = "created_at") -> QueryBuilder:
@@ -1222,6 +1302,7 @@ class QueryBuilder(DatabaseQueryBuilder):
             This builder for further query composition.
         """
         self._orders.clear()
+        self._order_specs.clear()
         if column_name is not None:
             self.order_by(column_name)
         return self
@@ -1474,6 +1555,304 @@ class QueryBuilder(DatabaseQueryBuilder):
             has_more,
         )
 
+    def cursor_paginate(
+        self,
+        per_page: int = 15,
+        *,
+        cursor: str | None = None,
+        key_column: str = "id",
+    ) -> CursorPaginator[Mapping[str, object]]:
+        """Retrieve one page using ordered keyset values.
+
+        Every order is stabilized by ``key_column``. Cursor values are
+        validated data and are never interpreted as SQL or Python code.
+
+        Args:
+            per_page: Positive maximum number of page rows.
+            cursor: Optional opaque cursor returned by a prior result.
+            key_column: Unique, non-null tie-breaker column.
+
+        Returns:
+            Page rows and previous or next cursor tokens.
+        """
+        return self._cursor_paginate(
+            per_page,
+            cursor=cursor,
+            key_column=key_column,
+        )
+
+    async def cursor_paginate_async(
+        self,
+        per_page: int = 15,
+        *,
+        cursor: str | None = None,
+        key_column: str = "id",
+    ) -> CursorPaginator[Mapping[str, object]]:
+        """Asynchronously retrieve one page using ordered keyset values.
+
+        Args:
+            per_page: Positive maximum number of page rows.
+            cursor: Optional opaque cursor returned by a prior result.
+            key_column: Unique, non-null tie-breaker column.
+
+        Returns:
+            Page rows and previous or next cursor tokens.
+        """
+        return await self._cursor_paginate_async(
+            per_page,
+            cursor=cursor,
+            key_column=key_column,
+        )
+
+    def _cursor_paginate(
+        self,
+        per_page: int,
+        *,
+        cursor: str | None,
+        key_column: str,
+    ) -> CursorPaginator[Mapping[str, object]]:
+        """Execute one bounded cursor page synchronously.
+
+        Args:
+            per_page: Positive maximum number of returned rows.
+            cursor: Optional validated cursor token.
+            key_column: Unique, non-null tie-breaker column.
+
+        Returns:
+            Cursor page containing detached result mappings.
+        """
+        statement, specs, aliases, direction = self._cursor_statement(
+            per_page,
+            cursor,
+            key_column,
+        )
+        result = self._connection.execute_statement(statement)
+        return self._cursor_page(
+            result.rows,
+            per_page,
+            cursor,
+            direction,
+            specs,
+            aliases,
+        )
+
+    async def _cursor_paginate_async(
+        self,
+        per_page: int,
+        *,
+        cursor: str | None,
+        key_column: str,
+    ) -> CursorPaginator[Mapping[str, object]]:
+        """Execute one bounded cursor page asynchronously.
+
+        Args:
+            per_page: Positive maximum number of returned rows.
+            cursor: Optional validated cursor token.
+            key_column: Unique, non-null tie-breaker column.
+
+        Returns:
+            Cursor page containing detached result mappings.
+        """
+        statement, specs, aliases, direction = self._cursor_statement(
+            per_page,
+            cursor,
+            key_column,
+        )
+        result = await self._connection.execute_statement_async(statement)
+        return self._cursor_page(
+            result.rows,
+            per_page,
+            cursor,
+            direction,
+            specs,
+            aliases,
+        )
+
+    def _cursor_statement(
+        self,
+        per_page: int,
+        cursor: str | None,
+        key_column: str,
+    ) -> tuple[
+        Select[tuple[object, ...]],
+        tuple[_CursorOrder, ...],
+        tuple[str, ...],
+        _CursorDirection | None,
+    ]:
+        """Build a bounded lexicographic page query.
+
+        Args:
+            per_page: Positive maximum number of returned rows.
+            cursor: Optional validated cursor token.
+            key_column: Unique, non-null tie-breaker column.
+
+        Returns:
+            Statement, stable order specification, hidden aliases, and cursor
+            direction.
+
+        Raises:
+            DatabaseQueryError: If the query cannot be paginated safely.
+        """
+        _validate_page(per_page, _FIRST_PAGE)
+        self._ensure_lock_transaction()
+        if self._group_columns or self._having_groups or self._is_distinct:
+            msg = (
+                "Cursor pagination requires a non-grouped, non-distinct query."
+            )
+            raise DatabaseQueryError(msg)
+        specs = list(self._order_specs)
+        if key_column not in {name for name, _ in specs}:
+            specs.append((key_column, False))
+        if not specs or len({name for name, _ in specs}) != len(specs):
+            msg = "Cursor pagination requires unique order columns."
+            raise DatabaseQueryError(msg)
+        for name, _ in specs:
+            self._column(name)
+        stable_specs = tuple(specs)
+        direction: _CursorDirection | None = None
+        cursor_values: tuple[object, ...] = ()
+        if cursor is not None:
+            direction, cursor_values = _decode_cursor(cursor, stable_specs)
+
+        query = self.clone()
+        query._orders.clear()  # noqa: SLF001  # Use stable cursor ordering.
+        query._order_specs.clear()  # noqa: SLF001  # Use stable cursor order.
+        if direction is not None:
+            predicate = query._cursor_predicate(  # noqa: SLF001
+                stable_specs,
+                cursor_values,
+                after=direction == "after",
+            )
+            scope = query._scope_condition  # noqa: SLF001
+            query.set_scope_condition(
+                predicate if scope is None else and_(scope, predicate),
+            )
+        reverse = direction == "before"
+        for name, descending in stable_specs:
+            query.order_by(name, descending=descending != reverse)
+        query.limit(per_page + 1).offset(0)
+        statement = query.to_statement()
+        aliases: list[str] = []
+        for name, _ in stable_specs:
+            alias = _unique_chunk_key(statement)
+            statement = statement.add_columns(
+                query._column(name).label(alias),  # noqa: SLF001
+            )
+            aliases.append(alias)
+        return (
+            cast("Select[tuple[object, ...]]", statement),
+            stable_specs,
+            tuple(aliases),
+            direction,
+        )
+
+    def _cursor_predicate(
+        self,
+        specs: tuple[_CursorOrder, ...],
+        values: tuple[object, ...],
+        *,
+        after: bool,
+    ) -> _Condition:
+        """Build a lexicographic keyset predicate from bound cursor values.
+
+        Args:
+            specs: Stable column names and their natural sort directions.
+            values: Decoded data values corresponding to ``specs``.
+            after: Whether to retrieve rows after the supplied position.
+
+        Returns:
+            An SQLAlchemy predicate with explicit lexicographic grouping.
+        """
+        alternatives: list[_Condition] = []
+        equal_prefix: list[_Condition] = []
+        for (name, descending), value in zip(specs, values, strict=True):
+            if value is None:
+                msg = "Cursor ordering values cannot be null."
+                raise DatabaseQueryError(msg)
+            operator = ">" if after != descending else "<"
+            comparison = self._compare(self._column(name), operator, value)
+            alternatives.append(
+                and_(*equal_prefix, comparison) if equal_prefix else comparison,
+            )
+            equal_prefix.append(
+                self._compare(self._column(name), "=", value),
+            )
+        return or_(*alternatives)
+
+    def _cursor_page(
+        self,
+        rows: Sequence[Mapping[str, object]],
+        per_page: int,
+        cursor: str | None,
+        direction: _CursorDirection | None,
+        specs: tuple[_CursorOrder, ...],
+        aliases: tuple[str, ...],
+    ) -> CursorPaginator[Mapping[str, object]]:
+        """Detach rows and construct cursor navigation for one page.
+
+        Args:
+            rows: Result rows with hidden keyset values.
+            per_page: Positive maximum number of returned rows.
+            cursor: Input cursor token, if supplied.
+            direction: Input cursor direction.
+            specs: Stable order columns and directions.
+            aliases: Hidden order-value projection aliases.
+
+        Returns:
+            Cursor page with values restored to natural query ordering.
+        """
+        has_extra = len(rows) > per_page
+        page_rows = list(rows[:per_page])
+        if direction == "before":
+            page_rows.reverse()
+        visible_rows: list[Mapping[str, object]] = []
+        values_per_row: list[tuple[_CursorScalar, ...]] = []
+        for row in page_rows:
+            values = dict(row)
+            cursor_values: list[_CursorScalar] = []
+            for alias in aliases:
+                cursor_value = values.pop(alias, _MISSING)
+                if cursor_value is _MISSING or cursor_value is None:
+                    msg = (
+                        "Cursor ordering values must be selected and non-null."
+                    )
+                    raise DatabaseQueryError(msg)
+                cursor_values.append(_cursor_scalar(cursor_value))
+            visible_rows.append(values)
+            values_per_row.append(tuple(cursor_values))
+
+        first_values = values_per_row[0] if values_per_row else None
+        last_values = values_per_row[-1] if values_per_row else None
+        if direction == "before":
+            next_cursor = (
+                _encode_cursor("after", specs, last_values)
+                if cursor is not None and last_values is not None
+                else None
+            )
+            previous_cursor = (
+                _encode_cursor("before", specs, first_values)
+                if has_extra and first_values is not None
+                else None
+            )
+        else:
+            next_cursor = (
+                _encode_cursor("after", specs, last_values)
+                if has_extra and last_values is not None
+                else None
+            )
+            previous_cursor = (
+                _encode_cursor("before", specs, first_values)
+                if cursor is not None and first_values is not None
+                else None
+            )
+        return CursorPaginator(
+            tuple(visible_rows),
+            per_page,
+            next_cursor,
+            previous_cursor,
+            next_cursor is not None,
+        )
+
     def when(
         self,
         condition: object,
@@ -1539,6 +1918,7 @@ class QueryBuilder(DatabaseQueryBuilder):
         ]
         cloned._group_columns = self._group_columns.copy()  # noqa: SLF001
         cloned._orders = self._orders.copy()  # noqa: SLF001
+        cloned._order_specs = self._order_specs.copy()  # noqa: SLF001
         return cloned
 
     def union(self, query: DatabaseQueryBuilder) -> QueryBuilder:
@@ -1605,6 +1985,7 @@ class QueryBuilder(DatabaseQueryBuilder):
         self._group_columns = []
         self._having_groups = []
         self._orders = []
+        self._order_specs = []
         self._limit = None
         self._offset = None
         self._is_distinct = False
@@ -2385,6 +2766,204 @@ class QueryBuilder(DatabaseQueryBuilder):
         )
         return True
 
+    def insert_returning(
+        self,
+        values: Mapping[str, object],
+        *columns: str,
+    ) -> list[Mapping[str, object]]:
+        """Insert one row and return selected database-produced columns.
+
+        Args:
+            values: Column values for the inserted row.
+            columns: Safe columns returned by the database.
+
+        Returns:
+            Detached mappings returned by the database.
+
+        Raises:
+            DatabaseQueryError: If the dialect or requested columns are not
+                supported.
+        """
+        self._ensure_returning_supported()
+        self._validate_value_columns(values)
+        statement = cast(
+            "Executable",
+            insert(self._table)
+            .values(dict(values))
+            .returning(*self._returning_columns(columns)),
+        )
+        return list(self._connection.execute_statement(statement).rows)
+
+    async def insert_returning_async(
+        self,
+        values: Mapping[str, object],
+        *columns: str,
+    ) -> list[Mapping[str, object]]:
+        """Asynchronously insert one row and return database-produced values.
+
+        Args:
+            values: Column values for the inserted row.
+            columns: Safe columns returned by the database.
+
+        Returns:
+            Detached mappings returned by the database.
+
+        Raises:
+            DatabaseQueryError: If the dialect or requested columns are not
+                supported.
+        """
+        self._ensure_returning_supported()
+        self._validate_value_columns(values)
+        statement = cast(
+            "Executable",
+            insert(self._table)
+            .values(dict(values))
+            .returning(*self._returning_columns(columns)),
+        )
+        result = await self._connection.execute_statement_async(statement)
+        return list(result.rows)
+
+    def update_returning(
+        self,
+        values: Mapping[str, object],
+        *columns: str,
+    ) -> list[Mapping[str, object]]:
+        """Update matching rows and return selected changed values.
+
+        Args:
+            values: Bound replacement values.
+            columns: Safe columns returned by the database.
+
+        Returns:
+            Detached mappings for rows returned by the backend.
+        """
+        statement = self._update_returning_statement(values, columns)
+        return list(self._connection.execute_statement(statement).rows)
+
+    async def update_returning_async(
+        self,
+        values: Mapping[str, object],
+        *columns: str,
+    ) -> list[Mapping[str, object]]:
+        """Asynchronously update rows and return selected changed values.
+
+        Args:
+            values: Bound replacement values.
+            columns: Safe columns returned by the database.
+
+        Returns:
+            Detached mappings for rows returned by the backend.
+        """
+        statement = self._update_returning_statement(values, columns)
+        result = await self._connection.execute_statement_async(statement)
+        return list(result.rows)
+
+    def _update_returning_statement(
+        self,
+        values: Mapping[str, object],
+        columns: Sequence[str],
+    ) -> Executable:
+        """Build a validated UPDATE RETURNING expression.
+
+        Args:
+            values: Bound replacement values.
+            columns: Safe columns returned by the database.
+
+        Returns:
+            SQLAlchemy Update with explicit return projections.
+        """
+        self._ensure_returning_supported()
+        self._validate_value_columns(values)
+        statement = update(self._table).values(dict(values))
+        condition = self._where_expression()
+        if condition is not None:
+            statement = statement.where(condition)
+        return cast(
+            "Executable",
+            statement.returning(*self._returning_columns(columns)),
+        )
+
+    def delete_returning(
+        self,
+        *columns: str,
+    ) -> list[Mapping[str, object]]:
+        """Delete matching rows and return selected deleted values.
+
+        Args:
+            columns: Safe columns returned by the database.
+
+        Returns:
+            Detached mappings for rows returned by the backend.
+        """
+        statement = self._delete_returning_statement(columns)
+        return list(self._connection.execute_statement(statement).rows)
+
+    async def delete_returning_async(
+        self,
+        *columns: str,
+    ) -> list[Mapping[str, object]]:
+        """Asynchronously delete matching rows and return deleted values.
+
+        Args:
+            columns: Safe columns returned by the database.
+
+        Returns:
+            Detached mappings for rows returned by the backend.
+        """
+        statement = self._delete_returning_statement(columns)
+        result = await self._connection.execute_statement_async(statement)
+        return list(result.rows)
+
+    def _delete_returning_statement(
+        self,
+        columns: Sequence[str],
+    ) -> Executable:
+        """Build a validated DELETE RETURNING expression.
+
+        Args:
+            columns: Safe columns returned by the database.
+
+        Returns:
+            SQLAlchemy Delete with explicit return projections.
+        """
+        self._ensure_returning_supported()
+        self._validate_value_columns({})
+        statement = delete(self._table)
+        condition = self._where_expression()
+        if condition is not None:
+            statement = statement.where(condition)
+        return statement.returning(*self._returning_columns(columns))
+
+    def _returning_columns(
+        self,
+        columns: Sequence[str],
+    ) -> tuple[ColumnElement[object], ...]:
+        """Resolve one or more safe returning identifiers.
+
+        Args:
+            columns: Safe selected column references.
+
+        Returns:
+            SQLAlchemy column expressions in requested order.
+
+        Raises:
+            DatabaseQueryError: If no output columns were requested.
+        """
+        if not columns:
+            msg = "A returning mutation requires at least one output column."
+            raise DatabaseQueryError(msg)
+        return tuple(self._column(name) for name in columns)
+
+    def _ensure_returning_supported(self) -> None:
+        """Reject RETURNING on dialects without verified native support.
+
+        Raises:
+            DatabaseQueryError: If the configured dialect is not verified.
+        """
+        if self._connection.dialect_name not in {"sqlite", "postgresql"}:
+            msg = "Mutation returning is unsupported by this dialect."
+            raise DatabaseQueryError(msg)
+
     def insert_get_id(
         self,
         values: Mapping[str, object],
@@ -2433,6 +3012,75 @@ class QueryBuilder(DatabaseQueryBuilder):
         statement = self._insert_returning_statement(values, key_column)
         result = await self._connection.execute_statement_async(statement)
         return _inserted_id(result.rows)
+
+    def insert_using(
+        self,
+        columns: Sequence[str],
+        query: DatabaseQueryBuilder,
+    ) -> int:
+        """Insert a selected query projection into validated target columns.
+
+        Args:
+            columns: Safe target column names in projection order.
+            query: Source query selecting the same number of expressions.
+
+        Returns:
+            Driver-reported affected rows, or ``-1`` when unavailable.
+
+        Raises:
+            DatabaseQueryError: If the target or source projection is invalid.
+        """
+        statement = self._insert_using_statement(columns, query)
+        return self._connection.execute_statement(statement).rowcount
+
+    async def insert_using_async(
+        self,
+        columns: Sequence[str],
+        query: DatabaseQueryBuilder,
+    ) -> int:
+        """Asynchronously insert the result of a SQLAlchemy source query.
+
+        Args:
+            columns: Safe target column names in projection order.
+            query: Source query selecting the same number of expressions.
+
+        Returns:
+            Driver-reported affected rows, or ``-1`` when unavailable.
+
+        Raises:
+            DatabaseQueryError: If the target or source projection is invalid.
+        """
+        statement = self._insert_using_statement(columns, query)
+        result = await self._connection.execute_statement_async(statement)
+        return result.rowcount
+
+    def _insert_using_statement(
+        self,
+        columns: Sequence[str],
+        query: DatabaseQueryBuilder,
+    ) -> Executable:
+        """Build a validated INSERT FROM SELECT through SQLAlchemy Core.
+
+        Args:
+            columns: Safe target column names in projection order.
+            query: Source query selecting the same number of expressions.
+
+        Returns:
+            A SQLAlchemy Insert statement using the source Select expression.
+
+        Raises:
+            DatabaseQueryError: If names or projection cardinality are invalid.
+        """
+        target_columns = tuple(columns)
+        if not target_columns:
+            msg = "Insert-from-query requires at least one target column."
+            raise DatabaseQueryError(msg)
+        self._validate_value_columns(dict.fromkeys(target_columns))
+        source = query.to_statement()
+        if len(source.selected_columns) != len(target_columns):
+            msg = "Insert target and source projections must have equal size."
+            raise DatabaseQueryError(msg)
+        return insert(self._table).from_select(target_columns, source)
 
     def _insert_returning_statement(
         self,
@@ -3327,6 +3975,89 @@ class QueryBuilder(DatabaseQueryBuilder):
             raise DatabaseQueryError(msg)
         return cast("_Condition", left.operate(sql_operator, right))
 
+    def _where_json_value(
+        self,
+        column_name: str,
+        path: str,
+        operator_or_value: object,
+        value: object,
+        boolean: _Boolean,
+    ) -> QueryBuilder:
+        """Add a safely extracted JSON scalar comparison.
+
+        Args:
+            column_name: Safe JSON column reference.
+            path: Validated dot-separated JSON object path.
+            operator_or_value: Equality value or comparison operator.
+            value: Explicit comparison value or the missing sentinel.
+            boolean: SQL connector for the predicate.
+
+        Returns:
+            This builder for further query composition.
+        """
+        if value is _MISSING:
+            operator = "="
+            comparison_value = operator_or_value
+        else:
+            if not isinstance(operator_or_value, str):
+                _raise_invalid_condition()
+            operator = operator_or_value
+            comparison_value = value
+        expression = self._json_value_expression(
+            column_name,
+            path,
+            comparison_value,
+        )
+        return self._add_where(
+            self._compare(expression, operator, comparison_value),
+            boolean,
+        )
+
+    def _json_value_expression(
+        self,
+        column_name: str,
+        path: str,
+        value: object,
+    ) -> ColumnElement[object]:
+        """Build a dialect-specific JSON scalar expression with bound paths.
+
+        Args:
+            column_name: Safe JSON column reference.
+            path: Validated dot-separated JSON object path.
+            value: Comparison value used to select a compatible cast.
+
+        Returns:
+            SQLAlchemy expression for the requested JSON scalar.
+
+        Raises:
+            DatabaseQueryError: If the path, value, or dialect is unsupported.
+        """
+        parts = _json_path_parts(path)
+        source = self._column(column_name)
+        dialect = self._connection.dialect_name
+        if dialect == "postgresql":
+            extracted = source.op("#>>")(postgresql_array(list(parts)))
+        elif dialect in {"sqlite", "mysql"}:
+            json_path = "$" + "".join(f".{part}" for part in parts)
+            extracted = func.json_extract(source, json_path)
+            if dialect == "mysql":
+                extracted = func.json_unquote(extracted)
+        else:
+            msg = "JSON path predicates are unsupported by this dialect."
+            raise DatabaseQueryError(msg)
+        if value is None or type(value) is str:
+            return cast("ColumnElement[object]", sql_cast(extracted, String()))
+        if type(value) is bool:
+            return cast("ColumnElement[object]", sql_cast(extracted, Boolean()))
+        if type(value) is int:
+            return cast("ColumnElement[object]", sql_cast(extracted, Integer()))
+        if type(value) is float and math.isfinite(value):
+            return cast("ColumnElement[object]", sql_cast(extracted, Float()))
+        if isinstance(value, Decimal) and value.is_finite():
+            return cast("ColumnElement[object]", sql_cast(extracted, Numeric()))
+        msg = "JSON path comparisons require a supported scalar value."
+        raise DatabaseQueryError(msg)
+
     def _date_expression(
         self,
         column_name: str,
@@ -3542,6 +4273,309 @@ def _conjunction(conditions: Sequence[_Condition]) -> _Condition:
     if len(conditions) == 1:
         return conditions[0]
     return and_(*conditions)
+
+
+def _json_path_parts(path: str) -> tuple[str, ...]:
+    """Validate a bounded dot-separated path containing only object keys.
+
+    Args:
+        path: Untrusted path supplied to the native query builder.
+
+    Returns:
+        Safe object keys used in a parameterized JSON extraction expression.
+
+    Raises:
+        DatabaseQueryError: If the path is empty, oversized, or unsafe.
+    """
+    if (
+        type(path) is not str
+        or not path
+        or len(path) > _MAXIMUM_JSON_PATH_LENGTH
+    ):
+        _raise_invalid_json_path()
+    parts = tuple(path.split("."))
+    if any(_JSON_PATH_PART.fullmatch(part) is None for part in parts):
+        _raise_invalid_json_path()
+    return parts
+
+
+def _raise_invalid_json_path() -> NoReturn:
+    """Reject unsafe or unsupported JSON object path syntax.
+    """  # fmt: skip
+    msg = "The JSON path must contain only dot-separated object keys."
+    raise DatabaseQueryError(msg)
+
+
+def _encode_cursor(
+    direction: _CursorDirection,
+    specs: tuple[_CursorOrder, ...],
+    values: tuple[_CursorScalar, ...] | None,
+) -> str:
+    """Encode only validated ordering metadata and scalar data values.
+
+    Args:
+        direction: Whether the cursor points before or after its values.
+        specs: Stable order column names and directions.
+        values: Scalar order values from the selected boundary row.
+
+    Returns:
+        A URL-safe, base64-encoded JSON token.
+
+    Raises:
+        DatabaseQueryError: If a cursor value cannot be encoded safely.
+    """
+    if values is None:
+        msg = "A cursor cannot be generated without a boundary row."
+        raise DatabaseQueryError(msg)
+    payload = {
+        "version": 1,
+        "direction": direction,
+        "columns": [[name, descending] for name, descending in specs],
+        "values": [_encode_cursor_scalar(value) for value in values],
+    }
+    token = base64.urlsafe_b64encode(
+        json.dumps(payload, separators=(",", ":"), allow_nan=False).encode(),
+    ).decode("ascii")
+    if len(token) > _MAXIMUM_CURSOR_LENGTH:
+        msg = "The cursor token exceeds the supported size limit."
+        raise DatabaseQueryError(msg)
+    return token
+
+
+def _decode_cursor(
+    token: str,
+    specs: tuple[_CursorOrder, ...],
+) -> tuple[_CursorDirection, tuple[object, ...]]:
+    """Validate and decode one non-executable cursor data token.
+
+    Args:
+        token: URL-safe base64 JSON token supplied by the caller.
+        specs: Expected order column names and directions.
+
+    Returns:
+        A direction and decoded bound data values.
+
+    Raises:
+        DatabaseQueryError: If the token is malformed or does not match.
+    """
+    if (
+        type(token) is not str
+        or not token
+        or len(token) > _MAXIMUM_CURSOR_LENGTH
+    ):
+        _raise_invalid_cursor()
+    try:
+        raw = base64.b64decode(
+            token.encode("ascii"),
+            altchars=b"-_",
+            validate=True,
+        )
+        parsed = cast("object", json.loads(raw.decode("utf-8")))
+    except (binascii.Error, UnicodeDecodeError, UnicodeEncodeError, ValueError):
+        _raise_invalid_cursor()
+    if not isinstance(parsed, dict):
+        _raise_invalid_cursor()
+    payload = cast("dict[str, object]", parsed)
+    if set(payload) != {"version", "direction", "columns", "values"}:
+        _raise_invalid_cursor()
+    direction_value = payload["direction"]
+    if type(direction_value) is not str or direction_value not in {
+        "after",
+        "before",
+    }:
+        _raise_invalid_cursor()
+    direction = cast("_CursorDirection", direction_value)
+    expected_columns = [[name, descending] for name, descending in specs]
+    if (
+        type(payload["version"]) is not int
+        or payload["version"] != 1
+        or payload["columns"] != expected_columns
+    ):
+        _raise_invalid_cursor()
+    raw_values = payload["values"]
+    if not isinstance(raw_values, list):
+        _raise_invalid_cursor()
+    cursor_items = cast("list[object]", raw_values)
+    if len(cursor_items) != len(specs):
+        _raise_invalid_cursor()
+    values = tuple(_decode_cursor_scalar(item) for item in cursor_items)
+    return direction, values
+
+
+def _encode_cursor_scalar(value: _CursorScalar) -> list[object]:
+    """Return a safe tagged JSON representation for one cursor value.
+
+    Args:
+        value: Driver-returned value from a cursor ordering column.
+
+    Returns:
+        A type tag and JSON-safe scalar representation.
+
+    Raises:
+        DatabaseQueryError: If the value type is unsupported.
+    """
+    if type(value) in {bool, int, float, str}:
+        return _encode_basic_cursor_scalar(value)
+    return _encode_extended_cursor_scalar(value)
+
+
+def _encode_basic_cursor_scalar(value: object) -> list[object]:
+    """Encode one built-in cursor scalar without coercing its type.
+
+    Args:
+        value: Boolean, integer, finite float, or string value.
+
+    Returns:
+        A type tag and JSON-safe scalar representation.
+
+    Raises:
+        DatabaseQueryError: If the value is not a supported built-in scalar.
+    """
+    if type(value) is bool:
+        return ["bool", value]
+    if type(value) is int:
+        return ["int", value]
+    if type(value) is float and math.isfinite(value):
+        return ["float", value]
+    if type(value) is str:
+        return ["str", value]
+    msg = "The cursor ordering contains an unsupported value type."
+    raise DatabaseQueryError(msg)
+
+
+def _encode_extended_cursor_scalar(value: object) -> list[object]:
+    """Encode one standard-library temporal, decimal, or UUID scalar.
+
+    Args:
+        value: Decimal, date, datetime, time, or UUID value.
+
+    Returns:
+        A type tag and JSON-safe string representation.
+
+    Raises:
+        DatabaseQueryError: If the value type is unsupported.
+    """
+    if isinstance(value, Decimal) and value.is_finite():
+        return ["decimal", str(value)]
+    if isinstance(value, datetime):
+        return ["datetime", value.isoformat()]
+    if isinstance(value, date):
+        return ["date", value.isoformat()]
+    if isinstance(value, time):
+        return ["time", value.isoformat()]
+    if isinstance(value, UUID):
+        return ["uuid", str(value)]
+    msg = "The cursor ordering contains an unsupported value type."
+    raise DatabaseQueryError(msg)
+
+
+def _cursor_scalar(value: object) -> _CursorScalar:
+    """Validate one result value before including it in a cursor token.
+
+    Args:
+        value: Driver-returned ordering value.
+
+    Returns:
+        A supported scalar value suitable for cursor encoding.
+
+    Raises:
+        DatabaseQueryError: If the value is null or unsupported.
+    """
+    if type(value) in {bool, int, float, str} or isinstance(
+        value, (Decimal, datetime, date, time, UUID)
+    ):
+        return cast("_CursorScalar", value)
+    msg = "The cursor ordering contains an unsupported value type."
+    raise DatabaseQueryError(msg)
+
+
+def _decode_cursor_scalar(value: object) -> object:
+    """Decode one whitelisted type tag from untrusted cursor JSON.
+
+    Args:
+        value: One parsed JSON cursor value.
+
+    Returns:
+        A built-in scalar that SQLAlchemy can bind as query data.
+
+    Raises:
+        DatabaseQueryError: If the tag or value shape is invalid.
+    """
+    if not isinstance(value, list):
+        _raise_invalid_cursor()
+    entry = cast("list[object]", value)
+    if len(entry) != _CURSOR_PAIR_LENGTH:
+        _raise_invalid_cursor()
+    tag, raw = entry
+    if type(tag) is not str:
+        _raise_invalid_cursor()
+    try:
+        if tag in {"bool", "int", "float", "str"}:
+            decoded = _decode_basic_cursor_scalar(tag, raw)
+        else:
+            decoded = _decode_extended_cursor_scalar(tag, raw)
+    except (InvalidOperation, ValueError):
+        _raise_invalid_cursor()
+    return decoded
+
+
+def _decode_basic_cursor_scalar(tag: str, value: object) -> object:
+    """Decode one built-in scalar using an exact type check.
+
+    Args:
+        tag: Boolean, integer, float, or string type tag.
+        value: JSON scalar from an untrusted cursor token.
+
+    Returns:
+        The scalar after its type matches the supplied tag.
+
+    Raises:
+        DatabaseQueryError: If the data does not match its type tag.
+    """
+    if tag == "bool" and type(value) is bool:
+        return value
+    if tag == "int" and type(value) is int:
+        return value
+    if tag == "float" and type(value) is float and math.isfinite(value):
+        return value
+    if tag == "str" and type(value) is str:
+        return value
+    return _raise_invalid_cursor()
+
+
+def _decode_extended_cursor_scalar(tag: str, value: object) -> object:
+    """Decode a temporal, decimal, or UUID string through fixed parsers.
+
+    Args:
+        tag: Whitelisted standard-library scalar type tag.
+        value: JSON string from an untrusted cursor token.
+
+    Returns:
+        The parsed scalar value.
+
+    Raises:
+        DatabaseQueryError: If the tag or string value is invalid.
+    """
+    if type(value) is not str:
+        _raise_invalid_cursor()
+    if tag == "decimal":
+        return Decimal(value)
+    if tag == "datetime":
+        return datetime.fromisoformat(value)
+    if tag == "date":
+        return date.fromisoformat(value)
+    if tag == "time":
+        return time.fromisoformat(value)
+    if tag == "uuid":
+        return UUID(value)
+    return _raise_invalid_cursor()
+
+
+def _raise_invalid_cursor() -> NoReturn:
+    """Raise one safe error for malformed or incompatible cursor tokens.
+    """  # fmt: skip
+    msg = "The cursor token is invalid for this query."
+    raise DatabaseQueryError(msg)
 
 
 def _first_value(

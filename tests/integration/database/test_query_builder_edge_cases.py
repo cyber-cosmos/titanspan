@@ -190,6 +190,150 @@ async def test_date_and_time_predicates_use_database_expressions(
         assert [row["id"] for row in component_rows] == [3]
 
 
+async def test_json_path_predicates_bind_values_and_validate_paths(
+    application: Application,
+) -> None:
+    """Compare JSON scalar values without treating paths as SQL syntax.
+
+    Args:
+        application: Application configured by this test.
+    """
+    async with application:
+        await DB.statement_async(
+            "CREATE TABLE json_rows ("
+            "id INTEGER PRIMARY KEY, payload TEXT NOT NULL)"
+        )
+        await DB.table("json_rows").insert_many_async(
+            [
+                {
+                    "id": 1,
+                    "payload": '{"profile":{"name":"Ada",'
+                    '"active":true,"score":12}}',
+                },
+                {
+                    "id": 2,
+                    "payload": '{"profile":{"name":"Grace",'
+                    '"active":false,"score":8}}',
+                },
+            ],
+        )
+
+        active = (
+            await DB.table("json_rows")
+            .where_json_value(
+                "payload",
+                "profile.active",
+                True,
+            )
+            .first_async()
+        )
+        high_score = (
+            await DB.table("json_rows")
+            .where_json_value(
+                "payload",
+                "profile.score",
+                ">=",
+                10,
+            )
+            .first_async()
+        )
+        assert active is not None
+        assert active["id"] == 1
+        assert high_score is not None
+        assert high_score["id"] == 1
+
+        with pytest.raises(DatabaseQueryError, match="JSON path"):
+            DB.table("json_rows").where_json_value(
+                "payload",
+                "profile.name); DROP TABLE users; --",
+                "Ada",
+            )
+
+
+async def test_cursor_pagination_stabilizes_order_and_supports_reverse_pages(
+    application: Application,
+) -> None:
+    """Navigate forward and backward over duplicate ordering values.
+
+    Args:
+        application: Application configured by this test.
+    """
+    async with application:
+        await DB.statement_async(
+            "CREATE TABLE cursor_rows ("
+            "id INTEGER PRIMARY KEY, category TEXT NOT NULL, "
+            "payload TEXT NOT NULL)"
+        )
+        await DB.table("cursor_rows").insert_many_async(
+            [
+                {"id": 1, "category": "A", "payload": "one"},
+                {"id": 2, "category": "A", "payload": "two"},
+                {"id": 3, "category": "B", "payload": "three"},
+                {"id": 4, "category": "B", "payload": "four"},
+                {"id": 5, "category": "C", "payload": "five"},
+            ],
+        )
+        query = DB.table("cursor_rows").select("category", "payload")
+
+        first = (
+            await query.clone()
+            .order_by("category")
+            .cursor_paginate_async(
+                2,
+            )
+        )
+        assert [row["payload"] for row in first.items] == ["one", "two"]
+        assert first.has_more_pages
+        assert first.next_cursor is not None
+        assert first.previous_cursor is None
+
+        second = (
+            await query.clone()
+            .order_by("category")
+            .cursor_paginate_async(
+                2,
+                cursor=first.next_cursor,
+            )
+        )
+        assert [row["payload"] for row in second.items] == ["three", "four"]
+        assert second.next_cursor is not None
+        assert second.previous_cursor is not None
+
+        prior = (
+            await query.clone()
+            .order_by("category")
+            .cursor_paginate_async(
+                2,
+                cursor=second.previous_cursor,
+            )
+        )
+        assert [row["payload"] for row in prior.items] == ["one", "two"]
+        assert prior.next_cursor is not None
+
+        descending_query = (
+            DB.table("cursor_rows")
+            .select("category", "payload")
+            .order_by("category", descending=True)
+        )
+        descending = await descending_query.cursor_paginate_async(2)
+        assert [row["payload"] for row in descending.items] == [
+            "five",
+            "three",
+        ]
+        assert descending.next_cursor is not None
+        descending_next = await descending_query.cursor_paginate_async(
+            2,
+            cursor=descending.next_cursor,
+        )
+        assert [row["payload"] for row in descending_next.items] == [
+            "four",
+            "one",
+        ]
+
+        with pytest.raises(DatabaseQueryError, match="cursor token"):
+            await query.cursor_paginate_async(2, cursor="not-a-token")
+
+
 async def test_sync_retrieval_and_pagination_edges(
     application: Application,
 ) -> None:

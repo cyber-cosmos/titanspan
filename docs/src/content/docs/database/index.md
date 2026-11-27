@@ -157,9 +157,15 @@ active_users = (
 Implemented operations include selected columns and raw projections, nested
 conditions, comparisons, `IN`, `BETWEEN`, null checks, existence predicates,
 joins, grouping, `HAVING`, ordering, limits, offsets, aggregates, inserts,
-multi-row inserts, conflict-safe upserts, insert-or-ignore, updates, deletes,
-increments, and decrements. Raw SQL expressions require explicit trusted
-application-authored strings and bound values.
+multi-row inserts, insert-from-query, conflict-safe upserts, insert-or-ignore,
+updates, deletes, increments, and decrements. Raw SQL expressions require
+explicit trusted application-authored strings and bound values.
+
+`insert_returning()`, `update_returning()`, and `delete_returning()` expose
+database-produced rows on SQLite and PostgreSQL. Other dialects reject these
+operations until their driver behavior is verified. Use `delete()` without
+filters for a full-table row deletion; there is no generic `truncate()` because
+SQLAlchemy Core has no portable truncate operation or identity-reset policy.
 
 Use `upsert()` or `upsert_async()` for an atomic database-side conflict
 operation. `unique_by` names the unique key and `update` optionally restricts
@@ -212,16 +218,38 @@ can use `cursor_async()` and `chunks_async()`. The context owns the SQLAlchemy
 result and session; exit it when iteration ends, including on early exit.
 SQLAlchemy applies the requested `yield_per` size. `union()` and
 `union_all()` compose compatible projections through SQLAlchemy compound
-queries. `with_cte()` attaches a named common table expression. Postgres and
+queries. `with_cte()` attaches a named common table expression. PostgreSQL and
 MySQL builders can request `lock_for_update()` or `shared_lock()` inside an
 active transaction. Unsupported dialects reject row locks, and aggregate
 terminals reject lock modifiers because they do not return lockable rows.
-Cursor pagination is not yet available through the native builder.
+Cursor pagination is available through `cursor_paginate()` and
+`cursor_paginate_async()`. The builder adds a unique key column as a stable
+tie-breaker, supports mixed ascending and descending order columns, and returns
+forward and reverse cursor tokens. Cursor ordering values must be non-null and
+use supported scalar types. Grouped and distinct queries are rejected. Tokens
+are bounded, validated base64 JSON containing data values; they are not signed
+and do not provide authenticity or authorization.
+
+```python
+page = await DB.table("events").order_by("id").cursor_paginate_async(
+    per_page=100,
+)
+if page.next_cursor is not None:
+    following = await DB.table("events").order_by("id").cursor_paginate_async(
+        per_page=100,
+        cursor=page.next_cursor,
+    )
+```
 
 Date, time, year, month, and day predicates use bound SQLAlchemy expressions.
-Date and time extraction is verified for SQLite; PostgreSQL uses native casts
-and extraction expressions. Predicate support on other dialects depends on
-their SQLAlchemy dialect implementation.
+Date and time predicates are integration-tested on SQLite and PostgreSQL.
+Other dialects depend on their SQLAlchemy dialect implementation.
+
+`where_json_value()` compares a scalar at a dot-separated object path. Path
+segments accept identifier characters only, and values remain bound query
+parameters. SQLite and PostgreSQL JSON or JSONB behavior is integration-tested.
+MySQL expression construction exists but does not yet have live-server
+verification. Array indexing and nested JSON containment are not provided.
 
 For long-running processing that may update rows as it proceeds, use keyset
 pages over a unique, non-null, orderable column:
