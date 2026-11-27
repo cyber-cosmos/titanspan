@@ -39,6 +39,13 @@ class ConsoleOutputError(ConsoleError, ValueError):
     """
 
 
+class CommandGenerationError(ConsoleError, ValueError):
+    """Report an unsafe or unavailable application artifact generation.
+
+    The error message contains only framework-owned diagnostics.
+    """
+
+
 class ConsoleExitError(Exception):
     """Stop a command with an explicit process exit code.
 
@@ -64,6 +71,7 @@ class ConsoleExitError(Exception):
 
 __all__ = [
     "CommandDiscoveryError",
+    "CommandGenerationError",
     "CommandRegistrationError",
     "ConsoleError",
     "ConsoleExitError",

@@ -26,15 +26,18 @@ application composition and resource cleanup.
 | Process status and error reporting | Implemented | Exit-code, failure, and cleanup tests |
 | Parser-backed command tests | Implemented | `ConsoleTester` delegates to the production parser |
 | Configuration commands | Implemented | `tests/unit/config/test_config_cli.py` |
-| Route inspection command | Implemented | `route:list` resolves the shared `RouteCatalog` and `ConsoleOutput` contracts; `tests/integration/console/test_route_list_command.py` |
-| Event inspection command | Pending | The Events component does not expose a stable read-only inspection contract |
-| Application and command generation | Pending | No supported template lifecycle exists |
+| Framework information command | Implemented | `about` reports Titanspan and Python versions without starting an application |
+| Route inspection commands | Implemented | `route:list`, `route:cache`, and `route:clear` use active application services |
+| Event inspection commands | Implemented | `event:list`, `event:cache`, and `event:clear` use the Events discovery API and application configuration |
+| Artifact generation | Implemented | `make:controller`, `make:middleware`, `make:provider`, `make:command`, `make:event`, `make:listener`, and `make:test` write typed files under `ApplicationPaths` |
+| Full application scaffolding | Deferred | No complete generated application template is maintained |
 
 ## Public API
 
 | API | Behavior |
 | --- | --- |
 | `Console(...)` | Create one command registry and parser adapter |
+| `Console(show_exception_details=False)` | Show only command and exception class unless detailed diagnostics are enabled |
 | `command(name, ...)` | Register a handler and return it unchanged |
 | `register_command(name, handler, ...)` | Register a function or command class |
 | `add_group(name, ...)` | Create a nested registry sharing command-path state |
@@ -71,6 +74,11 @@ without Container injection or Foundation lifecycle ownership. They must use
 only explicit CLI values and services that are safe before application
 construction.
 
+Unexpected command failures return status 1. Terminal output shows the
+command path and exception class by default. `show_exception_details=True`
+prints bounded exception chains and traceback text. Detailed output can
+contain secrets.
+
 ## Command parameters
 
 CLI parameters use `typing.Annotated` with `Argument` or `Option`. Their Python
@@ -92,6 +100,17 @@ default Application factory discovers service providers from
 `titanspan.providers`. Both discovery paths sort entries by name and value,
 record successful loads, and skip them on repeated calls. Discovery imports
 installed package code and therefore accepts only trusted distributions.
+The built-in configuration commands accept `--path` to select an application
+root. They default to the current directory and never call `chdir()`.
+Route metadata commands use `ApplicationPaths` and write under the active
+application's `bootstrap/cache` directory. The snapshot does not change route
+discovery or startup compilation.
+
+Artifact generators also use `ApplicationPaths`. They accept a class name or
+dotted application module path, create missing parent directories, reject
+resolved destinations outside the root, and open files exclusively. Existing
+files remain unchanged. The listener generator requires a trusted dotted event
+class path. Generated files are starter code and require application review.
 
 Registration checks command and group paths before modifying the parser. A
 failed backend registration does not retain the attempted path. The shared
@@ -102,8 +121,13 @@ commands without importing Typer.
 
 `run()` and `invoke()` are synchronous process boundaries. They reject calls
 from an active asynchronous task instead of starting a nested runtime.
-Handlers may be synchronous or asynchronous. Console owns one AnyIO runtime
-for each command invocation.
+Async handlers execute in the Console-owned AnyIO runtime. Synchronous
+handlers execute in AnyIO worker threads. Dependency injection still uses the
+application Container. Synchronous handlers must use thread-safe services;
+thread-affine resources require an async handler.
+
+Console waits for synchronous worker completion before propagating
+cancellation. This keeps command resources alive until user code exits.
 
 `ConsoleExitError` carries an operating-system status from 0 through 255.
 Other `Exception` values are reported through Foundation when an Application
@@ -120,9 +144,8 @@ Rich types.
 
 ## Limitations
 
-Console does not scan arbitrary application modules. It does not generate
-application scaffolds or command classes. It does not provide event
-inspection until Events exposes a stable read-only inspection contract.
+Console does not scan arbitrary application modules or generate a complete
+application scaffold. Event cache commands require `events.manifest_path`.
 
 Nested command groups are supported. Invoking a second command from inside an
 active command is unsupported because the synchronous entry point cannot
@@ -133,3 +156,5 @@ start another runtime.
 - Unit behavior: `tests/unit/console/` and `tests/unit/test_cli.py`.
 - Configuration CLI: `tests/unit/config/test_config_cli.py`.
 - Foundation integration: `tests/integration/console/`.
+- Artifact generation: `tests/unit/console/test_generators.py` and real
+  Console/Application/ASGI coverage in `tests/integration/console/`.

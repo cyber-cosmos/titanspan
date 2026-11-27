@@ -7,16 +7,19 @@ composition, dependency resolution, startup, and shutdown.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from functools import partial
 from importlib.metadata import entry_points
 from inspect import (
     Parameter,
     Signature,
     isawaitable,
     isclass,
+    iscoroutinefunction,
     isroutine,
     signature,
 )
 from pathlib import Path
+from traceback import format_exception
 from typing import (
     TYPE_CHECKING,
     Annotated,
@@ -56,6 +59,7 @@ _APPLICATION_RUNTIME_ERROR = (
     "Console execution cannot start inside an active async runtime. "
     "Invoke the command from the process entry point."
 )
+_MAX_EXCEPTION_DETAILS = 8192
 
 
 @dataclass(slots=True)
@@ -91,6 +95,7 @@ class Console:
         application_factory: (
             Callable[[ServiceProvider], Application] | None
         ) = None,
+        show_exception_details: bool = False,
         _state: _RegistrationState | None = None,
         _prefix: tuple[str, ...] = (),
     ) -> None:
@@ -103,10 +108,13 @@ class Console:
             output: Native output service registered for each command.
             application_factory: Composition root that registers the supplied
                 Console provider before Container composition.
+            show_exception_details: Whether command failures include chained
+                exception text and tracebacks in terminal output.
         """
         self._name = name
         self._output = output if output is not None else TerminalOutput()
         self._application_factory = application_factory or _build_application
+        self._show_exception_details = show_exception_details
         self._state = _state or _RegistrationState()
         self._prefix = _prefix
         self._backend = TyperBridge(
@@ -384,10 +392,30 @@ class Console:
         except ConsoleExitError as exit_request:
             self._backend.exit(exit_request.code)
         except Exception as error:
-            self._output.write_error(
-                f"Command [{command_path}] failed: {error}"
-            )
+            self._output.write_error(self._failure_message(command_path, error))
             self._backend.exit(1)
+
+    def _failure_message(
+        self,
+        command_path: str,
+        error: Exception,
+    ) -> str:
+        """Build a safe terminal message for one command failure.
+
+        Args:
+            command_path: Registered command path without invocation values.
+            error: Exception raised while running the command.
+
+        Returns:
+            A classified message with optional bounded developer details.
+        """
+        message = f"Command [{command_path}] failed ({type(error).__name__})."
+        if not self._show_exception_details:
+            return message
+        details = "".join(format_exception(error))
+        if len(details) > _MAX_EXCEPTION_DETAILS:
+            details = details[:_MAX_EXCEPTION_DETAILS] + "\n[TRUNCATED]"
+        return f"{message}\n{details}"
 
     async def _execute(
         self,
@@ -418,14 +446,45 @@ class Console:
             """
             try:
                 if _is_command_class(handler):
-                    command = await application.container.make_async(handler)
+                    if iscoroutinefunction(handler.handle):
+                        command = await application.container.make_async(
+                            handler,
+                        )
+                        return await application.container.call_async(
+                            command.handle,
+                            values,
+                        )
+
+                    command_type = handler
+
+                    def run_sync_command() -> object:
+                        """Construct and run a sync command in one worker.
+
+                        Returns:
+                            The command handler result.
+                        """
+                        command = application.container.make(command_type)
+                        return application.container.call(
+                            command.handle,
+                            values,
+                        )
+
+                    return await anyio.to_thread.run_sync(
+                        run_sync_command,
+                        abandon_on_cancel=False,
+                    )
+
+                callback = _callable_target(handler)
+                if iscoroutinefunction(callback):
                     return await application.container.call_async(
-                        command.handle,
+                        callback,
                         values,
                     )
-                return await application.container.call_async(
-                    _callable_target(handler),
+                return await anyio.to_thread.run_sync(
+                    application.container.call,
+                    callback,
                     values,
+                    abandon_on_cancel=False,
                 )
             except ConsoleExitError:
                 raise
@@ -457,7 +516,14 @@ class Console:
                 "Application-free commands must be registered as functions."
             )
             raise CommandRegistrationError(message)
-        result = handler(**values)
+        callback = _callable_target(handler)
+        if iscoroutinefunction(callback):
+            result = callback(**values)
+        else:
+            result = await anyio.to_thread.run_sync(
+                partial(callback, **values),
+                abandon_on_cancel=False,
+            )
         if isawaitable(result):
             await result
 
@@ -484,6 +550,7 @@ class Console:
 
     _name: str
     _output: ConsoleOutput
+    _show_exception_details: bool
     _application_factory: Callable[[ServiceProvider], Application]
     _state: _RegistrationState
     _prefix: tuple[str, ...]

@@ -160,7 +160,10 @@ with output.progress(total=2, description="Indexing") as progress:
 
 `ConsoleExitError` selects a process status from 0 through 255. Other command
 exceptions are reported and return status 1. Foundation shuts down the
-application before the CLI returns its status.
+application before the CLI returns its status. The default terminal message
+shows the command and exception class. Set `Console(show_exception_details=True)`
+to print bounded chained exception details and a traceback. Those details may
+contain secrets.
 
 ## Test commands
 
@@ -174,18 +177,39 @@ result = ConsoleTester(console).invoke(["greet", "Ada"])
 assert result.exit_code == 0
 ```
 
-The installed command also provides `route:list`. It starts the application
-and displays routes from the same catalog used for request matching and URL
-generation. It resolves `RouteCatalog` and `ConsoleOutput` from the native
-Container.
+The installed command provides `about`, configuration, route, and event
+inspection commands. `route:list` displays the active catalog used for
+matching and URL generation. `route:cache` writes a validated metadata
+snapshot. `route:clear` removes it. Event cache commands require a configured
+`events.manifest_path`. Route snapshots do not skip route discovery at startup.
+
+## Generate application artifacts
+
+Use the native generators to create typed starter files under the selected
+application root:
+
+```bash
+titanspan make:controller reports.ReportController
+titanspan make:middleware RequestId
+titanspan make:provider Metrics
+titanspan make:command Reindex
+titanspan make:event DocumentReady
+titanspan make:listener SendNotice --event app.events.DocumentReadyEvent
+titanspan make:test documents
+```
+
+Names may use dotted application module paths. Generators create parent
+directories, reject paths outside the root, and never replace existing files.
+The listener generator requires a trusted event class path. Review generated
+files before registering providers, middleware, listeners, or commands.
 
 ## Current limits
 
-Console does not generate applications or command classes. Event inspection
-remains pending because Events has no stable read-only inspection contract.
-Other components can add commands through the shared `CommandRegistrar`
-contract.
+Console does not generate a complete application scaffold. Other components
+can add commands through the shared `CommandRegistrar` contract.
 
 Synchronous `run()` and `invoke()` cannot start inside an active async task.
-Async handlers run in the CLI-owned AnyIO runtime. Do not call synchronous
-process entry points from application async code.
+Async handlers run in the CLI-owned AnyIO runtime. Synchronous handlers run
+in AnyIO worker threads and must use thread-safe services. Use an async
+handler with thread-affine resources. Do not call synchronous process entry
+points from application async code.

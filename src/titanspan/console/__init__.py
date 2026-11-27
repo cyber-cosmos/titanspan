@@ -6,6 +6,7 @@ Parser and terminal libraries remain behind private adapters.
 from titanspan.console.application import Console
 from titanspan.console.exceptions import (
     CommandDiscoveryError,
+    CommandGenerationError,
     CommandRegistrationError,
     ConsoleError,
     ConsoleExitError,
@@ -20,6 +21,7 @@ from titanspan.console.service_provider import ConsoleServiceProvider
 __all__ = [
     "Argument",
     "CommandDiscoveryError",
+    "CommandGenerationError",
     "CommandRegistrationError",
     "Console",
     "ConsoleError",

@@ -4,6 +4,7 @@ Tests use the real Typer runner and Titanspan application container.
 """
 
 from collections.abc import Sequence
+from threading import get_ident
 from types import SimpleNamespace
 from typing import TYPE_CHECKING, Annotated
 
@@ -35,7 +36,10 @@ if TYPE_CHECKING:
 pytestmark = pytest.mark.unit
 _REQUESTED_EXIT_CODE = 7
 _INVALID_EXIT_CODE = 256
-_EXPECTED_FAILURE = "invalid command input"
+_MAX_BOUNDED_ERROR_OUTPUT = 9_000
+_PRIVATE_COMMAND_FAILURE = "token=console-secret-value"
+_NESTED_DEVELOPMENT_DETAIL = "nested development detail"
+_TOP_LEVEL_DEVELOPMENT_DETAIL = "top-level development detail"
 
 
 def test_sync_command_uses_container_and_application_lifecycle() -> None:
@@ -44,6 +48,8 @@ def test_sync_command_uses_container_and_application_lifecycle() -> None:
     The assertions verify configuration injection and lifecycle callbacks.
     """
     lifecycle: list[str] = []
+    command_threads: list[int] = []
+    caller_thread = get_ident()
 
     def application_factory(provider: ServiceProvider) -> Application:
         """Build an Application whose lifecycle is visible to the test.
@@ -71,6 +77,7 @@ def test_sync_command_uses_container_and_application_lifecycle() -> None:
 
         The handler receives both a CLI value and Container services.
         """
+        command_threads.append(get_ident())
         output.write(f"Hello {name} from {config.get('app.name')}.")
 
     result = ConsoleTester(console).invoke(["greet", "Ada"])
@@ -78,6 +85,8 @@ def test_sync_command_uses_container_and_application_lifecycle() -> None:
     assert result.exit_code == 0
     assert "Hello Ada from Console Test." in result.stdout
     assert lifecycle == ["started", "stopped"]
+    assert len(command_threads) == 1
+    assert command_threads[0] != caller_thread
 
 
 def test_async_command_class_uses_injected_constructor_and_options() -> None:
@@ -121,6 +130,77 @@ def test_async_command_class_uses_injected_constructor_and_options() -> None:
     assert "Titanspan: 7" in result.stdout
     assert default_result.exit_code == 0
     assert "Titanspan: 4" in default_result.stdout
+
+
+def test_sync_command_class_constructs_and_runs_in_one_worker() -> None:
+    """Keep synchronous command construction and handling off the loop.
+
+    The native Container resolves constructor and method services there.
+    """
+    caller_thread = get_ident()
+    command_threads: list[tuple[str, int]] = []
+    console = Console()
+
+    class InspectCommand:
+        """Report the injected application name from one worker thread.
+
+        The Container supplies configuration and command output.
+        """
+
+        def __init__(self, config: ConfigRepository) -> None:
+            """Resolve command configuration through Foundation.
+
+            Args:
+                config: Application-owned configuration contract.
+            """
+            name = config.get("app.name", "Application")
+            assert isinstance(name, str)
+            self._name = name
+            command_threads.append(("construct", get_ident()))
+
+        def handle(self, output: ConsoleOutput) -> None:
+            """Write the command result through the native output service.
+
+            Args:
+                output: Console output resolved by the Container.
+            """
+            command_threads.append(("handle", get_ident()))
+            output.write(self._name)
+
+    console.register_command("inspect", InspectCommand)
+    result = ConsoleTester(console).invoke(["inspect"])
+
+    assert result.exit_code == 0
+    assert result.stdout.strip() == "Titanspan"
+    assert [name for name, _ in command_threads] == ["construct", "handle"]
+    assert command_threads[0][1] != caller_thread
+    assert command_threads[1][1] != caller_thread
+
+
+def test_application_free_sync_command_runs_in_a_worker() -> None:
+    """Offload synchronous bootstrap handlers from the CLI event loop.
+
+    Application-free commands still use AnyIO's managed worker pool.
+    """
+    caller_thread = get_ident()
+    command_threads: list[int] = []
+    console = Console()
+
+    @console.command("bootstrap", with_application=False)
+    def bootstrap(name: Annotated[str, Argument()]) -> None:
+        """Record the worker thread that handles the CLI argument.
+
+        Args:
+            name: Name supplied through the native argument declaration.
+        """
+        _ = name
+        command_threads.append(get_ident())
+
+    result = ConsoleTester(console).invoke(["bootstrap", "Ada"])
+
+    assert result.exit_code == 0
+    assert len(command_threads) == 1
+    assert command_threads[0] != caller_thread
 
 
 def test_nested_groups_and_command_discovery_use_one_registry() -> None:
@@ -193,14 +273,65 @@ def test_command_failure_is_rendered_without_a_traceback() -> None:
 
         The command failure exercises Foundation reporting and shutdown.
         """
-        raise ValueError(_EXPECTED_FAILURE)
+        raise ValueError(_PRIVATE_COMMAND_FAILURE)
 
     result = ConsoleTester(console).invoke(["fail"])
 
     assert result.exit_code == 1
-    assert _EXPECTED_FAILURE in result.stderr
+    assert _PRIVATE_COMMAND_FAILURE not in result.stderr
     assert "Command [fail] failed" in result.stderr
+    assert "ValueError" in result.stderr
     assert closed == [True]
+
+
+def test_command_details_require_an_explicit_console_policy() -> None:
+    """Show exception text and causes only when details are enabled.
+
+    Detailed terminal diagnostics can contain private values from exception
+    messages and chained causes.
+    """
+    console = Console(show_exception_details=True)
+
+    @console.command("fail")
+    def fail() -> None:
+        """Raise an exception with a chained developer diagnostic.
+
+        The test checks the explicit detailed-output policy.
+        """
+        cause = ValueError(_NESTED_DEVELOPMENT_DETAIL)
+        error = RuntimeError(_TOP_LEVEL_DEVELOPMENT_DETAIL)
+        error.__cause__ = cause
+        raise error
+
+    result = ConsoleTester(console).invoke(["fail"])
+
+    assert result.exit_code == 1
+    assert _TOP_LEVEL_DEVELOPMENT_DETAIL in result.stderr
+    assert _NESTED_DEVELOPMENT_DETAIL in result.stderr
+    assert "RuntimeError" in result.stderr
+
+
+def test_detailed_command_output_is_bounded() -> None:
+    """Bound opt-in traceback output for unusually large exceptions.
+
+    Developers can request details, but a command cannot flood the terminal
+    with an arbitrarily large exception message.
+    """
+    console = Console(show_exception_details=True)
+
+    @console.command("fail")
+    def fail() -> None:
+        """Raise an exception larger than the output bound.
+
+        The command output must include the truncation marker.
+        """
+        raise ValueError("x" * 10_000)
+
+    result = ConsoleTester(console).invoke(["fail"])
+
+    assert result.exit_code == 1
+    assert "[TRUNCATED]" in result.stderr
+    assert len(result.stderr) < _MAX_BOUNDED_ERROR_OUTPUT
 
 
 def test_duplicate_command_names_are_rejected() -> None:
