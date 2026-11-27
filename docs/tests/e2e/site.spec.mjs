@@ -219,6 +219,10 @@ async function setTheme(page, theme) {
 }
 
 async function expectAssetsUseBasePath(page) {
+  await expect(page.locator('link[rel*="icon"]')).toHaveAttribute(
+    "href",
+    "/framework/titanspan-mark.png",
+  );
   const unbased = await page.evaluate(() => {
     const attrs = [
       ["a", "href"],

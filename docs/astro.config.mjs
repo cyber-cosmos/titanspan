@@ -20,7 +20,7 @@ export default defineConfig({
         src: "../assets/logo.png",
         alt: "Titanspan",
       },
-      favicon: "/framework/titanspan-mark.png",
+      favicon: "/titanspan-mark.png",
       tableOfContents: {
         minHeadingLevel: 2,
         maxHeadingLevel: 3,
