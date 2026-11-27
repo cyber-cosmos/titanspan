@@ -40,8 +40,8 @@ class SerializationParent(Model):
     """
 
     table = "serialization_parents"
-    fillable = ("name", "secret", "payload")
-    hidden = ("secret",)
+    fillable = ("name", "private_value", "payload")
+    hidden = ("private_value",)
     visible = (
         "id",
         "name",
@@ -53,7 +53,7 @@ class SerializationParent(Model):
     appends = ("label", "child_names")
 
     name: Mapped[str]
-    secret: Mapped[str]
+    private_value: Mapped[str]
     payload: Mapped[dict[str, object]] = mapped_column(JSON)
     children: Mapped[list[SerializationChild]] = relationship(
         back_populates="parent",
@@ -83,8 +83,8 @@ class SerializationChild(Model):
     """
 
     table = "serialization_children"
-    fillable = ("parent_id", "name", "secret")
-    hidden = ("secret",)
+    fillable = ("parent_id", "name", "private_value")
+    hidden = ("private_value",)
     visible = ("id", "name", "parent", "display_name")
     appends = ("display_name",)
 
@@ -92,7 +92,7 @@ class SerializationChild(Model):
         ForeignKey("serialization_parents.id"),
     )
     name: Mapped[str]
-    secret: Mapped[str]
+    private_value: Mapped[str]
     parent: Mapped[SerializationParent] = relationship(
         back_populates="children",
     )
@@ -137,7 +137,7 @@ async def _create_schema() -> None:
     async with Schema.create("serialization_parents") as table:
         table.id()
         table.string("name", length=120)
-        table.string("secret", length=120)
+        table.string("private_value", length=120)
         table.json("payload")
         table.timestamps()
 
@@ -147,7 +147,7 @@ async def _create_schema() -> None:
             "serialization_parents",
         )
         table.string("name", length=120)
-        table.string("secret", length=120)
+        table.string("private_value", length=120)
         table.timestamps()
 
 
@@ -179,7 +179,7 @@ async def test_model_graph_serialization_is_cycle_safe_and_redacted(
         parent = await SerializationParent.create_async(
             {
                 "name": "visible parent",
-                "secret": "parent credential",
+                "private_value": "parent private sample",
                 "payload": {"status": "ready"},
             },
         )
@@ -187,7 +187,7 @@ async def test_model_graph_serialization_is_cycle_safe_and_redacted(
             {
                 "parent_id": parent.id,
                 "name": "visible child",
-                "secret": "child credential",
+                "private_value": "child private sample",
             },
         )
         loaded = await (
@@ -203,18 +203,18 @@ async def test_model_graph_serialization_is_cycle_safe_and_redacted(
         assert isinstance(child_value, dict)
         child = cast("dict[str, object]", child_value)
         assert child["display_name"] == "Child: visible child"
-        assert "secret" not in serialized
-        assert "secret" not in child
+        assert "private_value" not in serialized
+        assert "private_value" not in child
         assert "parent" not in child
         assert serialized["label"] == "Parent: visible parent"
-        assert loaded.to_json().find("parent credential") == -1
+        assert loaded.to_json().find("parent private sample") == -1
 
         collection = ModelCollection([loaded, loaded.children[0]])
         collection_data = collection.to_dicts()
         assert len(collection_data) == _EXPECTED_SERIALIZED_MODEL_COUNT
-        assert "child credential" not in collection.to_json()
+        assert "child private sample" not in collection.to_json()
         assert "visible parent" not in repr(loaded)
-        assert "parent credential" not in repr(loaded)
+        assert "parent private sample" not in repr(loaded)
         assert "<redacted>" in repr(loaded)
 
 
@@ -231,7 +231,7 @@ async def test_serialization_skips_unloaded_appends_without_database_io(
         await SerializationParent.create_async(
             {
                 "name": "parent",
-                "secret": "secret",
+                "private_value": "private sample",
                 "payload": {},
             },
         )
@@ -278,7 +278,7 @@ async def test_serialization_rejects_graphs_beyond_depth_limit(
         await SerializationParent.create_async(
             {
                 "name": "deep graph",
-                "secret": "secret",
+                "private_value": "private sample",
                 "payload": _nested_payload(_MAX_TEST_DEPTH),
             },
         )
@@ -301,7 +301,7 @@ async def test_serialization_rejects_graphs_beyond_node_limit(
         await SerializationParent.create_async(
             {
                 "name": "wide graph",
-                "secret": "secret",
+                "private_value": "private sample",
                 "payload": {"items": ["item"] * 1100},
             },
         )
@@ -324,7 +324,7 @@ async def test_model_collection_serialization_has_a_finite_item_limit(
         model = await SerializationParent.create_async(
             {
                 "name": "parent",
-                "secret": "secret",
+                "private_value": "private sample",
                 "payload": {},
             },
         )

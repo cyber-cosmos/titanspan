@@ -12,7 +12,9 @@ _POSTGRES_URL_ENV = "TITANSPAN_TEST_POSTGRES_URL"
 _REQUIRE_POSTGRES_ENV = "TITANSPAN_REQUIRE_POSTGRES"
 _POSTGRES_USER_ENV = "TITANSPAN_TEST_POSTGRES_USER"
 # The value names a variable and contains no actual password.
-_POSTGRES_PASSWORD_ENV = "TITANSPAN_TEST_POSTGRES_PASSWORD"  # noqa: S105
+_POSTGRES_AUTH_ENV = (
+    "TITANSPAN_TEST_POSTGRES_PASSWORD"  # pragma: allowlist secret
+)
 _POSTGRES_HOST_ENV = "TITANSPAN_TEST_POSTGRES_HOST"
 _POSTGRES_PORT_ENV = "TITANSPAN_TEST_POSTGRES_PORT"
 _POSTGRES_DATABASE_ENV = "TITANSPAN_TEST_POSTGRES_DATABASE"
@@ -34,7 +36,7 @@ def configured_postgres_url() -> str:
         pytest.skip(f"Set {_POSTGRES_URL_ENV} to run Postgres integration.")
 
     username = os.environ.get(_POSTGRES_USER_ENV)
-    password = os.environ.get(_POSTGRES_PASSWORD_ENV)
+    password = os.environ.get(_POSTGRES_AUTH_ENV)
     host = os.environ.get(_POSTGRES_HOST_ENV)
     port_value = os.environ.get(_POSTGRES_PORT_ENV)
     database = os.environ.get(_POSTGRES_DATABASE_ENV)
