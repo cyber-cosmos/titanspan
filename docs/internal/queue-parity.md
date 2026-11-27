@@ -75,7 +75,7 @@ or prose.
 | Graceful worker cancellation | Enhanced for asynchronous execution | AnyIO cancellation and Foundation cleanup; sync thread work cannot be forcibly stopped. |
 | Worker process supervision | Unsupported with a technical justification | Use an external process manager; Queue does not replace operating-system supervision. |
 | Restart, stop-when-empty, memory limits | Unsupported with a technical justification | No worker supervisor or reliable cross-process control plane is included. |
-| Worker and job events | Equivalent with Python-native syntax | Metadata lifecycle events; no payloads or exception messages. Dedicated retry/release events are pending. |
+| Worker and job events | Equivalent with Python-native syntax | Metadata lifecycle events include accepted retries; release events remain pending. Payloads and exception messages stay private. |
 | Queued event listeners | Dependent on another unfinished Titanspan component | Needs registered listener identity and safe event payload serialization. |
 
 ## Bus chains and batches
@@ -104,7 +104,7 @@ or prose.
 | Queue size, priority, monitoring | Backend-dependent | No stable cross-backend contract is exposed. |
 | Failed and batch administration | Dependent on another unfinished Titanspan component | Requires persistent queue records and destructive-scope policy. |
 | Console worker and generation commands | Equivalent with Python-native syntax | `queue:work`, `queue:listen`, `make:job`, `make:job-middleware`. |
-| Queue fake and dispatch assertions | Equivalent with Python-native syntax | Execution-local fake observes facade and direct manager operations. |
+| Queue fake and dispatch assertions | Equivalent with Python-native syntax | Execution-local fake records facade and manager calls and can run a recorded job through its native job scope. |
 | Database queue driver and queue tables | Dependent on another unfinished Titanspan component | Deferred to native Database persistence and migration contracts. |
 
 ## Review conclusion

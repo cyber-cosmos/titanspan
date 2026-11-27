@@ -43,6 +43,7 @@ _FIRST_ATTEMPT = 1
 _SECOND_ATTEMPT = 2
 _EXPECTED_FACADE_DISPATCHES = 2
 _EXPECTED_CHAIN_JOBS = 2
+_EXPECTED_FAKE_EXECUTIONS = 2
 _EXPECTED_APPLICATIONS = 2
 _OVERSIZED_CHAIN_LENGTH = 257
 
@@ -1178,6 +1179,54 @@ async def test_queue_fake_asserts_delayed_job_delivery_metadata() -> None:
 
         fake.assert_pushed_delayed(_RecordJob)
         assert receipt.available_at is not None
+
+
+@pytest.mark.anyio
+async def test_queue_fake_runs_recorded_job_through_native_scope() -> None:
+    """Execute fake records concurrently through native DI and job scopes.
+
+    The helper bypasses the broker but keeps handler resolution and scopes real.
+    """
+    record = _JobRecord()
+    application = Application(
+        config={"app": {"name": "queue-fake-run"}},
+        service_providers=(
+            _QueueTestProvider(record),
+            QueueServiceProvider(jobs=(_RecordJob,)),
+        ),
+    )
+
+    async with application:
+        manager = application.container.make(QueueManager)
+        async with manager.fake() as fake:
+            receipts = [
+                await manager.dispatch_async(_RecordJob("first")),
+                await manager.dispatch_async(_RecordJob("second")),
+            ]
+            results: list[object] = []
+
+            async def run_next() -> None:
+                """Execute one claimed fake job and collect its result.
+                """  # fmt: skip
+                results.append(await fake.run_next_async())
+
+            async with anyio.create_task_group() as task_group:
+                task_group.start_soon(run_next)
+                task_group.start_soon(run_next)
+
+            assert results == [None, None]
+            with pytest.raises(AssertionError):
+                await fake.run_next_async()
+        with pytest.raises(QueueError, match="scope closes"):
+            await fake.run_next_async()
+
+    assert [receipt.state for receipt in receipts] == ["queued", "queued"]
+    assert {value[0] for value in record.values} == {"first", "second"}
+    assert {value[1] for value in record.values} == {
+        receipt.job_id for receipt in receipts
+    }
+    dependency_tokens = {value[2] for value in record.values}
+    assert len(dependency_tokens) == _EXPECTED_FAKE_EXECUTIONS
 
 
 @pytest.mark.anyio

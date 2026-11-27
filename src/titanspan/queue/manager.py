@@ -251,14 +251,20 @@ class QueueFake:
 
     def __init__(
         self,
+        execute_record: Callable[[QueueDispatchRecord], Awaitable[object]],
         only: frozenset[type[Job]] | None = None,
     ) -> None:
         """Create an isolated dispatch recorder.
 
         Args:
+            execute_record: Native handler execution callback owned by Queue.
             only: Optional trusted job classes intercepted by this fake.
         """  # fmt: skip
+        self._execute_record: (
+            Callable[[QueueDispatchRecord], Awaitable[object]] | None
+        ) = execute_record
         self._records: list[QueueDispatchRecord] = []
+        self._executed: set[str] = set()
         self._lock = threading.RLock()
         self._closed = False
         self._only = only
@@ -312,6 +318,7 @@ class QueueFake:
         """  # fmt: skip
         with self._lock:
             self._closed = True
+            self._execute_record = None
 
     def assert_pushed(self, job_type: type[object]) -> None:
         """Require at least one dispatch for a selected job type.
@@ -352,6 +359,22 @@ class QueueFake:
         """
         if self.records:
             raise AssertionError(_QUEUE_FAKE_ERROR)
+
+    async def run_next_async(self) -> object:
+        """Execute the next recorded job once through its native job scope.
+
+        This helper bypasses the broker and retry policy. Use a real worker
+        integration test to verify transport delivery or retry behavior.
+
+        Returns:
+            The value returned by the registered job handler.
+
+        Raises:
+            AssertionError: If no unexecuted record remains.
+            QueueError: If this fake scope has closed.
+        """
+        record, execute_record = self._claim_next_record()
+        return await execute_record(record)
 
     def assert_pushed_on(self, queue: str) -> None:
         """Require one recorded dispatch to use the selected queue.
@@ -484,6 +507,35 @@ class QueueFake:
         """
         return sum(type(record.job) is job_type for record in self.records)
 
+    def _claim_next_record(
+        self,
+    ) -> tuple[
+        QueueDispatchRecord,
+        Callable[[QueueDispatchRecord], Awaitable[object]],
+    ]:
+        """Claim the first recorded job that has not run through the helper.
+
+        Raises:
+            AssertionError: If every recorded job has already run.
+            QueueError: If this fake scope has closed.
+        """
+        with self._lock:
+            if self._closed:
+                msg = "A Queue fake cannot be used after its scope closes."
+                raise QueueError(msg)
+            # Scope closure clears the callback while holding this lock.
+            # Capturing it here admits execution before closure can begin.
+            execute_record = cast(
+                "Callable[[QueueDispatchRecord], Awaitable[object]]",
+                self._execute_record,
+            )
+            for record in self._records:
+                job_id = record.receipt.job_id
+                if job_id not in self._executed:
+                    self._executed.add(job_id)
+                    return record, execute_record
+        raise AssertionError(_QUEUE_FAKE_ERROR)
+
 
 class QueueFakeScope:
     """Select and restore one manager-owned fake in sync or async code.
@@ -495,15 +547,21 @@ class QueueFakeScope:
         self,
         manager: QueueManager,
         only: frozenset[type[Job]] | None = None,
+        *,
+        execute_record: Callable[
+            [QueueDispatchRecord],
+            Awaitable[object],
+        ],
     ) -> None:
         """Create a fake scope without activating it.
 
         Args:
             manager: Canonical application-owned Queue manager.
             only: Optional registered classes intercepted by this fake.
+            execute_record: Native execution callback for recorded jobs.
         """
         self._manager = manager
-        self._fake = QueueFake(only)
+        self._fake = QueueFake(execute_record, only)
         self._token: Token[QueueFake | None] | None = None
         self._entered = False
 
@@ -1697,7 +1755,41 @@ class QueueManager(BusDispatcher):
             QueueConfigurationError: If a selected class is unregistered.
         """
         selected = self._validate_fake_selection(only)
-        return QueueFakeScope(self, selected)
+        return QueueFakeScope(
+            self,
+            selected,
+            execute_record=self._execute_fake_record_async,
+        )
+
+    async def _execute_fake_record_async(
+        self,
+        record: QueueDispatchRecord,
+    ) -> object:
+        """Run a recorded fake dispatch through its normal handler scope.
+
+        Args:
+            record: Previously accepted fake dispatch record.
+
+        Returns:
+            The registered handler result.
+
+        Raises:
+            QueueError: If the manager is closed or the app context is absent.
+            QueueSerializationError: If the recorded job is no longer valid.
+        """
+        self._ensure_open()
+        self._require_application_context()
+        self._job_type(record.job)
+        receipt = record.receipt
+        metadata = JobMessageMetadata(
+            connection=receipt.connection,
+            queue=receipt.queue,
+            job_id=receipt.job_id,
+            chain_id=receipt.chain_id,
+            batch_id=receipt.batch_id,
+        )
+        decoded = self._codec.decode(self._codec.encode(record.job, metadata))
+        return await self._execute_async(decoded, attempt=1)
 
     async def work_async(
         self,

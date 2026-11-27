@@ -24,6 +24,7 @@ public release.
   filters that would split chains or batches.
 - Add ordered application-wide job middleware through Queue providers.
 - Emit metadata-only retry events after Taskiq accepts retry publication.
+- Let Queue fakes execute recorded handlers through native job scopes.
 - Bound process-local batch history and reject admission when active batches
   fill the configured capacity.
 - Defer durable failed-job records, unique jobs, distributed batches, queued
