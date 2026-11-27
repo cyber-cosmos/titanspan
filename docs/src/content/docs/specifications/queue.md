@@ -33,7 +33,7 @@ Console registration.
 | Bounded, versioned JSON envelopes | Implemented and verified | Security tests reject unknown types, coercion, oversized messages, and excessive JSON nesting. |
 | Container-injected sync and async handlers | Implemented and verified | Application integration tests use real Container graphs. |
 | Per-attempt `JOB` scope | Implemented and verified | Concurrent jobs receive separate scoped services; cancellation finalizes resources. |
-| Sync and async job middleware | Implemented and verified | Pipeline executes middleware in the active job scope. |
+| Global and per-job middleware | Implemented and verified | The Container resolves ordered middleware inside the job scope; provider middleware wraps job declarations. |
 | Sync inline connection | Implemented and verified | Synchronous and asynchronous entry points execute registered jobs inline. |
 | Null connection | Implemented | Dispatch returns `discarded`; no job executes. |
 | Redis Streams transport | Implemented and verified | Real Redis integration covers publication, consumption, retries, chains, and synchronous handlers. |

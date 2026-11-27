@@ -53,16 +53,7 @@ def validate_job_policy(job_type: type[Job]) -> None:
         msg = "A job schema version must be a positive integer."
         raise ValueError(msg)
     middleware_types: object = getattr(job_type, "middleware", None)
-    if not isinstance(middleware_types, tuple):
-        msg = "Job middleware must be declared as a class tuple."
-        raise TypeError(msg)
-    declarations = cast("tuple[object, ...]", middleware_types)
-    for middleware_type in declarations:
-        if not isinstance(middleware_type, type) or not callable(
-            getattr(middleware_type, "handle", None)
-        ):
-            msg = "Each job middleware must declare a public handle method."
-            raise TypeError(msg)
+    validate_middleware_declarations(middleware_types)
     timeout = job_type.timeout
     if timeout is not None and (
         type(timeout) not in (int, float) or timeout <= 0
@@ -77,6 +68,33 @@ def validate_job_policy(job_type: type[Job]) -> None:
         valid_values = type(backoff) in (int, float) and backoff >= 0
     if not valid_values:
         raise ValueError(_INVALID_BACKOFF_ERROR)
+
+
+def validate_middleware_declarations(
+    value: object,
+) -> tuple[JobMiddlewareType, ...]:
+    """Require a tuple of class-based middleware declarations.
+
+    Args:
+        value: Untrusted job or provider middleware declaration.
+
+    Returns:
+        The validated immutable class tuple.
+
+    Raises:
+        TypeError: If declarations are not a tuple of middleware classes.
+    """
+    if not isinstance(value, tuple):
+        msg = "Job middleware must be declared as a class tuple."
+        raise TypeError(msg)
+    declarations = cast("tuple[object, ...]", value)
+    for middleware_type in declarations:
+        if not isinstance(middleware_type, type) or not callable(
+            getattr(middleware_type, "handle", None)
+        ):
+            msg = "Each job middleware must declare a public handle method."
+            raise TypeError(msg)
+    return cast("tuple[JobMiddlewareType, ...]", value)
 
 
 __all__ = ["Job", "JobContext", "validate_job_policy"]

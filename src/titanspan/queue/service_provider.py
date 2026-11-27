@@ -14,8 +14,17 @@ from titanspan.contracts.container import ServiceContainer  # noqa: TC001
 from titanspan.contracts.events import EventDispatcher  # noqa: TC001
 from titanspan.contracts.foundation import BootableServiceProvider
 from titanspan.contracts.logging import LogWriter  # noqa: TC001
-from titanspan.contracts.queue import BusDispatcher, QueueDispatcher
-from titanspan.queue.job import Job, JobContext
+from titanspan.contracts.queue import (
+    BusDispatcher,
+    JobMiddlewareType,
+    QueueDispatcher,
+)
+from titanspan.queue.exceptions import QueueConfigurationError
+from titanspan.queue.job import (
+    Job,
+    JobContext,
+    validate_middleware_declarations,
+)
 from titanspan.queue.manager import QueueBrokerFactory, QueueManager
 
 if TYPE_CHECKING:
@@ -41,15 +50,24 @@ class QueueServiceProvider(BootableServiceProvider):
         *,
         drivers: Mapping[str, QueueBrokerFactory] | None = None,
         jobs: Sequence[type[Job]] = (),
+        middleware: Sequence[JobMiddlewareType] = (),
     ) -> None:
         """Retain trusted application jobs and broker adapters.
 
         Args:
             drivers: Trusted Taskiq broker factories keyed by driver name.
             jobs: Explicit job classes allowed to execute in this app.
+            middleware: Ordered application-wide middleware classes.
         """
         self._drivers = dict(drivers or {})
         self._jobs = tuple(jobs)
+        try:
+            self._middleware = validate_middleware_declarations(
+                tuple(middleware)
+            )
+        except TypeError as error:
+            msg = "Queue middleware declarations must be callable classes."
+            raise QueueConfigurationError(msg) from error
 
     def register(self, container: ServiceRegistry) -> None:
         """Bind QueueManager and QueueDispatcher to the canonical graph.
@@ -84,6 +102,7 @@ class QueueServiceProvider(BootableServiceProvider):
                 logger=logger,
             )
             try:
+                manager.register_middleware(self._middleware)
                 yield manager
             finally:
                 await manager.aclose()
@@ -149,6 +168,7 @@ class QueueServiceProvider(BootableServiceProvider):
 
     _drivers: dict[str, QueueBrokerFactory]
     _jobs: tuple[type[Job], ...]
+    _middleware: tuple[JobMiddlewareType, ...]
 
 
 __all__ = ["QueueServiceProvider"]

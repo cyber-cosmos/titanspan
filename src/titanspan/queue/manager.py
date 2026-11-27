@@ -83,7 +83,12 @@ from titanspan.queue.exceptions import (
     QueueResultUnavailableError,
     QueueSerializationError,
 )
-from titanspan.queue.job import Job, JobContext, validate_job_policy
+from titanspan.queue.job import (
+    Job,
+    JobContext,
+    validate_job_policy,
+    validate_middleware_declarations,
+)
 from titanspan.queue.results import QueueResultHandle
 
 if TYPE_CHECKING:
@@ -751,6 +756,7 @@ class QueueManager(BusDispatcher):
         self._configuration = configuration or QueueConfiguration()
         self._container = container
         self._drivers = dict(drivers or {})
+        self._global_middleware: tuple[JobMiddlewareType, ...] = ()
         self._events = events
         self._logger = logger
         self._codec = JobCodec(
@@ -878,6 +884,31 @@ class QueueManager(BusDispatcher):
         Future messages can resolve only classes in this stable registry.
         """
         self._frozen = True
+
+    def register_middleware(
+        self,
+        middleware: Sequence[JobMiddlewareType],
+    ) -> None:
+        """Append application middleware before startup freezes the manager.
+
+        Args:
+            middleware: Ordered middleware classes shared by every job.
+
+        Raises:
+            QueueConfigurationError: If declarations are invalid or frozen.
+            QueueError: If the application manager has closed.
+        """
+        if self._closed:
+            raise QueueError(_QUEUE_CLOSED_ERROR)
+        if self._frozen:
+            msg = "Register Queue middleware before application startup."
+            raise QueueConfigurationError(msg)
+        try:
+            declarations = validate_middleware_declarations(tuple(middleware))
+        except TypeError as error:
+            msg = "Queue middleware declarations must be callable classes."
+            raise QueueConfigurationError(msg) from error
+        self._global_middleware = (*self._global_middleware, *declarations)
 
     def connection_configuration(
         self,
@@ -2813,10 +2844,11 @@ class QueueManager(BusDispatcher):
             QueueConfigurationError: If the class is outside the catalog.
         """
         try:
-            return self._job_middleware[type(job)]
+            local = self._job_middleware[type(job)]
         except KeyError as error:
             msg = "The job middleware declaration is not registered."
             raise QueueConfigurationError(msg) from error
+        return (*self._global_middleware, *local)
 
     def _retry_labels(self, job: Job) -> dict[str, str | int]:
         """Build Taskiq labels from validated native job retry declarations.
@@ -3011,6 +3043,7 @@ class QueueManager(BusDispatcher):
     _configuration: QueueConfiguration
     _container: ServiceContainer
     _drivers: dict[str, QueueBrokerFactory]
+    _global_middleware: tuple[JobMiddlewareType, ...]
     _events: EventDispatcher | None
     _logger: LogWriter | None
     _codec: JobCodec

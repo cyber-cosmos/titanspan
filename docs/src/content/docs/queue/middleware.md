@@ -4,9 +4,21 @@ description: "Wrap job attempts with typed, dependency-injected middleware."
 ---
 
 Job middleware wraps one handler attempt through the existing Pipeline. The
-Container resolves each middleware inside the active `JOB` scope. Middleware
-declarations are captured when the job is registered and cannot change after
-application startup.
+Container resolves each middleware inside the active `JOB` scope. Provider
+middleware wraps job-specific middleware in declaration order.
+
+Register application-wide middleware with `QueueServiceProvider`:
+
+```python
+QueueServiceProvider(
+    jobs=(ProcessDocument,),
+    middleware=(RecordApplicationMetrics,),
+)
+```
+
+The provider middleware list is immutable after startup. Job-specific
+middleware follows it. Repeated declarations run each time they appear.
+The Container creates fresh middleware instances for each job attempt.
 
 ## Asynchronous middleware
 

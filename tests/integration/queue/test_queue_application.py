@@ -489,6 +489,39 @@ class _RecordingJobMiddleware:
         return result
 
 
+class _GlobalRecordingMiddleware:
+    """Record global Queue middleware around each job attempt.
+    """  # fmt: skip
+
+    def __init__(self, record: _JobRecord) -> None:
+        """Retain the application-owned observation service.
+
+        Args:
+            record: Application service used by the test assertion.
+        """
+        self._record = record
+
+    async def handle(
+        self,
+        context: JobContext,
+        next_handler: JobNext,
+    ) -> object:
+        """Wrap one job and record outer middleware ordering.
+
+        Args:
+            context: Metadata for the active job attempt.
+            next_handler: Continuation to job-specific middleware or handler.
+
+        Returns:
+            The wrapped job result.
+        """
+        _ = context
+        self._record.middleware_events.append("global-before")
+        result = await next_handler()
+        self._record.middleware_events.append("global-after")
+        return result
+
+
 @dataclass
 class _MiddlewareJob(Job):
     """Verify job middleware wraps a handler inside its execution scope.
@@ -547,6 +580,46 @@ async def test_job_middleware_wraps_handler_with_injected_dependencies() -> (
         "after",
     ]
     assert record.max_attempts == [3]
+
+
+@pytest.mark.anyio
+async def test_provider_middleware_wraps_every_job() -> None:
+    """Run provider middleware outside declared job middleware.
+
+    Both layers resolve from the canonical Container inside each job scope.
+    """
+    record = _JobRecord()
+    application = Application(
+        config={"app": {"name": "queue-global-middleware"}},
+        service_providers=(
+            _QueueTestProvider(record),
+            QueueServiceProvider(
+                jobs=(_MiddlewareJob, _RecordJob),
+                middleware=(_GlobalRecordingMiddleware,),
+            ),
+        ),
+    )
+
+    async with application:
+        manager = application.container.make(QueueManager)
+        await manager.dispatch_async(
+            _MiddlewareJob("with-local"),
+            connection="sync",
+        )
+        await manager.dispatch_async(
+            _RecordJob("global-only"),
+            connection="sync",
+        )
+
+    assert record.middleware_events == [
+        "global-before",
+        "before:1",
+        "with-local",
+        "after",
+        "global-after",
+        "global-before",
+        "global-after",
+    ]
 
 
 class _QueueTestProvider:

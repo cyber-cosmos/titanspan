@@ -14,6 +14,7 @@ from taskiq.abc.broker import AsyncBroker
 from titanspan.contracts.queue import (
     BusDispatcher,
     DispatchReceipt,
+    JobMiddlewareType,
     QueueDispatcher,
 )
 from titanspan.facades.bus import Bus
@@ -160,6 +161,33 @@ async def test_sync_and_null_drivers_have_distinct_public_outcomes() -> None:
     assert executed.result == "executed"
     assert discarded.state == "discarded"
     assert discarded.result is None
+
+
+@pytest.mark.anyio
+async def test_global_middleware_registration_lifecycle_errors() -> None:
+    """Reject invalid declarations and registration after startup or shutdown.
+
+    Providers validate early; managers reject late or invalid mutation.
+    """
+    invalid_middleware = cast("JobMiddlewareType", object)
+    with pytest.raises(QueueConfigurationError, match="middleware"):
+        QueueServiceProvider(middleware=(invalid_middleware,))
+
+    unstarted_application = _application()
+    manager_before_startup = QueueManager(
+        container=unstarted_application.container,
+    )
+    with pytest.raises(QueueConfigurationError, match="middleware"):
+        manager_before_startup.register_middleware((invalid_middleware,))
+
+    application = _application()
+    async with application:
+        manager = application.container.make(QueueManager)
+        with pytest.raises(QueueConfigurationError, match="before"):
+            manager.register_middleware(())
+
+    with pytest.raises(QueueError, match="shut down"):
+        manager.register_middleware(())
 
 
 @pytest.mark.anyio
