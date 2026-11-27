@@ -900,27 +900,34 @@ decision is made.
 documented Titanspan behavior. Any later removal has an explicit API-change
 record and migration note.
 
-### F-005 — HTTP and Routing performance evidence is absent
+### F-005 — HTTP and Routing performance evidence
 
-**Severity:** P2 — evidence gap, not a measured performance defect.
+**Severity:** P2 — resolved for the workloads listed below.
+
+**Status:** Resolved on the 2026-11-27 benchmark run. Measurements remain
+machine-specific evidence, not production capacity claims.
 
 **Affected components:** HTTP, Routing, future high-throughput workloads.
 
-**Evidence:** `benchmarks/` contains collection, Container, and Foundation
-benchmarks. It has no HTTP client, route matching, streaming, or dispatch
-workload.
+**Evidence:** `benchmarks/test_http_routing.py` exercises cold startup and
+24-route compilation, warm ASGI dispatch, injected handlers, middleware,
+pooled HTTPX2 and native Titanspan clients, bounded fan-out, and streamed or
+buffered responses from a local HTTP/1.1 server. `benchmarks/README.md` records
+the environment and results. On an Apple M2 with CPython 3.12.12, one noisy
+run measured 3.483 ms median warm dispatch and 19.752 ms median for a 16-request
+fan-out with concurrency four. The two-megabyte stream measured 308,600 traced
+peak bytes; buffering the same response measured 4,214,800 bytes.
 
-**Consequence:** The repository cannot compare adapter overhead, stream memory,
-or dispatch throughput against its selected libraries. No performance
-superiority claim is supported by current benchmarks.
+**Consequence:** The repository now has reproducible local measurements for
+these workloads. Host activity made latency results unstable. They do not
+establish cross-platform throughput or production capacity.
 
-**Recommendation:** Add reproducible local benchmarks before optimizing or
-advertising high-throughput behavior. Record dependency versions, workload,
-concurrency, latency, throughput, and peak memory.
+**Recommendation:** Keep the measurements informational. Repeat them on
+stable, documented hardware before making capacity or performance claims.
 
-**Acceptance:** Benchmarks measure warm and cold route dispatch, pooled HTTP
-requests, bounded concurrent work, and streaming memory without external
-services or unstable CI thresholds.
+**Acceptance:** Met for cold and warm route dispatch, pooled loopback HTTP,
+bounded fan-out, and streaming memory. `make benchmark` includes the cases
+without adding shared-runner timing thresholds.
 
 ## Writing validation
 
