@@ -586,6 +586,14 @@ jobs:
     name: "Tests: Concurrency and cancellation"
     runs-on: ubuntu-latest
     timeout-minutes: 25
+    services:
+      redis:
+        image: redis:8.12.0-alpine3.23
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s --health-timeout 5s --health-retries 5
     needs:
       - lint
       - format
@@ -602,6 +610,8 @@ jobs:
       - workflows
     env:
       COVERAGE: collect
+      TITANSPAN_REQUIRE_REDIS: "1"
+      TITANSPAN_TEST_REDIS_PORT: "6379"
     steps:
       - name: Check out source
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -612,7 +622,8 @@ jobs:
         with:
           python-version: "3.12"
       - name: Install locked dependencies
-        run: uv sync --locked --all-groups
+        run: >-
+          uv sync --locked --all-groups --extra redis --extra queue-redis
       - name: Run concurrency tests with deadlines
         id: tests
         run: make concurrency-test
