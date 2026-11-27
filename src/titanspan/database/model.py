@@ -92,7 +92,7 @@ from titanspan.facades.event import Event
 
 if TYPE_CHECKING:
     from sqlalchemy.orm import InstanceState, Mapper
-    from sqlalchemy.sql.schema import Column
+    from sqlalchemy.sql.schema import Column, Table
 
     from titanspan.contracts.database import DatabaseService
     from titanspan.events.dispatcher import ListenerRegistration
@@ -867,6 +867,91 @@ class Model(DeclarativeBase):
                 _require_successful_save(model, saved)
                 models.append(model)
         return ModelCollection(models)
+
+    @classmethod
+    def upsert(
+        cls,
+        records: Sequence[Mapping[str, object]],
+        *,
+        unique_by: Sequence[str],
+        update: Sequence[str] | None = None,
+    ) -> int:
+        """Insert or update model mappings in one atomic statement.
+
+        Values pass through the model's mass-assignment policy. The operation
+        delegates conflict handling to the native Query Builder and does not
+        hydrate models or dispatch per-model lifecycle events.
+
+        Args:
+            records: Finite model attribute mappings to persist.
+            unique_by: Mapped attribute names backed by a unique constraint.
+            update: Optional mapped attributes updated on conflict.
+
+        Returns:
+            The driver's affected-row count, or ``-1`` if unavailable.
+
+        Raises:
+            DatabaseQueryError: If an attribute is not a mapped column or the
+                selected database does not support native upsert.
+            MassAssignmentError: If strict assignment rejects a value or an
+                update column is guarded.
+        """
+        values, conflict_columns, update_columns = _prepare_model_upsert(
+            cls,
+            records,
+            unique_by=unique_by,
+            update=update,
+        )
+        if not values:
+            return 0
+        table = cast("Table", sa_inspect(cls).local_table)
+        return DB.table(table.fullname, connection=cls.connection).upsert(
+            values,
+            unique_by=conflict_columns,
+            update=update_columns,
+        )
+
+    @classmethod
+    async def upsert_async(
+        cls,
+        records: Sequence[Mapping[str, object]],
+        *,
+        unique_by: Sequence[str],
+        update: Sequence[str] | None = None,
+    ) -> int:
+        """Insert or update model mappings asynchronously.
+
+        Args:
+            records: Finite model attribute mappings to persist.
+            unique_by: Mapped attribute names backed by a unique constraint.
+            update: Optional mapped attributes updated on conflict.
+
+        Returns:
+            The driver's affected-row count, or ``-1`` if unavailable.
+
+        Raises:
+            DatabaseQueryError: If an attribute is not a mapped column or the
+                selected database does not support native upsert.
+            MassAssignmentError: If strict assignment rejects a value or an
+                update column is guarded.
+        """
+        values, conflict_columns, update_columns = _prepare_model_upsert(
+            cls,
+            records,
+            unique_by=unique_by,
+            update=update,
+        )
+        if not values:
+            return 0
+        table = cast("Table", sa_inspect(cls).local_table)
+        return await DB.table(
+            table.fullname,
+            connection=cls.connection,
+        ).upsert_async(
+            values,
+            unique_by=conflict_columns,
+            update=update_columns,
+        )
 
     @classmethod
     def force_create(cls, attributes: Mapping[str, object]) -> Self:
@@ -1725,10 +1810,7 @@ class Model(DeclarativeBase):
         Returns:
             Whether normal mass assignment permits this column.
         """
-        if type(self).fillable:
-            return name in type(self).fillable
-        guarded = type(self).guarded
-        return "*" not in guarded and name not in guarded
+        return _model_attribute_is_fillable(type(self), name)
 
     def _changed_attributes(self) -> dict[str, object]:
         """Read current dirty values from SQLAlchemy attribute history.
@@ -1907,6 +1989,241 @@ def _current_task_id() -> int | None:
         return anyio.get_current_task().id
     except anyio.NoEventLoopError:
         return None
+
+
+def _prepare_model_upsert(
+    model_type: type[Model],
+    records: Sequence[Mapping[str, object]],
+    *,
+    unique_by: Sequence[str],
+    update: Sequence[str] | None,
+) -> tuple[
+    list[dict[str, object]],
+    tuple[str, ...],
+    tuple[str, ...],
+]:
+    """Validate model attributes and prepare dialect-neutral upsert values.
+
+    SQLAlchemy's mapper remains authoritative for attribute-to-column mapping.
+    The operation applies fillability and timestamp conventions without
+    constructing model instances, loading rows, or creating sessions.
+
+    Args:
+        model_type: Declaratively mapped model receiving the upsert.
+        records: Finite attribute mappings supplied by the caller.
+        unique_by: Mapped attributes defining the conflict target.
+        update: Optional mapped attributes updated after a conflict.
+
+    Returns:
+        Rows and physical column names accepted by Query Builder.
+
+    Raises:
+        DatabaseQueryError: If a requested name is not a mapped column.
+        MassAssignmentError: If an update column is guarded.
+    """
+    if not records:
+        return [], tuple(unique_by), ()
+
+    column_names = _model_upsert_column_names(model_type)
+    conflict_columns = _mapped_upsert_columns(
+        unique_by,
+        column_names,
+        description="conflict target",
+    )
+    prepared = _prepare_model_upsert_rows(
+        model_type,
+        records,
+        column_names,
+    )
+    update_columns = _model_upsert_update_columns(
+        model_type,
+        prepared,
+        column_names,
+        conflict_columns,
+        update,
+    )
+    return prepared, conflict_columns, update_columns
+
+
+def _model_upsert_column_names(
+    model_type: type[Model],
+) -> dict[str, str]:
+    """Map supported model attributes to their SQLAlchemy column keys.
+
+    Args:
+        model_type: Declaratively mapped model receiving the upsert.
+
+    Returns:
+        A mapper-derived attribute-to-column mapping.
+    """
+    mapper = sa_inspect(model_type)
+    names: dict[str, str] = {}
+    for attribute in mapper.column_attrs:
+        if len(attribute.columns) != 1:
+            continue
+        column = cast("Column[object]", attribute.columns[0])
+        names[attribute.key] = column.key
+    return names
+
+
+def _prepare_model_upsert_rows(
+    model_type: type[Model],
+    records: Sequence[Mapping[str, object]],
+    column_names: Mapping[str, str],
+) -> list[dict[str, object]]:
+    """Filter rows through model assignment and add automatic timestamps.
+
+    Args:
+        model_type: Declaratively mapped model receiving the upsert.
+        records: Finite attribute mappings supplied by the caller.
+        column_names: Mapper-derived attribute-to-column mapping.
+
+    Returns:
+        Rows keyed by physical column names for Query Builder.
+
+    Raises:
+        DatabaseQueryError: If a row contains an unmapped attribute.
+        MassAssignmentError: If strict assignment rejects an attribute.
+    """
+    prepared: list[dict[str, object]] = []
+    now = datetime.now(UTC)
+    unguarded = _unguarded_context_is_active()
+    fillable_names = {
+        name
+        for name in column_names
+        if unguarded or _model_attribute_is_fillable(model_type, name)
+    }
+    for attributes in records:
+        unknown = set(attributes).difference(column_names)
+        if unknown:
+            names = ", ".join(sorted(str(name) for name in unknown))
+            message = f"Model upsert accepts mapped columns only: {names}."
+            raise DatabaseQueryError(message)
+
+        rejected = set(attributes).difference(fillable_names)
+        if rejected and model_type.strict_mass_assignment:
+            names = ", ".join(sorted(rejected))
+            message = f"Mass assignment rejected columns: {names}."
+            raise MassAssignmentError(message)
+        row = {
+            column_names[name]: value
+            for name, value in attributes.items()
+            if name in fillable_names
+        }
+        if model_type.timestamps:
+            for name in (
+                model_type.created_at_name,
+                model_type.updated_at_name,
+            ):
+                column = column_names.get(name)
+                if column is not None and (
+                    column not in row or name == model_type.updated_at_name
+                ):
+                    row[column] = now
+        prepared.append(row)
+    return prepared
+
+
+def _model_upsert_update_columns(
+    model_type: type[Model],
+    records: Sequence[Mapping[str, object]],
+    column_names: Mapping[str, str],
+    conflict_columns: Sequence[str],
+    update: Sequence[str] | None,
+) -> tuple[str, ...]:
+    """Resolve guarded, explicitly named, or convention-based updates.
+
+    Args:
+        model_type: Declaratively mapped model receiving the upsert.
+        records: Prepared inserted rows keyed by physical columns.
+        column_names: Mapper-derived attribute-to-column mapping.
+        conflict_columns: Physical unique-key columns.
+        update: Optional mapped attributes to update on conflict.
+
+    Returns:
+        Physical columns assigned from the inserted row on conflict.
+
+    Raises:
+        DatabaseQueryError: If an explicit update name is not mapped.
+        MassAssignmentError: If an explicit update name is guarded.
+    """
+    if update is None:
+        created_column = column_names.get(model_type.created_at_name)
+        update_columns = tuple(
+            name
+            for name in records[0]
+            if name not in conflict_columns and name != created_column
+        )
+    else:
+        update_columns = _mapped_upsert_columns(
+            update,
+            column_names,
+            description="update column",
+        )
+        for name in update:
+            if name == model_type.updated_at_name:
+                continue
+            if (
+                not _unguarded_context_is_active()
+                and not _model_attribute_is_fillable(model_type, name)
+            ):
+                message = f"Model upsert update column is guarded: {name}."
+                raise MassAssignmentError(message)
+
+    updated_column = column_names.get(model_type.updated_at_name)
+    if (
+        model_type.timestamps
+        and updated_column is not None
+        and updated_column not in update_columns
+    ):
+        update_columns = (*update_columns, updated_column)
+    return update_columns
+
+
+def _mapped_upsert_columns(
+    names: Sequence[str],
+    column_names: Mapping[str, str],
+    *,
+    description: str,
+) -> tuple[str, ...]:
+    """Translate model attribute names into SQLAlchemy column keys.
+
+    Args:
+        names: Public model attribute names.
+        column_names: Mapper-owned attribute-to-column key mapping.
+        description: Name used in the validation message.
+
+    Returns:
+        Physical column keys accepted by the native Query Builder.
+
+    Raises:
+        DatabaseQueryError: If any name is not a mapped model column.
+    """
+    unknown = set(names).difference(column_names)
+    if unknown:
+        names_text = ", ".join(sorted(unknown))
+        message = f"Model upsert {description} is not mapped: {names_text}."
+        raise DatabaseQueryError(message)
+    return tuple(column_names[name] for name in names)
+
+
+def _model_attribute_is_fillable(
+    model_type: type[Model],
+    name: str,
+) -> bool:
+    """Check a model's configured fillable and guarded attribute policy.
+
+    Args:
+        model_type: Model class that declares the assignment policy.
+        name: Mapped model attribute being checked.
+
+    Returns:
+        Whether ordinary model assignment accepts the attribute.
+    """
+    if model_type.fillable:
+        return name in model_type.fillable
+    guarded = model_type.guarded
+    return "*" not in guarded and name not in guarded
 
 
 def _numeric_column(

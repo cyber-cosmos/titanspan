@@ -81,6 +81,9 @@ public release.
   operations using SQLAlchemy's supported SQLite, PostgreSQL, and MySQL
   dialect constructs. SQLite and PostgreSQL behavior has real integration
   coverage; MySQL and MariaDB have not been integration-tested.
+- Add sync and async model upserts with mapper-derived column names, guarded
+  assignments, and automatic timestamp handling. Real SQLite and PostgreSQL
+  behavior is integration-tested; bulk model events are not dispatched.
 - Add dialect-aware right and full outer joins to the native Query Builder.
   Right joins use SQLAlchemy left-join expressions with the sides reversed.
   Full outer joins use backend support on PostgreSQL and SQLite 3.39 or later.

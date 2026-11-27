@@ -57,6 +57,21 @@ class PostgreSQLAtomicCounter(Model):
     value: Mapped[int] = mapped_column(default=0)
 
 
+class PostgreSQLUpsertRecord(Model):
+    """Represent a mapped row written through native model upsert.
+
+    A Python attribute maps to a differently named SQL column to verify
+    mapper-based identifier translation on PostgreSQL.
+    """
+
+    table = "postgres_model_upserts"
+    fillable = ("email", "name")
+
+    email: Mapped[str] = mapped_column(unique=True)
+    name: Mapped[str] = mapped_column("display_name")
+    is_admin: Mapped[bool] = mapped_column(default=False)
+
+
 if TYPE_CHECKING:
     from pathlib import Path
 
@@ -279,6 +294,58 @@ async def test_postgresql_upsert_and_insert_or_ignore_are_atomic(
         assert row["score"] == _EXPECTED_UPSERTED_SCORE
         assert await query.count_async() == 1
         await DB.statement_async("DROP TABLE postgres_upsert_rows")
+
+
+async def test_postgresql_model_upsert_uses_mapper_and_assignment_policy(
+    application: Application,
+) -> None:
+    """Upsert model values atomically with timestamps and guarded fields.
+
+    Args:
+        application: Isolated PostgreSQL integration application.
+    """
+    async with application:
+        await DB.statement_async("DROP TABLE IF EXISTS postgres_model_upserts")
+        await DB.statement_async(
+            "CREATE TABLE postgres_model_upserts ("
+            "id BIGSERIAL PRIMARY KEY, email TEXT UNIQUE NOT NULL, "
+            "display_name TEXT NOT NULL, "
+            "is_admin BOOLEAN NOT NULL DEFAULT FALSE, "
+            "created_at TIMESTAMPTZ NULL, updated_at TIMESTAMPTZ NULL)"
+        )
+        inserted = await PostgreSQLUpsertRecord.upsert_async(
+            [
+                {
+                    "email": "ada@example.test",
+                    "name": "Ada",
+                    "is_admin": True,
+                },
+            ],
+            unique_by=("email",),
+        )
+        original = await PostgreSQLUpsertRecord.query().first_async()
+        assert original is not None
+
+        updated = await PostgreSQLUpsertRecord.upsert_async(
+            [
+                {
+                    "email": "ada@example.test",
+                    "name": "Augusta",
+                    "is_admin": True,
+                },
+            ],
+            unique_by=("email",),
+        )
+        current = await PostgreSQLUpsertRecord.query().first_async()
+
+        assert inserted in (1, _UNKNOWN_ROWCOUNT)
+        assert updated in (1, _UNKNOWN_ROWCOUNT)
+        assert current is not None
+        assert current.name == "Augusta"
+        assert current.is_admin is False
+        assert current.created_at == original.created_at
+        assert current.updated_at is not None
+        await DB.statement_async("DROP TABLE postgres_model_upserts")
 
 
 async def test_postgresql_row_locks_require_and_use_transactions(

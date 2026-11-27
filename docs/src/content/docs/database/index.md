@@ -366,6 +366,27 @@ conditions, ordering, eager loading, aggregates, pagination, and bulk
 mutations. Simple and length-aware pagination are implemented; cursor
 pagination is not.
 
+Use model-level `upsert()` for bulk conflict handling while preserving the
+model's assignment policy and timestamp conventions:
+
+```python
+await User.upsert_async(
+    [
+        {"name": "Ada", "email": "ada@example.test"},
+    ],
+    unique_by=("email",),
+)
+```
+
+Conflict targets and update columns use mapped model attribute names. The
+operation maps them through SQLAlchemy metadata and delegates atomic conflict
+handling to the configured database. Default updates preserve `created_at`
+and refresh `updated_at`. This bulk operation does not hydrate models or send
+per-model lifecycle events. Use Query Builder directly for trusted bulk data
+that intentionally bypasses model assignment rules. Bulk upserts also bypass
+soft-delete visibility filters because a conflict target is resolved by the
+database rather than through an ORM row query.
+
 ### Factories
 
 Declare trusted defaults on `factory_attributes`. Values may be constants or
