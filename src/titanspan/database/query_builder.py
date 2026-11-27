@@ -66,6 +66,7 @@ from sqlalchemy import (
     union_all as sql_union_all,
 )
 from sqlalchemy.dialects.mysql import insert as mysql_insert
+from sqlalchemy.dialects.mysql import match as mysql_match
 from sqlalchemy.dialects.postgresql import array as postgresql_array
 from sqlalchemy.dialects.postgresql import insert as postgresql_insert
 from sqlalchemy.dialects.sqlite import insert as sqlite_insert
@@ -1067,6 +1068,44 @@ class QueryBuilder(DatabaseQueryBuilder):
         """
         condition = self._column(column_name).like(pattern)
         return self._add_where(not_(condition), "or")
+
+    def where_full_text(
+        self,
+        columns: str | Sequence[str],
+        value: str,
+    ) -> QueryBuilder:
+        """Match full-text content using a supported dialect expression.
+
+        Args:
+            columns: One or more safe text column names.
+            value: Bound full-text search expression.
+
+        Returns:
+            This builder for further query composition.
+
+        Raises:
+            DatabaseQueryError: If the dialect or column selection is invalid.
+        """
+        return self._add_where(self._full_text_condition(columns, value), "and")
+
+    def or_where_full_text(
+        self,
+        columns: str | Sequence[str],
+        value: str,
+    ) -> QueryBuilder:
+        """Match full-text content and join the condition with SQL OR.
+
+        Args:
+            columns: One or more safe text column names.
+            value: Bound full-text search expression.
+
+        Returns:
+            This builder for further query composition.
+
+        Raises:
+            DatabaseQueryError: If the dialect or column selection is invalid.
+        """
+        return self._add_where(self._full_text_condition(columns, value), "or")
 
     def where_column(
         self,
@@ -4571,6 +4610,55 @@ class QueryBuilder(DatabaseQueryBuilder):
         if isinstance(values, DatabaseQueryBuilder):
             return values.to_statement()
         return values
+
+    def _full_text_condition(
+        self,
+        columns: str | Sequence[str],
+        value: str,
+    ) -> _Condition:
+        """Build a dialect-native full-text predicate with bound input.
+
+        Args:
+            columns: Safe column names participating in the search.
+            value: Search text passed as a bound parameter.
+
+        Returns:
+            A SQLAlchemy boolean expression.
+
+        Raises:
+            DatabaseQueryError: If the dialect or column selection is invalid.
+        """
+        names = (columns,) if isinstance(columns, str) else tuple(columns)
+        if not names:
+            msg = "Full-text search requires at least one column."
+            raise DatabaseQueryError(msg)
+        resolved = tuple(self._column(name) for name in names)
+        dialect = self._connection.dialect_name
+        if dialect in {"mysql", "mariadb"}:
+            return cast(
+                "_Condition",
+                mysql_match(
+                    *resolved,
+                    against=value,
+                    in_natural_language_mode=True,
+                ),
+            )
+        if dialect == "postgresql":
+            searchable = (
+                resolved[0]
+                if len(resolved) == 1
+                else func.concat_ws(" ", *resolved)
+            )
+            return searchable.match(value)
+        if dialect == "sqlite":
+            if len(resolved) != 1:
+                msg = (
+                    "SQLite full-text search accepts one column per predicate."
+                )
+                raise DatabaseQueryError(msg)
+            return resolved[0].match(value)
+        msg = f"Full-text search is unsupported for the {dialect} dialect."
+        raise DatabaseQueryError(msg)
 
     def _column(self, reference: str) -> ColumnElement[object]:
         """Resolve a safe column reference against known query tables.

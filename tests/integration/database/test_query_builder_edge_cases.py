@@ -694,6 +694,62 @@ async def test_json_path_predicates_bind_values_and_validate_paths(
             )
 
 
+async def test_full_text_queries_use_sqlite_fts(
+    application: Application,
+) -> None:
+    """Filter full-text records and compose their predicates with OR.
+
+    Args:
+        application: Application configured by this test.
+    """
+    async with application:
+        await DB.statement_async(
+            "CREATE VIRTUAL TABLE search_documents USING fts5(title, body)"
+        )
+        await DB.table("search_documents").insert_many_async(
+            [
+                {
+                    "title": "Guide",
+                    "body": "Titanspan powers intelligent applications",
+                },
+                {
+                    "title": "Python",
+                    "body": "Database query builders",
+                },
+                {
+                    "title": "Storage",
+                    "body": "Relational persistence",
+                },
+            ],
+        )
+
+        rows = await (
+            DB.table("search_documents")
+            .select("title")
+            .where_full_text("body", "intelligent")
+            .or_where_full_text("title", "python")
+            .order_by("title")
+            .get_async()
+        )
+
+        assert rows == [{"title": "Guide"}, {"title": "Python"}]
+        compiled = (
+            DB.table("search_documents")
+            .where_full_text("body", "intelligent")
+            .to_statement()
+            .compile()
+        )
+        assert "intelligent" in compiled.params.values()
+        assert "intelligent" not in str(compiled)
+        with pytest.raises(DatabaseQueryError, match="one column"):
+            DB.table("search_documents").where_full_text(
+                ("title", "body"),
+                "guide",
+            )
+        with pytest.raises(DatabaseQueryError, match="at least one column"):
+            DB.table("search_documents").where_full_text((), "guide")
+
+
 async def test_cursor_pagination_stabilizes_order_and_supports_reverse_pages(
     application: Application,
 ) -> None:

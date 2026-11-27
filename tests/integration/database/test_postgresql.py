@@ -694,6 +694,51 @@ async def test_postgresql_lateral_subquery_joins(
         await DB.statement_async("DROP TABLE postgres_lateral_users")
 
 
+async def test_postgresql_full_text_queries(
+    application: Application,
+) -> None:
+    """Search one or more columns through PostgreSQL text-search expressions.
+
+    Args:
+        application: Isolated PostgreSQL integration application.
+    """
+    async with application:
+        await DB.statement_async(
+            "CREATE TABLE postgres_full_text_docs ("
+            "id INTEGER PRIMARY KEY, title TEXT NOT NULL, body TEXT NOT NULL)"
+        )
+        await DB.table("postgres_full_text_docs").insert_many_async(
+            [
+                {
+                    "id": 1,
+                    "title": "Titanspan guide",
+                    "body": "Async intelligent systems",
+                },
+                {
+                    "id": 2,
+                    "title": "SQL patterns",
+                    "body": "Relational database design",
+                },
+                {
+                    "id": 3,
+                    "title": "Other guide",
+                    "body": "Search examples",
+                },
+            ],
+        )
+
+        rows = await (
+            DB.table("postgres_full_text_docs")
+            .select("id")
+            .where_full_text(("title", "body"), "titanspan async")
+            .or_where_full_text("body", "relational")
+            .order_by("id")
+            .get_async()
+        )
+        assert rows == [{"id": 1}, {"id": 2}]
+        await DB.statement_async("DROP TABLE postgres_full_text_docs")
+
+
 async def _insert_then_raise() -> None:
     """Roll a PostgreSQL insert back through the application transaction.
 

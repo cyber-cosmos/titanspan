@@ -773,6 +773,38 @@ class DatabaseQueryBuilder(Protocol):
         """
         ...
 
+    def where_full_text(
+        self,
+        columns: str | Sequence[str],
+        value: str,
+    ) -> Self:
+        """Match text using the selected database's full-text facility.
+
+        Args:
+            columns: Safe column names included in the full-text expression.
+            value: Bound full-text search expression.
+
+        Returns:
+            This builder for further query composition.
+        """
+        ...
+
+    def or_where_full_text(
+        self,
+        columns: str | Sequence[str],
+        value: str,
+    ) -> Self:
+        """Match full-text content and join the condition with SQL OR.
+
+        Args:
+            columns: Safe column names included in the full-text expression.
+            value: Bound full-text search expression.
+
+        Returns:
+            This builder for further query composition.
+        """
+        ...
+
     def order_by(
         self,
         column_name: str,
