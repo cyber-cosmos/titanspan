@@ -19,12 +19,14 @@ from datetime import UTC, datetime
 from typing import TYPE_CHECKING, NoReturn, Self, cast
 
 import anyio
-from sqlalchemy import and_, not_
+from sqlalchemy import and_, func, not_, select
 from sqlalchemy import inspect as sa_inspect
 from sqlalchemy.orm import (
+    MappedSQLExpression,
     load_only,
     raiseload,
     selectinload,
+    with_expression,
     with_loader_criteria,
 )
 from sqlalchemy.sql.elements import ColumnElement
@@ -124,6 +126,7 @@ class ModelQueryBuilder[ModelT]:
         self._apply_scope_conditions()
         self._eager_paths: list[str] = []
         self._eager_constraints: dict[str, ColumnElement[bool]] = {}
+        self._relationship_counts: dict[str, ColumnElement[int]] = {}
         self._prevent_lazy = False
         self._selected_columns: tuple[str, ...] = ()
 
@@ -831,6 +834,47 @@ class ModelQueryBuilder[ModelT]:
             self._eager_paths.append(path)
         return self
 
+    def with_count(
+        self,
+        relationship_name: str,
+        *,
+        attribute: str | None = None,
+    ) -> Self:
+        """Select a related-row count into a mapped query expression.
+
+        Declare the result attribute with SQLAlchemy ``query_expression()``
+        to keep the count typed without adding a database column.
+
+        Args:
+            relationship_name: Direct mapped relationship to count.
+            attribute: Result attribute, defaulting to
+                ``<relationship>_count``.
+
+        Returns:
+            This builder for further model query composition.
+
+        Raises:
+            DatabaseQueryError: If the relationship is invalid or nested.
+        """
+        self._validate_relationship_path(relationship_name)
+        if "." in relationship_name:
+            msg = "Relationship counts require a direct relationship name."
+            raise DatabaseQueryError(msg)
+        result_attribute = attribute or f"{relationship_name}_count"
+        expression_attribute = _mapper(self._model).attrs.get(
+            result_attribute,
+        )
+        if not isinstance(expression_attribute, MappedSQLExpression):
+            msg = (
+                "Relationship counts require a mapped query_expression "
+                f"attribute: {result_attribute}."
+            )
+            raise DatabaseQueryError(msg)
+        self._relationship_counts[result_attribute] = (
+            self._relationship_count_expression(relationship_name)
+        )
+        return self
+
     def with_where[RelatedT](
         self,
         path: str,
@@ -986,6 +1030,9 @@ class ModelQueryBuilder[ModelT]:
         cloned._eager_constraints = (  # noqa: SLF001
             self._eager_constraints.copy()
         )
+        cloned._relationship_counts = (  # noqa: SLF001
+            self._relationship_counts.copy()
+        )
         cloned._selected_columns = self._selected_columns  # noqa: SLF001
         cloned._global_scope_conditions = (  # noqa: SLF001
             self._global_scope_conditions.copy()
@@ -1029,10 +1076,65 @@ class ModelQueryBuilder[ModelT]:
             ]
             options.append(load_only(*selected))
         options.extend(self._loader_option(path) for path in self._eager_paths)
+        for name, expression in self._relationship_counts.items():
+            attribute = cast(
+                "QueryableAttribute[object]",
+                getattr(self._model, name),
+            )
+            options.append(with_expression(attribute, expression))
         if self._prevent_lazy:
             options.append(raiseload("*"))
         options.extend(_relationship_loader_criteria(self._model))
         return statement.options(*options)
+
+    def _relationship_count_expression(
+        self,
+        relationship_name: str,
+    ) -> ColumnElement[int]:
+        """Build a correlated SQLAlchemy count for one mapped relationship.
+
+        Args:
+            relationship_name: Direct relationship selected for counting.
+
+        Returns:
+            A scalar count scoped to related-model visibility predicates.
+
+        Raises:
+            DatabaseQueryError: If the mapped join cannot be counted safely.
+        """
+        parent_mapper = _mapper(self._model)
+        relationship = parent_mapper.relationships[relationship_name]
+        related_mapper = relationship.mapper
+        parent_table = parent_mapper.local_table
+        related_table = related_mapper.local_table
+        if related_table is parent_table:
+            msg = "Counts for self-referential relationships are unsupported."
+            raise DatabaseQueryError(msg)
+
+        statement = select(func.count())
+        if relationship.secondary is None:
+            statement = statement.select_from(related_table)
+        else:
+            secondary_join = relationship.secondaryjoin
+            if secondary_join is None:
+                msg = "The relationship has no secondary join expression."
+                raise DatabaseQueryError(msg)
+            statement = statement.select_from(
+                relationship.secondary.join(
+                    related_table,
+                    secondary_join,
+                ),
+            )
+        statement = statement.where(relationship.primaryjoin)
+        related_model = cast("type[object]", related_mapper.class_)
+        related_query = ModelQueryBuilder(related_model, self._service)
+        related_filter = related_query.to_statement().whereclause
+        if related_filter is not None:
+            statement = statement.where(related_filter)
+        return cast(
+            "ColumnElement[int]",
+            statement.correlate(parent_table).scalar_subquery(),
+        )
 
     def get(self) -> ModelCollection[ModelT]:
         """Execute the ORM query and detach its model results.

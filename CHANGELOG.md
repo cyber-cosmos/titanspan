@@ -102,6 +102,8 @@ public release.
   sync, async, and model upsert persistence.
 - Add read-only `has_one_through()` and `has_many_through()` declarations
   backed by SQLAlchemy secondary relationships with inferred or explicit joins.
+- Add direct `with_count()` relationship aggregates through declared SQLAlchemy
+  query expressions, including soft-delete and global model scopes.
 - Add dialect-aware right and full outer joins to the native Query Builder.
   Right joins use SQLAlchemy left-join expressions with the sides reversed.
   Full outer joins use backend support on PostgreSQL and SQLite 3.39 or later.

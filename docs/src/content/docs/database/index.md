@@ -672,6 +672,24 @@ The intermediate `User` table must reference `Country`, and `Post` must
 reference `User`. A one-through relation also requires data and constraints
 that make its single-result semantics valid.
 
+`belongs_to_many()` uses SQLAlchemy's instrumented collection for pivot
+changes. Eager-load an existing collection before changing it because
+detached async models do not perform implicit relationship I/O. Append or
+remove related models and save the parent; SQLAlchemy's Unit of Work writes the
+association rows:
+
+```python
+user.tags.append(tag)
+await user.save_async()
+
+user.tags.remove(tag)
+await user.save_async()
+```
+
+Explicit `attach()`, `detach()`, `sync()`, and pivot-attribute helpers are not
+provided. Declare association objects as mapped models when pivot rows need
+additional application behavior.
+
 Use `with_()` to load relationships as part of the query:
 
 ```python
@@ -704,6 +722,40 @@ async def users_with_titled_posts() -> ModelCollection[User]:
 The callback mutates and returns its related query builder. Nested relationship
 paths may be constrained with the same method.
 
+Load a direct relationship count through a typed SQLAlchemy query expression:
+
+```python
+from __future__ import annotations
+
+from sqlalchemy import ForeignKey
+from sqlalchemy.orm import Mapped, mapped_column, query_expression
+
+from titanspan.database import Model, has_many
+
+
+class Post(Model):
+    """Represent a post related to one user."""
+
+    table = "posts"
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"))
+
+
+class User(Model):
+    """Represent users with a selected post count."""
+
+    table = "users"
+    posts: Mapped[list[Post]] = has_many(Post)
+    posts_count: Mapped[int | None] = query_expression()
+
+
+users = await User.query().with_count("posts").get_async()
+```
+
+Pass `attribute="published_posts_count"` to `with_count()` to select into a
+different declared `query_expression()`. Relationship counts apply the related
+model's global and soft-delete scopes. Self-referential and nested counts are
+not supported yet.
+
 Stream large model results through a context that owns the Session and cursor:
 
 ```python
@@ -730,8 +782,9 @@ and mutators. A separate dynamic cast registry is not provided.
 model operations, safe conversion, and batch relationship loading. Ordinary
 collection behavior remains owned by `titanspan.collections`.
 
-Polymorphic relationships, one-of-many relationships, relationship persistence
-helpers, relationship aggregates, and API resources are not implemented yet.
+Polymorphic relationships, one-of-many relationships, relationship sum,
+average, minimum, maximum and existence aggregates, deferred aggregate loading,
+and API resources are not implemented yet.
 
 ## Schema and migrations
 
