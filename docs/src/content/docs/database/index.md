@@ -210,6 +210,8 @@ PostgreSQL, MySQL, MariaDB, and SQLite.
 `join_with()` accepts a typed callback for column comparisons, bound values,
 and nested ON-condition groups. A left join can retain parent rows while
 filtering joined rows inside its ON clause.
+`join_lateral()` and `left_join_lateral()` support correlated subqueries on
+PostgreSQL.
 `full_outer_join()` is available on PostgreSQL and SQLite 3.39 or later; MySQL
 and MariaDB do not support full outer joins. MySQL joins are not real
 integration-tested here. `select_sub()` and `add_select_sub()` add named scalar

@@ -1038,6 +1038,38 @@ class DatabaseQueryBuilder(Protocol):
         """
         ...
 
+    def join_lateral(
+        self,
+        query: DatabaseQueryBuilder,
+        alias: str,
+    ) -> Self:
+        """Inner-join a correlated subquery using PostgreSQL LATERAL.
+
+        Args:
+            query: Correlated builder whose projection becomes a lateral source.
+            alias: Safe alias exposed to selected expressions.
+
+        Returns:
+            This builder for further query composition.
+        """
+        ...
+
+    def left_join_lateral(
+        self,
+        query: DatabaseQueryBuilder,
+        alias: str,
+    ) -> Self:
+        """Left-join a correlated subquery using PostgreSQL LATERAL.
+
+        Args:
+            query: Correlated builder whose projection becomes a lateral source.
+            alias: Safe alias exposed to selected expressions.
+
+        Returns:
+            This builder for further query composition.
+        """
+        ...
+
     def cross_join(self, table_name: str) -> Self:
         """Join every row from the named table to every current row.
 

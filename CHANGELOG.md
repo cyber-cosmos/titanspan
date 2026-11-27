@@ -99,6 +99,7 @@ public release.
   while preserving left, right, and full join semantics.
 - Add correlated Query Builder subqueries that share validated SQLAlchemy
   table expressions for scalar projections and EXISTS predicates.
+- Add PostgreSQL inner and left LATERAL joins for correlated query builders.
 - Declare Pydantic as a direct runtime dependency for native schema APIs.
 - Add native application Cache services with memory and optional Redis
   backends, explicit backend capabilities, safe JSON serialization, atomic

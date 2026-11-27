@@ -501,6 +501,11 @@ async def test_outer_and_cross_joins_accept_subqueries(
             (None, "orphan"),
         }
         assert cross_count == _CROSS_JOIN_ROWS
+        with pytest.raises(DatabaseQueryError, match="only by PostgreSQL"):
+            DB.table("join_users").join_lateral(
+                posts,
+                "lateral_posts",
+            )
 
 
 async def test_join_clause_supports_bound_nested_on_conditions(

@@ -1527,6 +1527,76 @@ class QueryBuilder(DatabaseQueryBuilder):
         self._from = self._from.join(self._tables[alias], true())
         return self
 
+    def join_lateral(
+        self,
+        query: DatabaseQueryBuilder,
+        alias: str,
+    ) -> QueryBuilder:
+        """Inner-join a correlated subquery using PostgreSQL LATERAL.
+
+        Args:
+            query: Correlated builder whose statement becomes a lateral source.
+            alias: Safe unique alias exposed to selected expressions.
+
+        Returns:
+            This builder for further query composition.
+
+        Raises:
+            DatabaseQueryError: If the dialect or alias is unsupported.
+        """
+        return self._join_lateral(query, alias, outer=False)
+
+    def left_join_lateral(
+        self,
+        query: DatabaseQueryBuilder,
+        alias: str,
+    ) -> QueryBuilder:
+        """Left-join a correlated subquery using PostgreSQL LATERAL.
+
+        Args:
+            query: Correlated builder whose statement becomes a lateral source.
+            alias: Safe unique alias exposed to selected expressions.
+
+        Returns:
+            This builder for further query composition.
+
+        Raises:
+            DatabaseQueryError: If the dialect or alias is unsupported.
+        """
+        return self._join_lateral(query, alias, outer=True)
+
+    def _join_lateral(
+        self,
+        query: DatabaseQueryBuilder,
+        alias: str,
+        *,
+        outer: bool,
+    ) -> QueryBuilder:
+        """Attach one PostgreSQL lateral source with an always-true ON clause.
+
+        Args:
+            query: Correlated builder converted to a SQLAlchemy Lateral.
+            alias: Safe unique alias for the result columns.
+            outer: Whether unmatched outer rows remain visible.
+
+        Returns:
+            This builder for further query composition.
+
+        Raises:
+            DatabaseQueryError: If the dialect or alias is unsupported.
+        """
+        if self._connection.dialect_name != "postgresql":
+            msg = "Lateral joins are supported only by PostgreSQL."
+            raise DatabaseQueryError(msg)
+        parts = _identifier_parts(alias)
+        if len(parts) != 1 or alias in self._tables:
+            msg = "A lateral join requires a unique safe alias."
+            raise DatabaseQueryError(msg)
+        target = query.to_statement().lateral(alias)
+        self._tables[alias] = target
+        self._from = self._from.join(target, true(), isouter=outer)
+        return self
+
     def cross_join(self, table_name: str) -> QueryBuilder:
         """Join every row from another table to every current row.
 

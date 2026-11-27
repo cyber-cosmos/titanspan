@@ -628,6 +628,72 @@ async def test_postgresql_row_value_comparisons(
         await DB.statement_async("DROP TABLE postgres_tuple_rows")
 
 
+async def test_postgresql_lateral_subquery_joins(
+    application: Application,
+) -> None:
+    """Join correlated per-parent selections through PostgreSQL LATERAL.
+
+    Args:
+        application: Isolated PostgreSQL integration application.
+    """
+    async with application:
+        await DB.statement_async(
+            "CREATE TABLE postgres_lateral_users ("
+            "id INTEGER PRIMARY KEY, name TEXT NOT NULL)"
+        )
+        await DB.statement_async(
+            "CREATE TABLE postgres_lateral_posts ("
+            "id INTEGER PRIMARY KEY, user_id INTEGER, title TEXT NOT NULL)"
+        )
+        await DB.table("postgres_lateral_users").insert_many_async(
+            [
+                {"id": 1, "name": "Ada"},
+                {"id": 2, "name": "Grace"},
+            ],
+        )
+        await DB.table("postgres_lateral_posts").insert_many_async(
+            [
+                {"id": 1, "user_id": 1, "title": "older"},
+                {"id": 2, "user_id": 1, "title": "newer"},
+            ],
+        )
+
+        users = DB.table("postgres_lateral_users")
+        latest_post = (
+            users.subquery("postgres_lateral_posts")
+            .select("title")
+            .where_column(
+                "postgres_lateral_posts.user_id",
+                "=",
+                "postgres_lateral_users.id",
+            )
+            .order_by("postgres_lateral_posts.id", descending=True)
+            .limit(1)
+        )
+        inner_rows = await (
+            users.clone()
+            .join_lateral(latest_post, "latest_post")
+            .select("postgres_lateral_users.name", "latest_post.title")
+            .order_by("postgres_lateral_users.id")
+            .get_async()
+        )
+        left_rows = await (
+            users.clone()
+            .left_join_lateral(latest_post, "latest_post")
+            .select("postgres_lateral_users.name", "latest_post.title")
+            .order_by("postgres_lateral_users.id")
+            .get_async()
+        )
+
+        assert inner_rows == [{"name": "Ada", "title": "newer"}]
+        assert left_rows == [
+            {"name": "Ada", "title": "newer"},
+            {"name": "Grace", "title": None},
+        ]
+        await DB.statement_async("DROP TABLE postgres_lateral_posts")
+        await DB.statement_async("DROP TABLE postgres_lateral_users")
+
+
 async def _insert_then_raise() -> None:
     """Roll a PostgreSQL insert back through the application transaction.
 
