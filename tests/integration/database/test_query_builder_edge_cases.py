@@ -388,6 +388,77 @@ async def test_row_value_comparisons_bind_values_and_preserve_groups(
             )
 
 
+async def test_outer_and_cross_joins_accept_subqueries(
+    application: Application,
+) -> None:
+    """Join a selected subquery with right, full, and cross semantics.
+
+    Args:
+        application: Application configured by this test.
+    """
+    async with application:
+        await DB.statement_async(
+            "CREATE TABLE join_users ("
+            "id INTEGER PRIMARY KEY, name TEXT NOT NULL)"
+        )
+        await DB.statement_async(
+            "CREATE TABLE join_posts ("
+            "id INTEGER PRIMARY KEY, user_id INTEGER, title TEXT NOT NULL)"
+        )
+        await DB.table("join_users").insert_many_async(
+            [{"id": 1, "name": "Ada"}, {"id": 2, "name": "Grace"}],
+        )
+        await DB.table("join_posts").insert_many_async(
+            [
+                {"id": 1, "user_id": 1, "title": "matched"},
+                {"id": 2, "user_id": 3, "title": "orphan"},
+            ],
+        )
+        posts = DB.table("join_posts").select("user_id", "title")
+
+        right_rows = await (
+            DB.table("join_users")
+            .right_join_sub(
+                posts,
+                "posts",
+                "join_users.id",
+                "posts.user_id",
+            )
+            .select("join_users.name", "posts.title")
+            .get_async()
+        )
+        full_rows = await (
+            DB.table("join_users")
+            .full_outer_join_sub(
+                posts,
+                "posts",
+                "join_users.id",
+                "posts.user_id",
+            )
+            .select("join_users.name", "posts.title")
+            .get_async()
+        )
+        cross_count = await (
+            DB.table("join_users")
+            .cross_join_sub(
+                DB.table("join_posts").select("title"),
+                "post_titles",
+            )
+            .count_async()
+        )
+
+        assert {(row["name"], row["title"]) for row in right_rows} == {
+            ("Ada", "matched"),
+            (None, "orphan"),
+        }
+        assert {(row["name"], row["title"]) for row in full_rows} == {
+            ("Ada", "matched"),
+            ("Grace", None),
+            (None, "orphan"),
+        }
+        assert cross_count == _CROSS_JOIN_ROWS
+
+
 async def test_date_and_time_predicates_use_database_expressions(
     application: Application,
 ) -> None:

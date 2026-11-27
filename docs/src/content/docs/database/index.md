@@ -203,8 +203,10 @@ operations explicitly.
 Retrieval methods include `get`, `first`, `first_or_fail`, `sole`, `find`,
 `find_many`, `value`, `sole_value`, `pluck`, `count`, `sum`, `avg`, `min`,
 `max`, and `exists`. Inner and left subquery joins are available through
-`join_sub()` and `left_join_sub()`. `right_join()` reverses the join sides and
-uses a left outer join on PostgreSQL, MySQL, MariaDB, and SQLite.
+`join_sub()`, `left_join_sub()`, `right_join_sub()`,
+`full_outer_join_sub()`, and `cross_join_sub()` compose fluent subqueries.
+`right_join()` reverses the join sides and uses a left outer join on
+PostgreSQL, MySQL, MariaDB, and SQLite.
 `full_outer_join()` is available on PostgreSQL and SQLite 3.39 or later; MySQL
 and MariaDB do not support full outer joins. MySQL joins are not real
 integration-tested here. `select_sub()` and `add_select_sub()` add named scalar

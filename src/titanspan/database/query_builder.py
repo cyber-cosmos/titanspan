@@ -1327,7 +1327,7 @@ class QueryBuilder(DatabaseQueryBuilder):
             left,
             operator_or_right,
             right,
-            outer=False,
+            join_type="inner",
         )
 
     def left_join_sub(
@@ -1356,8 +1356,103 @@ class QueryBuilder(DatabaseQueryBuilder):
             left,
             operator_or_right,
             right,
-            outer=True,
+            join_type="left",
         )
+
+    def right_join_sub(
+        self,
+        query: DatabaseQueryBuilder,
+        alias: str,
+        left: str,
+        operator_or_right: str,
+        right: str | object = _MISSING,
+    ) -> QueryBuilder:
+        """Right-join a fluent subquery using a safe unique alias.
+
+        Args:
+            query: Query whose statement becomes a SQL subquery.
+            alias: Safe unique alias exposed to selected expressions.
+            left: Safe left column reference.
+            operator_or_right: Right column or comparison operator.
+            right: Right column when an operator is supplied.
+
+        Returns:
+            This builder for further query composition.
+
+        Raises:
+            DatabaseQueryError: If the dialect or alias is unsupported.
+        """
+        if self._connection.dialect_name not in {
+            "mysql",
+            "postgresql",
+            "sqlite",
+        }:
+            msg = "Right outer joins are unsupported by this dialect."
+            raise DatabaseQueryError(msg)
+        return self._join_sub(
+            query,
+            alias,
+            left,
+            operator_or_right,
+            right,
+            join_type="right",
+        )
+
+    def full_outer_join_sub(
+        self,
+        query: DatabaseQueryBuilder,
+        alias: str,
+        left: str,
+        operator_or_right: str,
+        right: str | object = _MISSING,
+    ) -> QueryBuilder:
+        """Full-outer-join a fluent subquery where supported.
+
+        Args:
+            query: Query whose statement becomes a SQL subquery.
+            alias: Safe unique alias exposed to selected expressions.
+            left: Safe left column reference.
+            operator_or_right: Right column or comparison operator.
+            right: Right column when an operator is supplied.
+
+        Returns:
+            This builder for further query composition.
+
+        Raises:
+            DatabaseQueryError: If the dialect or alias is unsupported.
+        """
+        if self._connection.dialect_name not in {"postgresql", "sqlite"}:
+            msg = "Full outer joins are unsupported by this dialect."
+            raise DatabaseQueryError(msg)
+        return self._join_sub(
+            query,
+            alias,
+            left,
+            operator_or_right,
+            right,
+            join_type="full",
+        )
+
+    def cross_join_sub(
+        self,
+        query: DatabaseQueryBuilder,
+        alias: str,
+    ) -> QueryBuilder:
+        """Cross-join a fluent subquery using a safe unique alias.
+
+        Args:
+            query: Query whose statement becomes a SQL subquery.
+            alias: Safe alias exposed to selected expressions.
+
+        Returns:
+            This builder for further query composition.
+
+        Raises:
+            DatabaseQueryError: If the alias is invalid or already in use.
+        """
+        self._add_subquery(alias, query)
+        self._from = self._from.join(self._tables[alias], true())
+        return self
 
     def cross_join(self, table_name: str) -> QueryBuilder:
         """Join every row from another table to every current row.
@@ -4170,7 +4265,7 @@ class QueryBuilder(DatabaseQueryBuilder):
         operator_or_right: str,
         right: str | object,
         *,
-        outer: bool,
+        join_type: _JoinType,
     ) -> QueryBuilder:
         """Join a safely named SQLAlchemy subquery expression.
 
@@ -4180,10 +4275,49 @@ class QueryBuilder(DatabaseQueryBuilder):
             left: Validated left column reference.
             operator_or_right: Right column or comparison operator.
             right: Optional right column when an operator is supplied.
-            outer: Whether unmatched left-side rows remain visible.
+            join_type: Supported inner, left, right, or full join behavior.
 
         Returns:
             This builder with the subquery join appended.
+
+        Raises:
+            DatabaseQueryError: If the alias is invalid or already in use.
+        """
+        self._add_subquery(alias, query)
+        target = self._tables[alias]
+        operator, right_name = _join_arguments(operator_or_right, right)
+        condition = self._compare(
+            self._column(left),
+            operator,
+            self._column(right_name),
+        )
+        if join_type == "right":
+            self._from = target.join(self._from, condition, isouter=True)
+        elif join_type == "full":
+            self._from = self._from.join(
+                target,
+                condition,
+                isouter=True,
+                full=True,
+            )
+        else:
+            self._from = self._from.join(
+                target,
+                condition,
+                isouter=join_type == "left",
+            )
+        return self
+
+    def _add_subquery(
+        self,
+        alias: str,
+        query: DatabaseQueryBuilder,
+    ) -> None:
+        """Register one validated subquery alias exactly once.
+
+        Args:
+            alias: Safe unique name for the local FROM clause.
+            query: Builder that produces the subquery statement.
 
         Raises:
             DatabaseQueryError: If the alias is invalid or already in use.
@@ -4192,16 +4326,7 @@ class QueryBuilder(DatabaseQueryBuilder):
         if len(parts) != 1 or alias in self._tables:
             msg = "A subquery join requires a unique safe alias."
             raise DatabaseQueryError(msg)
-        target = query.to_statement().subquery(alias)
-        self._tables[alias] = target
-        operator, right_name = _join_arguments(operator_or_right, right)
-        condition = self._compare(
-            self._column(left),
-            operator,
-            self._column(right_name),
-        )
-        self._from = self._from.join(target, condition, isouter=outer)
-        return self
+        self._tables[alias] = query.to_statement().subquery(alias)
 
     def _validate_value_columns(
         self,
@@ -4386,8 +4511,7 @@ class QueryBuilder(DatabaseQueryBuilder):
             or len(column_names) != len(values)
         ):
             msg = (
-                "Row comparison requires the same number of columns "
-                "and values."
+                "Row comparison requires the same number of columns and values."
             )
             raise DatabaseQueryError(msg)
         left = cast(

@@ -857,6 +857,66 @@ class DatabaseQueryBuilder(Protocol):
         """
         ...
 
+    def right_join_sub(
+        self,
+        query: DatabaseQueryBuilder,
+        alias: str,
+        left: str,
+        operator_or_right: str,
+        right: str | object = ...,
+    ) -> Self:
+        """Right-join a query using a safe local alias.
+
+        Args:
+            query: Builder whose projection becomes a subquery.
+            alias: Safe alias exposed to selected expressions.
+            left: Left column reference.
+            operator_or_right: Right column or comparison operator.
+            right: Right column when an operator is supplied.
+
+        Returns:
+            This builder for further query composition.
+        """
+        ...
+
+    def full_outer_join_sub(
+        self,
+        query: DatabaseQueryBuilder,
+        alias: str,
+        left: str,
+        operator_or_right: str,
+        right: str | object = ...,
+    ) -> Self:
+        """Full-outer-join a query using a safe local alias.
+
+        Args:
+            query: Builder whose projection becomes a subquery.
+            alias: Safe alias exposed to selected expressions.
+            left: Left column reference.
+            operator_or_right: Right column or comparison operator.
+            right: Right column when an operator is supplied.
+
+        Returns:
+            This builder for further query composition.
+        """
+        ...
+
+    def cross_join_sub(
+        self,
+        query: DatabaseQueryBuilder,
+        alias: str,
+    ) -> Self:
+        """Cross-join a query using a safe local alias.
+
+        Args:
+            query: Builder whose projection becomes a subquery.
+            alias: Safe alias exposed to selected expressions.
+
+        Returns:
+            This builder for further query composition.
+        """
+        ...
+
     def cross_join(self, table_name: str) -> Self:
         """Join every row from the named table to every current row.
 

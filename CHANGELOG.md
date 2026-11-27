@@ -93,6 +93,8 @@ public release.
   update multiple numeric columns atomically in one statement.
 - Add bound `where_row_values()` and `or_where_row_values()` comparisons using
   SQLAlchemy tuple expressions on SQLite, PostgreSQL, and MySQL dialects.
+- Add right, full outer, and cross joins for fluent subqueries through SQLAlchemy
+  Core, with the same dialect limits as their table join counterparts.
 - Declare Pydantic as a direct runtime dependency for native schema APIs.
 - Add native application Cache services with memory and optional Redis
   backends, explicit backend capabilities, safe JSON serialization, atomic
