@@ -1,7 +1,7 @@
 import { defineConfig } from "@playwright/test";
 
 const testPort = process.env.TITANSPAN_DOCS_TEST_PORT ?? "4321";
-const baseURL = `http://127.0.0.1:${testPort}/titanspan/`;
+const baseURL = `http://127.0.0.1:${testPort}/framework/`;
 
 export default defineConfig({
   testDir: "./tests/e2e",

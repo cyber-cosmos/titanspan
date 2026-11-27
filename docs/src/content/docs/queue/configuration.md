@@ -99,7 +99,7 @@ Redis Streams supports two recovery settings:
 | `unacknowledged_lock_timeout_seconds` | `900` | Expiration for Taskiq's Redis lock around pending-message claims. |
 
 Taskiq checks for pending messages after it reads fresh messages. An idle
-queue does not trigger recovery by itself. See [Delivery guarantees](/titanspan/queue/delivery/).
+queue does not trigger recovery by itself. See [Delivery guarantees](/framework/queue/delivery/).
 
 ## Optional backend packages
 
@@ -126,4 +126,4 @@ names; broker messages cannot import arbitrary Python classes.
 
 The default provider registers Queue services without discovering arbitrary
 application modules. Use explicit provider registration or trusted installed
-provider discovery. See [Jobs](/titanspan/queue/jobs/).
+provider discovery. See [Jobs](/framework/queue/jobs/).

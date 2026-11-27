@@ -5,7 +5,7 @@ import { documentationSidebar } from "./navigation.mjs";
 
 export default defineConfig({
   site: "https://titanspan.github.io",
-  base: "/titanspan",
+  base: "/framework",
   output: "static",
   trailingSlash: "ignore",
   build: {
@@ -20,13 +20,13 @@ export default defineConfig({
         src: "../assets/logo.png",
         alt: "Titanspan",
       },
-      favicon: "/titanspan-mark.png",
+      favicon: "/framework/titanspan-mark.png",
       tableOfContents: {
         minHeadingLevel: 2,
         maxHeadingLevel: 3,
       },
       editLink: {
-        baseUrl: "https://github.com/titanspan/titanspan/edit/main/docs/",
+        baseUrl: "https://github.com/titanspan/framework/edit/main/docs/",
       },
       sidebar: documentationSidebar,
       customCss: ["./src/styles/titanspan-brand.css"],
@@ -34,7 +34,7 @@ export default defineConfig({
         {
           icon: "github",
           label: "GitHub",
-          href: "https://github.com/titanspan/titanspan",
+          href: "https://github.com/titanspan/framework",
         },
       ],
       pagefind: true,

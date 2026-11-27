@@ -23,7 +23,7 @@ names = (
 ## Installation
 
 Collections is included in Titanspan and adds no runtime dependencies. Use
-the [installation guide](/titanspan/getting-started/installation) to set up a checkout
+the [installation guide](/framework/getting-started/installation) to set up a checkout
 with the locked project dependencies.
 
 ## Choose a collection
@@ -38,13 +38,13 @@ scripts, tests, and application code without starting framework services.
 
 ## Guides
 
-- [Eager collections](/titanspan/collections/eager/): sequence behavior, transformations, and
+- [Eager collections](/framework/collections/eager/): sequence behavior, transformations, and
   selection.
-- [Grouping and aggregation](/titanspan/collections/operations/): ordering, native mappings,
+- [Grouping and aggregation](/framework/collections/operations/): ordering, native mappings,
   callbacks, errors, and typing.
-- [Lazy collections](/titanspan/collections/lazy/): iterator ownership, bounded processing, and
+- [Lazy collections](/framework/collections/lazy/): iterator ownership, bounded processing, and
   materialization.
-- [Behavioral specification](/titanspan/specifications/collections): complete public
+- [Behavioral specification](/framework/specifications/collections): complete public
   semantics and implementation limits.
 
 Benchmarks compare representative pipelines with standard-library

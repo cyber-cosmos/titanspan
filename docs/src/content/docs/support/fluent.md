@@ -47,5 +47,5 @@ names = collect([user]).map(lambda item: item.get("name"))
 assert names.all() == ["Ada"]
 ```
 
-See the [Support specification](/titanspan/specifications/support/) for current
+See the [Support specification](/framework/specifications/support/) for current
 boundaries.

@@ -4,7 +4,7 @@
 
 Use GitHub's private vulnerability reporting for this repository:
 
-<https://github.com/titanspan/titanspan/security/advisories/new>
+<https://github.com/titanspan/framework/security/advisories/new>
 
 Do not report an unpatched vulnerability in a public issue or discussion.
 Include the affected commit or version, impact, reproduction steps, and any

@@ -39,4 +39,4 @@ async with application:
 
 The route catalog freezes and installs when the ASGI lifespan starts. Direct
 FastAPI integration remains available through `application.asgi`, but this
-example does not require it. See the [Routing guide](/titanspan/routing/).
+example does not require it. See the [Routing guide](/framework/routing/).

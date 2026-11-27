@@ -100,4 +100,4 @@ results = await Http.pool(max_concurrency=4).run(
 
 For testing, `Http.fake` provides context-local HTTPX2 mock transports,
 recorded requests, and send assertions. See the
-[HTTP testing guide](/titanspan/http/testing/).
+[HTTP testing guide](/framework/http/testing/).

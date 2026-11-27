@@ -168,7 +168,7 @@ but callers should avoid logging `value()` when it may contain secrets.
   the application-owned `ResponseFactory`.
 - URI parsing does not validate an address for SSRF or open redirect safety.
 
-See the [Support specification](/titanspan/specifications/support/) for component
+See the [Support specification](/framework/specifications/support/) for component
 ownership and test evidence.
 
 ## Tests

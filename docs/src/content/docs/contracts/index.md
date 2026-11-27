@@ -30,7 +30,7 @@ The package currently exports:
   logger customization, plus the shared `DeliveryStatus` enum.
 
 Contracts for unimplemented Database, AI, workflow, and other components
-remain pending. The [native Contracts specification](/titanspan/specifications/contracts/)
+remain pending. The [native Contracts specification](/framework/specifications/contracts/)
 records established boundaries and deferred work.
 
 These interfaces describe substitution points. Defining a protocol does not
@@ -73,7 +73,7 @@ external framework's API.
 
 ## Guides
 
-- [Dependency injection](/titanspan/contracts/dependency-injection/)
-- [Implementing contracts](/titanspan/contracts/implementing-contracts/)
-- [Testing contracts](/titanspan/contracts/testing/)
-- [Native Contracts specification](/titanspan/specifications/contracts)
+- [Dependency injection](/framework/contracts/dependency-injection/)
+- [Implementing contracts](/framework/contracts/implementing-contracts/)
+- [Testing contracts](/framework/contracts/testing/)
+- [Native Contracts specification](/framework/specifications/contracts)

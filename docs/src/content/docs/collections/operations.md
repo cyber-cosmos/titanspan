@@ -121,4 +121,4 @@ cannot be compared. Callbacks are never caught or rewritten.
 
 Collections follow Python iteration and equality conventions. They do not
 coerce values or silently replace false-like values with defaults. See the
-[behavioral specification](/titanspan/specifications/collections) for full details.
+[behavioral specification](/framework/specifications/collections) for full details.

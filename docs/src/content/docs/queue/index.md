@@ -47,7 +47,7 @@ class ProcessDocument(Job):
 ```
 
 Register trusted job classes with `QueueServiceProvider` before startup. See
-[Jobs](/titanspan/queue/jobs/) for payload and handler rules.
+[Jobs](/framework/queue/jobs/) for payload and handler rules.
 
 ## Dispatch a job
 
@@ -69,7 +69,7 @@ async def submit(document_id: int) -> None:
 
 `Queue.dispatch()` builds a single-use pending operation. It does not publish
 when the builder is created or discarded. See
-[Dispatching](/titanspan/queue/dispatching/) for synchronous execution,
+[Dispatching](/framework/queue/dispatching/) for synchronous execution,
 delays, and application scope rules.
 
 ## Choose a connection
@@ -77,22 +77,22 @@ delays, and application scope rules.
 The `sync` connection runs jobs inline. The `null` connection records a
 discarded receipt. Redis Streams uses the optional `queue-redis` extra. The
 RabbitMQ adapter uses the optional `queue-rabbitmq` extra. See
-[Configuration](/titanspan/queue/configuration/) and
-[Delivery guarantees](/titanspan/queue/delivery/).
+[Configuration](/framework/queue/configuration/) and
+[Delivery guarantees](/framework/queue/delivery/).
 
 ## Queue guides
 
-- [Configuration](/titanspan/queue/configuration/): connections, namespaces,
+- [Configuration](/framework/queue/configuration/): connections, namespaces,
   queues, and worker limits.
-- [Jobs](/titanspan/queue/jobs/): declarations, payloads, attempts, and scope.
-- [Dispatching](/titanspan/queue/dispatching/): explicit publication and
+- [Jobs](/framework/queue/jobs/): declarations, payloads, attempts, and scope.
+- [Dispatching](/framework/queue/dispatching/): explicit publication and
   synchronous execution boundaries.
-- [Workers](/titanspan/queue/workers/): Taskiq worker startup and cleanup.
-- [Middleware](/titanspan/queue/middleware/): typed sync and async middleware.
-- [Chains and batches](/titanspan/queue/chains-batches/): ordered continuation
+- [Workers](/framework/queue/workers/): Taskiq worker startup and cleanup.
+- [Middleware](/framework/queue/middleware/): typed sync and async middleware.
+- [Chains and batches](/framework/queue/chains-batches/): ordered continuation
   and application-local batch status.
-- [Testing](/titanspan/queue/testing/): application fakes and assertions.
-- [Console commands](/titanspan/queue/commands/): available worker and
+- [Testing](/framework/queue/testing/): application fakes and assertions.
+- [Console commands](/framework/queue/commands/): available worker and
   generation commands.
-- [Queue specification](/titanspan/specifications/queue/): verified behavior
+- [Queue specification](/framework/specifications/queue/): verified behavior
   and current limitations.

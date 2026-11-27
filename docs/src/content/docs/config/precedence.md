@@ -33,4 +33,4 @@ A valid cache is a snapshot of already composed configuration. By default,
 `load()` reads that snapshot instead of current files and environment sources.
 Explicit `Settings` and `overrides` passed to the manager still apply above a
 cached snapshot. Fresh `validate()` and `config:show` load current sources.
-See [caching](/titanspan/config/caching/) for invalidation details.
+See [caching](/framework/config/caching/) for invalidation details.

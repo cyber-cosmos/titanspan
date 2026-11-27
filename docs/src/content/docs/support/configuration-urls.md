@@ -108,5 +108,5 @@ discarded unless the DSN explicitly requests read-only access.
 - Host names follow `urllib.parse` normalization, including lowercasing.
 - Bracketed query values are represented by Python mappings and lists.
 
-See the [Support specification](/titanspan/specifications/support) for component
+See the [Support specification](/framework/specifications/support) for component
 ownership and verification boundaries.

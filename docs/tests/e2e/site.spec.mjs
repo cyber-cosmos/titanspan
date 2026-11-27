@@ -117,10 +117,10 @@ test("mobile navigation, nested sidebar, keyboard use, and search work", async (
 
   await page.goto("./container/scopes#execution-scopes", { waitUntil: "domcontentloaded" });
   await expect(page.locator("#execution-scopes")).toHaveCount(1);
-  expect(new URL(page.url()).pathname).toBe("/titanspan/container/scopes");
+  expect(new URL(page.url()).pathname).toBe("/framework/container/scopes");
   await expect(page.getByRole("link", { name: "Edit page" })).toHaveAttribute(
     "href",
-    "https://github.com/titanspan/titanspan/edit/main/docs/src/content/docs/container/scopes.md",
+    "https://github.com/titanspan/framework/edit/main/docs/src/content/docs/container/scopes.md",
   );
 });
 
@@ -146,7 +146,7 @@ test("all rendered documentation links and anchors resolve", async ({ page }) =>
   const routes = await collectRenderedRoutes(path.join(process.cwd(), "dist"));
   const internalTargets = new Map();
   const testPort = process.env.TITANSPAN_DOCS_TEST_PORT ?? "4321";
-  const base = new URL(`http://127.0.0.1:${testPort}/titanspan/`);
+  const base = new URL(`http://127.0.0.1:${testPort}/framework/`);
 
   for (const route of routes) {
     await page.goto(route, { waitUntil: "domcontentloaded" });
@@ -232,8 +232,8 @@ async function expectAssetsUseBasePath(page) {
         .filter(
           (value) =>
             value?.startsWith("/") &&
-            value !== "/titanspan" &&
-            !value.startsWith("/titanspan/"),
+            value !== "/framework" &&
+            !value.startsWith("/framework/"),
         ),
     );
   });
@@ -251,7 +251,7 @@ async function collectRenderedRoutes(directory, relative = "") {
       routes.push(...(await collectRenderedRoutes(directory, child)));
     } else if (entry.isFile() && entry.name === "index.html") {
       const suffix = relative ? `${relative.split(path.sep).join("/")}/` : "";
-      routes.push(`/titanspan/${suffix}`);
+      routes.push(`/framework/${suffix}`);
     }
   }
   return routes;

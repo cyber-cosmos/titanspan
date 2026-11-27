@@ -38,7 +38,7 @@ class NodeContext:
 Resolution must occur while the declared scope is active. The selected scope
 maps to the dependency engine's supported ordered lifecycle levels. Scope
 names at the same level are equivalent and cannot be nested within one
-another. See [execution scopes](/titanspan/container/scopes/) for the current mapping.
+another. See [execution scopes](/framework/container/scopes/) for the current mapping.
 
 Explicit container registrations override class declarations. This keeps a
 class's preferred default separable from test, application, or integration

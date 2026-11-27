@@ -198,11 +198,11 @@ execution, Windows, multiprocess pools, AI agents, or nested workflow scopes.
 
 **Affected components:** Events, dependency architecture.
 
-**Evidence:** `src/titanspan/events/dispatcher.py:237` creates one
+**Evidence:** `src/framework/events/dispatcher.py:237` creates one
 `OrderedSignal`. `dispatcher.py:275` connects every registration to that
 signal. `dispatcher.py:918-931` reads all receivers, then Titanspan matches
 selectors and orders listeners. The component does not call Blinker
-`Signal.send()` or `Signal.send_async()`. `src/titanspan/events/_backends/blinker.py`
+`Signal.send()` or `Signal.send_async()`. `src/framework/events/_backends/blinker.py`
 adds an ordered receiver set to retain registration order.
 
 **Consequence:** Titanspan owns listener selection, ordering, injection,
@@ -247,9 +247,9 @@ Scoped gates use the owning execution scope, so unrelated requests remain
 concurrent. An in-flight nested lookup through another graph fails with a
 native error instead of creating a second instance.
 
-**Implementation:** `src/titanspan/container/container.py:2123-2156`
-coordinates asynchronous roots; `src/titanspan/container/container.py:2335-2389`
-bridges worker calls; and `src/titanspan/container/container.py:2819-2915`
+**Implementation:** `src/framework/container/container.py:2123-2156`
+coordinates asynchronous roots; `src/framework/container/container.py:2335-2389`
+bridges worker calls; and `src/framework/container/container.py:2819-2915`
 primes application-owned singleton dependencies. These paths use the gates
 and cache owned by one Container.
 
@@ -273,16 +273,16 @@ request level. The regression suite verifies the required one-owner behavior.
 
 **Evidence:** URI factories resolved `UriUrlGenerator`, but Routing helpers
 and named redirects requested the concrete `UrlGenerator`. The old access
-paths were in `src/titanspan/routing/helpers.py:155-159` and `:206-210`.
+paths were in `src/framework/routing/helpers.py:155-159` and `:206-210`.
 
 **Reproduction:** Override `UriUrlGenerator` with an alternate implementation.
 Before correction, URI factories used the replacement while route helpers and
 redirects resolved the concrete service.
 
 **Correction:** Route helpers and `Redirector` now resolve the canonical
-contract at `src/titanspan/routing/helpers.py:155-159` and `:206-210`. The
+contract at `src/framework/routing/helpers.py:155-159` and `:206-210`. The
 provider registers one generator under both keys at
-`src/titanspan/routing/service_provider.py:61-70`.
+`src/framework/routing/service_provider.py:61-70`.
 
 **Verification:** `tests/integration/routing/test_uri_integration.py` checks
 contract substitution across `Uri`, path helpers, action helpers, redirects,
@@ -297,8 +297,8 @@ pre-release behavior change.
 **Affected components:** Support URI factories, Routing helpers.
 
 **Evidence:** `Uri.route()` and `Uri.action()` defaulted to absolute URLs at
-`src/titanspan/support/uri.py:479-484` and `:558-563`; `route()` returned a
-relative URL at `src/titanspan/routing/helpers.py:91-95`.
+`src/framework/support/uri.py:479-484` and `:558-563`; `route()` returned a
+relative URL at `src/framework/routing/helpers.py:91-95`.
 
 **Correction:** All named-route factories now return relative URLs by default.
 Callers pass `absolute=True` to include the configured origin. `CHANGELOG.md`,
@@ -318,7 +318,7 @@ spaces as `+` in its local `_encode_query()` helper. Support encoded nested
 values with bracket indexes and RFC 3986 percent encoding.
 
 **Correction:** URL generation delegates remaining values to `Arr.query` at
-`src/titanspan/routing/url_generator.py:256-257`.
+`src/framework/routing/url_generator.py:256-257`.
 
 **Verification:** Unit and integration tests assert matching nested-array and
 space encoding.
@@ -334,7 +334,7 @@ skipped the backend reverser for typed converters. The first correction then
 rejected `1e20`, although Starlette 1.10.0 accepts it and emits a matching
 decimal path. A focused regression reproduced that edge case.
 
-**Correction:** `src/titanspan/routing/url_generator.py:217-260` validates
+**Correction:** `src/framework/routing/url_generator.py:217-260` validates
 constraints and delegates compiled reversal. Lines 449-535 normalize the
 supported built-in converters. Unsupported custom converters fail explicitly.
 
@@ -351,7 +351,7 @@ this change.
 **Affected components:** Events, Container, application context.
 
 **Evidence:** A class subscriber created in one request scope returned a
-method name. `src/titanspan/events/dispatcher.py:579-613` stored
+method name. `src/framework/events/dispatcher.py:579-613` stored
 `ListenerReference(instance, method)` in its application-owned registry. A
 later request invoked the first instance and received its dependency token.
 
@@ -359,7 +359,7 @@ later request invoked the first instance and received its dependency token.
 registers a class in one request and dispatches in a second. Before correction,
 the second dispatch returned the first scope's token.
 
-**Correction:** `src/titanspan/events/dispatcher.py:486-544` retains class
+**Correction:** `src/framework/events/dispatcher.py:486-544` retains class
 and method metadata for class-based subscribers. The Container resolves each
 handler in the dispatch scope. An explicit instance remains registration-
 owned and must have application lifetime.
@@ -556,7 +556,7 @@ returned backend-generated messages and locations. Custom validators can put
 rejected values in messages. Typed mapping keys can also contain secrets.
 Foundation did not register a dedicated FastAPI request-validation response.
 
-**Correction:** `src/titanspan/validation/validator.py` maps known codes to
+**Correction:** `src/framework/validation/validator.py` maps known codes to
 fixed messages, uses a generic message for unknown codes, and retains only
 declared schema fields in locations. Untrusted dynamic keys become
 `"<key>"`. Foundation renders `RequestValidationError` with a generic 422
@@ -863,9 +863,9 @@ exists.
 
 **Affected components:** Container, Foundation, future Workflows and Agents.
 
-**Evidence:** `src/titanspan/contracts/container/scope.py:13-16` documents
+**Evidence:** `src/framework/contracts/container/scope.py:13-16` documents
 the shared levels. The Container maps request, connection, job, and workflow
-to one level. `src/titanspan/container/container.py:4161-4172` assigns these
+to one level. `src/framework/container/container.py:4161-4172` assigns these
 levels. `tests/unit/container/test_container.py:460-463` verifies that
 workflow and request scopes cannot nest.
 
@@ -889,10 +889,10 @@ the supported restrictions.
 
 **Affected components:** Container, future Workflows and Agents.
 
-**Evidence:** `src/titanspan/contracts/container/scope.py:13-16` maps node and
+**Evidence:** `src/framework/contracts/container/scope.py:13-16` maps node and
 agent scopes to the same backend level. The Container rejects nested scopes
 that do not advance that hierarchy at
-`src/titanspan/container/container.py:4161-4172`.
+`src/framework/container/container.py:4161-4172`.
 `tests/unit/container/test_container.py:464-468` and `489-492` verify both
 node-agent nesting orders. Lines 480-484 verify the tool-task conflict.
 
@@ -914,7 +914,7 @@ public documentation states the supported restrictions.
 
 **Affected components:** Config, public API.
 
-**Evidence:** `src/titanspan/config/settings.py:10-18` imports the private
+**Evidence:** `src/framework/config/settings.py:10-18` imports the private
 backend and subclasses it. The private backend is Pydantic Settings, so its
 inherited public methods remain visible on `config.Settings` instances.
 `docs/specifications/backend-boundaries.md` records this limit.
@@ -937,9 +937,9 @@ all existing source-precedence tests pass.
 
 **Affected components:** Support.
 
-**Evidence:** `src/titanspan/support/str.py:1031-1041` returns `len(value)`;
-`src/titanspan/support/str.py:1075-1085` returns `value.lower()`; and
-`src/titanspan/support/str.py:1560-1570` returns `value.upper()`.
+**Evidence:** `src/framework/support/str.py:1031-1041` returns `len(value)`;
+`src/framework/support/str.py:1075-1085` returns `value.lower()`; and
+`src/framework/support/str.py:1560-1570` returns `value.upper()`.
 
 **Consequence:** These methods add names and documentation without adding
 behavior. Their maintenance cost is small, but they encourage custom wrappers

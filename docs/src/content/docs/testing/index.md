@@ -53,7 +53,7 @@ middleware, and `replacements`. Replacements register in the test application's
 canonical Container before graph composition. They cannot change another
 Application. Component fakes remain owned by their components.
 
-See the [application testing specification](/titanspan/specifications/testing/)
+See the [application testing specification](/framework/specifications/testing/)
 for lifecycle and substitution behavior.
 
 ## Repository checks
@@ -61,7 +61,7 @@ for lifecycle and substitution behavior.
 The repository uses Pytest, Ruff, strict Pyright, and independent minimums of
 95 percent statement coverage and 90 percent branch coverage. Tests include
 real integration boundaries and require no paid infrastructure or live model
-APIs. See the [engineering standards](/titanspan/development/standards/) for
+APIs. See the [engineering standards](/framework/development/standards/) for
 TDD, docstrings, typing, and quality checks.
 
 From a checkout, run:

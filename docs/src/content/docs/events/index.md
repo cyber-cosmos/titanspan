@@ -31,7 +31,7 @@ class DocumentProcessed:
 ```
 
 The optional `Dispatchable` mixin adds class-based convenience methods. See
-[Dispatching](/titanspan/events/dispatching/).
+[Dispatching](/framework/events/dispatching/).
 
 ## Register and dispatch
 
@@ -45,7 +45,7 @@ responses = Event.dispatch(DocumentProcessed("doc-1", "run-1"))
 ```
 
 The facade resolves the same dispatcher as constructor injection and the
-`event()` helpers. See [Listeners and discovery](/titanspan/events/listeners/)
+`event()` helpers. See [Listeners and discovery](/framework/events/listeners/)
 for listener forms and registration options.
 
 ## Use the asynchronous path
@@ -69,7 +69,7 @@ module discovery, JSON manifests, and event inspection commands are
 implemented. Queue execution, database transaction callbacks, and
 broadcasting await their owning Titanspan components.
 
-Read [dispatch semantics](/titanspan/events/dispatching/),
-[listeners and discovery](/titanspan/events/listeners/),
-[testing and lifecycle](/titanspan/events/testing/), and the
-[behavioral specification](/titanspan/specifications/events/).
+Read [dispatch semantics](/framework/events/dispatching/),
+[listeners and discovery](/framework/events/listeners/),
+[testing and lifecycle](/framework/events/testing/), and the
+[behavioral specification](/framework/specifications/events/).

@@ -31,7 +31,7 @@ resolved by Python's type-hint introspection. Consumer-specific contextual
 bindings and the supported `Annotated` markers select protocol implementations,
 primitive values, configuration values, aliases, and tagged services. Callable
 injection uses the same precedence described in the
-[injection guide](/titanspan/container/injection/). Runtime rebinding remains unavailable; use a
-[temporary override](/titanspan/container/overrides/) for substitution. See the
-[behavior inventory](/titanspan/specifications/container/) for exact status and
+[injection guide](/framework/container/injection/). Runtime rebinding remains unavailable; use a
+[temporary override](/framework/container/overrides/) for substitution. See the
+[behavior inventory](/framework/specifications/container/) for exact status and
 limits.

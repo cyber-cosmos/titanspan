@@ -57,5 +57,5 @@ converted = Arr.from_(("first", "second"))
 - Iterables are consumed only where the operation needs to produce a result.
   Helpers that return a complete list or mapping necessarily materialize it.
 
-The [Support specification](/titanspan/specifications/support) records module
+The [Support specification](/framework/specifications/support) records module
 ownership, implementation boundaries, and test evidence.

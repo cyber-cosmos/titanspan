@@ -167,5 +167,5 @@ shutdown closes application-owned resources after active scopes finish.
 resolves from the native Container. Raw third-party provider objects remain
 an advanced interoperability input.
 
-See the [Foundation specification](/titanspan/specifications/foundation/)
+See the [Foundation specification](/framework/specifications/foundation/)
 for verified behavior and limitations.

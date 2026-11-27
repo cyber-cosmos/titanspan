@@ -74,5 +74,5 @@ Do not use facade replacement as a production service registry.
 
 ## API reference
 
-See the [Facade behavioral specification](/titanspan/specifications/facades/)
+See the [Facade behavioral specification](/framework/specifications/facades/)
 for supported methods, ownership rules, failure behavior, and test evidence.

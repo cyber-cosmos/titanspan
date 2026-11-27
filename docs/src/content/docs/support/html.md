@@ -36,7 +36,7 @@ Custom `EncodedHtmlString.encode_using()` overrides are local to the active
 execution context. This keeps parallel async tasks from sharing a mutable
 process-wide encoder.
 
-See the [Support specification](/titanspan/specifications/support) for contract
+See the [Support specification](/framework/specifications/support) for contract
 ownership and test organization.
 
 The `DeferredDisplayValue` protocol is available from

@@ -146,5 +146,5 @@ and encodes algorithm parameters. See the
 [Argon2-CFFI API](https://argon2-cffi.readthedocs.io/en/stable/api.html) and
 [PyCA Bcrypt documentation](https://github.com/pyca/bcrypt).
 
-See the [Hashing specification](/titanspan/specifications/hashing/) for exact
+See the [Hashing specification](/framework/specifications/hashing/) for exact
 configuration, contract, error, and lifecycle behavior.

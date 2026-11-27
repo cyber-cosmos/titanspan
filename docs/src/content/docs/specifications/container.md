@@ -18,7 +18,7 @@ inside `container._backends`.
 
 ## Implemented behavior
 
-The public API is defined in `src/titanspan/container/`. The private adapter
+The public API is defined in `src/framework/container/`. The private adapter
 composes validated graphs and delegates construction, caching within a graph,
 and generator cleanup to the selected dependency engine.
 
@@ -82,7 +82,7 @@ The remaining provider escape hatch belongs to `foundation.Application`,
 whose `providers` parameter passes explicit interoperability registrations to
 the private adapter. Ordinary registration through the native `Container`
 uses Titanspan bindings and contracts. It remains available only for
-third-party integration; see the [backend boundary audit](/titanspan/specifications/backend-boundaries/).
+third-party integration; see the [backend boundary audit](/framework/specifications/backend-boundaries/).
 
 Focused evidence is in `tests/unit/container/test_container.py`,
 `tests/unit/container/test_execution_modes.py`, and

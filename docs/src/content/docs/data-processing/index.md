@@ -10,7 +10,7 @@ It does not provide dataframe operations, async streams, or distributed
 processing.
 
 The current component uses standard-library iterators and documents its
-materialization boundaries in [Collections](/titanspan/collections/). See the
-[architecture guide](https://github.com/titanspan/titanspan/blob/main/ARCHITECTURE.md#async-first-behavior)
-and [roadmap](https://github.com/titanspan/titanspan/blob/main/ROADMAP.md)
+materialization boundaries in [Collections](/framework/collections/). See the
+[architecture guide](https://github.com/titanspan/framework/blob/main/ARCHITECTURE.md#async-first-behavior)
+and [roadmap](https://github.com/titanspan/framework/blob/main/ROADMAP.md)
 for planned data and streaming capabilities.

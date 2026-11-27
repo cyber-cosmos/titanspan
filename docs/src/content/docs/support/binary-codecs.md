@@ -68,5 +68,5 @@ Unsupported formats and malformed identifiers raise `ValueError`. For
 those bytes also happen to be valid UTF-8. This explicit type distinction
 avoids ambiguity present in byte-bearing string APIs.
 
-See the [Support specification](/titanspan/specifications/support) for module ownership
+See the [Support specification](/framework/specifications/support) for module ownership
 and implementation boundaries.

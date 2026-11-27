@@ -75,5 +75,5 @@ adaptation for safe serialization, application ownership, and namespace-safe
 clearing than a thin adapter should own. Titanspan delegates Redis client
 behavior to redis-py and bounded local expiry to cachetools.
 
-See the [dependency evaluation and behavior matrix](/titanspan/specifications/cache/)
+See the [dependency evaluation and behavior matrix](/framework/specifications/cache/)
 for the full component inventory.

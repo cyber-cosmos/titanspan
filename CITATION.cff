@@ -21,7 +21,7 @@ abstract: >-
   workflow orchestration, and scalable application
   infrastructure.
 
-repository-code: 'https://github.com/titanspan/titanspan'
+repository-code: 'https://github.com/titanspan/framework'
 
 license: MIT
 

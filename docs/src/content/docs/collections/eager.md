@@ -80,5 +80,5 @@ from its callback.
 
 Transformations create new collection containers. They do not copy nested
 objects, so mutable items remain shared references. See the
-[behavioral specification](/titanspan/specifications/collections) for empty values,
+[behavioral specification](/framework/specifications/collections) for empty values,
 defaults, equality, and errors.

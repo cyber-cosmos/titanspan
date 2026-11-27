@@ -66,4 +66,4 @@ Use `from_environment()` to select a dotenv file rather than configuring
 backend-specific sources. Inherited validation-library methods may remain
 visible because the current native settings base subclasses its validation
 backend; those inherited methods are outside Titanspan's documented settings
-API. See the [backend boundary audit](/titanspan/specifications/backend-boundaries).
+API. See the [backend boundary audit](/framework/specifications/backend-boundaries).

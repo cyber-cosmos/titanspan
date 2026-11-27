@@ -160,7 +160,7 @@ iteration counts must be positive.
 
 ## Tests
 
-The [Support specification](/titanspan/specifications/support) records module ownership
+The [Support specification](/framework/specifications/support) records module ownership
 and test evidence.
 Focused tests are in `tests/unit/support/test_benchmark.py`,
 `test_interacts_with_time.py`, `test_lottery.py`, and `test_timebox.py`.

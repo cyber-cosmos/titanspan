@@ -49,11 +49,11 @@ dependencies = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/titanspan/titanspan"
-Repository = "https://github.com/titanspan/titanspan"
-Documentation = "https://github.com/titanspan/titanspan/tree/main/docs"
-Issues = "https://github.com/titanspan/titanspan/issues"
-Changelog = "https://github.com/titanspan/titanspan/blob/main/CHANGELOG.md"
+Homepage = "https://github.com/titanspan/framework"
+Repository = "https://github.com/titanspan/framework"
+Documentation = "https://titanspan.github.io/framework/"
+Issues = "https://github.com/titanspan/framework/issues"
+Changelog = "https://github.com/titanspan/framework/blob/main/CHANGELOG.md"
 
 [project.scripts]
 titanspan = "titanspan.console.cli:main"

@@ -75,8 +75,8 @@ Cache recognizes missing values separately from cached None, False, zero,
 empty strings, lists, and mappings. A default callable runs only after a
 miss. Async retrieval accepts synchronous or asynchronous default callables.
 
-See [Configuration](/titanspan/cache/configuration/) for store selection and
-[Operations](/titanspan/cache/operations/) for expiration, locks, and
+See [Configuration](/framework/cache/configuration/) for store selection and
+[Operations](/framework/cache/operations/) for expiration, locks, and
 invalidation.
 
 ## Application caching and Config
@@ -85,5 +85,5 @@ Cache stores application data. Config's internal snapshot cache retains
 configuration parsing results and has a separate owner and lifecycle.
 Clearing a Cache store never clears Config snapshots.
 
-The [Cache specification](/titanspan/specifications/cache/) defines
+The [Cache specification](/framework/specifications/cache/) defines
 contracts, guarantees, error behavior, and current integration boundaries.

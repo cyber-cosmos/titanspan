@@ -916,7 +916,7 @@ The Database component does not yet provide scoped or automatic Routing model
 binding, model-based URL generation, soft-delete and restore events,
 query-count assertions, database test isolation helpers, read replicas, query
 caching, or distributed migration coordination. See
-[ADR 0006](/titanspan/architecture/decisions/0006-sqlalchemy-persistence/) for
+[ADR 0006](/framework/architecture/decisions/0006-sqlalchemy-persistence/) for
 the accepted persistence boundary and
-[the backend boundary specification](/titanspan/specifications/backend-boundaries/)
+[the backend boundary specification](/framework/specifications/backend-boundaries/)
 for current interoperability ownership.

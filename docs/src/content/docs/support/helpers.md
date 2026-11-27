@@ -118,5 +118,5 @@ Their return value is the original condition when no exception is raised.
 name when the enum value is not a scalar. For `None`, it resolves the
 provided default.
 
-See the [Support specification](/titanspan/specifications/support) for module ownership
+See the [Support specification](/framework/specifications/support) for module ownership
 and test evidence.

@@ -122,5 +122,5 @@ Assertions require an active fake. Custom managers implement the optional
 that capability fail explicitly. Tests can exercise a configured remote disk
 without installing its optional fsspec integration.
 
-See the [Filesystem specification](/titanspan/specifications/filesystem/)
+See the [Filesystem specification](/framework/specifications/filesystem/)
 for path boundaries, error behavior, and backend limitations.

@@ -71,7 +71,7 @@ filenames, or log context.
 
 Webhook URLs are validated and treated as secret configuration. HTTPS is
 required unless `allow_http` is explicitly enabled for a local test receiver.
-See [drivers](/titanspan/logging/drivers/) for the complete network configuration boundary.
+See [drivers](/framework/logging/drivers/) for the complete network configuration boundary.
 
 ## Custom formatter registration
 
@@ -108,8 +108,8 @@ manager = LogManager(
 
 Register a custom destination with `LogManager.extend(name, factory)`. The
 factory receives a validated `ChannelConfiguration` and returns an object
-implementing Titanspan's `LogDriver` protocol. See [custom drivers](/titanspan/logging/drivers/).
+implementing Titanspan's `LogDriver` protocol. See [custom drivers](/framework/logging/drivers/).
 
 Register native customizers through `LogManager(customizers=...)` and list
 their names in a channel's `tap` field. Customizers run during channel
-creation and must be synchronous. See [channel customizers](/titanspan/logging/drivers/).
+creation and must be synchronous. See [channel customizers](/framework/logging/drivers/).

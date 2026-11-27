@@ -49,5 +49,5 @@ value-copy behavior while preventing caller mutation from changing later
 results. The resolver does not load configuration or
 translation files; those concerns belong to their owning modules.
 
-See the [Support specification](/titanspan/specifications/support) for module ownership
+See the [Support specification](/framework/specifications/support) for module ownership
 and test evidence.

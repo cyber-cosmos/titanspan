@@ -112,7 +112,7 @@ container helper is `titanspan.app()`. It requires an application context.
 
 Contextual bindings, injection metadata, extensions, callbacks, and temporary
 overrides were added after this decision. Their precedence, ownership, and
-cleanup rules are in [ADR 0019](/titanspan/architecture/decisions/0019-contextual-container-services/).
+cleanup rules are in [ADR 0019](/framework/architecture/decisions/0019-contextual-container-services/).
 
 ## Verification
 

@@ -41,5 +41,5 @@ Attribute access is provided for convenience, but Python type checkers cannot
 infer attributes on arbitrary wrapped values. Use typed wrapper protocols in
 application code when static guarantees are required.
 
-See the [Support specification](/titanspan/specifications/support) for ownership and
+See the [Support specification](/framework/specifications/support) for ownership and
 verification boundaries.

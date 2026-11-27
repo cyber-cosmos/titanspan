@@ -112,4 +112,4 @@ synchronous.
 
 Deprecation routing and backend-specific handler configuration are not
 currently supported. See the
-[component specification](/titanspan/specifications/logging/) for current status.
+[component specification](/framework/specifications/logging/) for current status.

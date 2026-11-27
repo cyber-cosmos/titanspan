@@ -59,5 +59,5 @@ unescaped Unicode.
 - Python JSON serialization supports the documented pretty-print and
   Unicode options.
 
-See the [Support specification](/titanspan/specifications/support) for ownership and
+See the [Support specification](/framework/specifications/support) for ownership and
 test evidence.

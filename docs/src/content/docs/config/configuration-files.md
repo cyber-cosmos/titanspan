@@ -39,5 +39,5 @@ load trusted files that belong to the application. The loader checks path
 containment and rejects symlinks that escape the trusted configuration
 directory. It does not load uploaded or user-selected files.
 
-See [source precedence](/titanspan/config/precedence/) for how package defaults, settings,
+See [source precedence](/framework/config/precedence/) for how package defaults, settings,
 environment values, and bootstrap overrides interact.

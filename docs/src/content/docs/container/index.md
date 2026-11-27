@@ -66,29 +66,29 @@ Registrations freeze at first resolution. This keeps shared graph and resource
 ownership stable during application execution.
 
 Classes may also declare application or execution lifetimes with the native
-decorators described in [class declarations](/titanspan/container/decorators/).
+decorators described in [class declarations](/framework/container/decorators/).
 
 Select a dependency for one consumer with
-[contextual bindings](/titanspan/container/contextual-bindings/). `Annotated` metadata supports
+[contextual bindings](/framework/container/contextual-bindings/). `Annotated` metadata supports
 implementation, configuration, alias, and tagged-service selection.
-[Extensions and callbacks](/titanspan/container/lifecycle-hooks/) add ordered service decoration
-and root-resolution hooks. [Temporary overrides](/titanspan/container/overrides/) provide
+[Extensions and callbacks](/framework/container/lifecycle-hooks/) add ordered service decoration
+and root-resolution hooks. [Temporary overrides](/framework/container/overrides/) provide
 isolated substitutions for tests and individual executions.
 
 ## Resolution scopes
 
 Use `async with container.scope(Scope.WORKFLOW)` to isolate cached resources
-for one execution. See [execution scopes](/titanspan/container/scopes/) for lifetime mapping and
+for one execution. See [execution scopes](/framework/container/scopes/) for lifetime mapping and
 nested-scope limits.
 
 ## Callable injection and factories
 
 Use `Container.call` for synchronous callbacks and `call_async` for callbacks
 or dependencies that require asynchronous execution. See
-[callable injection](/titanspan/container/injection/), [method bindings](/titanspan/container/method-bindings/),
-and [lazy factories](/titanspan/container/factories/) for current APIs and limits.
+[callable injection](/framework/container/injection/), [method bindings](/framework/container/method-bindings/),
+and [lazy factories](/framework/container/factories/) for current APIs and limits.
 
-See [resource management](/titanspan/container/resource-management/) for factory ownership,
+See [resource management](/framework/container/resource-management/) for factory ownership,
 scope cleanup, cancellation, and shutdown behavior.
 
 ## HTTP dependency integration
@@ -129,4 +129,4 @@ need that separate graph.
 ## Implementation status
 
 The native operation inventory, implemented behavior, and pending work are
-listed in [the container specification](/titanspan/specifications/container/).
+listed in [the container specification](/framework/specifications/container/).

@@ -107,8 +107,8 @@ comment content requires code review because a linter cannot judge intent.
 ## Technical writing
 
 Follow the permanent rules in
-[`writing-standards.md`](/titanspan/development/writing-standards/) and use
-[`glossary.md`](/titanspan/development/glossary/) for canonical Titanspan
+[`writing-standards.md`](/framework/development/writing-standards/) and use
+[`glossary.md`](/framework/development/glossary/) for canonical Titanspan
 terms. Write clear,
 concise American English. Prefer active voice and one primary idea per
 sentence. Target 20 words for procedural sentences and 25 words for

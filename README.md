@@ -2,9 +2,9 @@
 
 **Engineer beyond limits.**
 
-[![CI](https://github.com/titanspan/titanspan/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/titanspan/titanspan/actions/workflows/ci.yml)
-[![Security](https://github.com/titanspan/titanspan/actions/workflows/security.yml/badge.svg?branch=main)](https://github.com/titanspan/titanspan/actions/workflows/security.yml)
-[![Documentation](https://github.com/titanspan/titanspan/actions/workflows/docs.yml/badge.svg?branch=main)](https://github.com/titanspan/titanspan/actions/workflows/docs.yml)
+[![CI](https://github.com/titanspan/framework/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/titanspan/framework/actions/workflows/ci.yml)
+[![Security](https://github.com/titanspan/framework/actions/workflows/security.yml/badge.svg?branch=main)](https://github.com/titanspan/framework/actions/workflows/security.yml)
+[![Documentation](https://github.com/titanspan/framework/actions/workflows/docs.yml/badge.svg?branch=main)](https://github.com/titanspan/framework/actions/workflows/docs.yml)
 
 Titanspan is an independent, open-source, async-first Python application
 framework for building intelligent systems at scale. It provides expressive
@@ -108,7 +108,7 @@ If you use Titanspan in academic research, publications, or software projects, p
   author = {Thayananthajothy, Jerome},
   title  = {Titanspan},
   year   = {2026},
-  url    = {https://github.com/titanspan/titanspan}
+  url    = {https://github.com/titanspan/framework}
 }
 ```
 
@@ -125,7 +125,7 @@ test-driven development, uv, GNU Make, Ruff, Pyright, and Pytest.
 ## Security
 
 Please report security issues privately using the repository's
-[security advisory page](https://github.com/titanspan/titanspan/security/advisories/new).
+[security advisory page](https://github.com/titanspan/framework/security/advisories/new).
 See [SECURITY.md](SECURITY.md) for the supported disclosure process.
 
 ## License

@@ -147,6 +147,6 @@ including streaming cleanup.
 Signed URLs remain unsupported until framework key management can generate,
 verify, and rotate application signatures. Database-backed model binding and
 View routes need the owning components described above. See the
-[routing specification](/titanspan/specifications/routing/) for evidence and
+[routing specification](/framework/specifications/routing/) for evidence and
 integration requirements, and [URL generation](./url-generation) for helper
 semantics.

@@ -287,5 +287,5 @@ request and response lifecycle, including request scopes, streaming
 transmission, disconnects, and cleanup. It remains owned by HTTP and Routing;
 Pipeline does not replace or compose those middleware stacks.
 
-Read the [Pipeline behavioral specification](/titanspan/specifications/pipeline/)
+Read the [Pipeline behavioral specification](/framework/specifications/pipeline/)
 for error, typing, and lifecycle details.

@@ -40,7 +40,7 @@ For another root, call `create_application(Path("/path/to/project"))` and
 serve its `.asgi` host with an ASGI server. The application does not change
 the process working directory.
 
-The [installed-package runtime check](/titanspan/specifications/foundation/)
+The [installed-package runtime check](/framework/specifications/foundation/)
 runs this workflow against the built wheel. It also runs the installed
 controller generator and dispatches the generated action through Routing.
 The check also substitutes Storage, Events, Logging, and outgoing HTTP in a

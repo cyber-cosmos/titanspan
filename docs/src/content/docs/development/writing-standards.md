@@ -15,7 +15,7 @@ Keep each claim accurate for the current implementation.
 - Give each sentence one primary idea.
 - Use direct verbs and direct procedural instructions.
 - Keep one topic in each paragraph.
-- Use the canonical terms in the [glossary](/titanspan/development/glossary/).
+- Use the canonical terms in the [glossary](/framework/development/glossary/).
 - Preserve exact identifiers, commands, URLs, and technical meaning.
 - Explain why non-obvious code exists; do not narrate each statement.
 - Distinguish implemented, planned, unsupported, and partially verified work.

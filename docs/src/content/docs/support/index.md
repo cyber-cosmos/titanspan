@@ -40,7 +40,7 @@ The current implementation includes:
 These APIs follow Titanspan's native Python specifications. They use Python
 collections, object protocols, and explicit method dispatch instead of
 emulating language-specific constructs from another ecosystem. The
-[Support specification](/titanspan/specifications/support) records ownership and
+[Support specification](/framework/specifications/support) records ownership and
 verification boundaries.
 
 ## Imports
@@ -72,19 +72,19 @@ Support is under active development. The native specification and focused test
 suites describe implemented behavior. Do not infer availability from similar
 names in other libraries or from roadmap entries.
 
-See [arrays](/titanspan/support/arrays/), [environment utilities](/titanspan/support/environment/),
-[Fluent](/titanspan/support/fluent/), [forwarded calls](/titanspan/support/forwards-calls/),
-[helpers](/titanspan/support/helpers/),
-[message bags](/titanspan/support/message-bag/),
-[optional values](/titanspan/support/optional/), [strings](/titanspan/support/strings/), and [extensions](/titanspan/support/extensions/)
-for the implemented surface. See [URI utilities](/titanspan/support/uris/) and
-[fluent strings](/titanspan/support/stringable/) for the implemented `Stringable` methods and
-their Python behavior, [HTML values](/titanspan/support/html/) for context-aware rendering
-guidance, [timing utilities](/titanspan/support/timing/) for `Benchmark`, `InteractsWithTime`,
-`Lottery`, and `Timebox`, and [Sleep](/titanspan/support/sleep/) for explicit synchronous and
-asynchronous waiting. See [Number utilities](/titanspan/support/numbers/) for numeric
+See [arrays](/framework/support/arrays/), [environment utilities](/framework/support/environment/),
+[Fluent](/framework/support/fluent/), [forwarded calls](/framework/support/forwards-calls/),
+[helpers](/framework/support/helpers/),
+[message bags](/framework/support/message-bag/),
+[optional values](/framework/support/optional/), [strings](/framework/support/strings/), and [extensions](/framework/support/extensions/)
+for the implemented surface. See [URI utilities](/framework/support/uris/) and
+[fluent strings](/framework/support/stringable/) for the implemented `Stringable` methods and
+their Python behavior, [HTML values](/framework/support/html/) for context-aware rendering
+guidance, [timing utilities](/framework/support/timing/) for `Benchmark`, `InteractsWithTime`,
+`Lottery`, and `Timebox`, and [Sleep](/framework/support/sleep/) for explicit synchronous and
+asynchronous waiting. See [Number utilities](/framework/support/numbers/) for numeric
 formatting, locale scopes, optional dependencies, and Python-specific behavior,
-and [binary codecs](/titanspan/support/binary-codecs/) for UUID and ULID conversion. See
-[configuration URLs](/titanspan/support/configuration-urls/) for parsing database URLs and SQL
-Server DSN values, and [namespaced item keys](/titanspan/support/namespaced-items/) for dotted-key
+and [binary codecs](/framework/support/binary-codecs/) for UUID and ULID conversion. See
+[configuration URLs](/framework/support/configuration-urls/) for parsing database URLs and SQL
+Server DSN values, and [namespaced item keys](/framework/support/namespaced-items/) for dotted-key
 parsing and cache control.

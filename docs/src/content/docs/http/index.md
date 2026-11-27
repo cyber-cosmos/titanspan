@@ -15,7 +15,7 @@ body reads, request-scoped services, response construction, asynchronous
 streaming and Server-Sent Events, native and Starlette-backed middleware,
 context-local HTTP fakes, bounded concurrent requests, and synchronous and
 asynchronous outgoing clients through application-owned connection pools.
-The [HTTP specification](/titanspan/specifications/http/) records the tested
+The [HTTP specification](/framework/specifications/http/) records the tested
 surface and external integration requirements.
 
 ## Application setup
@@ -39,14 +39,14 @@ use `async with application` without starting an HTTP server.
 
 ## Guides
 
-- [Incoming requests](/titanspan/http/requests/)
-- [Responses](/titanspan/http/responses/)
-- [Outgoing HTTP client](/titanspan/http/client/)
-- [Streaming and SSE](/titanspan/http/streaming/)
-- [Native middleware](/titanspan/http/middleware/)
-- [Configuration and lifecycle](/titanspan/http/configuration/)
-- [Security boundaries](/titanspan/http/security/)
-- [Testing](/titanspan/http/testing/)
+- [Incoming requests](/framework/http/requests/)
+- [Responses](/framework/http/responses/)
+- [Outgoing HTTP client](/framework/http/client/)
+- [Streaming and SSE](/framework/http/streaming/)
+- [Native middleware](/framework/http/middleware/)
+- [Configuration and lifecycle](/framework/http/configuration/)
+- [Security boundaries](/framework/http/security/)
+- [Testing](/framework/http/testing/)
 
 The current transport integrations use the versions resolved by `uv.lock`.
 Starlette handles ASGI requests and response transmission. HTTPX2 owns outgoing

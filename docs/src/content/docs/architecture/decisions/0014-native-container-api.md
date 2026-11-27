@@ -82,5 +82,5 @@ concurrent discovery, and cancellation cleanup. Application owns one lifecycle
 for HTTP, direct resolution, configuration, and logging services.
 
 The synchronous-first execution model and explicit async alternatives were
-adopted after this decision. See [ADR 0015](/titanspan/architecture/decisions/0015-sync-first-container-resolution/)
+adopted after this decision. See [ADR 0015](/framework/architecture/decisions/0015-sync-first-container-resolution/)
 for the resolution-mode contract and mixed-mode cache guarantees.

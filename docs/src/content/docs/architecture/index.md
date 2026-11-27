@@ -15,7 +15,7 @@ ordinary Python iterables. Other modules remain documented boundaries unless
 marked otherwise in the repository's root-level `ARCHITECTURE.md` file.
 
 Read the complete
-[architecture guide](https://github.com/titanspan/titanspan/blob/main/ARCHITECTURE.md)
-and the [architecture decision records](/titanspan/architecture/decisions/).
-See the [framework engineering review](/titanspan/architecture/framework-review/)
+[architecture guide](https://github.com/titanspan/framework/blob/main/ARCHITECTURE.md)
+and the [architecture decision records](/framework/architecture/decisions/).
+See the [framework engineering review](/framework/architecture/framework-review/)
 for implementation evidence and remaining limits.

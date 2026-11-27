@@ -9,5 +9,5 @@ integrations. They are not part of the mandatory dependency set and no AI API
 is implemented in the current release.
 
 Default tests will not require a commercial model service. Read
-[ADR 0007](/titanspan/architecture/decisions/0007-langgraph-orchestration/) for the
+[ADR 0007](/framework/architecture/decisions/0007-langgraph-orchestration/) for the
 planned workflow engine boundary.

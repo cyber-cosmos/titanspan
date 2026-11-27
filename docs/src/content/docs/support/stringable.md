@@ -36,7 +36,7 @@ assert name.after_last("/").before_last(".").to_string() == "report"
 The current implemented surface includes delimiter and case transformations,
 matching and predicates, literal and regular-expression replacement, padding,
 truncation, word operations, Base64 conversion, and read-only or mutable
-integer offsets. The [Support specification](/titanspan/specifications/support) links
+integer offsets. The [Support specification](/framework/specifications/support) links
 this module to its test evidence.
 
 ## Conditional operations
@@ -70,5 +70,5 @@ outside this implemented surface. `Macroable` supports explicit registration
 and `call_macro`; registered macros are not exposed through dynamic attribute
 lookup, so static type checkers can continue to validate normal method calls.
 
-See the [Support specification](/titanspan/specifications/support) for module ownership
+See the [Support specification](/framework/specifications/support) for module ownership
 and verification boundaries.

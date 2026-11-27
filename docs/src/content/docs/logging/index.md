@@ -54,16 +54,16 @@ The configured severity uses RFC 5424 values. `LogLevel` defines `emergency`,
 
 ## Guides
 
-- [Configuration](/titanspan/logging/configuration/): validated channel settings.
-- [Channels and stacks](/titanspan/logging/channels/): channel resolution and fan-out.
-- [Drivers](/titanspan/logging/drivers/): supported output destinations.
-- [Context](/titanspan/logging/context/): task-local and shared metadata.
-- [Structured records](/titanspan/logging/structured-logging/): values, exceptions, and schema.
-- [Async logging](/titanspan/logging/async-logging/): thread offloading and bounded queues.
-- [Security](/titanspan/logging/security/): redaction and payload limits.
-- [Testing](/titanspan/logging/testing/): in-memory logging fakes and assertions.
-- [Deployment](/titanspan/logging/deployment/): stdout collection and process boundaries.
-- [Native logging specification](/titanspan/specifications/logging): implemented
+- [Configuration](/framework/logging/configuration/): validated channel settings.
+- [Channels and stacks](/framework/logging/channels/): channel resolution and fan-out.
+- [Drivers](/framework/logging/drivers/): supported output destinations.
+- [Context](/framework/logging/context/): task-local and shared metadata.
+- [Structured records](/framework/logging/structured-logging/): values, exceptions, and schema.
+- [Async logging](/framework/logging/async-logging/): thread offloading and bounded queues.
+- [Security](/framework/logging/security/): redaction and payload limits.
+- [Testing](/framework/logging/testing/): in-memory logging fakes and assertions.
+- [Deployment](/framework/logging/deployment/): stdout collection and process boundaries.
+- [Native logging specification](/framework/specifications/logging): implemented
   boundaries and deferred work.
 
 ## Current limits

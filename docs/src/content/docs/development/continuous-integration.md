@@ -164,7 +164,7 @@ Coverage is collected for each required test group on Linux/Python 3.12 and
 uploaded separately. The aggregate job validates the exact artifact
 inventory, combines compatible branch data, then independently checks line
 and branch thresholds. It also checks that at least 95% of changed lines in
-`src/titanspan/` have coverage. This uses a source-only diff against the pull
+`src/framework/` have coverage. This uses a source-only diff against the pull
 request base, the previous push commit, or the first parent for a manual run.
 The configured thresholds must not be lowered to accommodate new code.
 
@@ -209,7 +209,7 @@ The primary CI workflow installs the locked Astro and Starlight dependencies,
 audits the npm lockfile, builds the documentation, and runs its Playwright
 browser checks. `docs.yml` repeats those checks and deploys the generated
 static site to GitHub Pages only for configured main-branch events. The site
-uses `/titanspan/` as its base path; no custom domain is assumed.
+uses `/framework/` as its base path; no custom domain is assumed.
 
 `.github/workflows/performance.yml` runs scheduled or manually dispatched
 informational benchmarks and stress checks. Benchmark JSON includes the
