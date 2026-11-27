@@ -97,13 +97,15 @@ def test_configuration_representation_does_not_expose_credentials() -> None:
         stores={
             "secure": {
                 "driver": "redis",
-                "options": {"password": "private-cache-secret"},
+                "options": {
+                    "password": "secret",  # pragma: allowlist secret
+                },
             }
         },
         default="secure",
     )
 
-    assert "private-cache-secret" not in repr(configuration)
+    assert "secret" not in repr(configuration)
 
 
 def test_application_cache_configuration_is_not_config_snapshot_cache() -> None:
