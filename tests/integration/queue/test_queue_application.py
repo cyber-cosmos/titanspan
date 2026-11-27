@@ -522,6 +522,39 @@ class _GlobalRecordingMiddleware:
         return result
 
 
+class _GlobalSyncRecordingMiddleware:
+    """Record application middleware around synchronous job execution.
+    """  # fmt: skip
+
+    def __init__(self, record: _JobRecord) -> None:
+        """Retain the application-owned observation service.
+
+        Args:
+            record: Application service used by the test assertion.
+        """
+        self._record = record
+
+    def handle(
+        self,
+        context: JobContext,
+        next_handler: SyncJobNext,
+    ) -> object:
+        """Wrap one synchronous job and record middleware order.
+
+        Args:
+            context: Metadata for the active job attempt.
+            next_handler: Synchronous continuation to local middleware.
+
+        Returns:
+            The wrapped job result.
+        """
+        _ = context
+        self._record.middleware_events.append("global-before")
+        result = next_handler()
+        self._record.middleware_events.append("global-after")
+        return result
+
+
 @dataclass
 class _MiddlewareJob(Job):
     """Verify job middleware wraps a handler inside its execution scope.
@@ -618,6 +651,41 @@ async def test_provider_middleware_wraps_every_job() -> None:
         "after",
         "global-after",
         "global-before",
+        "global-after",
+    ]
+
+
+@pytest.mark.anyio
+async def test_provider_middleware_wraps_sync_jobs_in_worker_threads() -> None:
+    """Resolve global sync middleware in the active worker thread scope.
+
+    The provider declaration surrounds the job's own middleware instance.
+    """
+    record = _JobRecord()
+    application = Application(
+        config={"app": {"name": "queue-global-sync-middleware"}},
+        service_providers=(
+            _QueueTestProvider(record),
+            QueueServiceProvider(
+                jobs=(_SyncRecordJob,),
+                middleware=(_GlobalSyncRecordingMiddleware,),
+            ),
+        ),
+    )
+
+    async with application:
+        manager = application.container.make(QueueManager)
+        receipt = await anyio.to_thread.run_sync(
+            manager.dispatch_sync,
+            _SyncRecordJob("sync-global"),
+        )
+
+    assert receipt.state == "executed"
+    assert [value[0] for value in record.values] == ["sync-global"]
+    assert record.middleware_events == [
+        "global-before",
+        "before:1",
+        "after",
         "global-after",
     ]
 
