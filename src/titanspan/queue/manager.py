@@ -265,6 +265,7 @@ class QueueFake:
         ) = execute_record
         self._records: list[QueueDispatchRecord] = []
         self._executed: set[str] = set()
+        self._failures: dict[str, type[BaseException]] = {}
         self._lock = threading.RLock()
         self._closed = False
         self._only = only
@@ -360,6 +361,37 @@ class QueueFake:
         if self.records:
             raise AssertionError(_QUEUE_FAKE_ERROR)
 
+    def assert_failed(
+        self,
+        job_type: type[object],
+        exception_type: type[BaseException] | None = None,
+    ) -> None:
+        """Require a fake-run job to fail with an optional exception type.
+
+        The fake stores only the exception class. It does not retain message
+        text or traceback data.
+
+        Args:
+            job_type: Exact job class expected to fail.
+            exception_type: Optional base exception class to match.
+
+        Raises:
+            AssertionError: If no matching fake execution failed.
+        """
+        with self._lock:
+            for record in self._records:
+                if type(record.job) is not job_type:
+                    continue
+                failure_type = self._failures.get(record.receipt.job_id)
+                if failure_type is None:
+                    continue
+                if exception_type is None or issubclass(
+                    failure_type,
+                    exception_type,
+                ):
+                    return
+        raise AssertionError(_QUEUE_FAKE_ERROR)
+
     async def run_next_async(self) -> object:
         """Execute the next recorded job once through its native job scope.
 
@@ -374,7 +406,12 @@ class QueueFake:
             QueueError: If this fake scope has closed.
         """
         record, execute_record = self._claim_next_record()
-        return await execute_record(record)
+        try:
+            return await execute_record(record)
+        except Exception as error:
+            with self._lock:
+                self._failures[record.receipt.job_id] = type(error)
+            raise
 
     def assert_pushed_on(self, queue: str) -> None:
         """Require one recorded dispatch to use the selected queue.

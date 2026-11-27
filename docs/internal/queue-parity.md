@@ -104,7 +104,7 @@ or prose.
 | Queue size, priority, monitoring | Backend-dependent | No stable cross-backend contract is exposed. |
 | Failed and batch administration | Dependent on another unfinished Titanspan component | Requires persistent queue records and destructive-scope policy. |
 | Console worker and generation commands | Equivalent with Python-native syntax | `queue:work`, `queue:listen`, `make:job`, `make:job-middleware`. |
-| Queue fake and dispatch assertions | Equivalent with Python-native syntax | Execution-local fake records facade and manager calls and can run a recorded job through its native job scope. |
+| Queue fake and dispatch assertions | Equivalent with Python-native syntax | Execution-local fake records facade and manager calls, runs recorded jobs through native job scopes, and asserts failure types. |
 | Database queue driver and queue tables | Dependent on another unfinished Titanspan component | Deferred to native Database persistence and migration contracts. |
 
 ## Review conclusion

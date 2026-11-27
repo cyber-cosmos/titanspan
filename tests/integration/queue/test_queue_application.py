@@ -1217,6 +1217,10 @@ async def test_queue_fake_runs_recorded_job_through_native_scope() -> None:
             assert results == [None, None]
             with pytest.raises(AssertionError):
                 await fake.run_next_async()
+            with pytest.raises(AssertionError):
+                fake.assert_failed(_RecordJob)
+            with pytest.raises(AssertionError):
+                fake.assert_failed(_FailingJob)
         with pytest.raises(QueueError, match="scope closes"):
             await fake.run_next_async()
 
@@ -1227,6 +1231,32 @@ async def test_queue_fake_runs_recorded_job_through_native_scope() -> None:
     }
     dependency_tokens = {value[2] for value in record.values}
     assert len(dependency_tokens) == _EXPECTED_FAKE_EXECUTIONS
+
+
+@pytest.mark.anyio
+async def test_queue_fake_asserts_recorded_handler_failure() -> None:
+    """Match a fake-run handler failure by job and exception type.
+
+    The fake retains only the exception class and does not change propagation.
+    """
+    application = Application(
+        config={"app": {"name": "queue-fake-failure"}},
+        service_providers=(QueueServiceProvider(jobs=(_FailingJob,)),),
+    )
+
+    async with application:
+        manager = application.container.make(QueueManager)
+        async with manager.fake() as fake:
+            await manager.dispatch_async(_FailingJob())
+            with pytest.raises(
+                RuntimeError,
+                match="expected batch test failure",
+            ):
+                await fake.run_next_async()
+            fake.assert_failed(_FailingJob, RuntimeError)
+            fake.assert_failed(_FailingJob, Exception)
+            with pytest.raises(AssertionError):
+                fake.assert_failed(_FailingJob, ValueError)
 
 
 @pytest.mark.anyio

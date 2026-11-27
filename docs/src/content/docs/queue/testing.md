@@ -67,7 +67,9 @@ async with Queue.fake() as fake:
 
 The helper runs one attempt without creating a broker or applying retry
 policy. Each record can run once. A handler failure consumes that record.
-Use a real worker integration test to verify broker delivery and retries.
+Use `assert_failed()` to match the recorded job and exception type. The fake
+retains no exception message or traceback. Use a real worker integration test
+to verify broker delivery and retries.
 
 ## Nested and concurrent contexts
 
@@ -89,4 +91,4 @@ facades and the injected dispatcher.
 `selects()` reports whether the fake intercepts an exact registered job
 class.
 
-Failure assertions and fluent assertion matchers are not implemented.
+Fluent assertion matchers are not implemented.
