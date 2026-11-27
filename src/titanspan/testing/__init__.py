@@ -1,4 +1,8 @@
-"""Reserve framework application cases, fakes, and test utilities.
+"""Expose native application testing helpers.
 
-Testing helpers are planned and are not available as a public API.
+The helpers use the production Foundation lifecycle and ASGI application.
 """
+
+from titanspan.testing.application import ApplicationTest, AsyncApplicationTest
+
+__all__ = ["ApplicationTest", "AsyncApplicationTest"]

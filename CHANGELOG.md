@@ -5,14 +5,27 @@ public release.
 
 ## Unreleased
 
+- Run synchronous Console handlers in managed AnyIO worker threads.
+- Allow configuration commands to target an explicit application root.
+- Add event inspection and manifest commands to the native Console.
+- Add safe, application-rooted Console generators for controllers, middleware,
+  providers, commands, events, listeners, and application tests.
+- Add synchronous and asynchronous application test contexts over the
+  production Foundation lifecycle, Container, and ASGI application.
+- Extend the clean-install application smoke through native provider
+  registration, contract injection, logging, named URL generation, and routes.
+- Anchor relative event manifest paths to the effective application root.
+- Render malformed native request input as a safe HTTP 400 response.
 - Added Pydantic-backed Validation with typed schemas, coercion policy, safe
   field issues, sync and async application rules, result helpers, and
   authoritative HTTP request input. Foundation renders uncaught validation
   failures as safe 422 responses. Routing schema integration remains pending.
 - Added native commands with typed parameters, groups, trusted discovery,
   Container injection, and per-command Foundation lifecycle. Rich output and
-  parser tests use shared contracts. The built-in `route:list` command reads
-  the active route catalog. Event inspection and generators remain pending.
+  parser tests use shared contracts. `about` reports framework and Python
+  versions. Route and event inspection commands use their owning components.
+  Native artifact generators write typed starter files without replacing
+  existing application files.
 - Added an ordered sync and async Pipeline for transforms, continuation
   middleware, class stages, conditional inclusion, and native Container
   resolution. Pipeline owns no task scheduler or workflow state.
@@ -52,10 +65,30 @@ public release.
   Remote backends require an application-provided fsspec factory and optional
   integration package. See `docs/src/content/docs/filesystem/` and
   `docs/src/content/docs/specifications/filesystem.md`.
+- Storage fakes now replace disks at the canonical manager boundary, so
+  injected `StorageManager` consumers use the same fake as the `Storage`
+  facade. Fake setup validates names without constructing configured storage.
+  Custom managers must implement the optional `StorageDiskOverride` contract.
+- Foundation now registers Validation, Filesystem, and Hashing providers by
+  default. One explicit provider of each type replaces its default and retains
+  custom driver configuration. Duplicate built-in providers fail clearly.
+- Foundation supplies the canonical `ApplicationPaths` contract to built-in
+  providers. Relative local storage and file-log paths resolve beneath the
+  effective application root; absolute paths remain unchanged and escaping
+  relative paths fail during configuration.
+- Foundation exception reports now resolve the active application logger and
+  omit exception text and tracebacks by default. Application debug mode or
+  `include_details=True` enables detailed diagnostics. Console failures show
+  the command and exception class unless bounded details are explicitly
+  enabled with `Console(show_exception_details=True)`.
+- Foundation uses the logging manager's independent emergency destination
+  when reporting occurs after channel shutdown. This path includes the
+  exception class but omits its message and traceback.
 - Added configuration-driven password hashing over `argon2-cffi` and `bcrypt`
   with Argon2id, Bcrypt verification and upgrades, hash metadata, and bounded
   async methods.
-  `HashingServiceProvider` is opt-in through Foundation's provider extension.
+  `HashingServiceProvider` is registered by Foundation and can be replaced
+  through its provider extension.
   Authentication and password persistence remain separate component work.
   See `docs/src/content/docs/hashing/` and
   `docs/src/content/docs/specifications/hashing.md`.

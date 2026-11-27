@@ -190,10 +190,11 @@ archive contents, checks the distributions with Twine, and uploads them as a
 short-lived artifact. Clean-install jobs consume that exact wheel outside the
 checkout and verify the minimal and implemented `numbers` extra profiles.
 Development instructions, skills, and CI scripts are checked for accidental
-inclusion. The runtime smoke uses the installed package for an ASGI lifespan
-and real in-process HTTP request. Docker CI validates Compose, builds the
-non-root image, and exercises the installed CLI; it does not start unused
-database or Redis services.
+inclusion. The application smoke uses the installed package to exercise
+provider registration, contract injection, logging, named URL generation,
+native route dispatch, and ASGI startup and shutdown. Docker CI validates
+Compose, builds the non-root image, and exercises the installed CLI; it does
+not start unused database or Redis services.
 
 ## Documentation and additional workflows
 

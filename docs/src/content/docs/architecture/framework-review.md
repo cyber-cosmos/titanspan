@@ -8,10 +8,9 @@ title: "Framework engineering review"
 
 The historical source audit started at commit `2afcd31`. This continuation
 reviewed main at `b2de4de`, including the integrated Hashing component. The
-repository did not contain the requested C-001 through C-012 review. This
-record uses its existing F-001 through F-012 findings. The latest source and
-tests revalidated these findings and added two confirmed Foundation
-integration corrections below.
+consolidation corrections below were developed from descendant main
+`62bddf3` in an isolated worktree. The review keeps the original F findings
+and adds dispositions for the C findings from the core-completion backlog.
 
 The lockfile pins Blinker 1.9.0, Dishka 1.10.1, FastAPI 0.165.0, and
 Starlette 1.10.0. It also pins HTTPX2 2.16.2, Pydantic 2.14.4, Pydantic
@@ -116,7 +115,7 @@ capabilities in more detail.
 | Routing | Dispatch, URI integration, and URL generator tests | One catalog drives matching and reversal. Native custom converters and route-file discovery remain unsupported. |
 | Collections | Collection unit tests and Hypothesis invariants | Eager and lazy operations use Python iterators and preserve documented order. Intersection checks every supplied iterable. |
 | Events | Events application and dispatcher integration tests | Dispatch uses the application Container. Class subscribers now resolve handlers in the active scope; Blinker currently stores receivers. |
-| Console | CLI tests and Foundation integration | Native registration, Container injection, and command lifecycle are implemented. Component-owned commands and generators remain pending. |
+| Console | CLI tests and Foundation integration | Native registration, Container injection, lifecycle, configuration, route, event, and artifact-generation commands are implemented. Full application scaffolding remains deferred. |
 
 This evidence does not establish production readiness for distributed
 execution, Windows, multiprocess pools, AI agents, or nested workflow scopes.
@@ -388,6 +387,311 @@ overrides.
 uses the real Validation provider, request parser, Router, Container, and
 response factory. It asserts the 422 status and confirms that input values do
 not appear in the response.
+
+### C-001 — Storage fakes bypassed injected manager consumers
+
+**Severity:** P1 — confirmed isolation defect, resolved in this change.
+
+**Affected components:** Filesystem, Facades, Contracts, Container.
+
+**Evidence:** Before correction, `Storage.fake()` replaced disk selection only
+inside the Storage facade. An injected `StorageManager` retained its direct
+production disk path. Fake setup could also call `manager.disk()` while
+validating a configured name, which constructed the production backend.
+
+**Reproduction:** `tests/integration/test_filesystem.py::test_storage_fake_replaces_the_injected_manager_disk`
+injects `StorageManager` into an application service and writes while the
+facade fake is active. The test counts production filesystem factory calls.
+
+**Correction:** The canonical `StorageDiskOverride` contract defines optional
+context-local replacement. `FilesystemManager.disk()` checks its override
+before constructing a backend. `Storage.fake()` installs and restores the
+override through the injected manager. Custom managers without the capability
+fail explicitly.
+
+**Verification:** The injected service writes into the fake, the production
+factory count remains zero, nested and sibling fake tests pass, and an
+unsupported custom manager fails before disk access.
+
+**Result:** Facade and injected storage consumers share one manager-owned
+override. Configured disk caches and other applications remain unchanged.
+
+### C-002 — Application-owned file resources used the process directory
+
+**Severity:** P1 — confirmed application-isolation defect, resolved in this
+change.
+
+**Affected components:** Foundation, Filesystem, Logging.
+
+**Evidence:** Relative local disk roots and file-log destinations were
+interpreted without the active application's root. Two applications in one
+process could therefore write into a shared current directory.
+
+**Reproduction:** Filesystem and logging integration tests construct an
+application under a dedicated root, change the process directory, and write
+through the real application manager. The earlier implementation wrote
+outside the selected application root.
+
+**Correction:** Foundation registers the shared `ApplicationPaths` contract
+before component providers. Filesystem anchors relative local roots to that
+root. Logging anchors relative file destinations the same way. Absolute paths
+remain unchanged; relative paths that escape the root fail during
+configuration.
+
+**Verification:**
+`tests/integration/test_filesystem.py::test_relative_disk_roots_follow_each_application_root`
+and the logging root, absolute-path, and traversal tests exercise separate
+roots, working-directory changes, and configured destinations. Filesystem
+unit tests cover absolute roots and path escape rejection.
+
+### C-009 — Built-in component providers required repeated registration
+
+**Severity:** P2 — confirmed framework composition gap, resolved in this
+change.
+
+**Affected components:** Foundation, Validation, Filesystem, Hashing.
+
+**Evidence:** Applications could resolve these services only when callers
+listed their providers in `service_providers`.
+
+**Correction:** Foundation now registers Validation, Filesystem, and Hashing
+providers with its core providers. One explicit provider of each type replaces
+the default, preserving custom driver factories. Duplicate built-in provider
+registrations fail before service registration.
+
+**Verification:**
+`tests/integration/test_framework_cohesion.py::test_application_registers_supported_component_providers_by_default`
+resolves all three contracts through the real Application. Existing
+Filesystem, Hashing, and Validation application tests verify explicit
+provider behavior.
+
+### C-016 — Framework diagnostics exposed exception text by default
+
+**Severity:** P1 — confirmed secret-disclosure risk, resolved in this change.
+
+**Affected components:** Console, Foundation, Logging.
+
+**Evidence:** Console printed arbitrary exception text. Foundation passed the
+exception object to logging, whose records retained its message and formatted
+traceback, including chained causes.
+
+**Reproduction:** Console and Foundation integration tests use synthetic
+secret-bearing exceptions and chained causes. The earlier command output and
+log record included the supplied secret.
+
+**Correction:** Console reports command path and exception class by default.
+`Console(show_exception_details=True)` explicitly enables bounded terminal
+details. Foundation records exception type without text by default. The
+application's `app.debug` value or `report_exception(include_details=True)`
+explicitly enables detailed logs. This policy does not claim to redact every
+possible secret from developer-selected detailed output.
+
+**Verification:** `tests/unit/console/test_console.py` verifies safe default
+output and explicit detail output. Framework integration tests verify safe
+default logs, chained exception handling, explicit detail opt-in, and a real
+ASGI request with generic 500 response. The post-shutdown fallback test verifies
+that a closed logging manager emits a classified emergency record without
+exception text.
+
+### C-021 — Framework logging bypassed active service substitutions
+
+**Severity:** P2 — confirmed service-identity inconsistency, resolved in this
+change.
+
+**Affected components:** Foundation, Logging, Facades, Container scopes.
+
+**Evidence:** Foundation request middleware and exception reporting used a
+manager captured during Application construction. `Log.fake()` and other
+Container overrides selected another manager for ordinary service access.
+
+**Correction:** Request middleware and exception reporting resolve the
+manager from the active application execution scope. `Application.logging`
+uses the active Container service and falls back to its captured owner only
+after Container shutdown begins. Unhandled request reports retain the safe
+request identifier when FastAPI handles the exception after request middleware
+unwinds.
+
+**Verification:**
+`tests/integration/test_framework_cohesion.py::test_framework_exception_reporting_uses_safe_substituted_logging`
+and `::test_asgi_exception_reporting_uses_request_scoped_log_context` verify
+facade, direct Application, and real ASGI identity under `Log.fake()`.
+`::test_application_reports_after_shutdown_without_leaking_exception`
+verifies the lifecycle-owned emergency path after channel shutdown.
+
+### C-003 — Validation diagnostics exposed backend messages and dynamic keys
+
+**Severity:** P1 — confirmed secret-disclosure risk, resolved in this change.
+
+**Affected components:** Validation, Foundation, HTTP, Routing.
+
+**Evidence:** Pydantic errors omitted their input and context, but the adapter
+returned backend-generated messages and locations. Custom validators can put
+rejected values in messages. Typed mapping keys can also contain secrets.
+Foundation did not register a dedicated FastAPI request-validation response.
+
+**Correction:** `src/titanspan/validation/validator.py` maps known codes to
+fixed messages, uses a generic message for unknown codes, and retains only
+declared schema fields in locations. Untrusted dynamic keys become
+`"<key>"`. Foundation renders `RequestValidationError` with a generic 422
+body through the native response factory. Application-authored rule messages
+remain public by design and are documented as trusted text.
+
+**Verification:** `tests/unit/validation/test_validator.py` covers secret
+values in validator messages and mapping keys. `tests/integration/test_validation_exception_rendering.py`
+exercises native and FastAPI validation through real ASGI execution and checks
+that synthetic secrets are absent from response bodies and logs.
+
+### C-004 — HEAD requests consumed stream producers
+
+**Severity:** P1 — confirmed side-effect and resource risk, resolved here.
+
+**Affected components:** HTTP.
+
+**Evidence:** The previous adapter suppressed body send messages after
+Starlette had iterated the response body. A producer could perform unbounded
+work or cause side effects for a HEAD request.
+
+**Correction:** The private ASGI response adapter returns an empty response
+with the original status, headers, and background task for HEAD and bodyless
+statuses. It does not enter the stream producer.
+
+**Verification:** `tests/integration/http/test_asgi_backend.py::test_head_stream_does_not_start_the_producer`
+inspects actual ASGI messages and asserts the producer was not entered.
+
+### C-005 — Route middleware changed response-model serialization
+
+**Severity:** P2 — confirmed behavior inconsistency, resolved here.
+
+**Affected components:** Routing, HTTP.
+
+**Evidence:** Routes with middleware invoked a separate response path. Scalar
+models lost JSON serialization and model filtering could differ.
+
+**Correction:** The middleware path now applies FastAPI's response-model
+adapter and JSON encoding before creating a native response. Explicit
+Starlette responses keep FastAPI's bypass behavior.
+
+**Verification:** `tests/integration/routing/test_dispatch.py::test_route_middleware_preserves_response_model_serialization`
+compares scalar media types and Pydantic field filtering with and without
+middleware through real ASGI requests.
+
+### C-006 — None results failed for content-permitted statuses
+
+**Severity:** P2 — confirmed response normalization defect, resolved here.
+
+**Affected components:** Routing, HTTP.
+
+**Evidence:** Routing passed every `None` result to `no_content()`, whose
+contract only accepts bodyless status codes. Explicit 200, 201, and 202
+therefore failed instead of returning an empty response.
+
+**Correction:** Routing now creates an empty native response for ordinary
+selected statuses. Its default remains 204. Explicit JSON null remains a
+separate serialized representation.
+
+**Verification:** `tests/integration/routing/test_dispatch.py::test_none_result_returns_an_empty_response_with_selected_status` covers
+200, 201, 202, 204, 205, and 304. The adjacent JSON-null test verifies the
+literal `null` body.
+
+### C-007 — HTTP contracts omitted implemented native capabilities
+
+**Severity:** P2 — confirmed substitution boundary gap, resolved here.
+
+**Affected components:** Contracts, HTTP, Foundation.
+
+**Evidence:** Native Request supported single and repeated uploads, but
+`HttpRequest` did not declare them. Native responses supported cookie
+mutation, but `HttpResponse` did not expose it to middleware.
+
+**Correction:** Canonical contracts now expose upload metadata and bounded
+async reads through `HttpUploadedFile`, plus response cookie creation and
+removal through `CookieOptions`. Foundation delegates cookie operations to
+Starlette and preserves separate `Set-Cookie` headers.
+
+**Verification:** `tests/integration/http/test_contract_capabilities.py`
+uploads multipart files through injected `HttpRequest` and mutates multiple
+cookies through injected `HttpResponse` in a real application.
+
+### C-013 — Hash verification accepted excessive work factors
+
+**Severity:** P1 — confirmed resource-exhaustion risk, resolved here.
+
+**Affected components:** Hashing.
+
+**Evidence:** Backend verification parsed encoded Argon2 and Bcrypt costs but
+did not enforce an application operational policy before expensive work.
+
+**Correction:** `HashVerificationLimits` validates cost, encoded hash length,
+password length, digest, and salt bounds. The backend rejects excessive PHC
+and Bcrypt metadata before verification. Generation settings must fit the
+selected verification policy. Defaults and hard ceilings are documented.
+
+**Verification:** Hashing tests construct excessive metadata and patch backend
+verification calls to fail if invoked. Configuration tests reject operational
+limits outside their allowed bounds.
+
+### C-014 — Hashing had no application-owned work limit
+
+**Severity:** P2 — confirmed resource-control gap, resolved here.
+
+**Affected components:** Hashing, Config, AnyIO integration.
+
+**Evidence:** Async methods used AnyIO's process-wide worker limiter. Direct
+synchronous calls did not share a configurable application budget. Argon2
+replacement generation also bypassed any operation-level limit.
+
+**Correction:** The built-in driver now owns one standard-library bounded
+semaphore per application hasher. All synchronous and asynchronous hashing
+operations use it, including replacement generation. Async calls still use
+AnyIO's bounded worker pool. The shared semaphore is necessary because native
+synchronous callers and AnyIO workers must consume the same capacity. Custom
+drivers own their execution limits.
+
+**Verification:** `tests/unit/hashing/test_hashing_manager.py::test_sync_and_async_hashing_share_application_work_budget`
+uses controlled thread events to verify mixed-call contention. The rehash test
+verifies that replacement generation uses the same budget. Configuration
+tests cover defaults and invalid limits. UTF-8 byte-limit and invalid-Unicode
+tests cover input boundaries. Redundant encoded-hash length validation was
+removed from the private Argon2 parser because the public inspector checks it.
+
+### C-015 — Replacement hashes appeared in result representations
+
+**Severity:** P2 — confirmed diagnostic exposure, resolved here.
+
+**Affected components:** Hashing, Contracts.
+
+**Correction:** `HashVerification.replacement_hash` remains available for
+explicit persistence but is excluded from the dataclass representation.
+
+**Verification:** `tests/unit/contracts/test_hashing_contract.py::test_replacement_hash_is_not_exposed_by_result_representation`
+checks both redaction and explicit field access.
+
+## Core-completion backlog disposition
+
+| Finding | Disposition at this source revision | Evidence or remaining boundary |
+| --- | --- | --- |
+| C-001 | Resolved | Injected StorageManager fake integration and nested override tests. |
+| C-002 | Resolved for implemented paths | Routes, storage, file logging, configuration caches, event manifests, and Console artifacts use the effective application root. |
+| C-003 | Resolved | Safe native and FastAPI 422 tests. |
+| C-004 | Resolved | ASGI HEAD test proves no producer entry. |
+| C-005 | Resolved | Real middleware response-model comparison. |
+| C-006 | Resolved | Empty status and explicit JSON null tests. |
+| C-007 | Resolved for current request and response contracts | Real injected multipart and cookie integration. |
+| C-008 | Partially verified | Native parse errors now return safe 400 responses; validation returns 422 and internal failures return generic 500. Startup, post-header streaming, and WebSocket exception cases need more coverage. |
+| C-009 | Resolved | Default Validation, Filesystem, and Hashing providers with explicit replacement tests. |
+| C-010 | Partial | Native schema validation, request validation, and safe 422 handling exist; automatic typed route validation and generated validation schemas remain incomplete. |
+| C-011 | Pending | Middleware declarations do not carry immutable route-specific parameters. |
+| C-012 | Resolved | Filesystem provider shutdown closes existing manager-owned backend instances and skips unused disks; `tests/integration/test_filesystem.py` covers partial startup and lazy shutdown. |
+| C-013 | Resolved | Cost metadata is bounded before backend verification. |
+| C-014 | Resolved | Built-in synchronous and asynchronous hashing share a bounded application-owned semaphore; `test_sync_and_async_hashing_share_application_work_budget` verifies contention. |
+| C-015 | Resolved | Replacement hashes are omitted from ordinary representations. |
+| C-016 | Resolved | Safe Console and Foundation diagnostics have regression coverage. |
+| C-017 | Partially verified | Sync handlers use AnyIO worker threads; invocation from an already active async runtime remains unsupported. |
+| C-018 | Partial | `about`, configuration, route, event, and seven artifact commands use component APIs. A complete application scaffold and package-installed generator verification remain open. |
+| C-019 | Resolved with C-009 | Built-in providers follow one deterministic Foundation registration policy. |
+| C-020 | Resolved as a dependency decision | Hashing keeps direct `argon2-cffi` and `bcrypt` adapters; `pwdlib` was not added. |
+| C-021 | Resolved | Framework-generated request and exception logs resolve active service substitutions. |
+| C-022 | Partial | The installed-package smoke exercises native providers, contract injection, logging, URL generation, route dispatch, and lifecycle. A broader reference application and HTTP, Routing, and storage performance evidence remain open. |
 
 ## Open findings
 

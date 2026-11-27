@@ -22,10 +22,10 @@ Hashing provides Argon2id password hashes, Bcrypt verification, safe hash
 upgrades, and explicit async access independently of Authentication.
 
 The Events component now provides ordered in-process dispatch, Container-backed
-listeners, scoped fakes, deferred dispatch, and trusted discovery. Durable
-queue, transaction, broadcasting, and event-owned Console commands remain
-planned. Console provides native command registration and application-aware
-execution.
+listeners, scoped fakes, deferred dispatch, trusted discovery, and Console
+inspection commands. Durable queue, transaction, and broadcasting integration
+remain planned. Console provides native command registration and
+application-aware execution.
 
 ## Phase 0 — Engineering foundation
 
@@ -53,11 +53,13 @@ execution.
   controller dispatch, URL generation, discovery, inspection, WebSockets,
   and OpenAPI. See the component specifications for verified behavior.
 - Routing integrations remain for Database-backed model binding, key-managed
-  signed URLs, View routes, parameterized middleware, Console route listing,
-  and Foundation base-path discovery. HTTP fake transports and bounded
-  concurrent HTTP pools are implemented; structured observability improvements
-  remain with Telemetry.
-- CLI generators and application test utilities remain planned.
+  signed URLs, View routes, and parameterized middleware. HTTP fake transports
+  and bounded concurrent HTTP pools are implemented. Structured observability
+  improvements remain with Telemetry.
+- Console provides application-rooted generators for controllers, middleware,
+  providers, commands, events, listeners, and smoke tests. A full application
+  scaffold remains planned. Testing provides synchronous and asynchronous
+  application contexts over the production ASGI and Container lifecycles.
 
 ## Phase 3 — AI orchestration
 

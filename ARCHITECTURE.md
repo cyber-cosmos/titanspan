@@ -90,7 +90,7 @@ tracked in [`docs/src/content/docs/specifications/backend-boundaries.md`](docs/s
 | `filesystem` | Local and remote storage abstractions. | Application-owned local and memory disks delegate to fsspec. Remote drivers are registered by optional integrations. See `docs/src/content/docs/specifications/filesystem.md`. |
 | `logging` | Native records, channels, drivers, redaction, context, async dispatch, and lifecycle. | Initial component implemented; see `docs/src/content/docs/logging/` and its specification for limits. |
 | `scheduling` | Recurring tasks, cron expressions, and coordination. | Planned. |
-| `console` | Native commands, terminal output, and application-aware execution. | Typed registration, groups, trusted entry-point discovery, Container injection, per-command Foundation lifecycle, output, and parser-backed testing are implemented. Generators and component-owned inspection commands remain pending. See `docs/src/content/docs/specifications/console.md`. |
+| `console` | Native commands, terminal output, and application-aware execution. | Typed registration, groups, trusted entry-point discovery, Container injection, per-command Foundation lifecycle, component inspection commands, safe artifact generators, and parser-backed testing are implemented. Full application scaffolding remains deferred. See `docs/src/content/docs/specifications/console.md`. |
 | `ai` | Model providers, prompts, embeddings, and structured output. | Planned. |
 | `agents` | Agent definitions, execution policies, and lifecycle. | Planned. |
 | `workflows` | Typed stateful orchestration over LangGraph. | Planned. |
@@ -98,7 +98,7 @@ tracked in [`docs/src/content/docs/specifications/backend-boundaries.md`](docs/s
 | `memory` | Conversation memory, semantic memory, and persistent state adapters. | Planned. |
 | `streaming` | Async streams, server-sent events, WebSockets, and incremental output. | Planned. |
 | `telemetry` | Metrics, tracing, and runtime instrumentation. | Planned. |
-| `testing` | Application test cases, fakes, assertions, and test utilities. | Planned. |
+| `testing` | Application test contexts over the production lifecycle and ASGI host. | Sync and async application test contexts provide temporary roots, configuration, provider registration, Container-backed service replacements, and real ASGI clients. Component fakes remain with their owners. See `docs/src/content/docs/specifications/testing.md`. |
 
 ## Dependency direction
 
