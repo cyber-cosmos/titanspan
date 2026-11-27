@@ -415,7 +415,7 @@ jobs:
         image: postgres:17.12-alpine
         env:
           POSTGRES_USER: postgres
-          POSTGRES_PASSWORD: postgres
+          POSTGRES_PASSWORD: postgres # pragma: allowlist secret
           POSTGRES_DB: titanspan_codex_test_ci
         ports:
           - 5432:5432
@@ -447,8 +447,7 @@ jobs:
       TITANSPAN_REQUIRE_RABBITMQ: "1"
       TITANSPAN_TEST_RABBITMQ_URL: amqp://127.0.0.1:5672/
       TITANSPAN_REQUIRE_POSTGRES: "1"
-      TITANSPAN_TEST_POSTGRES_URL: >-
-        postgresql+psycopg://postgres:postgres@localhost:5432/titanspan_codex_test_ci
+      TITANSPAN_TEST_POSTGRES_URL: "postgresql+psycopg://postgres:postgres@localhost:5432/titanspan_codex_test_ci" # pragma: allowlist secret
     steps:
       - name: Check out source
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -858,6 +857,7 @@ jobs:
         run: uv sync --locked --all-groups --all-extras
       - name: Audit runtime dependency licenses
         run: make license-check | tee license-report.txt
+        shell: bash
       - name: Upload license report
         if: always()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2

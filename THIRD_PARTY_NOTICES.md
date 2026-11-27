@@ -142,3 +142,23 @@ pycparser is distributed under the BSD 3-Clause License; see the
 Titanspan delegates Bcrypt salt generation, hashing, and verification to
 bcrypt 5.0.0, distributed under the Apache License 2.0. See the
 [official license](https://github.com/pyca/bcrypt/blob/main/LICENSE).
+
+## Database drivers
+
+SQLAlchemy's asyncio extra uses greenlet 3.5.6. Its declared license
+expression is `MIT AND PSF-2.0`; the distribution includes both required
+license files. See the [release metadata](https://github.com/python-greenlet/greenlet/blob/3.5.6/pyproject.toml),
+[MIT license](https://github.com/python-greenlet/greenlet/blob/3.5.6/LICENSE),
+and [PSF license](https://github.com/python-greenlet/greenlet/blob/3.5.6/LICENSE.PSF).
+Titanspan does not copy greenlet source code.
+
+The optional `postgresql` extra installs Psycopg 3.3.9 and its
+`psycopg-binary` 3.3.9 extra. Both distributions declare `LGPL-3.0-only` and
+include their license file. See the [Psycopg release metadata](https://github.com/psycopg/psycopg/blob/3.3.9/psycopg/pyproject.toml),
+[Psycopg license](https://github.com/psycopg/psycopg/blob/3.3.9/LICENSE.txt),
+and [binary distribution metadata](https://pypi.org/project/psycopg-binary/3.3.9/).
+Psycopg documents that its [binary installation](https://www.psycopg.org/psycopg3/docs/basic/install.html#binary-installation)
+packages native client libraries. Titanspan does not vendor or modify these
+distributions; each is installed separately by the Python package manager.
+Applications that redistribute an installed environment must retain the
+driver distributions' license files and applicable native-library notices.

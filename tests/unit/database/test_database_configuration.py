@@ -110,11 +110,11 @@ def test_explicit_driver_urls_and_credentials_are_preserved_and_redacted(
         "postgres",
         {
             "sync_url": (
-                "postgresql+psycopg://db_user:super-secret@localhost/app"
+                "postgresql+psycopg://u:secret@h/d"  # pragma: allowlist secret
                 "?token=token-secret&sslmode=require"
             ),
             "async_url": (
-                "postgresql+asyncpg://db_user:super-secret@localhost/app"
+                "postgresql+asyncpg://u:secret@h/d"  # pragma: allowlist secret
             ),
         },
         paths,
@@ -122,7 +122,7 @@ def test_explicit_driver_urls_and_credentials_are_preserved_and_redacted(
 
     assert configuration.sync_url.drivername == "postgresql+psycopg"
     assert configuration.async_url.drivername == "postgresql+asyncpg"
-    assert "super-secret" not in configuration.redacted_url
+    assert "secret" not in configuration.redacted_url
     assert "token-secret" not in configuration.redacted_url
     assert _SAFE_TLS_PARAMETER in configuration.redacted_url
 
@@ -142,7 +142,7 @@ def test_direct_connection_fields_and_immutable_driver_options(
             "driver": "postgres",
             "database": "application",
             "username": "worker",
-            "password": "secret",
+            "password": "secret",  # pragma: allowlist secret
             "host": "db.internal",
             "port": _POSTGRES_DEFAULT_PORT,
             "query": {"options": ["first", "second"]},

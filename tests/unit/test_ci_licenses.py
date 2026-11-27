@@ -14,6 +14,7 @@ from scripts.ci.check_licenses import (
 
 pytestmark = pytest.mark.unit
 EXPECTED_LICENSE_RECORDS = 4
+EXPECTED_DATABASE_LICENSES = 3
 
 
 def test_runtime_requirement_export_yields_normalized_package_names() -> None:
@@ -138,6 +139,29 @@ def test_license_inventory_rejects_unreviewed_helper_version() -> None:
     )
 
     assert errors == ["unknown license metadata for taskiq-dependencies"]
+
+
+def test_license_inventory_accepts_reviewed_database_licenses() -> None:
+    """Accept only the reviewed SQLAlchemy driver license expressions.
+
+    greenlet includes both declared license files. Psycopg and its binary
+    package carry their LGPL-3.0-only license files in their distributions.
+    """
+    payload = json.dumps(
+        [
+            {"Name": "greenlet", "License": "MIT AND PSF-2.0"},
+            {"Name": "psycopg", "License": "LGPL-3.0-only"},
+            {"Name": "psycopg-binary", "License": "LGPL-3.0-only"},
+        ]
+    )
+
+    rows, errors = validate_license_inventory(
+        payload,
+        expected_packages={"greenlet", "psycopg", "psycopg-binary"},
+    )
+
+    assert len(rows) == EXPECTED_DATABASE_LICENSES
+    assert errors == []
 
 
 def test_license_inventory_rejects_unreviewed_and_missing_data() -> None:

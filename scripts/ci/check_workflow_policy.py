@@ -550,7 +550,47 @@ def validate_ci_workflow(workflow: object) -> list[str]:
     errors.extend(_validate_job_matrices(jobs))
     errors.extend(_validate_coverage_job(jobs))
     errors.extend(_validate_cross_component_job(jobs))
+    errors.extend(_validate_license_job(jobs))
     errors.extend(_validate_gate(jobs))
+    return errors
+
+
+def _validate_license_job(jobs: dict[str, object]) -> list[str]:
+    """Require the runtime license audit to fail the job on policy errors.
+
+    Args:
+        jobs: Parsed job mappings from the primary CI workflow.
+
+    Returns:
+        Diagnostics for missing or failure-masking license execution.
+    """
+    job = _string_mapping(jobs.get("license-compliance"))
+    steps_value = job.get("steps") if job is not None else None
+    if not isinstance(steps_value, list):
+        return ["license-compliance must execute the runtime license audit"]
+
+    steps = cast("list[object]", steps_value)
+    audit_steps = [
+        _string_mapping(step)
+        for step in steps
+        if "make license-check"
+        in str(
+            (_string_mapping(step) or {}).get("run", ""),
+        )
+    ]
+    audit_steps = [step for step in audit_steps if step is not None]
+    if not audit_steps:
+        return ["license-compliance must execute the runtime license audit"]
+
+    errors: list[str] = []
+    for step in audit_steps:
+        command = str(step.get("run", ""))
+        if step.get("continue-on-error") is True:
+            errors.append("license audit step must not ignore failures")
+        if "|" in command and step.get("shell") != "bash":
+            errors.append(
+                "license audit pipeline must use Bash with pipefail",
+            )
     return errors
 
 

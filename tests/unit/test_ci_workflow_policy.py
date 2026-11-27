@@ -70,6 +70,16 @@ def _workflow() -> dict[str, object]:
             },
         ],
     }
+    jobs["license-compliance"] = {
+        "runs-on": "ubuntu-latest",
+        "timeout-minutes": "10",
+        "steps": [
+            {
+                "run": "make license-check | tee license-report.txt",
+                "shell": "bash",
+            },
+        ],
+    }
     for job_id in ("unit-tests", "integration-tests"):
         job = _mapping(jobs[job_id])
         job["strategy"] = {
@@ -266,6 +276,24 @@ def test_workflow_policy_rejects_continue_on_error_in_mandatory_job() -> None:
     errors = validate_ci_workflow(workflow)
 
     assert any("continue-on-error" in error for error in errors)
+
+
+def test_workflow_policy_rejects_masked_license_pipeline() -> None:
+    """Require the license audit pipeline to preserve the checker status.
+
+    GitHub's explicit Bash shell enables ``pipefail`` for pipelines ending in
+    ``tee``. The checker must not pass when the license audit fails.
+    """
+    workflow = _workflow()
+    jobs = _mapping(workflow["jobs"])
+    license_job = _mapping(jobs["license-compliance"])
+    steps = cast("list[object]", license_job["steps"])
+    audit_step = _mapping(steps[0])
+    audit_step.pop("shell")
+
+    errors = validate_ci_workflow(workflow)
+
+    assert any("license audit pipeline" in error for error in errors)
 
 
 def test_workflow_policy_requires_changed_source_coverage() -> None:
