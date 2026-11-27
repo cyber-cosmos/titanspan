@@ -1,7 +1,7 @@
 """Verify Redis worker execution and delayed Taskiq scheduling.
 """  # fmt: skip
 
-from collections.abc import Mapping
+from collections.abc import AsyncIterator, Mapping
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from multiprocessing import get_context
@@ -23,7 +23,7 @@ from titanspan.facades.bus import Bus
 from titanspan.facades.queue import Queue
 from titanspan.foundation import Application
 from titanspan.queue import Job, JobContext, QueueManager, QueueServiceProvider
-from titanspan.queue.events import JobProcessed, QueueEvent
+from titanspan.queue.events import JobFailed, JobProcessed, QueueEvent
 
 if TYPE_CHECKING:
     from titanspan.contracts.queue import DispatchReceipt, JobResultSnapshot
@@ -160,6 +160,83 @@ class _CrashRedeliveryJob(Job):
             gate: Cross-process crash synchronization.
         """
         await gate.wait_for_release()
+
+
+class _TimeoutLifecycle:
+    """Record handler entry and job resource finalization.
+    """  # fmt: skip
+
+    def __init__(self) -> None:
+        """Create synchronization and cleanup state for one test job.
+        """  # fmt: skip
+        self.entered = anyio.Event()
+        self.finalizations = 0
+
+
+class _TimeoutResource:
+    """Represent a resource owned by a timed Redis job scope.
+    """  # fmt: skip
+
+
+class _TimeoutProvider:
+    """Register a job-scoped resource with a visible finalizer.
+    """  # fmt: skip
+
+    def __init__(self, lifecycle: _TimeoutLifecycle) -> None:
+        """Retain the observer used by the asynchronous resource factory.
+
+        Args:
+            lifecycle: State used to verify scope cleanup after timeout.
+        """
+        self._lifecycle = lifecycle
+
+    def register(self, container: ServiceRegistry) -> None:
+        """Bind the observer and resource through the application Container.
+
+        Args:
+            container: Canonical application service registry.
+        """
+        container.instance(_TimeoutLifecycle, self._lifecycle)
+        container.scoped(
+            _TimeoutResource,
+            self.create,
+            scope=Scope.JOB,
+        )
+
+    async def create(self) -> AsyncIterator[_TimeoutResource]:
+        """Yield a resource and record its single finalization.
+
+        Yields:
+            One job-owned resource instance.
+        """
+        try:
+            yield _TimeoutResource()
+        finally:
+            self._lifecycle.finalizations += 1
+
+
+@dataclass
+class _TimedRedisJob(Job):
+    """Wait indefinitely so the configured async timeout cancels the handler.
+    """  # fmt: skip
+
+    timeout = 0.05
+    tries = 1
+
+    async def handle(
+        self,
+        lifecycle: _TimeoutLifecycle,
+        resource: _TimeoutResource,
+    ) -> None:
+        """Enter the handler and wait for Queue's timeout boundary.
+
+        Args:
+            lifecycle: Observer for handler entry.
+            resource: Resource owned by the current JOB scope.
+        """
+        _ = resource
+        lifecycle.entered.set()
+        await anyio.Event().wait()
 
 
 @dataclass
@@ -707,6 +784,60 @@ async def test_redis_redelivers_unacknowledged_job_after_worker_crash(
         finally:
             started_receive.close()
             started_send.close()
+
+
+@pytest.mark.anyio
+async def test_redis_job_timeout_finalizes_its_scope_before_failure_result(
+    queue_redis_port: int,
+) -> None:
+    """Cancel a timed Redis job and finalize its scoped resource once.
+
+    The test verifies the native timeout, event, result, and Container scope.
+    """
+    lifecycle = _TimeoutLifecycle()
+    application = _application(
+        queue_redis_port,
+        _JobObservation(),
+        (_TimedRedisJob,),
+        (_TimeoutProvider(lifecycle),),
+    )
+    failures: list[JobFailed] = []
+    receipt: DispatchReceipt | None = None
+    result: JobResultSnapshot | None = None
+
+    async with application:
+        manager = application.container.make(QueueManager)
+        events = application.container.make(EventDispatcher)
+        events.listen(JobFailed, failures.append)
+
+        async def run_worker() -> None:
+            """Consume timed jobs until the test closes the worker.
+            """  # fmt: skip
+            await manager.work_async(
+                connection="redis",
+                queue=_WORKER_QUEUE,
+                concurrency=1,
+                prefetch=1,
+            )
+
+        async with anyio.create_task_group() as task_group:
+            task_group.start_soon(run_worker)
+            receipt = await manager.dispatch_async(_TimedRedisJob())
+            result = await manager.result_for(receipt).wait_async(
+                timeout=10,
+                poll_interval=0.01,
+            )
+            task_group.cancel_scope.cancel()
+
+    assert receipt is not None
+    assert result is not None
+    assert result.state == "failed"
+    assert lifecycle.entered.is_set()
+    assert lifecycle.finalizations == 1
+    assert len(failures) == 1
+    assert failures[0].job_id == receipt.job_id
+    assert failures[0].attempt == 1
+    assert failures[0].exception_type == "TimeoutError"
 
 
 @pytest.mark.anyio

@@ -41,7 +41,7 @@ or prose.
 | Stable job identifiers | Equivalent with Python-native syntax | Explicit `job_name` or trusted registered class name. |
 | Queue and connection selection | Equivalent with Python-native syntax | Class attributes, dispatch arguments, and fluent pending builder. |
 | Attempts and backoff | Backend-dependent | Taskiq retry middleware; delayed backoff needs a scheduler. |
-| Timeouts | Intentionally different for correctness or security | Async handlers can time out. Arbitrary sync thread code cannot be safely interrupted. |
+| Timeouts | Intentionally different for correctness or security | A real Redis test verifies async timeout reporting and JOB resource cleanup. Arbitrary sync thread code cannot be safely interrupted. |
 | Payload serialization | Intentionally different for correctness or security | Bounded, versioned JSON; no arbitrary object or executable deserialization. |
 | Model payload serialization | Unsupported with a technical justification | Persistence and rehydration contracts are not available. Pass identifiers and rehydrate through application services. |
 | Job discovery | Intentionally different for correctness or security | Explicit trusted classes prevent untrusted module imports. |
@@ -55,8 +55,8 @@ or prose.
 | Delayed dispatch | Backend-dependent | Redis Taskiq schedule source; sync rejects delays; RabbitMQ adapter has no source. |
 | After-commit dispatch | Dependent on another unfinished Titanspan component | Requires canonical Database transaction outcomes and nested transaction semantics. |
 | After-response dispatch | Unsupported with a technical justification | Queue does not own HTTP response completion or a safe detached-task lifecycle. |
-| Bulk dispatch | Unsupported with a technical justification | No backend-independent atomic bulk publication contract is implemented. |
-| Conditional dispatch | Equivalent with Python-native syntax | Application code can conditionally call the explicit dispatcher; fluent helpers are absent. |
+| Bulk dispatch | Equivalent with Python-native syntax | `dispatch_many_async()` publishes a bounded sequence in order. Taskiq does not provide atomic bulk publication. |
+| Conditional dispatch | Equivalent with Python-native syntax | `dispatch_if()` and `dispatch_unless()` provide pending builders and explicit async methods. |
 | Retry after exceptions | Backend-dependent | Taskiq `SmartRetryMiddleware` owns retry accounting and rescheduling. |
 | Release or delete during handling | Unsupported with a technical justification | No public attempt-control contract exists. Raising a failure is handled by Taskiq retry policy. |
 | Failure callbacks | Unsupported with a technical justification | Durable callback identity and retry semantics are not implemented. |
@@ -75,8 +75,8 @@ or prose.
 | Graceful worker cancellation | Enhanced for asynchronous execution | AnyIO cancellation and Foundation cleanup; sync thread work cannot be forcibly stopped. |
 | Worker process supervision | Unsupported with a technical justification | Use an external process manager; Queue does not replace operating-system supervision. |
 | Restart, stop-when-empty, memory limits | Unsupported with a technical justification | No worker supervisor or reliable cross-process control plane is included. |
-| Worker and job events | Equivalent with Python-native syntax | Metadata lifecycle events include accepted retries; release events remain pending. Payloads and exception messages stay private. |
-| Queued event listeners | Dependent on another unfinished Titanspan component | Needs registered listener identity and safe event payload serialization. |
+| Worker and job events | Equivalent with Python-native syntax | Typed metadata events cover dispatch, processing, completion, retries, and failures. Release events remain pending. |
+| Queued event listeners | Unsupported with a technical justification | Events has no trusted listener identity and payload serialization contract for Queue execution. |
 
 ## Bus chains and batches
 
