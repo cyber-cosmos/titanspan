@@ -19,4 +19,7 @@ async def test_runtime_smoke_uses_native_routing_and_injected_services() -> (
     """
     result = await run_smoke()
 
-    assert result == EXPECTED_RESPONSE
+    assert result == {
+        "health": EXPECTED_RESPONSE,
+        "documents": {"resource": "Document"},
+    }

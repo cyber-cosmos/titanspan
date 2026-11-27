@@ -30,7 +30,7 @@ application composition and resource cleanup.
 | Framework information command | Implemented | `about` reports Titanspan and Python versions without starting an application |
 | Route inspection commands | Implemented | `route:list`, `route:cache`, and `route:clear` use active application services |
 | Event inspection commands | Implemented | `event:list`, `event:cache`, and `event:clear` use the Events discovery API and application configuration |
-| Artifact generation | Implemented | `make:controller`, `make:middleware`, `make:provider`, `make:command`, `make:event`, `make:listener`, and `make:test` write typed files under `ApplicationPaths` |
+| Artifact generation | Implemented | Seven generators write typed files under `ApplicationPaths`; the installed-package smoke imports and dispatches a generated controller |
 | Full application scaffolding | Deferred | No complete generated application template is maintained |
 
 ## Public API

@@ -687,11 +687,11 @@ checks both redaction and explicit field access.
 | C-015 | Resolved | Replacement hashes are omitted from ordinary representations. |
 | C-016 | Resolved | Safe Console and Foundation diagnostics have regression coverage. |
 | C-017 | Resolved for async programmatic execution | `Console.execute_async()` reuses an active app or owns a standalone lifecycle. Sync handlers use AnyIO worker threads. |
-| C-018 | Partial | `about`, configuration, route, event, and seven artifact commands use component APIs. A complete application scaffold and package-installed generator verification remain open. |
+| C-018 | Partially resolved | Installed-package smoke now runs `make:controller`, imports the generated controller, and dispatches it through the native route. A complete application scaffold remains deferred. |
 | C-019 | Resolved with C-009 | Built-in providers follow one deterministic Foundation registration policy. |
 | C-020 | Resolved as a dependency decision | Hashing keeps direct `argon2-cffi` and `bcrypt` adapters; `pwdlib` was not added. |
 | C-021 | Resolved | Framework-generated request and exception logs resolve active service substitutions. |
-| C-022 | Partial | The installed-package smoke exercises native providers, contract injection, logging, URL generation, route dispatch, and lifecycle. A broader reference application and HTTP, Routing, and storage performance evidence remain open. |
+| C-022 | Partial | The installed-package smoke exercises the installed generator, native provider injection, logging, URL generation, generated-controller dispatch, and lifecycle. A broader document application and HTTP, Routing, and storage performance evidence remain open. |
 
 ### C-010 — Typed route inputs did not apply application rules
 
@@ -777,6 +777,29 @@ cancellation cleanup.
 **Boundary:** `run()` and `invoke()` remain synchronous parser entry points.
 `execute_async()` does not parse strings or coerce input values. Callers must
 provide typed Python values for declared command arguments and options.
+
+### C-018 — Installed artifact generation lacked runtime evidence
+
+**Severity:** P2 — confirmed verification gap, partially resolved.
+
+**Affected components:** Console, Foundation, Routing, HTTP.
+
+**Evidence:** Generator unit tests compiled template output, and integration
+tests invoked generators through the source-tree package. The clean-install
+smoke did not run an installed generator or dispatch its output.
+
+**Correction:** The installed-package smoke creates an isolated application
+root and invokes `python -m titanspan make:controller` with a fixed argument
+vector. It imports the generated controller, registers its action through the
+native Router, reverses its named route, and sends an ASGI request.
+
+**Verification:** `tests/integration/test_runtime_application_smoke.py`
+checks both the configured health route and generated controller response.
+The CI installed-package job runs the same script outside the source tree.
+
+**Boundary:** This verifies one generated artifact and its runtime path. A
+complete application scaffold remains deferred because no maintained
+application template exists.
 
 ## Open findings
 

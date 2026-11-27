@@ -1,15 +1,18 @@
-"""Exercise an installed Titanspan application through an ASGI request.
+"""Exercise installed Titanspan commands and routes through ASGI.
 
-The script runs from outside the source tree and uses only the package's
-declared runtime dependencies. It invokes the ASGI lifespan and one real
-in-process HTTP scope without test-only client packages.
+The script runs outside the source tree and uses declared runtime
+dependencies. It invokes the installed artifact generator and ASGI lifespan.
 """
 
 from __future__ import annotations
 
 import json
 import sys
-from typing import TYPE_CHECKING, Protocol
+from importlib.util import module_from_spec, spec_from_file_location
+from pathlib import Path
+from subprocess import run
+from tempfile import TemporaryDirectory
+from typing import TYPE_CHECKING, Protocol, cast
 
 import anyio
 
@@ -19,7 +22,7 @@ from titanspan import Application
 from titanspan.contracts.config import ConfigRepository  # noqa: TC001
 from titanspan.contracts.foundation import ServiceProvider
 from titanspan.contracts.logging import LogWriter  # noqa: TC001
-from titanspan.contracts.routing import UriUrlGenerator
+from titanspan.contracts.routing import ControllerAction, UriUrlGenerator
 from titanspan.http import Request  # noqa: TC001
 
 if TYPE_CHECKING:
@@ -30,10 +33,16 @@ if TYPE_CHECKING:
     from titanspan.contracts.container import ServiceRegistry
 
 _APPLICATION_NAME = "Installed Titanspan"
+_DOCUMENT_CONTROLLER_NAME = "DocumentController"
+_DOCUMENT_CONTROLLER_ACTION = "index"
+_DOCUMENT_ROUTE_NAME = "documents.index"
+_GENERATOR_TIMEOUT_SECONDS = 30
+_GENERATED_CONTROLLER_MODULE = "_titanspan_installed_document_controller"
 EXPECTED_RESPONSE = {
     "status": "ok",
     "greeting": f"Hello from {_APPLICATION_NAME}.",
 }
+EXPECTED_DOCUMENT_RESPONSE = {"resource": "Document"}
 HTTP_OK_STATUS = 200
 _REQUEST_ID_ERROR = "The request identifier was not registered."
 
@@ -111,40 +120,143 @@ class _RuntimeSmokeProvider(ServiceProvider):
         container.singleton(_GreetingService, _ConfiguredGreeting)
 
 
-async def run_smoke() -> dict[str, str]:
-    """Start, request, and shut down a minimal application instance.
+async def run_smoke() -> dict[str, dict[str, str]]:
+    """Generate, start, exercise, and shut down a reference application.
 
     Raises:
         RuntimeError: If the ASGI application does not return the expected
-            status or response payload.
+            status or response payload, or the installed CLI cannot generate
+            an executable controller.
 
     Returns:
-        The JSON response produced through native route dispatch.
+        Health and generated-controller responses from native route dispatch.
     """
-    application = _create_application()
-    generated_url = application.make(UriUrlGenerator).route(
-        "runtime.health",
-        {},
-        absolute=False,
-    )
-    if generated_url != "/health":
-        message = f"unexpected generated health URL: {generated_url}"
-        raise RuntimeError(message)
+    with TemporaryDirectory(prefix="titanspan-reference-") as directory:
+        base_path = Path(directory)
+        (base_path / "routes").mkdir()
+        generated_path = await anyio.to_thread.run_sync(
+            _generate_document_controller,
+            base_path,
+            abandon_on_cancel=False,
+        )
+        controller_action = _load_document_action(generated_path)
+        application = _create_application(base_path, controller_action)
+        health_url = application.make(UriUrlGenerator).route(
+            "runtime.health",
+            {},
+            absolute=False,
+        )
+        document_url = application.make(UriUrlGenerator).route(
+            _DOCUMENT_ROUTE_NAME,
+            {},
+            absolute=False,
+        )
+        if health_url != "/health" or document_url != "/documents":
+            message = "The reference application's named routes are invalid."
+            raise RuntimeError(message)
 
-    messages: list[Message] = []
-    async with application.asgi.router.lifespan_context(application.asgi):
-        await _send_health_request(application.asgi, messages)
+        async with application.asgi.router.lifespan_context(application.asgi):
+            health = await _send_request(
+                application.asgi,
+                health_url,
+                EXPECTED_RESPONSE,
+            )
+            documents = await _send_request(
+                application.asgi,
+                document_url,
+                EXPECTED_DOCUMENT_RESPONSE,
+            )
 
-    return _decode_response(messages)
+    return {"health": health, "documents": documents}
 
 
-def _create_application() -> Application:
-    """Compose the smoke app through native Foundation and Routing.
+def _generate_document_controller(base_path: Path) -> Path:
+    """Generate one controller through the installed Titanspan CLI.
+
+    Args:
+        base_path: Isolated application root used as the CLI working directory.
 
     Returns:
-        An application with a provider-backed route and injected services.
+        The generated controller path inside ``base_path``.
+
+    Raises:
+        RuntimeError: If CLI execution or artifact creation fails.
+    """
+    # A fixed argv keeps this installed CLI check shell-free and trusted.
+    result = run(  # noqa: S603
+        [
+            sys.executable,
+            "-m",
+            "titanspan",
+            "make:controller",
+            "documents.DocumentController",
+        ],
+        cwd=base_path,
+        capture_output=True,
+        text=True,
+        timeout=_GENERATOR_TIMEOUT_SECONDS,
+        check=False,
+    )
+    generated_path = (
+        base_path
+        / "app"
+        / "controllers"
+        / "documents"
+        / "document_controller.py"
+    )
+    if result.returncode != 0 or not generated_path.is_file():
+        message = (
+            "The installed Titanspan controller generator failed "
+            f"(status {result.returncode})."
+        )
+        raise RuntimeError(message)
+    return generated_path
+
+
+def _load_document_action(generated_path: Path) -> ControllerAction:
+    """Import one generated controller and select its native action.
+
+    Args:
+        generated_path: Controller file created by the installed CLI.
+
+    Returns:
+        A controller action for registration with the native Router.
+
+    Raises:
+        RuntimeError: If generated source cannot provide the expected class.
+    """
+    spec = spec_from_file_location(
+        _GENERATED_CONTROLLER_MODULE,
+        generated_path,
+    )
+    if spec is None or spec.loader is None:
+        message = "The generated controller could not be imported."
+        raise RuntimeError(message)
+    module = module_from_spec(spec)
+    spec.loader.exec_module(module)
+    controller = getattr(module, _DOCUMENT_CONTROLLER_NAME, None)
+    if not isinstance(controller, type):
+        message = "The generated controller class is missing."
+        raise TypeError(message)
+    # Dynamic module attributes are the only untyped boundary in this smoke.
+    return cast("ControllerAction", (controller, _DOCUMENT_CONTROLLER_ACTION))
+
+
+def _create_application(
+    base_path: Path,
+    document_action: ControllerAction,
+) -> Application:
+    """Compose the reference app through native Foundation and Routing.
+
+    Args:
+        base_path: Isolated project root shared with the CLI generator.
+        document_action: Imported controller action generated by the CLI.
+
+    Returns:
+        An application with provider-backed and generated routes.
     """
     application = Application(
+        base_path=base_path,
         config={
             "app": {
                 "name": _APPLICATION_NAME,
@@ -172,19 +284,31 @@ def _create_application() -> Application:
         return {"status": "ok", "greeting": greeting.message()}
 
     application.router.get("/health", health).name("runtime.health")
+    application.router.get("/documents", document_action).name(
+        _DOCUMENT_ROUTE_NAME,
+    )
     return application
 
 
-async def _send_health_request(
+async def _send_request(
     application: ASGIApp,
-    messages: list[Message],
-) -> None:
-    """Send one deterministic HTTP request through the ASGI application.
+    path: str,
+    expected_response: dict[str, str],
+) -> dict[str, str]:
+    """Send and verify one request through the ASGI application.
 
     Args:
         application: Native host assembled by Foundation.
-        messages: Mutable response event buffer owned by this smoke run.
+        path: Local path selected from the application's URL generator.
+        expected_response: JSON object expected from the selected route.
+
+    Returns:
+        The verified JSON object from the ASGI response.
+
+    Raises:
+        RuntimeError: If ASGI emits a malformed response.
     """
+    messages: list[Message] = []
     request_sent = False
 
     async def receive() -> Message:
@@ -217,8 +341,8 @@ async def _send_health_request(
         "http_version": "1.1",
         "method": "GET",
         "scheme": "http",
-        "path": "/health",
-        "raw_path": b"/health",
+        "path": path,
+        "raw_path": path.encode("utf-8"),
         "query_string": b"",
         "root_path": "",
         "headers": [],
@@ -227,13 +351,18 @@ async def _send_health_request(
     }
 
     await application(scope, receive, send)
+    return _decode_response(messages, expected_response)
 
 
-def _decode_response(messages: Sequence[Message]) -> dict[str, str]:
+def _decode_response(
+    messages: Sequence[Message],
+    expected_response: dict[str, str],
+) -> dict[str, str]:
     """Validate one ASGI response and return its JSON object.
 
     Args:
         messages: ASGI response events emitted by the native application.
+        expected_response: JSON object expected from the selected route.
 
     Returns:
         Response object with string keys and values.
@@ -267,14 +396,14 @@ def _decode_response(messages: Sequence[Message]) -> dict[str, str]:
         raise RuntimeError(reason)
     body = b"".join(chunk for chunk in body_chunks if isinstance(chunk, bytes))
     expected_body = json.dumps(
-        EXPECTED_RESPONSE,
+        expected_response,
         ensure_ascii=False,
         separators=(",", ":"),
     ).encode("utf-8")
     if body != expected_body:
         reason = "ASGI response body did not match the health payload"
         raise RuntimeError(reason)
-    return EXPECTED_RESPONSE.copy()
+    return expected_response.copy()
 
 
 def main() -> int:

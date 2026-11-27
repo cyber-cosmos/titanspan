@@ -13,7 +13,9 @@ public release.
 - Add synchronous and asynchronous application test contexts over the
   production Foundation lifecycle, Container, and ASGI application.
 - Extend the clean-install application smoke through native provider
-  registration, contract injection, logging, named URL generation, and routes.
+  registration, contract injection, logging, URL generation, and route
+  dispatch. The smoke runs the installed controller generator, imports its
+  output, and dispatches the generated route.
 - Anchor relative event manifest paths to the effective application root.
 - Render malformed native request input as a safe HTTP 400 response.
 - Added Pydantic-backed Validation with typed schemas, coercion policy, safe
