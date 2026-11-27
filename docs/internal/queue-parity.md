@@ -71,7 +71,7 @@ or prose.
 | Custom job middleware | Equivalent with Python-native syntax | Typed sync/async middleware through native Pipeline and Container. |
 | Built-in overlap, rate, and exception middleware | Unsupported with a technical justification | No verified distributed coordination semantics are attached to Queue. |
 | Per-job execution context | Enhanced for asynchronous execution | New Container `JOB` scope and immutable `JobContext` per attempt. |
-| Bounded worker concurrency | Backend-dependent | Taskiq receiver concurrency and prefetch are configured. |
+| Bounded worker concurrency | Backend-dependent | Taskiq concurrency and prefetch are configured; a real Redis test verifies overlapping jobs use isolated `JOB` dependencies. |
 | Graceful worker cancellation | Enhanced for asynchronous execution | AnyIO cancellation and Foundation cleanup; sync thread work cannot be forcibly stopped. |
 | Worker process supervision | Unsupported with a technical justification | Use an external process manager; Queue does not replace operating-system supervision. |
 | Restart, stop-when-empty, memory limits | Unsupported with a technical justification | No worker supervisor or reliable cross-process control plane is included. |

@@ -10,8 +10,10 @@ from uuid import uuid4
 import anyio
 import pytest
 
+from titanspan.container import Scope
 from titanspan.contracts.container import ServiceRegistry
 from titanspan.contracts.events import EventDispatcher
+from titanspan.contracts.foundation import ServiceProvider
 from titanspan.facades.bus import Bus
 from titanspan.facades.queue import Queue
 from titanspan.foundation import Application
@@ -39,6 +41,77 @@ class _JobObservation:
         self.started_at: datetime | None = None
         self.thread_id: int | None = None
         self.deliveries: list[tuple[str, str, str]] = []
+
+
+class _WorkerJobToken:
+    """Identify one worker-owned Queue execution scope.
+    """  # fmt: skip
+
+
+class _WorkerConcurrencyGate:
+    """Require multiple real worker jobs to overlap before completion.
+    """  # fmt: skip
+
+    def __init__(self, target: int) -> None:
+        """Create a barrier for a fixed number of active worker jobs.
+
+        Args:
+            target: Number of jobs required to overlap.
+        """
+        self.target = target
+        self.entered = anyio.Event()
+        self.release = anyio.Event()
+        self.completed = anyio.Event()
+        self._lock = anyio.Lock()
+        self.tokens: list[_WorkerJobToken] = []
+        self.job_ids: list[str] = []
+        self._completed_count = 0
+
+    async def wait_for_release(
+        self,
+        token: _WorkerJobToken,
+        context: JobContext,
+    ) -> None:
+        """Record one job scope and wait for the test to release both jobs.
+
+        Args:
+            token: Dependency owned by this worker job scope.
+            context: Metadata for the current queued job.
+        """
+        async with self._lock:
+            self.tokens.append(token)
+            self.job_ids.append(context.job_id)
+            if len(self.tokens) == self.target:
+                self.entered.set()
+        await self.release.wait()
+        async with self._lock:
+            self._completed_count += 1
+            if self._completed_count == self.target:
+                self.completed.set()
+
+
+@dataclass
+class _ConcurrentRedisJob(Job):
+    """Wait until another real Redis worker job enters its scope.
+    """  # fmt: skip
+
+    index: int
+
+    async def handle(
+        self,
+        gate: _WorkerConcurrencyGate,
+        token: _WorkerJobToken,
+        context: JobContext,
+    ) -> None:
+        """Prove concurrent execution through the configured worker.
+
+        Args:
+            gate: Application-owned barrier shared by active jobs.
+            token: Job-scoped dependency owned by this execution.
+            context: Metadata for the current job.
+        """
+        _ = self.index
+        await gate.wait_for_release(token, context)
 
 
 @dataclass
@@ -167,10 +240,33 @@ class _ObservationProvider:
         container.instance(_JobObservation, self._observation)
 
 
+class _WorkerConcurrencyProvider:
+    """Register one shared gate and one dependency per job scope.
+    """  # fmt: skip
+
+    def __init__(self, gate: _WorkerConcurrencyGate) -> None:
+        """Retain the barrier used by concurrent Redis jobs.
+
+        Args:
+            gate: Application-owned worker synchronization gate.
+        """
+        self._gate = gate
+
+    def register(self, container: ServiceRegistry) -> None:
+        """Register services through the canonical application Container.
+
+        Args:
+            container: Native application service registry.
+        """
+        container.instance(_WorkerConcurrencyGate, self._gate)
+        container.scoped(_WorkerJobToken, scope=Scope.JOB)
+
+
 def _application(
     port: int,
     observation: _JobObservation,
     jobs: tuple[type[Job], ...],
+    providers: tuple[ServiceProvider, ...] = (),
 ) -> Application:
     """Build one isolated application configured for its Redis fixture.
 
@@ -178,6 +274,7 @@ def _application(
         port: Local or CI Redis service port.
         observation: Application-owned job observation.
         jobs: Trusted job declarations registered before startup.
+        providers: Additional trusted providers for integration fixtures.
 
     Returns:
         A native Application with Queue's Redis connection configured.
@@ -202,6 +299,7 @@ def _application(
         },
         service_providers=(
             _ObservationProvider(observation),
+            *providers,
             QueueServiceProvider(jobs=jobs),
         ),
     )
@@ -283,6 +381,52 @@ async def test_worker_executes_sync_handler_off_the_event_loop(
     assert observation.thread_id is not None
     assert observation.thread_id != loop_thread
     assert observation.started_at is not None
+
+
+@pytest.mark.anyio
+async def test_redis_worker_runs_jobs_concurrently_in_isolated_scopes(
+    queue_redis_port: int,
+) -> None:
+    """Require two Redis jobs to overlap in separate native JOB scopes.
+
+    A barrier prevents success unless both worker slots run concurrently.
+    """
+    target = 2
+    gate = _WorkerConcurrencyGate(target)
+    application = _application(
+        queue_redis_port,
+        _JobObservation(),
+        (_ConcurrentRedisJob,),
+        (_WorkerConcurrencyProvider(gate),),
+    )
+
+    async with application:
+        manager = application.container.make(QueueManager)
+
+        async def run_worker() -> None:
+            """Consume Queue work until the test cancels the worker.
+            """  # fmt: skip
+            await manager.work_async(
+                connection="redis",
+                queue=_WORKER_QUEUE,
+                concurrency=target,
+                prefetch=target,
+            )
+
+        async with anyio.create_task_group() as task_group:
+            task_group.start_soon(run_worker)
+            for index in range(target):
+                await manager.dispatch_async(_ConcurrentRedisJob(index))
+            with anyio.fail_after(15):
+                await gate.entered.wait()
+            gate.release.set()
+            with anyio.fail_after(15):
+                await gate.completed.wait()
+            task_group.cancel_scope.cancel()
+
+    assert len(gate.job_ids) == target
+    assert len(set(gate.job_ids)) == target
+    assert len({id(token) for token in gate.tokens}) == target
 
 
 @pytest.mark.anyio

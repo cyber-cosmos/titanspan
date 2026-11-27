@@ -58,6 +58,8 @@ Foundation can finalize application-owned resources.
 `worker_concurrency` sets the default active async handler limit.
 `prefetch` sets additional in-flight transport capacity where the backend
 supports it. `work_async()` can override both values for one worker.
+A real Redis integration test confirms concurrent jobs use separate native
+`JOB`-scoped dependencies.
 
 The worker requires the asyncio backend because the locked Taskiq receiver
 uses asyncio. Async handlers execute on the active event loop. Sync handlers
