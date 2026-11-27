@@ -126,7 +126,7 @@ class ModelQueryBuilder[ModelT]:
         self._apply_scope_conditions()
         self._eager_paths: list[str] = []
         self._eager_constraints: dict[str, ColumnElement[bool]] = {}
-        self._relationship_counts: dict[str, ColumnElement[int]] = {}
+        self._relationship_counts: dict[str, ColumnElement[object]] = {}
         self._prevent_lazy = False
         self._selected_columns: tuple[str, ...] = ()
 
@@ -856,24 +856,143 @@ class ModelQueryBuilder[ModelT]:
         Raises:
             DatabaseQueryError: If the relationship is invalid or nested.
         """
-        self._validate_relationship_path(relationship_name)
-        if "." in relationship_name:
-            msg = "Relationship counts require a direct relationship name."
-            raise DatabaseQueryError(msg)
-        result_attribute = attribute or f"{relationship_name}_count"
-        expression_attribute = _mapper(self._model).attrs.get(
-            result_attribute,
+        return self._with_relationship_aggregate(
+            relationship_name,
+            attribute or f"{relationship_name}_count",
+            "count",
         )
-        if not isinstance(expression_attribute, MappedSQLExpression):
-            msg = (
-                "Relationship counts require a mapped query_expression "
-                f"attribute: {result_attribute}."
-            )
-            raise DatabaseQueryError(msg)
-        self._relationship_counts[result_attribute] = (
-            self._relationship_count_expression(relationship_name)
+
+    def with_exists(
+        self,
+        relationship_name: str,
+        *,
+        attribute: str | None = None,
+    ) -> Self:
+        """Select whether a direct relationship has any matching records.
+
+        Declare the result attribute with SQLAlchemy ``query_expression()``.
+
+        Args:
+            relationship_name: Direct mapped relationship to check.
+            attribute: Result attribute, defaulting to
+                ``<relationship>_exists``.
+
+        Returns:
+            This builder for further model query composition.
+        """
+        return self._with_relationship_aggregate(
+            relationship_name,
+            attribute or f"{relationship_name}_exists",
+            "exists",
         )
-        return self
+
+    def with_sum(
+        self,
+        relationship_name: str,
+        column_name: str,
+        *,
+        attribute: str | None = None,
+    ) -> Self:
+        """Select the sum of one mapped column across a relationship.
+
+        Declare the result attribute with SQLAlchemy ``query_expression()``.
+
+        Args:
+            relationship_name: Direct mapped relationship to aggregate.
+            column_name: Mapped numeric column to sum.
+            attribute: Result attribute, defaulting to
+                ``<relationship>_sum_<column>``.
+
+        Returns:
+            This builder for further model query composition.
+        """
+        return self._with_relationship_aggregate(
+            relationship_name,
+            attribute or f"{relationship_name}_sum_{column_name}",
+            "sum",
+            column_name,
+        )
+
+    def with_avg(
+        self,
+        relationship_name: str,
+        column_name: str,
+        *,
+        attribute: str | None = None,
+    ) -> Self:
+        """Select the average of one mapped relationship column.
+
+        Declare the result attribute with SQLAlchemy ``query_expression()``.
+
+        Args:
+            relationship_name: Direct mapped relationship to aggregate.
+            column_name: Mapped numeric column to average.
+            attribute: Result attribute, defaulting to
+                ``<relationship>_avg_<column>``.
+
+        Returns:
+            This builder for further model query composition.
+        """
+        return self._with_relationship_aggregate(
+            relationship_name,
+            attribute or f"{relationship_name}_avg_{column_name}",
+            "avg",
+            column_name,
+        )
+
+    def with_min(
+        self,
+        relationship_name: str,
+        column_name: str,
+        *,
+        attribute: str | None = None,
+    ) -> Self:
+        """Select the minimum of one mapped relationship column.
+
+        Declare the result attribute with SQLAlchemy ``query_expression()``.
+
+        Args:
+            relationship_name: Direct mapped relationship to aggregate.
+            column_name: Mapped column whose minimum is selected.
+            attribute: Result attribute, defaulting to
+                ``<relationship>_min_<column>``.
+
+        Returns:
+            This builder for further model query composition.
+        """
+        return self._with_relationship_aggregate(
+            relationship_name,
+            attribute or f"{relationship_name}_min_{column_name}",
+            "min",
+            column_name,
+        )
+
+    def with_max(
+        self,
+        relationship_name: str,
+        column_name: str,
+        *,
+        attribute: str | None = None,
+    ) -> Self:
+        """Select the maximum of one mapped relationship column.
+
+        Declare the result attribute with SQLAlchemy ``query_expression()``.
+
+        Args:
+            relationship_name: Direct mapped relationship to aggregate.
+            column_name: Mapped column whose maximum is selected.
+            attribute: Result attribute, defaulting to
+                ``<relationship>_max_<column>``.
+
+        Returns:
+            This builder for further model query composition.
+        """
+        return self._with_relationship_aggregate(
+            relationship_name,
+            attribute or f"{relationship_name}_max_{column_name}",
+            "max",
+            column_name,
+        )
 
     def with_where[RelatedT](
         self,
@@ -1087,20 +1206,68 @@ class ModelQueryBuilder[ModelT]:
         options.extend(_relationship_loader_criteria(self._model))
         return statement.options(*options)
 
-    def _relationship_count_expression(
+    def _with_relationship_aggregate(
         self,
         relationship_name: str,
-    ) -> ColumnElement[int]:
-        """Build a correlated SQLAlchemy count for one mapped relationship.
+        result_attribute: str,
+        aggregate: str,
+        column_name: str | None = None,
+    ) -> Self:
+        """Attach one scoped relationship aggregate to the ORM query.
 
         Args:
-            relationship_name: Direct relationship selected for counting.
+            relationship_name: Direct mapped relationship to aggregate.
+            result_attribute: Mapped query-expression receiving the value.
+            aggregate: Internal aggregate function selected by the public API.
+            column_name: Related column used by value aggregates.
 
         Returns:
-            A scalar count scoped to related-model visibility predicates.
+            This builder for further model query composition.
 
         Raises:
-            DatabaseQueryError: If the mapped join cannot be counted safely.
+            DatabaseQueryError: If the relationship, column, or result is
+                not a supported mapped attribute.
+        """
+        self._validate_relationship_path(relationship_name)
+        if "." in relationship_name:
+            msg = "Relationship aggregates require a direct relationship."
+            raise DatabaseQueryError(msg)
+        expression_attribute = _mapper(self._model).attrs.get(
+            result_attribute,
+        )
+        if not isinstance(expression_attribute, MappedSQLExpression):
+            msg = (
+                "Relationship aggregates require a mapped query_expression "
+                f"attribute: {result_attribute}."
+            )
+            raise DatabaseQueryError(msg)
+        self._relationship_counts[result_attribute] = (
+            self._relationship_aggregate_expression(
+                relationship_name,
+                aggregate,
+                column_name,
+            )
+        )
+        return self
+
+    def _relationship_aggregate_expression(
+        self,
+        relationship_name: str,
+        aggregate: str,
+        column_name: str | None,
+    ) -> ColumnElement[object]:
+        """Build a correlated aggregate for one mapped relationship.
+
+        Args:
+            relationship_name: Direct relationship selected for aggregation.
+            aggregate: Count, exists, sum, average, minimum, or maximum.
+            column_name: Mapped related column used by value aggregates.
+
+        Returns:
+            A scalar expression scoped to related-model visibility predicates.
+
+        Raises:
+            DatabaseQueryError: If the mapped join or column is invalid.
         """
         parent_mapper = _mapper(self._model)
         relationship = parent_mapper.relationships[relationship_name]
@@ -1111,7 +1278,24 @@ class ModelQueryBuilder[ModelT]:
             msg = "Counts for self-referential relationships are unsupported."
             raise DatabaseQueryError(msg)
 
-        statement = select(func.count())
+        related_model = cast("type[object]", related_mapper.class_)
+        if aggregate == "exists":
+            selected = 1
+        elif aggregate == "count":
+            selected = func.count()
+        else:
+            if column_name is None or not _is_mapped_column(
+                related_model,
+                column_name,
+            ):
+                msg = f"Aggregate column is not mapped: {column_name}."
+                raise DatabaseQueryError(msg)
+            column = cast(
+                "ColumnElement[object]",
+                getattr(related_model, column_name),
+            )
+            selected = getattr(func, aggregate)(column)
+        statement = select(selected)
         if relationship.secondary is None:
             statement = statement.select_from(related_table)
         else:
@@ -1126,15 +1310,14 @@ class ModelQueryBuilder[ModelT]:
                 ),
             )
         statement = statement.where(relationship.primaryjoin)
-        related_model = cast("type[object]", related_mapper.class_)
         related_query = ModelQueryBuilder(related_model, self._service)
         related_filter = related_query.to_statement().whereclause
         if related_filter is not None:
             statement = statement.where(related_filter)
-        return cast(
-            "ColumnElement[int]",
-            statement.correlate(parent_table).scalar_subquery(),
-        )
+        correlated = statement.correlate(parent_table)
+        if aggregate == "exists":
+            return cast("ColumnElement[object]", correlated.exists())
+        return cast("ColumnElement[object]", correlated.scalar_subquery())
 
     def get(self) -> ModelCollection[ModelT]:
         """Execute the ORM query and detach its model results.

@@ -16,6 +16,7 @@ from titanspan.database import (
     DatabaseQueryError,
     DatabaseServiceProvider,
     Model,
+    SoftDeletes,
     belongs_to_many,
     has_many_through,
     has_one_through,
@@ -60,15 +61,16 @@ class ThroughUser(Model):
     name: Mapped[str]
 
 
-class ThroughPost(Model):
+class ThroughPost(SoftDeletes, Model):
     """Represent a post related to a country through its author.
     """  # fmt: skip
 
     table = "through_posts"
-    fillable = ("user_id", "title")
+    fillable = ("user_id", "title", "amount")
 
     user_id: Mapped[int] = mapped_column(ForeignKey("through_users.id"))
     title: Mapped[str]
+    amount: Mapped[int] = mapped_column(default=0)
 
 
 class ThroughTag(Model):
@@ -90,6 +92,11 @@ class ThroughCountry(Model):
 
     name: Mapped[str]
     posts_count: Mapped[int | None] = query_expression()
+    posts_exists: Mapped[bool | None] = query_expression()
+    posts_sum_amount: Mapped[int | None] = query_expression()
+    posts_avg_amount: Mapped[float | None] = query_expression()
+    posts_min_amount: Mapped[int | None] = query_expression()
+    posts_max_amount: Mapped[int | None] = query_expression()
     posts: Mapped[list[ThroughPost]] = has_many_through(
         ThroughPost,
         ThroughUser,
@@ -230,16 +237,47 @@ async def test_relationship_count_uses_mapped_query_expression(
             {"country_id": populated.id, "name": "Ada"},
         )
         await ThroughPost.create_async(
-            {"user_id": user.id, "title": "Public"},
+            {"user_id": user.id, "title": "Public", "amount": 7},
+        )
+        await ThroughPost.create_async(
+            {"user_id": user.id, "title": "Another", "amount": 9},
+        )
+        deleted = await ThroughPost.create_async(
+            {"user_id": user.id, "title": "Deleted", "amount": 100},
+        )
+        assert await deleted.delete_async()
+
+        countries = await (
+            ThroughCountry.query()
+            .with_count("posts")
+            .with_exists("posts")
+            .with_sum("posts", "amount")
+            .with_avg("posts", "amount")
+            .with_min("posts", "amount")
+            .with_max("posts", "amount")
+            .get_async()
         )
 
-        countries = await ThroughCountry.query().with_count("posts").get_async()
-
-        counts = {country.name: country.posts_count for country in countries}
-        assert counts == {"Populated": 1, "Empty": 0}
+        counts = {
+            country.name: (
+                country.posts_count,
+                country.posts_exists,
+                country.posts_sum_amount,
+                country.posts_avg_amount,
+                country.posts_min_amount,
+                country.posts_max_amount,
+            )
+            for country in countries
+        }
+        assert counts == {
+            "Populated": (2, True, 16, 8.0, 7, 9),
+            "Empty": (0, False, None, None, None, None),
+        }
 
         sync_counts = await anyio.to_thread.run_sync(_read_country_counts)
-        assert sync_counts == counts
+        assert sync_counts == {
+            name: values[0] for name, values in counts.items()
+        }
 
 
 async def _create_schema() -> None:
@@ -261,7 +299,8 @@ async def _create_schema() -> None:
     await DB.statement_async(
         "CREATE TABLE through_posts ("
         "id INTEGER PRIMARY KEY, user_id INTEGER NOT NULL, "
-        "title TEXT NOT NULL, created_at TIMESTAMP, updated_at TIMESTAMP, "
+        "title TEXT NOT NULL, amount INTEGER NOT NULL DEFAULT 0, "
+        "created_at TIMESTAMP, updated_at TIMESTAMP, deleted_at TIMESTAMP, "
         "FOREIGN KEY(user_id) REFERENCES through_users(id))"
     )
     await DB.statement_async(

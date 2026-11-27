@@ -752,9 +752,12 @@ users = await User.query().with_count("posts").get_async()
 ```
 
 Pass `attribute="published_posts_count"` to `with_count()` to select into a
-different declared `query_expression()`. Relationship counts apply the related
-model's global and soft-delete scopes. Self-referential and nested counts are
-not supported yet.
+different declared `query_expression()`. `with_exists()`, `with_sum()`,
+`with_avg()`, `with_min()`, and `with_max()` select matching aggregates.
+Declare each result using `query_expression()` and use the matching default
+attribute name shown by the method. Aggregates apply the related model's
+global and soft-delete scopes. Self-referential and nested aggregates are not
+supported yet.
 
 Stream large model results through a context that owns the Session and cursor:
 
@@ -782,9 +785,8 @@ and mutators. A separate dynamic cast registry is not provided.
 model operations, safe conversion, and batch relationship loading. Ordinary
 collection behavior remains owned by `titanspan.collections`.
 
-Polymorphic relationships, one-of-many relationships, relationship sum,
-average, minimum, maximum and existence aggregates, deferred aggregate loading,
-and API resources are not implemented yet.
+Polymorphic relationships, one-of-many relationships, deferred aggregate
+loading, and API resources are not implemented yet.
 
 ## Schema and migrations
 
