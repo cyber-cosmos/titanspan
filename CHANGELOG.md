@@ -72,6 +72,10 @@ public release.
 - Add sync and async database, model, and soft-delete assertions.
   The helpers run real Query Builder and ORM queries through the active
   Database service and reuse the existing Testing lifecycle.
+- Add sync and async atomic Query Builder upserts and insert-or-ignore
+  operations using SQLAlchemy's supported SQLite, PostgreSQL, and MySQL
+  dialect constructs. SQLite and PostgreSQL behavior has real integration
+  coverage; MySQL and MariaDB have not been integration-tested.
 - Declare Pydantic as a direct runtime dependency for native schema APIs.
 - Add native application Cache services with memory and optional Redis
   backends, explicit backend capabilities, safe JSON serialization, atomic

@@ -43,7 +43,8 @@ Database-backed async `unique_rule` and `exists_rule` values reuse the native
 Validation service and bind all query values. Typed model lifecycle events
 and Container-resolved observers use the native Events dispatcher and
 transaction callbacks. Query-backed assertions reuse the existing Testing
-lifecycle. Relationship
+lifecycle. Native Query Builder upserts use SQLAlchemy's SQLite and PostgreSQL
+conflict statements with live integration coverage. Relationship
 factories, recycling, advanced relationships, scoped or automatic binding,
 and model URL generation remain in progress. Seeders support sync and async
 execution through Container-owned instances and Database transactions

@@ -932,6 +932,72 @@ class DatabaseQueryBuilder(Protocol):
         """
         ...
 
+    def insert_or_ignore(
+        self,
+        rows: Sequence[Mapping[str, object]],
+    ) -> int:
+        """Insert rows and ignore supported unique-key conflicts.
+
+        Args:
+            rows: Row mappings with the same inserted columns.
+
+        Returns:
+            Driver-reported affected rows, or ``-1`` when unavailable.
+        """
+        ...
+
+    async def insert_or_ignore_async(
+        self,
+        rows: Sequence[Mapping[str, object]],
+    ) -> int:
+        """Insert rows asynchronously and ignore supported conflicts.
+
+        Args:
+            rows: Row mappings with the same inserted columns.
+
+        Returns:
+            Driver-reported affected rows, or ``-1`` when unavailable.
+        """
+        ...
+
+    def upsert(
+        self,
+        rows: Sequence[Mapping[str, object]],
+        *,
+        unique_by: Sequence[str],
+        update: Sequence[str] | None = None,
+    ) -> int:
+        """Insert or update rows through native dialect conflict handling.
+
+        Args:
+            rows: Row mappings with the same inserted columns.
+            unique_by: Columns matching a unique index or constraint.
+            update: Inserted columns to update, defaulting to non-key columns.
+
+        Returns:
+            Driver-reported affected rows, or ``-1`` when unavailable.
+        """
+        ...
+
+    async def upsert_async(
+        self,
+        rows: Sequence[Mapping[str, object]],
+        *,
+        unique_by: Sequence[str],
+        update: Sequence[str] | None = None,
+    ) -> int:
+        """Insert or update rows asynchronously through the native dialect.
+
+        Args:
+            rows: Row mappings with the same inserted columns.
+            unique_by: Columns matching a unique index or constraint.
+            update: Inserted columns to update, defaulting to non-key columns.
+
+        Returns:
+            Driver-reported affected rows, or ``-1`` when unavailable.
+        """
+        ...
+
     def update(self, values: Mapping[str, object]) -> int:
         """Update matching rows with bound replacement values.
 

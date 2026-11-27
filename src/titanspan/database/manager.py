@@ -180,6 +180,21 @@ class DatabaseManager:
         """
         return tuple(self._configuration.connections)
 
+    def dialect_name(self, name: str | None = None) -> str:
+        """Return a connection's normalized dialect without engine creation.
+
+        Args:
+            name: Configured connection name or its default.
+
+        Returns:
+            SQLAlchemy's backend name, independent of the selected driver.
+        """
+        connection_name = self._connection_name(name)
+        with self._lock:
+            self._ensure_open()
+            definition = self._configuration.connections[connection_name]
+            return definition.sync_url.get_backend_name()
+
     @property
     def transaction_level(self) -> int:
         """Return the current execution's root and savepoint depth.

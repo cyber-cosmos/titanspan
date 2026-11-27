@@ -31,6 +31,15 @@ class DatabaseConnectionService(Protocol):
         """
         ...
 
+    @property
+    def dialect_name(self) -> str:
+        """Return SQLAlchemy's normalized dialect name for this connection.
+
+        Returns:
+            A backend identifier such as ``sqlite`` or ``postgresql``.
+        """
+        ...
+
     def table(self, name: str) -> DatabaseQueryBuilder:
         """Start a fluent query against one safe table identifier.
 

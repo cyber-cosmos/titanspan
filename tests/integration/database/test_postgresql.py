@@ -25,6 +25,8 @@ _DATABASE_PREFIX = "titanspan_codex_test_"
 _POSTGRES_URL_ENV = "TITANSPAN_TEST_POSTGRES_URL"
 _REQUIRE_POSTGRES_ENV = "TITANSPAN_REQUIRE_POSTGRES"
 _CONCURRENT_TASK_COUNT = 2
+_EXPECTED_UPSERTED_SCORE = 2
+_UNKNOWN_ROWCOUNT = -1
 _ROLLBACK_MARKER = "rollback marker"
 _MIGRATION_UP = '''    def up(self) -> None:
         """Apply this revision's schema changes."""
@@ -168,6 +170,58 @@ async def test_postgresql_transactions_and_concurrent_sessions(
         await migrations.rollback_async()
 
         assert not await Schema.has_table_async("postgres_migration_rows")
+
+
+async def test_postgresql_upsert_and_insert_or_ignore_are_atomic(
+    application: Application,
+) -> None:
+    """Use PostgreSQL ON CONFLICT for native insert-or-update operations.
+
+    Args:
+        application: Isolated PostgreSQL integration application.
+    """
+    async with application:
+        await DB.statement_async("DROP TABLE IF EXISTS postgres_upsert_rows")
+        await DB.statement_async(
+            "CREATE TABLE postgres_upsert_rows ("
+            "id BIGSERIAL PRIMARY KEY, email TEXT UNIQUE NOT NULL, "
+            "name TEXT NOT NULL, score INTEGER NOT NULL)"
+        )
+        query = DB.table("postgres_upsert_rows")
+
+        inserted = await query.upsert_async(
+            [{"email": "ada@example.test", "name": "Ada", "score": 1}],
+            unique_by=("email",),
+        )
+        updated = await query.upsert_async(
+            [
+                {
+                    "email": "ada@example.test",
+                    "name": "Ada Lovelace",
+                    "score": 2,
+                },
+            ],
+            unique_by=("email",),
+        )
+        ignored = await query.insert_or_ignore_async(
+            [
+                {
+                    "email": "ada@example.test",
+                    "name": "Ignored",
+                    "score": 99,
+                },
+            ],
+        )
+        row = await query.where("email", "ada@example.test").first_async()
+
+        assert inserted in (1, _UNKNOWN_ROWCOUNT)
+        assert updated in (1, _UNKNOWN_ROWCOUNT)
+        assert ignored in (0, _UNKNOWN_ROWCOUNT)
+        assert row is not None
+        assert row["name"] == "Ada Lovelace"
+        assert row["score"] == _EXPECTED_UPSERTED_SCORE
+        assert await query.count_async() == 1
+        await DB.statement_async("DROP TABLE postgres_upsert_rows")
 
 
 async def _insert_then_raise() -> None:

@@ -8,6 +8,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
+import anyio
 import pytest
 
 from titanspan.database import (
@@ -283,6 +284,106 @@ async def test_empty_projection_and_condition_are_no_op(
         )
 
         assert rows == [{"id": 1, "name": "Ada"}]
+
+
+async def test_sqlite_upsert_and_insert_or_ignore_are_atomic(
+    application: Application,
+) -> None:
+    """Use SQLite conflict clauses for native bulk mutations.
+
+    Args:
+        application: Application configured with an isolated SQLite file.
+    """
+    async with application:
+        await DB.statement_async(
+            "CREATE TABLE contacts ("
+            "id INTEGER PRIMARY KEY, email TEXT NOT NULL UNIQUE, "
+            "name TEXT NOT NULL, score INTEGER NOT NULL)"
+        )
+        query = DB.table("contacts")
+
+        inserted = await query.upsert_async(
+            [{"email": "ada@example.test", "name": "Ada", "score": 1}],
+            unique_by=("email",),
+        )
+        updated = await query.upsert_async(
+            [
+                {
+                    "email": "ada@example.test",
+                    "name": "Ada Lovelace",
+                    "score": 2,
+                },
+            ],
+            unique_by=("email",),
+        )
+        ignored_update = await query.upsert_async(
+            [
+                {
+                    "email": "ada@example.test",
+                    "name": "Ignored",
+                    "score": 99,
+                },
+            ],
+            unique_by=("email",),
+            update=(),
+        )
+        ignored = await query.insert_or_ignore_async(
+            [
+                {
+                    "email": "ada@example.test",
+                    "name": "Ignored",
+                    "score": 99,
+                },
+                {
+                    "email": "grace@example.test",
+                    "name": "Grace",
+                    "score": 3,
+                },
+            ],
+        )
+        synchronous_counts = await anyio.to_thread.run_sync(
+            _sync_conflict_mutations,
+        )
+
+        rows = await query.order_by("email").get_async()
+
+        assert inserted == 1
+        assert updated == 1
+        assert ignored_update == 0
+        assert ignored == 1
+        assert synchronous_counts == (1, 0)
+        assert rows == [
+            {
+                "id": 1,
+                "email": "ada@example.test",
+                "name": "Ada Lovelace",
+                "score": 3,
+            },
+            {
+                "id": 2,
+                "email": "grace@example.test",
+                "name": "Grace",
+                "score": 3,
+            },
+        ]
+
+
+def _sync_conflict_mutations() -> tuple[int, int]:
+    """Exercise sync mutation methods on their owning worker thread.
+
+    Returns:
+        Affected-row counts for a native upsert and ignored duplicate.
+    """
+    query = DB.table("contacts")
+    updated = query.upsert(
+        [{"email": "ada@example.test", "name": "Unused", "score": 3}],
+        unique_by=("email",),
+        update=("score",),
+    )
+    ignored = query.insert_or_ignore(
+        [{"email": "ada@example.test", "name": "Ignored", "score": 99}],
+    )
+    return updated, ignored
 
 
 async def test_length_aware_and_simple_pagination(

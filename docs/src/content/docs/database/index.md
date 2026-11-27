@@ -151,16 +151,48 @@ active_users = (
 Implemented operations include selected columns and raw projections, nested
 conditions, comparisons, `IN`, `BETWEEN`, null checks, existence predicates,
 joins, grouping, `HAVING`, ordering, limits, offsets, aggregates, inserts,
-multi-row inserts, updates, deletes, increments, and decrements. Raw SQL
-expressions require explicit trusted application-authored strings and bound
-values.
+multi-row inserts, conflict-safe upserts, insert-or-ignore, updates, deletes,
+increments, and decrements. Raw SQL expressions require explicit trusted
+application-authored strings and bound values.
+
+Use `upsert()` or `upsert_async()` for an atomic database-side conflict
+operation. `unique_by` names the unique key and `update` optionally restricts
+the inserted columns copied into a conflicting row:
+
+```python
+from titanspan.facades.database import DB
+
+
+async def save_user(email: str, name: str) -> int:
+    """Insert a user or update its name by the unique email key.
+
+    Args:
+        email: User's unique email address.
+        name: Name value written on insert or conflict.
+
+    Returns:
+        Driver-reported number of affected rows.
+    """
+    return await DB.table("users").upsert_async(
+        [{"email": email, "name": name}],
+        unique_by=("email",),
+    )
+```
+
+SQLite and PostgreSQL use native `ON CONFLICT` statements. The MySQL dialect
+uses its native duplicate-key statement; it relies on actual unique indexes
+and ignores `unique_by` when identifying conflicts. MySQL and MariaDB are not
+real-integration-tested here. MySQL `INSERT IGNORE` may suppress additional
+data errors as warnings, following that backend's behavior. Returned affected
+row counts follow each driver's semantics. Other dialects reject these
+operations explicitly.
 
 Retrieval methods include `get`, `first`, `value`, `pluck`, `count`, `sum`,
 `avg`, `min`, `max`, and `exists`. The current pagination API offers
 length-aware and simple page results. Equivalent asynchronous terminal methods
-use an `_async` suffix. Streaming cursors, chunk iteration, unions, atomic
-upserts, and dialect-aware locking are not yet available through the native
-builder.
+use an `_async` suffix. Streaming cursors, chunk iteration, unions, cursor
+pagination, and dialect-aware locking are not yet available through the
+native builder.
 
 ## Models
 

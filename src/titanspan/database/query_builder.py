@@ -29,6 +29,9 @@ from sqlalchemy import (
 from sqlalchemy import (
     exists as sql_exists,
 )
+from sqlalchemy.dialects.mysql import insert as mysql_insert
+from sqlalchemy.dialects.postgresql import insert as postgresql_insert
+from sqlalchemy.dialects.sqlite import insert as sqlite_insert
 from sqlalchemy.sql import operators
 from sqlalchemy.sql.elements import ColumnElement, TextClause
 
@@ -39,6 +42,7 @@ from titanspan.database.pagination import LengthAwarePaginator, Paginator
 if TYPE_CHECKING:
     from typing import NoReturn
 
+    from sqlalchemy.sql import Executable
     from sqlalchemy.sql.schema import Table
     from sqlalchemy.sql.selectable import (
         FromClause,
@@ -1463,6 +1467,304 @@ class QueryBuilder(DatabaseQueryBuilder):
         )
         return result.rowcount
 
+    def insert_or_ignore(
+        self,
+        rows: Sequence[Mapping[str, object]],
+    ) -> int:
+        """Insert rows while ignoring supported unique-key conflicts.
+
+        Args:
+            rows: Row mappings with the same inserted columns.
+
+        Returns:
+            Driver-reported affected rows, or ``-1`` when unavailable.
+
+        Raises:
+            DatabaseQueryError: If the selected dialect lacks conflict support.
+        """
+        prepared = self._prepare_rows(rows)
+        if not prepared:
+            return 0
+        statement = self._insert_or_ignore_statement(prepared)
+        result = self._connection.execute_statement(statement)
+        return result.rowcount
+
+    async def insert_or_ignore_async(
+        self,
+        rows: Sequence[Mapping[str, object]],
+    ) -> int:
+        """Insert rows asynchronously while ignoring unique-key conflicts.
+
+        Args:
+            rows: Row mappings with the same inserted columns.
+
+        Returns:
+            Driver-reported affected rows, or ``-1`` when unavailable.
+
+        Raises:
+            DatabaseQueryError: If the selected dialect lacks conflict support.
+        """
+        prepared = self._prepare_rows(rows)
+        if not prepared:
+            return 0
+        statement = self._insert_or_ignore_statement(prepared)
+        result = await self._connection.execute_statement_async(statement)
+        return result.rowcount
+
+    def upsert(
+        self,
+        rows: Sequence[Mapping[str, object]],
+        *,
+        unique_by: Sequence[str],
+        update: Sequence[str] | None = None,
+    ) -> int:
+        """Insert or update rows through native dialect conflict handling.
+
+        Args:
+            rows: Row mappings with the same inserted columns.
+            unique_by: Columns matching a unique index or constraint.
+            update: Inserted columns to update, defaulting to non-key columns.
+
+        Returns:
+            Driver-reported affected rows, or ``-1`` when unavailable.
+
+        Raises:
+            DatabaseQueryError: If the conflict target or dialect is invalid.
+        """
+        statement = self._upsert_statement(rows, unique_by, update)
+        if statement is None:
+            return 0
+        result = self._connection.execute_statement(statement)
+        return result.rowcount
+
+    async def upsert_async(
+        self,
+        rows: Sequence[Mapping[str, object]],
+        *,
+        unique_by: Sequence[str],
+        update: Sequence[str] | None = None,
+    ) -> int:
+        """Insert or update rows asynchronously through the native dialect.
+
+        Args:
+            rows: Row mappings with the same inserted columns.
+            unique_by: Columns matching a unique index or constraint.
+            update: Inserted columns to update, defaulting to non-key columns.
+
+        Returns:
+            Driver-reported affected rows, or ``-1`` when unavailable.
+
+        Raises:
+            DatabaseQueryError: If the conflict target or dialect is invalid.
+        """
+        statement = self._upsert_statement(rows, unique_by, update)
+        if statement is None:
+            return 0
+        result = await self._connection.execute_statement_async(statement)
+        return result.rowcount
+
+    def _insert_or_ignore_statement(
+        self,
+        rows: Sequence[Mapping[str, object]],
+    ) -> Executable:
+        """Build one dialect-native insert that ignores unique conflicts.
+
+        Args:
+            rows: Validated, copied row mappings.
+
+        Returns:
+            A SQLAlchemy insert statement for the selected dialect.
+
+        Raises:
+            DatabaseQueryError: If the selected dialect lacks conflict support.
+        """
+        values = [dict(row) for row in rows]
+        dialect = self._connection.dialect_name
+        if dialect == "sqlite":
+            statement = sqlite_insert(self._table).values(values)
+            return statement.on_conflict_do_nothing()
+        if dialect == "postgresql":
+            return (
+                postgresql_insert(self._table)
+                .values(values)
+                .on_conflict_do_nothing()
+            )
+        if dialect == "mysql":
+            statement = mysql_insert(self._table).values(values)
+            return statement.prefix_with("IGNORE")
+        return _raise_unsupported_conflict_dialect(dialect)
+
+    def _upsert_statement(
+        self,
+        rows: Sequence[Mapping[str, object]],
+        unique_by: Sequence[str],
+        update: Sequence[str] | None,
+    ) -> Executable | None:
+        """Build a dialect-native insert or update statement.
+
+        Args:
+            rows: Row mappings with identical inserted columns.
+            unique_by: Validated conflict-target column names.
+            update: Optional inserted columns updated on conflict.
+
+        Returns:
+            A statement, or ``None`` for an empty row sequence.
+
+        Raises:
+            DatabaseQueryError: If a key, update column, or dialect is invalid.
+        """
+        prepared = self._prepare_rows(rows)
+        if not prepared:
+            return None
+        row_columns = tuple(prepared[0])
+        conflict_columns = self._validate_conflict_columns(
+            unique_by,
+            row_columns,
+        )
+        update_columns = self._resolve_update_columns(
+            row_columns,
+            conflict_columns,
+            update,
+        )
+        values = [dict(row) for row in prepared]
+        dialect = self._connection.dialect_name
+        if dialect == "sqlite":
+            statement = sqlite_insert(self._table).values(values)
+            index_elements = [self._table.c[name] for name in conflict_columns]
+            if not update_columns:
+                return statement.on_conflict_do_nothing(
+                    index_elements=index_elements,
+                )
+            update_values = {
+                name: statement.excluded[name] for name in update_columns
+            }
+            return statement.on_conflict_do_update(
+                index_elements=index_elements,
+                set_=update_values,
+            )
+        if dialect == "postgresql":
+            statement = postgresql_insert(self._table).values(values)
+            index_elements = [self._table.c[name] for name in conflict_columns]
+            if not update_columns:
+                return statement.on_conflict_do_nothing(
+                    index_elements=index_elements,
+                )
+            update_values = {
+                name: statement.excluded[name] for name in update_columns
+            }
+            return statement.on_conflict_do_update(
+                index_elements=index_elements,
+                set_=update_values,
+            )
+        if dialect == "mysql":
+            if not update_columns:
+                msg = "MySQL upsert requires at least one update column."
+                raise DatabaseQueryError(msg)
+            statement = mysql_insert(self._table).values(values)
+            return statement.on_duplicate_key_update(
+                {name: statement.inserted[name] for name in update_columns},
+            )
+        return _raise_unsupported_conflict_dialect(dialect)
+
+    def _prepare_rows(
+        self,
+        rows: Sequence[Mapping[str, object]],
+    ) -> tuple[Mapping[str, object], ...]:
+        """Validate identifiers and matching row shapes before insertion.
+
+        Args:
+            rows: Row mappings supplied to a bulk mutation.
+
+        Returns:
+            Immutable row mappings copied from the caller's values.
+
+        Raises:
+            DatabaseQueryError: If columns are empty or row shapes differ.
+        """
+        if not rows:
+            return ()
+        columns = tuple(rows[0])
+        expected_columns = frozenset(columns)
+        if not columns:
+            msg = "Bulk mutations require at least one inserted column."
+            raise DatabaseQueryError(msg)
+        prepared: list[Mapping[str, object]] = []
+        for row in rows:
+            if frozenset(row) != expected_columns:
+                msg = "Bulk mutation rows must use the same columns."
+                raise DatabaseQueryError(msg)
+            self._validate_value_columns(row)
+            prepared.append({name: row[name] for name in columns})
+        return tuple(prepared)
+
+    def _validate_conflict_columns(
+        self,
+        unique_by: Sequence[str],
+        row_columns: Sequence[str],
+    ) -> tuple[str, ...]:
+        """Validate an upsert target against every inserted row.
+
+        Args:
+            unique_by: Candidate unique-index column names.
+            row_columns: Names present in every input row.
+
+        Returns:
+            Unique conflict column names in caller order.
+
+        Raises:
+            DatabaseQueryError: If the target is missing, repeated, or unsafe.
+        """
+        if isinstance(unique_by, str) or not unique_by:
+            msg = "Upserts require one or more unique conflict columns."
+            raise DatabaseQueryError(msg)
+        columns = _identifier_sequence(unique_by)
+        if len(set(columns)) != len(columns):
+            msg = "Upsert conflict columns must not repeat."
+            raise DatabaseQueryError(msg)
+        if not set(columns).issubset(row_columns):
+            msg = "Upsert conflict columns must be present in every row."
+            raise DatabaseQueryError(msg)
+        self._validate_value_columns(dict.fromkeys(columns))
+        return columns
+
+    def _resolve_update_columns(
+        self,
+        row_columns: Sequence[str],
+        conflict_columns: Sequence[str],
+        update_columns: Sequence[str] | None,
+    ) -> tuple[str, ...]:
+        """Validate the inserted columns selected for conflict updates.
+
+        Args:
+            row_columns: Names present in every input row.
+            conflict_columns: Unique columns identifying conflicts.
+            update_columns: Explicit update list or default selection.
+
+        Returns:
+            Validated update columns in input or row order.
+
+        Raises:
+            DatabaseQueryError: If an update column is repeated or missing.
+        """
+        if update_columns is None:
+            conflict_set = set(conflict_columns)
+            columns = tuple(
+                name for name in row_columns if name not in conflict_set
+            )
+        else:
+            if isinstance(update_columns, str):
+                msg = "Upsert update columns must be a sequence of names."
+                raise DatabaseQueryError(msg)
+            columns = _identifier_sequence(update_columns)
+            if len(set(columns)) != len(columns):
+                msg = "Upsert update columns must not repeat."
+                raise DatabaseQueryError(msg)
+            if not set(columns).issubset(row_columns):
+                msg = "Upsert update columns must be present in every row."
+                raise DatabaseQueryError(msg)
+        self._validate_value_columns(dict.fromkeys(columns))
+        return columns
+
     def update(self, values: Mapping[str, object]) -> int:
         """Update rows matching this query's conditions.
 
@@ -1737,7 +2039,8 @@ class QueryBuilder(DatabaseQueryBuilder):
         Args:
             values: Mutation values keyed by SQL column names.
         """
-        for name in values:
+        for raw_name in values:
+            name = _identifier_text(raw_name)
             parts = _identifier_parts(name)
             if len(parts) != 1:
                 _raise_invalid_identifier()
@@ -2036,6 +2339,54 @@ def _integer_count(value: object | None) -> int:
     if isinstance(value, int):
         return value
     msg = "The database returned an invalid count value."
+    raise DatabaseQueryError(msg)
+
+
+def _identifier_text(value: object) -> str:
+    """Require a dynamic identifier value to be a Python string.
+
+    Args:
+        value: Runtime value supplied for a database identifier.
+
+    Returns:
+        A string suitable for the existing identifier grammar check.
+
+    Raises:
+        DatabaseQueryError: If the runtime value is not a string.
+    """
+    if not isinstance(value, str):
+        _raise_invalid_identifier()
+    return value
+
+
+def _identifier_sequence(value: object) -> tuple[str, ...]:
+    """Validate a runtime sequence of dynamic database identifier values.
+
+    Args:
+        value: Runtime value expected to be a sequence of strings.
+
+    Returns:
+        Validated names in their supplied order.
+
+    Raises:
+        DatabaseQueryError: If the value or any item is not a string.
+    """
+    if isinstance(value, str) or not isinstance(value, Sequence):
+        _raise_invalid_identifier()
+    values = cast("Sequence[object]", value)
+    return tuple(_identifier_text(item) for item in values)
+
+
+def _raise_unsupported_conflict_dialect(dialect: str) -> NoReturn:
+    """Reject conflict operations without native dialect support.
+
+    Args:
+        dialect: Normalized SQLAlchemy backend identifier.
+
+    Raises:
+        DatabaseQueryError: Always, with a safe dialect-only message.
+    """
+    msg = f"Native conflict operations are unsupported for {dialect}."
     raise DatabaseQueryError(msg)
 
 

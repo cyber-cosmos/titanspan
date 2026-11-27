@@ -48,6 +48,15 @@ class Connection(DatabaseConnectionService):
         return self._name
 
     @property
+    def dialect_name(self) -> str:
+        """Return the configured SQLAlchemy dialect without opening an engine.
+
+        Returns:
+            A normalized backend name such as ``sqlite`` or ``postgresql``.
+        """
+        return self._manager.dialect_name(self._name)
+
+    @property
     def engine(self) -> Engine:
         """Expose the native SQLAlchemy sync engine for interoperability.
 

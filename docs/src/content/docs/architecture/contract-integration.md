@@ -89,6 +89,19 @@ shutdown and failed startup.
 defined in their domain package and re-exported by `titanspan.contracts`.
 Typer and Rich types remain inside the Console backend boundary.
 
+## Database contracts
+
+| Contract or type | Definition | Implementation and consumers | Registration and evidence | Status |
+| --- | --- | --- | --- | --- |
+| `DatabaseService` | `contracts/database/service.py` | `DatabaseManager`; `DB` and `Schema` facades; model and query builders | `DatabaseServiceProvider` binds the same application-owned manager; provider identity, lifecycle, sync and async transactions, and real SQLite and PostgreSQL behavior are integration-tested | Implemented, registered, and consumed |
+| `DatabaseConnectionService`, `DatabaseQueryBuilder`, `DatabaseResult`, `LengthAwarePage`, `SimplePage` | `contracts/database/` | Named logical connections with normalized dialect identity, fluent Core queries, atomic conflict mutations, detached rows, and pagination values | Re-exported from `titanspan.contracts.database`; production operations and SQLite and PostgreSQL integration tests exercise the implementations | Implemented and consumed |
+
+Database contracts keep SQLAlchemy types behind the explicit engine,
+session, and statement interoperability APIs. Foundation remains
+independent of this optional component; applications register
+`DatabaseServiceProvider` through the ordinary provider composition
+extension.
+
 ## Events contracts
 
 | Contract or type | Definition | Implementation and consumers | Registration and evidence | Status |
