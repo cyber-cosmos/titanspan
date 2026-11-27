@@ -19,10 +19,10 @@ from titanspan.facades.storage import Storage
 from titanspan.facades.validation import Validation
 
 __all__ = [
+    "DB",
     "Bus",
     "Cache",
     "Config",
-    "DB",
     "Event",
     "Facade",
     "Hash",
