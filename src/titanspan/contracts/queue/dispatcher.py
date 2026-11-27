@@ -213,6 +213,14 @@ class ChainBuilder(Protocol):
         """
         ...
 
+    def dispatch_sync(self) -> DispatchReceipt:
+        """Execute a chain through synchronous connections only.
+
+        Returns:
+            Receipt for the first executed job.
+        """
+        ...
+
 
 @runtime_checkable
 class BatchBuilder(Protocol):

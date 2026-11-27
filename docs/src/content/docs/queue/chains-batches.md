@@ -32,6 +32,12 @@ With a synchronous connection, jobs run in sequence before the call returns.
 With Redis Streams, Queue stores bounded, versioned continuation data and
 publishes the next member after the current handler succeeds.
 
+For sync-only application work, call `dispatch_sync()` from a synchronous
+command handler or another sync-safe application context. It validates every
+member before execution and gives each member a separate job scope. It rejects
+async handlers, async middleware, timeouts, and non-sync connections. Use
+`dispatch_async()` from async application code.
+
 Each job's `connection` and `queue` class attributes override the chain-wide
 defaults. Use `prepend()` or `append()` to change the pending chain before
 dispatch. A chain builder accepts one dispatch attempt.

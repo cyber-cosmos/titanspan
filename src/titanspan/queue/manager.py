@@ -1204,6 +1204,98 @@ class QueueManager(BusDispatcher):
             ),
         )
 
+    def dispatch_chain_sync(
+        self,
+        jobs: Sequence[Job],
+        *,
+        connection: str | None,
+        queue: str | None,
+    ) -> DispatchReceipt:
+        """Execute a chain through sync connections in declared order.
+
+        The method validates every declared handler and destination before
+        it runs the first member. Each member gets a separate JOB scope.
+
+        Args:
+            jobs: Registered job instances in execution order.
+            connection: Optional chain-wide connection default.
+            queue: Optional chain-wide queue default.
+
+        Returns:
+            Receipt for the first chain member.
+
+        Raises:
+            QueueCapabilityError: If the active context or a member requires
+                asynchronous execution.
+            QueueConfigurationError: If a member or destination is invalid.
+        """
+        self._ensure_open()
+        if not jobs or len(jobs) > _MAX_CHAIN_JOBS:
+            msg = "A job chain must contain between 1 and 256 jobs."
+            raise QueueConfigurationError(msg)
+
+        application_context = self._require_application_context()
+        if application_context.scope is not None:
+            raise QueueCapabilityError(_SCOPED_SYNC_ERROR)
+        try:
+            anyio.get_current_task()
+        except anyio.NoEventLoopError:
+            pass
+        else:
+            raise QueueCapabilityError(_SYNC_IN_ASYNC_ERROR)
+
+        fallback_connection = (
+            connection or self._configuration.default_connection
+        )
+        fallback_queue = queue or self._configuration.default_queue
+        chain_id = str(uuid4())
+        selected: list[tuple[Job, str, str]] = []
+        fake = self._fake.get()
+        for job in jobs:
+            job_type = self._job_type(job)
+            job_connection = job_type.connection or fallback_connection
+            job_queue = job_type.queue or fallback_queue
+            settings = self.connection_configuration(job_connection)
+            self.validate_queue_name(job_queue)
+            if settings.driver != "sync":
+                msg = "Synchronous chains require sync connections."
+                raise QueueCapabilityError(msg)
+            if fake is None:
+                self._validate_sync_chain_member(job)
+            selected.append((job, job_connection, job_queue))
+
+        receipts = tuple(
+            self.dispatch_effect_sync(
+                job,
+                connection=job_connection,
+                queue=job_queue,
+                chain_id=chain_id,
+            )
+            for job, job_connection, job_queue in selected
+        )
+        return receipts[0]
+
+    def _validate_sync_chain_member(self, job: Job) -> None:
+        """Reject declared async behavior before a chain starts execution.
+
+        Args:
+            job: Registered chain member selected for sync execution.
+
+        Raises:
+            QueueCapabilityError: If its handler, middleware, or timeout
+                requires asynchronous execution.
+            QueueConfigurationError: If its handler declaration is invalid.
+        """
+        handler = getattr(type(job), "handle", None)
+        if inspect.iscoroutinefunction(handler):
+            raise QueueCapabilityError(_ASYNC_HANDLER_ERROR)
+        if type(job).timeout is not None:
+            raise QueueCapabilityError(_SYNC_TIMEOUT_ERROR)
+        for middleware_type in self._middleware_for(job):
+            middleware_handler = getattr(middleware_type, "handle", None)
+            if inspect.iscoroutinefunction(middleware_handler):
+                raise QueueCapabilityError(_SYNC_MIDDLEWARE_ERROR)
+
     async def dispatch_async(
         self,
         job: object,
@@ -1687,6 +1779,7 @@ class QueueManager(BusDispatcher):
         *,
         connection: str,
         queue: str,
+        chain_id: str | None = None,
     ) -> DispatchReceipt:
         """Run one registered job with sync-safe dependencies and scope.
 
@@ -1694,6 +1787,7 @@ class QueueManager(BusDispatcher):
             job: Registered data instance.
             connection: Selected connection name.
             queue: Selected logical queue.
+            chain_id: Optional inline chain identifier.
 
         Returns:
             Inline execution receipt.
@@ -1722,6 +1816,7 @@ class QueueManager(BusDispatcher):
                 JobMessageMetadata(
                     connection=connection,
                     queue=queue,
+                    chain_id=chain_id,
                 ),
             )
         )
@@ -1732,6 +1827,7 @@ class QueueManager(BusDispatcher):
                 connection=connection,
                 queue=queue,
                 state="queued",
+                chain_id=chain_id,
             )
             fake.record(job, decoded.envelope.job_type, receipt)
             return receipt
@@ -1763,6 +1859,7 @@ class QueueManager(BusDispatcher):
             connection=connection,
             queue=queue,
             state="executed",
+            chain_id=chain_id,
             result=result,
         )
         self._emit_sync(
@@ -1772,6 +1869,7 @@ class QueueManager(BusDispatcher):
                 connection=connection,
                 queue=queue,
                 occurred_at=datetime.now(UTC),
+                chain_id=chain_id,
             )
         )
         return receipt

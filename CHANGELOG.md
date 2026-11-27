@@ -14,6 +14,8 @@ public release.
 - Verify Redis workers, retries, delays, chains, and result retrieval against
   a real local Redis service.
 - Keep RabbitMQ optional; live broker behavior is not verified.
+- Add explicit synchronous Bus chain execution with member preflight and
+  isolated job scopes.
 - Defer durable failed-job records, unique jobs, distributed batches, queued
   listeners, and transaction-aware dispatch.
 - Serialize middleware response models with their declared Pydantic schemas.

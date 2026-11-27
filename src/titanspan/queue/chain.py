@@ -115,6 +115,20 @@ class PendingChain:
             queue=self._queue,
         )
 
+    def dispatch_sync(self) -> DispatchReceipt:
+        """Execute the chain in order through synchronous connections.
+
+        Returns:
+            Receipt for the first executed chain member.
+        """
+        self._ensure_pending()
+        self._used = True
+        return self._manager.dispatch_chain_sync(
+            self._jobs,
+            connection=self._connection,
+            queue=self._queue,
+        )
+
     def _ensure_pending(self) -> None:
         """Reject mutation or publication after the chain is consumed.
 

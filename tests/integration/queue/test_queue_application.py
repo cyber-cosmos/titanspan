@@ -29,6 +29,7 @@ from titanspan.queue import (
     JobContext,
     JobDispatching,
     QueueCapabilityError,
+    QueueConfigurationError,
     QueueError,
     QueueManager,
     QueueServiceProvider,
@@ -41,6 +42,7 @@ _SECOND_ATTEMPT = 2
 _EXPECTED_FACADE_DISPATCHES = 2
 _EXPECTED_CHAIN_JOBS = 2
 _EXPECTED_APPLICATIONS = 2
+_OVERSIZED_CHAIN_LENGTH = 257
 
 
 class _JobRecord:
@@ -67,6 +69,156 @@ class _ChainDestinationRecord:
         """Create an empty destination observation list.
         """  # fmt: skip
         self.destinations: list[tuple[str, str, str]] = []
+
+
+class _JobDependency:
+    """Identify one job-owned dependency instance.
+
+    Separate job scopes must resolve separate instances.
+    """
+
+    def __init__(self) -> None:
+        """Create a token for the current job scope.
+
+        The enclosing test compares these tokens across jobs.
+        """
+        self.token = object()
+
+
+class _SyncChainRecord:
+    """Keep the order and chain metadata observed by synchronous jobs.
+
+    The integration test checks one chain ID across isolated job scopes.
+    """
+
+    def __init__(self) -> None:
+        """Create an empty observation list for one application.
+        """  # fmt: skip
+        self.jobs: list[tuple[str, str | None, object]] = []
+
+
+class _SyncChainProvider:
+    """Register one application-owned sync-chain observation service.
+    """  # fmt: skip
+
+    def __init__(self, record: _SyncChainRecord) -> None:
+        """Retain the test-owned record for application registration.
+
+        Args:
+            record: Shared observation target for the test application.
+        """
+        self._record = record
+
+    def register(self, container: ServiceRegistry) -> None:
+        """Bind the observation target as an application singleton.
+
+        Args:
+            container: Canonical application service registry.
+        """
+        container.instance(_SyncChainRecord, self._record)
+        container.scoped(_JobDependency, scope=Scope.JOB)
+
+
+@dataclass
+class _SyncChainJob(Job):
+    """Record ordered execution and shared chain identity.
+    """  # fmt: skip
+
+    label: str
+
+    def handle(
+        self,
+        record: _SyncChainRecord,
+        dependency: _JobDependency,
+        context: JobContext,
+    ) -> None:
+        """Record this job's label and active chain identifier.
+
+        Args:
+            record: Application-owned observation service.
+            dependency: Dependency owned by the active job scope.
+            context: Current job's native execution metadata.
+        """
+        record.jobs.append((self.label, context.chain_id, dependency.token))
+
+
+@dataclass
+class _AsyncChainJob(Job):
+    """Represent a job that requires asynchronous execution.
+    """  # fmt: skip
+
+    label: str
+
+    async def handle(self) -> None:
+        """Complete one asynchronous test job without side effects.
+        """  # fmt: skip
+        _ = self.label
+
+
+class _AsyncChainMiddleware:
+    """Declare middleware that requires async job execution.
+    """  # fmt: skip
+
+    async def handle(
+        self,
+        context: JobContext,
+        next_handler: JobNext,
+    ) -> object:
+        """Continue one async stage after retaining its metadata.
+
+        Args:
+            context: Metadata for this job attempt.
+            next_handler: Asynchronous continuation.
+
+        Returns:
+            The value returned by the next stage.
+        """
+        _ = context
+        return await next_handler()
+
+
+@dataclass
+class _AsyncMiddlewareChainJob(Job):
+    """Represent a sync handler wrapped by async-only middleware.
+    """  # fmt: skip
+
+    label: str
+    middleware = (_AsyncChainMiddleware,)
+
+    def handle(
+        self,
+        record: _SyncChainRecord,
+        context: JobContext,
+    ) -> None:
+        """Record execution if sync-chain preflight misses middleware.
+
+        Args:
+            record: Application-owned observation service.
+            context: Current job's native execution metadata.
+        """
+        record.jobs.append((self.label, context.chain_id, object()))
+
+
+@dataclass
+class _TimedSyncChainJob(Job):
+    """Represent a sync handler with an unsupported timeout policy.
+    """  # fmt: skip
+
+    label: str
+    timeout: ClassVar[float | None] = 1.0
+
+    def handle(
+        self,
+        record: _SyncChainRecord,
+        context: JobContext,
+    ) -> None:
+        """Record execution if preflight ignores the timeout.
+
+        Args:
+            record: Application-owned observation service.
+            context: Current job's native execution metadata.
+        """
+        record.jobs.append((self.label, context.chain_id, object()))
 
 
 class _ChainDestinationProvider:
@@ -157,20 +309,6 @@ class _LastDestinationJob(Job):
         record.destinations.append(
             (self.label, context.connection, context.queue)
         )
-
-
-class _JobDependency:
-    """Identify one job-owned dependency instance.
-
-    Separate job scopes must resolve separate instances.
-    """
-
-    def __init__(self) -> None:
-        """Create a token for the current job scope.
-
-        The enclosing test compares these tokens across jobs.
-        """
-        self.token = object()
 
 
 class _ExecutionGate:
@@ -1168,6 +1306,254 @@ async def test_bus_chain_executes_in_order() -> None:
         "second",
         "third",
     ]
+
+
+@pytest.mark.anyio
+async def test_bus_chain_dispatch_sync_executes_in_order_with_one_id() -> None:
+    """Run a synchronous chain through separate native job scopes.
+
+    The receipt and injected JobContext expose the same chain identifier.
+    """
+    record = _SyncChainRecord()
+    application = Application(
+        config={"app": {"name": "queue-sync-chain"}},
+        service_providers=(
+            _SyncChainProvider(record),
+            QueueServiceProvider(jobs=(_SyncChainJob,)),
+        ),
+    )
+
+    async with application:
+        chain = Bus.chain([_SyncChainJob("first"), _SyncChainJob("second")])
+        receipt = await anyio.to_thread.run_sync(chain.dispatch_sync)
+
+    assert receipt.state == "executed"
+    assert receipt.chain_id is not None
+    assert [value[:2] for value in record.jobs] == [
+        ("first", receipt.chain_id),
+        ("second", receipt.chain_id),
+    ]
+    assert record.jobs[0][2] is not record.jobs[1][2]
+
+
+@pytest.mark.anyio
+async def test_sync_chain_preflights_all_handlers_before_running() -> None:
+    """Reject async work before a sync chain performs its first side effect.
+
+    A later async member cannot leave an earlier sync member partially run.
+    """
+    record = _SyncChainRecord()
+    application = Application(
+        config={"app": {"name": "queue-sync-chain-preflight"}},
+        service_providers=(
+            _SyncChainProvider(record),
+            QueueServiceProvider(jobs=(_SyncChainJob, _AsyncChainJob)),
+        ),
+    )
+
+    async with application:
+        chain = Bus.chain([_SyncChainJob("first"), _AsyncChainJob("async")])
+        with pytest.raises(QueueCapabilityError):
+            await anyio.to_thread.run_sync(chain.dispatch_sync)
+
+    assert record.jobs == []
+
+
+@pytest.mark.anyio
+async def test_sync_chain_preflights_async_middleware_before_running() -> None:
+    """Reject async-only middleware before any earlier member executes.
+
+    Middleware declarations are part of the sync chain's preflight policy.
+    """
+    record = _SyncChainRecord()
+    application = Application(
+        config={"app": {"name": "queue-sync-chain-middleware"}},
+        service_providers=(
+            _SyncChainProvider(record),
+            QueueServiceProvider(
+                jobs=(_SyncChainJob, _AsyncMiddlewareChainJob)
+            ),
+        ),
+    )
+
+    async with application:
+        chain = Bus.chain(
+            [
+                _SyncChainJob("first"),
+                _AsyncMiddlewareChainJob("async-middleware"),
+            ]
+        )
+        with pytest.raises(QueueCapabilityError):
+            await anyio.to_thread.run_sync(chain.dispatch_sync)
+
+    assert record.jobs == []
+
+
+@pytest.mark.anyio
+async def test_sync_chain_preflights_unsupported_timeout_before_running() -> (
+    None
+):
+    """Reject a handler timeout before any chain member can run.
+
+    Python cannot safely stop a synchronous handler after it starts.
+    """
+    record = _SyncChainRecord()
+    application = Application(
+        config={"app": {"name": "queue-sync-chain-timeout"}},
+        service_providers=(
+            _SyncChainProvider(record),
+            QueueServiceProvider(jobs=(_SyncChainJob, _TimedSyncChainJob)),
+        ),
+    )
+
+    async with application:
+        chain = Bus.chain(
+            [_SyncChainJob("first"), _TimedSyncChainJob("timeout")]
+        )
+        with pytest.raises(QueueCapabilityError):
+            await anyio.to_thread.run_sync(chain.dispatch_sync)
+
+    assert record.jobs == []
+
+
+@pytest.mark.anyio
+async def test_sync_chain_fake_records_all_members_without_execution() -> None:
+    """Record every sync chain member without resolving its handler.
+
+    The inherited fake context intercepts worker-thread chain dispatch.
+    """
+    record = _SyncChainRecord()
+    application = Application(
+        config={"app": {"name": "queue-sync-chain-fake"}},
+        service_providers=(
+            _SyncChainProvider(record),
+            QueueServiceProvider(jobs=(_SyncChainJob,)),
+        ),
+    )
+
+    async with application:
+        manager = application.container.make(QueueManager)
+        with manager.fake() as fake:
+            chain = Bus.chain([_SyncChainJob("first"), _SyncChainJob("second")])
+            receipt = await anyio.to_thread.run_sync(chain.dispatch_sync)
+
+    assert receipt.state == "queued"
+    assert receipt.chain_id is not None
+    assert len(fake.records) == _EXPECTED_CHAIN_JOBS
+    assert all(
+        record.receipt.chain_id == receipt.chain_id for record in fake.records
+    )
+    assert record.jobs == []
+
+
+@pytest.mark.anyio
+async def test_sync_chain_rejects_active_async_execution_context() -> None:
+    """Reject sync chain execution on the event loop before any handler.
+
+    Async callers must use the explicit asynchronous chain API.
+    """
+    record = _SyncChainRecord()
+    application = Application(
+        config={"app": {"name": "queue-sync-chain-async-boundary"}},
+        service_providers=(
+            _SyncChainProvider(record),
+            QueueServiceProvider(jobs=(_SyncChainJob,)),
+        ),
+    )
+
+    async with application:
+        chain = Bus.chain([_SyncChainJob("first")])
+        with pytest.raises(QueueCapabilityError):
+            chain.dispatch_sync()
+
+    assert record.jobs == []
+
+
+@pytest.mark.anyio
+async def test_sync_chain_rejects_non_sync_connection_before_running() -> None:
+    """Reject a broker connection before a sync chain starts side effects.
+
+    Preflight reads configuration without constructing the remote broker.
+    """
+    record = _SyncChainRecord()
+    application = Application(
+        config={
+            "app": {"name": "queue-sync-chain-driver"},
+            "queue": {
+                "connections": {
+                    "sync": {"driver": "sync"},
+                    "remote": {
+                        "driver": "redis_stream",
+                        "options": {"url": "redis://127.0.0.1:6379/0"},
+                    },
+                },
+            },
+        },
+        service_providers=(
+            _SyncChainProvider(record),
+            QueueServiceProvider(jobs=(_SyncChainJob,)),
+        ),
+    )
+
+    async with application:
+        chain = Bus.chain([_SyncChainJob("first")]).on_connection("remote")
+        with pytest.raises(QueueCapabilityError):
+            await anyio.to_thread.run_sync(chain.dispatch_sync)
+
+    assert record.jobs == []
+
+
+@pytest.mark.anyio
+async def test_sync_chain_rejects_nested_execution_scope() -> None:
+    """Reject synchronous chaining inside a request-owned service scope.
+
+    The sync API does not create an unsupported nested job lifetime.
+    """
+    record = _SyncChainRecord()
+    application = Application(
+        config={"app": {"name": "queue-sync-chain-scope"}},
+        service_providers=(
+            _SyncChainProvider(record),
+            QueueServiceProvider(jobs=(_SyncChainJob,)),
+        ),
+    )
+
+    async with application:
+        chain = Bus.chain([_SyncChainJob("first")])
+        async with application.execution_scope(Scope.REQUEST):
+            with pytest.raises(QueueCapabilityError):
+                await anyio.to_thread.run_sync(chain.dispatch_sync)
+
+    assert record.jobs == []
+
+
+@pytest.mark.anyio
+async def test_sync_chain_rejects_empty_and_oversized_manager_inputs() -> None:
+    """Keep internal synchronous chain execution bounded and non-empty.
+
+    Normal callers reach this boundary through the validated pending builder.
+    """
+    application = Application(
+        config={"app": {"name": "queue-sync-chain-bounds"}},
+        service_providers=(QueueServiceProvider(jobs=(_SyncChainJob,)),),
+    )
+
+    async with application:
+        manager = application.container.make(QueueManager)
+        invalid_chains = (
+            (),
+            tuple(
+                _SyncChainJob(str(index))
+                for index in range(_OVERSIZED_CHAIN_LENGTH)
+            ),
+        )
+        for jobs in invalid_chains:
+            with pytest.raises(QueueConfigurationError):
+                manager.dispatch_chain_sync(
+                    jobs,
+                    connection=None,
+                    queue=None,
+                )
 
 
 @pytest.mark.anyio
