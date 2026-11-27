@@ -30,6 +30,7 @@ application = Application(
                     "driver": "redis_stream",
                     "options": {
                         "url": "redis://127.0.0.1:6379/0",
+                        "idle_timeout_ms": 600_000,
                         "unacknowledged_lock_timeout_seconds": 900,
                     },
                 },
@@ -89,6 +90,16 @@ Each entry under `connections` has a `driver` and an optional `options`
 mapping. Built-in drivers are `sync`, `null`, `redis_stream`, and `rabbitmq`.
 Custom Taskiq brokers can be registered through a trusted
 `QueueServiceProvider` driver factory.
+
+Redis Streams supports two recovery settings:
+
+| Setting | Default | Meaning |
+| --- | --- | --- |
+| `idle_timeout_ms` | `600000` | Minimum pending-message age before Taskiq can reclaim it. |
+| `unacknowledged_lock_timeout_seconds` | `900` | Expiration for Taskiq's Redis lock around pending-message claims. |
+
+Taskiq checks for pending messages after it reads fresh messages. An idle
+queue does not trigger recovery by itself. See [Delivery guarantees](/titanspan/queue/delivery/).
 
 ## Optional backend packages
 

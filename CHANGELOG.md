@@ -27,6 +27,8 @@ public release.
 - Let Queue fakes execute recorded handlers through native job scopes.
 - Let Queue fakes assert recorded handler failures by exception type.
 - Verify concurrent Redis jobs use isolated `JOB`-scoped dependencies.
+- Verify real Redis process-crash redelivery after new queue activity. Document
+  that Taskiq does not reclaim pending entries while the queue remains idle.
 - Bound process-local batch history and reject admission when active batches
   fill the configured capacity.
 - Defer durable failed-job records, unique jobs, distributed batches, queued

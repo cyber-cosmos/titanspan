@@ -96,7 +96,7 @@ or prose.
 | Reference capability | Titanspan status | Evidence and difference |
 | --- | --- | --- |
 | Inline synchronous driver | Equivalent | Implemented and exercised through Foundation. |
-| Redis queue | Backend-dependent | Redis Streams adapter and mandatory real Redis test path. Crash redelivery still needs evidence. |
+| Redis queue | Backend-dependent | Real Redis tests verify concurrent workers and process-crash redelivery after fresh queue activity. Taskiq checks pending messages after fresh reads, so an idle queue does not trigger recovery by itself. |
 | RabbitMQ queue | Backend-dependent | Optional Taskiq adapter exists; live integration remains pending. |
 | SQS queue | Unsupported with a technical justification | No supported, stable Taskiq integration is selected. |
 | Null driver | Equivalent with Python-native syntax | Explicit `discarded` receipt. |

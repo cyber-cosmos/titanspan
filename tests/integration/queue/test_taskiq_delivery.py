@@ -1,14 +1,19 @@
 """Verify Redis worker execution and delayed Taskiq scheduling.
 """  # fmt: skip
 
+from collections.abc import Mapping
 from dataclasses import dataclass
 from datetime import UTC, datetime
+from multiprocessing import get_context
+from multiprocessing.connection import Connection
+from multiprocessing.process import BaseProcess
 from threading import get_ident
 from typing import TYPE_CHECKING
 from uuid import uuid4
 
 import anyio
 import pytest
+from redis.asyncio import Redis
 
 from titanspan.container import Scope
 from titanspan.contracts.container import ServiceRegistry
@@ -28,6 +33,8 @@ _WORKER_QUEUE = "delivery-integration"
 _CHAIN_FIRST_QUEUE = "chain-first"
 _CHAIN_SECOND_QUEUE = "chain-second"
 _EXPECTED_CHAIN_WORKERS = 2
+_RECLAIM_IDLE_TIMEOUT_MS = 1_000
+_RECLAIM_LOCK_TIMEOUT_SECONDS = 0.5
 
 
 class _JobObservation:
@@ -112,6 +119,47 @@ class _ConcurrentRedisJob(Job):
         """
         _ = self.index
         await gate.wait_for_release(token, context)
+
+
+class _CrashRecoveryGate:
+    """Coordinate a worker crash and a later Redis redelivery.
+    """  # fmt: skip
+
+    def __init__(
+        self,
+        started: Connection | None,
+    ) -> None:
+        """Retain an optional signal for deterministic worker termination.
+
+        Args:
+            started: Pipe that signals entry into the crashing worker.
+        """
+        self._started = started
+
+    async def wait_for_release(self) -> None:
+        """Block only the first worker until the test terminates it.
+        """  # fmt: skip
+        if self._started is None:
+            return
+        self._started.send_bytes(b"started")
+        await anyio.Event().wait()
+
+
+@dataclass
+class _CrashRedeliveryJob(Job):
+    """Block one delivery until its worker process is terminated.
+    """  # fmt: skip
+
+    async def handle(
+        self,
+        gate: _CrashRecoveryGate,
+    ) -> None:
+        """Block the crashing worker before acknowledgement.
+
+        Args:
+            gate: Cross-process crash synchronization.
+        """
+        await gate.wait_for_release()
 
 
 @dataclass
@@ -262,11 +310,38 @@ class _WorkerConcurrencyProvider:
         container.scoped(_WorkerJobToken, scope=Scope.JOB)
 
 
+class _CrashRecoveryProvider:
+    """Register one process-shared Queue crash coordination gate.
+    """  # fmt: skip
+
+    def __init__(
+        self,
+        gate: _CrashRecoveryGate,
+    ) -> None:
+        """Retain process coordination for the crash test.
+
+        Args:
+            gate: Cross-process worker crash coordinator.
+        """
+        self._gate = gate
+
+    def register(self, container: ServiceRegistry) -> None:
+        """Bind the test coordinator through the native Container.
+
+        Args:
+            container: Canonical application service registry.
+        """
+        container.instance(_CrashRecoveryGate, self._gate)
+
+
 def _application(
     port: int,
     observation: _JobObservation,
     jobs: tuple[type[Job], ...],
     providers: tuple[ServiceProvider, ...] = (),
+    *,
+    application_name: str | None = None,
+    connection_options: Mapping[str, object] | None = None,
 ) -> Application:
     """Build one isolated application configured for its Redis fixture.
 
@@ -275,13 +350,17 @@ def _application(
         observation: Application-owned job observation.
         jobs: Trusted job declarations registered before startup.
         providers: Additional trusted providers for integration fixtures.
+        application_name: Shared name used by producer and worker processes.
+        connection_options: Additional options for the Redis broker.
 
     Returns:
         A native Application with Queue's Redis connection configured.
     """
     return Application(
         config={
-            "app": {"name": f"queue-delivery-{uuid4().hex}"},
+            "app": {
+                "name": application_name or f"queue-delivery-{uuid4().hex}"
+            },
             "queue": {
                 "default_connection": "redis",
                 "default_queue": _WORKER_QUEUE,
@@ -290,6 +369,7 @@ def _application(
                         "driver": "redis_stream",
                         "options": {
                             "url": f"redis://127.0.0.1:{port}/15",
+                            **(connection_options or {}),
                         },
                     }
                 },
@@ -303,6 +383,130 @@ def _application(
             QueueServiceProvider(jobs=jobs),
         ),
     )
+
+
+def _run_crash_worker_process(
+    port: int,
+    application_name: str,
+    started: Connection,
+) -> None:
+    """Run a Queue worker in an independently terminable process.
+
+    Args:
+        port: Redis port used by the integration fixture.
+        application_name: Namespace shared with the producer application.
+        started: Pipe used to signal handler entry to the test process.
+    """
+    gate = _CrashRecoveryGate(started)
+    anyio.run(
+        _run_crash_worker,
+        port,
+        application_name,
+        gate,
+    )
+
+
+async def _run_crash_worker(
+    port: int,
+    application_name: str,
+    gate: _CrashRecoveryGate,
+) -> None:
+    """Run one Redis consumer until its process is terminated.
+
+    Args:
+        port: Redis port used by the integration fixture.
+        application_name: Namespace shared with the producer application.
+        gate: Cross-process synchronization for the active job.
+    """
+    application = _application(
+        port,
+        _JobObservation(),
+        (_CrashRedeliveryJob,),
+        (_CrashRecoveryProvider(gate),),
+        application_name=application_name,
+        connection_options={
+            "idle_timeout_ms": _RECLAIM_IDLE_TIMEOUT_MS,
+            "unacknowledged_lock_timeout_seconds": (
+                _RECLAIM_LOCK_TIMEOUT_SECONDS
+            ),
+        },
+    )
+    async with application:
+        manager = application.container.make(QueueManager)
+        await manager.work_async(
+            connection="redis",
+            queue=_WORKER_QUEUE,
+            concurrency=1,
+            prefetch=1,
+        )
+
+
+async def _crash_worker_after_handler_start(
+    process: BaseProcess,
+    started: Connection,
+) -> int:
+    """Terminate a worker after it signals entry into the job handler.
+
+    Args:
+        process: Independently spawned Taskiq worker process.
+        started: Pipe that receives the handler-entry signal.
+
+    Returns:
+        Exit status after forced worker termination.
+    """
+    did_start = False
+    try:
+        await anyio.to_thread.run_sync(process.start)
+        did_start = True
+        assert await anyio.to_thread.run_sync(started.poll, 15)
+        signal = await anyio.to_thread.run_sync(started.recv_bytes)
+        assert signal == b"started"
+        await anyio.to_thread.run_sync(process.terminate)
+        await anyio.to_thread.run_sync(process.join, 10)
+        exit_code = process.exitcode
+        assert exit_code is not None
+        return exit_code
+    finally:
+        if did_start:
+            if process.is_alive():
+                process.terminate()
+                process.join(timeout=5)
+            process.close()
+
+
+async def _wait_for_idle_pending_message(
+    port: int,
+    stream: str,
+    group: str,
+    minimum_idle_ms: int,
+) -> None:
+    """Wait until Redis reports an unacknowledged message as reclaimable.
+
+    Args:
+        port: Redis port used by the integration fixture.
+        stream: Fully namespaced Redis Stream key.
+        group: Taskiq consumer group associated with the application.
+        minimum_idle_ms: Backend reclaim threshold in milliseconds.
+    """
+    client = Redis(host="127.0.0.1", port=port, db=15)
+    poll_interval = anyio.Event()
+    try:
+        with anyio.fail_after(10):
+            while True:
+                pending = await client.xpending_range(
+                    stream,
+                    group,
+                    min="-",
+                    max="+",
+                    count=1,
+                    idle=minimum_idle_ms,
+                )
+                if pending:
+                    break
+                with anyio.move_on_after(0.01):
+                    await poll_interval.wait()
+    finally:
+        await client.aclose()
 
 
 def _register_worker_signals(
@@ -427,6 +631,82 @@ async def test_redis_worker_runs_jobs_concurrently_in_isolated_scopes(
     assert len(gate.job_ids) == target
     assert len(set(gate.job_ids)) == target
     assert len({id(token) for token in gate.tokens}) == target
+
+
+@pytest.mark.anyio
+async def test_redis_redelivers_unacknowledged_job_after_worker_crash(
+    queue_redis_port: int,
+) -> None:
+    """Recover a Redis Streams message after its worker process is killed.
+
+    The test terminates a real worker inside the handler before acknowledgement.
+    """
+    process_context = get_context("spawn")
+    started_receive, started_send = process_context.Pipe(duplex=False)
+    gate = _CrashRecoveryGate(None)
+    application_name = f"queue-crash-{uuid4().hex}"
+    application = _application(
+        queue_redis_port,
+        _JobObservation(),
+        (_CrashRedeliveryJob,),
+        (_CrashRecoveryProvider(gate),),
+        application_name=application_name,
+        connection_options={
+            "idle_timeout_ms": _RECLAIM_IDLE_TIMEOUT_MS,
+            "unacknowledged_lock_timeout_seconds": (
+                _RECLAIM_LOCK_TIMEOUT_SECONDS
+            ),
+        },
+    )
+    process = process_context.Process(
+        target=_run_crash_worker_process,
+        args=(
+            queue_redis_port,
+            application_name,
+            started_send,
+        ),
+    )
+    result: JobResultSnapshot | None = None
+
+    async with application:
+        manager = application.container.make(QueueManager)
+        receipt = await manager.dispatch_async(_CrashRedeliveryJob())
+        try:
+            exit_code = await _crash_worker_after_handler_start(
+                process,
+                started_receive,
+            )
+            assert exit_code != 0
+            await _wait_for_idle_pending_message(
+                queue_redis_port,
+                f"{manager.configuration.namespace}:redis:{_WORKER_QUEUE}",
+                f"{manager.configuration.namespace}-redis-{_WORKER_QUEUE}",
+                _RECLAIM_IDLE_TIMEOUT_MS,
+            )
+
+            async def recover_message() -> None:
+                """Consume new and pending messages after the worker crash.
+                """  # fmt: skip
+                await manager.work_async(
+                    connection="redis",
+                    queue=_WORKER_QUEUE,
+                    concurrency=1,
+                    prefetch=1,
+                )
+
+            async with anyio.create_task_group() as task_group:
+                task_group.start_soon(recover_message)
+                await manager.dispatch_async(_CrashRedeliveryJob())
+                result = await manager.result_for(receipt).wait_async(
+                    timeout=10,
+                    poll_interval=0.01,
+                )
+                task_group.cancel_scope.cancel()
+            assert result is not None
+            assert result.state == "succeeded"
+        finally:
+            started_receive.close()
+            started_send.close()
 
 
 @pytest.mark.anyio

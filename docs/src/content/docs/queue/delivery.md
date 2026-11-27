@@ -13,7 +13,7 @@ its configuration.
 | --- | --- | --- |
 | `sync` | Runs a job inline in the current application. | No broker durability or redelivery. |
 | `null` | Returns a `discarded` receipt without executing a job. | Intentional drop behavior. |
-| `redis_stream` | Taskiq Redis Streams, JSON payloads, delayed scheduling, and Taskiq retry middleware. | Real Redis tests verify synchronous handler offload, delayed delivery, retries, and chain continuation. Worker-process crash recovery is not yet covered. |
+| `redis_stream` | Taskiq Redis Streams, JSON payloads, delayed scheduling, and Taskiq retry middleware. | Real Redis tests verify worker concurrency, process-crash redelivery after new queue activity, delayed delivery, retries, and chain continuation. |
 | `rabbitmq` | Taskiq RabbitMQ adapter declares a durable queue and configures QoS. | Adapter is present; live RabbitMQ integration is not verified. Delayed scheduling is unavailable. |
 | Custom Taskiq broker | Trusted factory can construct a broker through `QueueServiceProvider`. | The application owner must verify acknowledgement, redelivery, and cleanup semantics. |
 
@@ -28,11 +28,15 @@ and lose acknowledgement or continuation publication. Broker redelivery can
 run the handler again. Make external side effects idempotent and use
 application-owned idempotency keys when required.
 
-The Redis Streams adapter uses Taskiq's acknowledgement and
-unacknowledged-message recovery facilities. Configure its
-`unacknowledged_lock_timeout_seconds` above the expected handler duration.
-Real integration verifies handler retry, but it does not yet prove process
-crash redelivery or every broker failure window.
+Redis Streams uses Taskiq acknowledgements and pending-message recovery.
+Configure `idle_timeout_ms` for the minimum pending-message age before recovery.
+Taskiq checks pending messages after it reads fresh queue messages. A crashed
+message can remain pending while its queue has no new traffic.
+`unacknowledged_lock_timeout_seconds` limits Taskiq's Redis claim lock. It does
+not set the allowed handler duration. Real Redis integration verifies that a
+worker killed inside a handler leaves the message pending and that later queue
+activity triggers its redelivery. This does not prove recovery for every
+broker failure window.
 
 ## Retry behavior
 
