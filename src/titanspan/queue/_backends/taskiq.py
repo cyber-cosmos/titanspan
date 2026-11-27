@@ -32,23 +32,28 @@ class _TransportFactory(Protocol):
     """
 
     def __call__(self, **kwargs: object) -> AsyncBroker:
-        """Create one Taskiq broker from validated settings."""
+        """Create one Taskiq broker from validated settings.
+        """  # fmt: skip
         ...
 
 
 class _ScheduleSourceFactory(Protocol):
-    """Describe the Redis schedule-source constructor."""
+    """Describe the Redis schedule-source constructor.
+    """  # fmt: skip
 
     def __call__(self, **kwargs: object) -> ScheduleSource:
-        """Create one Taskiq schedule source."""
+        """Create one Taskiq schedule source.
+        """  # fmt: skip
         ...
 
 
 class _RabbitQueueFactory(Protocol):
-    """Describe the RabbitMQ queue declaration constructor."""
+    """Describe the RabbitMQ queue declaration constructor.
+    """  # fmt: skip
 
     def __call__(self, **kwargs: object) -> object:
-        """Create one durable Taskiq queue declaration."""
+        """Create one durable Taskiq queue declaration.
+        """  # fmt: skip
         ...
 
 
