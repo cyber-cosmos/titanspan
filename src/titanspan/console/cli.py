@@ -37,6 +37,7 @@ from titanspan.events import (
     clear_event_cache,
     inspect_events,
 )
+from titanspan.queue.commands import register_queue_commands
 from titanspan.routing import RouteCache, RouteCacheError
 from titanspan.routing.router import Router  # noqa: TC001
 from titanspan.support.arr import Arr
@@ -57,6 +58,7 @@ console = Console(
     version=__version__,
 )
 register_cache_commands(console)
+register_queue_commands(console)
 _MISSING = object()
 _CONTROLLER_ACTION_PARTS = 2
 _ROUTE_CACHE_PARTS = ("bootstrap", "cache", "routes.json")

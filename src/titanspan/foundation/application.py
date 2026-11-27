@@ -89,6 +89,7 @@ from titanspan.logging import (
     LoggingServiceProvider,
 )
 from titanspan.logging.exceptions import LogLifecycleError
+from titanspan.queue import QueueServiceProvider
 from titanspan.routing import Router, RoutingServiceProvider, UrlGenerator
 from titanspan.routing._backends.fastapi import install_routes
 from titanspan.support.uri import bind_uri_services
@@ -176,6 +177,7 @@ def _select_builtin_providers(
         FilesystemServiceProvider,
         HashingServiceProvider,
         CacheServiceProvider,
+        QueueServiceProvider,
     )
     selected: list[ServiceProvider] = []
     for provider_type in provider_types:

@@ -2,7 +2,8 @@
 
 Titanspan's core application and web lifecycle now composes native
 configuration, logging, Support, the Container, HTTP, Routing, Filesystem,
-Hashing, Validation, Cache, Events, Pipeline, Testing, and Console services.
+Hashing, Validation, Cache, Events, Pipeline, Testing, Console, and the
+initial Queue and Bus runtime.
 Routing handles registration, dispatch, discovery, inspection, WebSockets, and
 OpenAPI through the established ASGI host. Filesystem provides application-
 owned local and memory disks over fsspec. Explicit third-party FastAPI
@@ -25,9 +26,12 @@ leases, named failover, execution-local memoization, and native test fakes.
 
 The Events component provides ordered in-process dispatch, Container-backed
 listeners, scoped fakes, deferred dispatch, trusted discovery, and Console
-inspection and cache commands. Durable queue, transaction, and broadcasting
-integration remain planned. Console provides native command registration and
-application-aware execution.
+inspection and cache commands. Queue provides typed job declarations, safe
+JSON messages, application-scoped workers, retries, Redis Streams transport,
+chains, and local batch tracking. Durable failed-job records, distributed
+batches, results, unique jobs, queued event listeners, and
+transaction-aware dispatch remain planned. Console provides native command
+registration and application-aware execution.
 
 ## Phase 0 — Engineering foundation
 
@@ -78,7 +82,7 @@ application-aware execution.
 ## Phase 5 — Production infrastructure
 
 - Authentication and authorization remain planned; Hashing supplies their
-  password service foundation. Queue infrastructure remains planned.
+  password service foundation.
 - Scheduling, notifications, and mail.
 - Telemetry, resource quotas, and operational resilience.
 

@@ -13,9 +13,10 @@ column distinguishes static assignments and behavioral tests from real
 application integration. The cross-component test target runs tests marked
 `architecture` and is a required job in the CI gate.
 
-The shared Contracts package defines public protocols across ten domains:
+The shared Contracts package defines public protocols across twelve domains:
 configuration, container, Console, Events, foundation, HTTP, logging,
-Pipeline, Routing, and Support. Domain value types are identified separately.
+Pipeline, Queue, Routing, Support, and Validation. Domain value types are
+identified separately.
 One public abstract facade base and one private production protocol are also
 listed. Every public contract appears in its canonical domain package. The
 root package re-exports the same object. Private implementation and test-only
@@ -97,6 +98,20 @@ Typer and Rich types remain inside the Console backend boundary.
 `EventSelector` is a public type alias. It does not create a second runtime
 contract. Blinker stores receiver references. Titanspan owns event selection,
 injection, ordering, and sequential dispatch policy.
+
+## Queue contracts
+
+| Contract or type | Definition | Implementation and consumers | Registration and evidence | Status |
+| --- | --- | --- | --- | --- |
+| `QueueDispatcher`, `BusDispatcher` | `contracts/queue/dispatcher.py` | `queue.QueueManager`; Queue and Bus facades and job services | `QueueServiceProvider` binds both protocols to one manager; application and real Redis worker tests verify identity | Implemented, registered, and consumed |
+| `PendingDispatch`, `ChainBuilder`, `BatchBuilder`, `BatchHandle` | `contracts/queue/dispatcher.py` | Native single-use dispatch, continuation, and process-local batch builders | Structural typing, fake assertions, and real inline/Redis chain tests | Implemented for documented semantics |
+| `JobContext`, `JobMiddleware`, `SyncJobMiddleware` | `contracts/queue/context.py`, `middleware.py` | Queue execution and existing Pipeline adapters | Injected only within native JOB scope; integration tests verify middleware and scope behavior | Implemented and consumed |
+
+Taskiq owns broker transport, worker consumption, acknowledgement, and retry
+rescheduling. Queue validates registered job types, encodes bounded JSON,
+creates job scopes, and owns broker lifecycle through Foundation. Durable
+results, failed-job storage, distributed batch state, and transaction-aware
+publication remain unavailable.
 
 ## Logging contracts
 
@@ -186,8 +201,8 @@ methods and Python special methods remain available where useful.
 ## Application integration and remaining limits
 
 `Application` creates one native `Container`, registers configuration,
-logging, HTTP, and Routing services, then registers application providers.
-Config, Log, Http, and Route facades resolve application services from the
+logging, HTTP, and Routing services, then registers built-in and application
+providers. Config, Log, Http, Route, Queue, and Bus facades resolve services from the
 active application context. Native routes use the same container and request
 scope. Explicit external `Application.providers` values remain a separate
 private interoperability graph; they do not split native route or framework
@@ -226,4 +241,4 @@ The installed distribution, ordinary public signatures, and module import
 boundaries are checked by `make public-api-check`, `make architecture-check`,
 and `make architecture-integration-test`. These checks prove different
 properties; they do not establish every structural signature or behavior.
-Database, cache, queue, validation, and workflow contracts remain deferred.
+Database, AI, workflow, and telemetry contracts remain deferred.

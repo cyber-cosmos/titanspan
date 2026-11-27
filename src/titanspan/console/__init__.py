@@ -14,6 +14,7 @@ from titanspan.console.exceptions import (
     ConsoleOutputError,
     ConsoleRuntimeError,
 )
+from titanspan.console.generators import ArtifactKind, generate_artifact
 from titanspan.console.output import TerminalOutput
 from titanspan.console.parameters import Argument, Option
 from titanspan.console.results import ConsoleResult
@@ -21,6 +22,7 @@ from titanspan.console.service_provider import ConsoleServiceProvider
 
 __all__ = [
     "Argument",
+    "ArtifactKind",
     "CommandDiscoveryError",
     "CommandGenerationError",
     "CommandInvocationError",
@@ -34,4 +36,5 @@ __all__ = [
     "ConsoleServiceProvider",
     "Option",
     "TerminalOutput",
+    "generate_artifact",
 ]

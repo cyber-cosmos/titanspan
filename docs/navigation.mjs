@@ -53,6 +53,10 @@ export const documentationSidebar = [
         items: [{ autogenerate: { directory: "cache" } }],
       },
       {
+        label: "Queue",
+        items: [{ autogenerate: { directory: "queue" } }],
+      },
+      {
         label: "Facades",
         items: [{ autogenerate: { directory: "facades" } }],
       },

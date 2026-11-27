@@ -18,6 +18,8 @@ The package currently exports:
   consumers that inherently require asynchronous resolution.
 - `InstanceRegistration`, a native contract for supplying an existing service
   instance to the active container adapter.
+- Queue and Bus protocols for dispatch, single-use builders, job context,
+  middleware continuation, chains, and batch status.
 - HTTP protocols for requests, responses, middleware, outgoing clients, and
   response construction.
 - Routing protocols for route catalogs, route metadata, and URL generation.
@@ -27,9 +29,9 @@ The package currently exports:
 - Logging protocols for drivers, formatters, processors, async delivery, and
   logger customization, plus the shared `DeliveryStatus` enum.
 
-Contracts for unimplemented cache, database, queue, workflow, and other
-components remain pending. The [native Contracts specification](
-/specifications/contracts) records established boundaries and deferred work.
+Contracts for unimplemented Database, AI, workflow, and other components
+remain pending. The [native Contracts specification](/titanspan/specifications/contracts/)
+records established boundaries and deferred work.
 
 These interfaces describe substitution points. Defining a protocol does not
 mean a production implementation or complete framework feature exists.

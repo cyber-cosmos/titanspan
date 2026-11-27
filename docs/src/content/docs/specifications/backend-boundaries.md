@@ -22,6 +22,7 @@ Selected libraries own mature infrastructure behind private adapters.
 | Collections | Python iterators, mappings, and standard operations | Ordered eager and lazy APIs, including equality for unhashable values |
 | Pipeline | Python callables and the native Container | Ordered sync and async value transformation without task scheduling |
 | Events | Blinker receiver storage | Native ordering, selection, injection, async dispatch, and lifecycle |
+| Queue and Bus | Taskiq brokers, Redis Streams, and Taskiq worker/scheduler APIs | Trusted job registry, bounded JSON envelopes, native dispatch policy, JOB scopes, retry labels, chains, local batches, fakes, and Application lifecycle |
 | CLI | Typer parsing and Rich terminal output | Framework commands and application service integration |
 | Testing | Pytest, Starlette test clients, and HTTPX2 ASGI transport | Production Application lifecycle and component test integration |
 

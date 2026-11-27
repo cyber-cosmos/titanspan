@@ -24,6 +24,8 @@ type ArtifactKind = Literal[
     "command",
     "event",
     "listener",
+    "job",
+    "job_middleware",
     "test",
 ]
 
@@ -34,6 +36,12 @@ _ARTIFACT_LAYOUT: dict[ArtifactKind, tuple[tuple[str, ...], str, str]] = {
     "command": (("app", "commands"), "", "_command"),
     "event": (("app", "events"), "", "_event"),
     "listener": (("app", "listeners"), "", "_listener"),
+    "job": (("app", "jobs"), "", "_job"),
+    "job_middleware": (
+        ("app", "job_middleware"),
+        "",
+        "_job_middleware",
+    ),
     "test": (("tests",), "test_", ""),
 }
 _NAME_SEGMENT = re.compile(r"[A-Za-z][A-Za-z0-9_]*\Z", re.ASCII)
@@ -178,6 +186,8 @@ def _class_suffix(kind: ArtifactKind) -> str:
         "command": "_command",
         "event": "_event",
         "listener": "_listener",
+        "job": "_job",
+        "job_middleware": "_job_middleware",
         "test": "_test",
     }[kind]
 
@@ -198,6 +208,8 @@ def _generated_class_suffix(kind: ArtifactKind) -> str:
         "command": "Command",
         "event": "Event",
         "listener": "Listener",
+        "job": "Job",
+        "job_middleware": "JobMiddleware",
         "test": "",
     }[kind]
 
@@ -234,6 +246,10 @@ def _render_source(
         source = _event_source(class_name)
     elif kind == "listener":
         source = _listener_source(class_name, event_type)
+    elif kind == "job":
+        source = _job_source(class_name, artifact_name)
+    elif kind == "job_middleware":
+        source = _job_middleware_source(class_name)
     else:
         source = _test_source(artifact_name)
     return dedent(source).lstrip() + "\n"
@@ -435,6 +451,77 @@ def _event_source(class_name: str) -> str:
         """
 
         payload: object = None
+'''
+
+
+def _job_source(class_name: str, job_name: str) -> str:
+    """Render an importable dataclass job using the native Queue API.
+
+    Args:
+        class_name: Generated job class name.
+        job_name: Lowercase job identifier used in its docstring.
+
+    Returns:
+        Typed Queue job source with a serializable empty payload.
+    """
+    return f'''\
+    """Provide the generated {class_name} Queue job.
+
+    Register this trusted type with QueueServiceProvider.
+    """
+
+    from dataclasses import dataclass
+
+    from titanspan.queue import Job
+
+
+    @dataclass
+    class {class_name}(Job):
+        """Run the {job_name} job through the application Container."""
+
+        async def handle(self) -> None:
+            """Process this job using injected application services."""
+            return None
+'''
+
+
+def _job_middleware_source(class_name: str) -> str:
+    """Render async job middleware with an explicit continuation.
+
+    Args:
+        class_name: Generated job middleware class name.
+
+    Returns:
+        Importable middleware source using the Queue contracts.
+    """
+    return f'''\
+    """Provide the generated {class_name} Queue middleware.
+
+    Add this type to a job's middleware declaration.
+    """
+
+    from titanspan.contracts.queue import JobContext, JobNext
+
+
+    class {class_name}:
+        """Wrap one attempt without storing request-specific state."""
+
+        async def handle(
+            self,
+            context: JobContext,
+            next_handler: JobNext,
+        ) -> object:
+            """Continue the attempt through the remaining middleware.
+
+            Args:
+                context: Immutable metadata for this job attempt.
+                next_handler: Async continuation for the next stage.
+
+            Returns:
+                The downstream job result.
+            """
+            _ = context
+            return await next_handler()
 '''
 
 

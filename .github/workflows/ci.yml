@@ -436,7 +436,7 @@ jobs:
         with:
           python-version: ${{ matrix.python-version }}
       - name: Install locked dependencies
-        run: uv sync --locked --all-groups --extra redis
+        run: uv sync --locked --all-groups --extra redis --extra queue-redis
       - name: Run real dependency integrations
         id: tests
         run: make integration-test

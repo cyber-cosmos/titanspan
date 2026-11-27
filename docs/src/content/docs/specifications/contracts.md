@@ -23,6 +23,7 @@ contracts/
 ├── http/
 ├── logging/
 ├── pipeline/
+├── queue/
 ├── routing/
 ├── support/
 └── validation/
@@ -54,6 +55,8 @@ Component-private protocols remain in their owning component.
 | `ValidationService`, `ValidationRule`, `AsyncValidationRule` | Validate typed values and apply ordered application rules | `titanspan.validation`; `tests/integration/validation/test_validation_application.py` |
 | `CommandRegistrar`, `ConsoleCommand`, `ConsoleOutput`, `ProgressTask` | Share command registration and terminal output behavior | `titanspan.console.Console`, `TerminalOutput`; Console unit and Foundation integration tests |
 | `CacheRepository`, `CacheStore`, `CacheLock`, `CacheCapabilities` | Share typed cache access, backend capabilities, and owner-checked locks | `titanspan.cache.CacheManager`; real memory and Redis integration tests |
+| `QueueDispatcher`, `BusDispatcher`, `PendingDispatch`, `ChainBuilder`, `BatchBuilder`, `BatchHandle` | Share canonical job dispatch and native Bus builder behavior | `titanspan.queue.QueueManager`; application and real Redis worker tests |
+| `JobContext`, `JobMiddleware`, `SyncJobMiddleware` | Expose immutable execution metadata and typed middleware continuation | `titanspan.queue`; native Container and job-scope integration tests |
 
 `Scope` and `ServiceFactory` are container domain values in Contracts and are
 re-exported by `titanspan.container` with canonical object identity.
@@ -84,9 +87,9 @@ validated-data boundary through `ValidationService` and its typed result.
 
 ## Deferred boundaries
 
-Contracts for database, queue, AI, workflows, telemetry, and other
-unimplemented components remain deferred until their owning architecture is
-established. A roadmap item is not a public contract.
+Contracts for Database, AI, workflows, telemetry, and other unimplemented
+components remain deferred until their owning architecture is established.
+A roadmap item is not a public contract.
 
 ## Verification
 

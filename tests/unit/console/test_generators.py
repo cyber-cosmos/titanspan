@@ -59,6 +59,20 @@ _GENERATED_ARTIFACTS: tuple[
         "from app.events import DocumentReadyEvent",
     ),
     (
+        "job",
+        "ProcessDocument",
+        None,
+        "app/jobs/process_document_job.py",
+        "class ProcessDocumentJob(Job):",
+    ),
+    (
+        "job_middleware",
+        "AuditJobMiddleware",
+        None,
+        "app/job_middleware/audit_job_middleware.py",
+        "class AuditJobMiddleware:",
+    ),
+    (
         "test",
         "documents",
         None,

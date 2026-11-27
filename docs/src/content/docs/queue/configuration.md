@@ -1,0 +1,105 @@
+---
+title: "Queue configuration"
+description: "Configure application-owned queue connections and limits."
+---
+
+Queue reads settings from the active Config repository. Application
+construction validates configuration but does not open broker connections.
+
+## Configure connections
+
+The following example uses Redis Streams for queued jobs and keeps the
+synchronous connection available for local execution.
+
+```python
+from titanspan.foundation import Application
+from titanspan.queue import QueueServiceProvider
+
+
+application = Application(
+    config={
+        "app": {"name": "documents"},
+        "queue": {
+            "default_connection": "redis",
+            "default_queue": "default",
+            "namespace": "documents-production",
+            "connections": {
+                "sync": {"driver": "sync"},
+                "disabled": {"driver": "null"},
+                "redis": {
+                    "driver": "redis_stream",
+                    "options": {
+                        "url": "redis://127.0.0.1:6379/0",
+                        "unacknowledged_lock_timeout_seconds": 900,
+                    },
+                },
+            },
+            "max_payload_bytes": 1_000_000,
+            "max_payload_depth": 64,
+            "worker_concurrency": 16,
+            "prefetch": 0,
+            "default_tries": 1,
+        },
+    },
+    service_providers=(
+        QueueServiceProvider(jobs=(ProcessDocument,)),
+    ),
+)
+```
+
+Replace the example URL with a trusted deployment setting. Do not commit
+credentials. Queue configuration representations redact backend options.
+
+`namespace` separates the application's physical broker keys. Use the same
+namespace for producers and workers in one deployment. Use different
+namespaces for isolated environments that share a broker.
+
+The connection name and logical queue also form the physical Queue name.
+Two named connections that share a Redis URL do not consume each other's
+messages.
+
+## Settings
+
+| Setting | Default | Meaning |
+| --- | --- | --- |
+| `default_connection` | `sync` | Connection used when a job has no selection. |
+| `default_queue` | `default` | Logical queue used when a job has no selection. |
+| `namespace` | Derived from `app.name` | Application prefix for broker keys. |
+| `max_payload_bytes` | `1000000` | Maximum encoded job envelope size. |
+| `max_payload_depth` | `64` | Maximum nested object or array depth in each job payload. Values must be 1 through 256. |
+| `worker_concurrency` | `16` | Maximum active async handlers per worker. |
+| `prefetch` | `0` | Additional messages permitted beyond active capacity. |
+| `default_tries` | `1` | Total attempts when a job has no `tries` override. |
+| `schedule_poll_interval` | `1.0` seconds | Taskiq schedule-source refresh interval. |
+| `schedule_loop_interval` | `1.0` seconds | Taskiq schedule loop interval. |
+
+Each entry under `connections` has a `driver` and an optional `options`
+mapping. Built-in drivers are `sync`, `null`, `redis_stream`, and `rabbitmq`.
+Custom Taskiq brokers can be registered through a trusted
+`QueueServiceProvider` driver factory.
+
+## Optional backend packages
+
+Install the backend extra that matches the selected driver:
+
+```shell
+uv add 'titanspan[queue-redis]'
+```
+
+```shell
+uv add 'titanspan[queue-rabbitmq]'
+```
+
+The Redis integration is exercised against a real local or CI Redis server.
+The RabbitMQ adapter has not been verified against a live RabbitMQ service.
+Do not treat its current adapter as a verified production guarantee.
+
+## Register job classes
+
+Pass trusted classes to `QueueServiceProvider(jobs=(...))`. Registration
+freezes during application startup. Workers accept only those registered job
+names; broker messages cannot import arbitrary Python classes.
+
+The default provider registers Queue services without discovering arbitrary
+application modules. Use explicit provider registration or trusted installed
+provider discovery. See [Jobs](/titanspan/queue/jobs/).
