@@ -31,6 +31,7 @@ from titanspan._application_context import (
     active_application_context,
     bind_application_context,
 )
+from titanspan.cache import CacheServiceProvider
 from titanspan.config import (
     ConfigManager,
     ConfigServiceProvider,
@@ -174,6 +175,7 @@ def _select_builtin_providers(
         ValidationServiceProvider,
         FilesystemServiceProvider,
         HashingServiceProvider,
+        CacheServiceProvider,
     )
     selected: list[ServiceProvider] = []
     for provider_type in provider_types:

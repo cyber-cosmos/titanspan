@@ -3,6 +3,8 @@
 
 from __future__ import annotations
 
+from traceback import format_exception
+
 import pytest
 
 from titanspan.cache import (
@@ -333,6 +335,8 @@ def test_failover_rejects_self_reference_and_all_child_failures() -> None:
     with pytest.raises(CacheBackendError) as captured:
         failing.store().get("key")
     assert "private backend detail" not in str(captured.value)
+    rendered = "".join(format_exception(captured.value))
+    assert "private backend detail" not in rendered
 
 
 @pytest.mark.anyio

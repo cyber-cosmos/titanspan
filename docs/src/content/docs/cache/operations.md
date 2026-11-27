@@ -55,6 +55,11 @@ operations raise CacheCapabilityError. Cache.has checks whether a key exists;
 it does not infer presence from truthiness. Cache.pull atomically retrieves
 and removes a key on memory and Redis.
 
+Backend failures raise CacheBackendError with a safe category and exception
+type. The adapter suppresses backend messages and exception causes so
+credentials, connection strings, and cached values do not appear in normal
+tracebacks.
+
 ## Named stores, tags, and memoization
 
 Select a store through Cache.store(name). Tags are supported by memory and
@@ -156,7 +161,9 @@ await Cache.flush_locks_async("redis")
 CacheEvent contains only action, store name, and success status. Actions
 include hit, miss, write, removal, clear, failure, lock lifecycle, and
 failover. Events never contain cache keys or values. Disable events for the
-whole component or for an individual store.
+whole component or for an individual store. Listener failures follow the
+Events contract and propagate after dispatch. A successful backend operation
+may already have completed when its event listener raises.
 
 Cache.status and Cache.status_async report driver names, capabilities, and
 supported aggregate statistics. They omit credentials, connection strings,

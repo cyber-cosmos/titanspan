@@ -523,8 +523,8 @@ def _decode_integer(payload: bytes) -> int:
     try:
         decoded = payload.decode("ascii")
         value = int(decoded)
-    except (UnicodeDecodeError, ValueError) as error:
-        raise ValueError(_INVALID_COUNTER_ERROR) from error
+    except (UnicodeDecodeError, ValueError):
+        raise ValueError(_INVALID_COUNTER_ERROR) from None
     if str(value) != decoded:
         raise ValueError(_INVALID_COUNTER_ERROR)
     return value

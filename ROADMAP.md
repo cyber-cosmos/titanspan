@@ -19,7 +19,9 @@ Foundation rendering and Routing schema integration remain with their owners.
 Streaming data pipelines and large-scale processing remain planned.
 
 Hashing provides Argon2id password hashes, Bcrypt verification, safe hash
-upgrades, and explicit async access independently of Authentication.
+upgrades, and explicit async access independently of Authentication. Cache
+provides application-scoped memory and optional Redis stores, safe JSON values,
+leases, named failover, execution-local memoization, and native test fakes.
 
 The Events component now provides ordered in-process dispatch, Container-backed
 listeners, scoped fakes, deferred dispatch, trusted discovery, and Console
@@ -76,7 +78,7 @@ application-aware execution.
 ## Phase 5 — Production infrastructure
 
 - Authentication and authorization remain planned; Hashing supplies their
-  password service foundation. Cache and queue infrastructure remain planned.
+  password service foundation. Queue infrastructure remains planned.
 - Scheduling, notifications, and mail.
 - Telemetry, resource quotas, and operational resilience.
 

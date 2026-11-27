@@ -5,6 +5,12 @@ public release.
 
 ## Unreleased
 
+- Add native application Cache services with memory and optional Redis
+  backends, explicit backend capabilities, safe JSON serialization, atomic
+  operations where supported, owner-token locks, tagged and failover stores,
+  execution-local memoization and fakes, metadata-only events, commands, and
+  application lifecycle integration. Deferred stale refresh uses caller-owned
+  AnyIO task groups. See the Cache guide and component specification.
 - Run synchronous Console handlers in managed AnyIO worker threads.
 - Allow configuration commands to target an explicit application root.
 - Add event inspection and manifest commands to the native Console.

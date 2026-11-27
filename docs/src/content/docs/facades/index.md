@@ -11,19 +11,20 @@ at application entry points where they improve clarity.
 
 ## Available facades
 
-Titanspan provides `Config`, `Log`, `Http`, `Route`, and `Event`. Each facade
-declares its native contract and exposes explicit methods. Facades do not
-forward unknown attributes dynamically and do not keep service instances in
-process-global caches.
+Titanspan provides `Config`, `Log`, `Http`, `Route`, `Event`, and `Cache`.
+Each facade declares its native contract and exposes explicit methods.
+Facades do not forward unknown attributes dynamically and do not keep
+service instances in process-global caches.
 
 ```python
 from titanspan import Application
-from titanspan.facades import Config, Log
+from titanspan.facades import Cache, Config, Log
 
 application = Application(config={"app": {"name": "Example"}})
 
 with application.context():
     assert Config.string("app.name") == "Example"
+    Cache.put("app:ready", True)
     Log.info("Application ready")
 ```
 
@@ -65,6 +66,8 @@ replaces the logging manager through the Container and records calls in a
 bounded memory sink. A logger injected from the Container observes the same
 fake manager. `Http.fake()` selects a local fake transport for outgoing
 requests. `Event.fake()` uses the active application's dispatcher.
+`Cache.fake()` replaces cache operations in the current execution context;
+facade calls, injected repositories, and direct manager access share the fake.
 
 Use the relevant component guide for fake setup, assertions, and lifecycle.
 Do not use facade replacement as a production service registry.

@@ -12,6 +12,7 @@ concrete framework service exists.
 
 ```text
 contracts/
+├── cache/
 ├── config/
 ├── container/
 ├── console/
@@ -52,6 +53,7 @@ Component-private protocols remain in their owning component.
 | `PipelineContinuation`, `PipelineMiddlewareHandler` | Type sequential continuation callbacks | `titanspan.pipeline`; Pipeline unit tests |
 | `ValidationService`, `ValidationRule`, `AsyncValidationRule` | Validate typed values and apply ordered application rules | `titanspan.validation`; `tests/integration/validation/test_validation_application.py` |
 | `CommandRegistrar`, `ConsoleCommand`, `ConsoleOutput`, `ProgressTask` | Share command registration and terminal output behavior | `titanspan.console.Console`, `TerminalOutput`; Console unit and Foundation integration tests |
+| `CacheRepository`, `CacheStore`, `CacheLock`, `CacheCapabilities` | Share typed cache access, backend capabilities, and owner-checked locks | `titanspan.cache.CacheManager`; real memory and Redis integration tests |
 
 `Scope` and `ServiceFactory` are container domain values in Contracts and are
 re-exported by `titanspan.container` with canonical object identity.
@@ -82,7 +84,7 @@ validated-data boundary through `ValidationService` and its typed result.
 
 ## Deferred boundaries
 
-Contracts for database, cache, queue, AI, workflows, telemetry, and other
+Contracts for database, queue, AI, workflows, telemetry, and other
 unimplemented components remain deferred until their owning architecture is
 established. A roadmap item is not a public contract.
 

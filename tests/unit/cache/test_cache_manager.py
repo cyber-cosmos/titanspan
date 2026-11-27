@@ -4,6 +4,8 @@ Manager tests use genuine application backend instances and contract-level
 custom drivers.
 """
 
+from traceback import format_exception
+
 import anyio
 import pytest
 
@@ -186,6 +188,8 @@ def test_backend_failures_are_native_and_do_not_leak_secrets() -> None:
 
     assert "OSError" in str(captured.value)
     assert "private redis password" not in str(captured.value)
+    rendered = "".join(format_exception(captured.value))
+    assert "private redis password" not in rendered
 
 
 def test_memo_reuses_reads_and_observes_all_repository_mutations() -> None:

@@ -52,9 +52,9 @@ class JSONSerializer:
                 allow_nan=False,
                 separators=(",", ":"),
             ).encode("utf-8")
-        except (TypeError, ValueError, UnicodeEncodeError) as error:
+        except (TypeError, ValueError, UnicodeEncodeError):
             msg = "The cache value cannot be encoded as JSON."
-            raise CacheSerializationError(msg) from error
+            raise CacheSerializationError(msg) from None
         if len(payload) > self._max_bytes:
             msg = "The encoded cache value exceeds its configured size limit."
             raise CacheSerializationError(msg)
@@ -80,9 +80,9 @@ class JSONSerializer:
                 payload.decode("utf-8"),
                 parse_constant=_reject_non_finite,
             )
-        except (UnicodeDecodeError, json.JSONDecodeError, ValueError) as error:
+        except (UnicodeDecodeError, json.JSONDecodeError, ValueError):
             msg = "The stored cache value is not valid safe JSON."
-            raise CacheSerializationError(msg) from error
+            raise CacheSerializationError(msg) from None
         _validate_value(value)
         return value
 

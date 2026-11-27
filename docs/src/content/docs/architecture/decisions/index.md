@@ -29,3 +29,4 @@ for compatibility, maintenance, licensing, and security before use.
 - [0019 — Contextual container services and temporary overrides](/titanspan/architecture/decisions/0019-contextual-container-services/)
 - [0022 — Native application bootstrap and lifecycle hooks](/titanspan/architecture/decisions/0022-native-foundation-bootstrap/)
 - [0023 — Container-owned facade overrides](/titanspan/architecture/decisions/0023-container-owned-facade-overrides/)
+- [0024 — Native Cache component and backend ownership](/titanspan/architecture/decisions/0024-native-cache-component/)

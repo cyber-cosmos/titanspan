@@ -7,6 +7,7 @@ failure adapter exercises the repository's error translation.
 from collections.abc import Awaitable, Callable
 from datetime import timedelta
 from decimal import Decimal
+from traceback import format_exception
 from typing import cast
 
 import anyio
@@ -29,6 +30,7 @@ from titanspan.contracts.cache import (
     CacheStore,
     CacheTTL,
 )
+from titanspan.events import NativeEventDispatcher
 
 pytestmark = pytest.mark.unit
 _PRIVATE_BACKEND_ERROR = "private backend detail"
@@ -40,6 +42,7 @@ _MAX_INVALID_TTL = 315_576_001
 _MEMO_ENTRY_CAPACITY = 1_000
 _MEMO_ENTRY_COUNT = 1_001
 _REFRESH_FAILURE = "refresh failed"
+_PRIVATE_EVENT_ERROR = "private event failure"
 
 
 class _NoLockStore(MemoryStore):
@@ -215,6 +218,37 @@ class _FailingStore(MemoryStore):
         return await super().touch_async(key, ttl=ttl)
 
 
+class _FailingEventDispatcher(NativeEventDispatcher):
+    """Raise during dispatch to pin cache event failure behavior.
+
+    This models listener failures owned by the Events component.
+    """
+
+    def dispatch(
+        self,
+        event: object | str,
+        payload: object = None,
+    ) -> list[object]:
+        """Raise after a synchronous cache operation has completed.
+
+        The backend has already stored the value before dispatch begins.
+        """
+        del event, payload
+        raise RuntimeError(_PRIVATE_EVENT_ERROR)
+
+    async def dispatch_async(
+        self,
+        event: object | str,
+        payload: object = None,
+    ) -> list[object]:
+        """Raise after an asynchronous cache operation has completed.
+
+        The backend has already stored the value before dispatch begins.
+        """
+        del event, payload
+        raise RuntimeError(_PRIVATE_EVENT_ERROR)
+
+
 def _manager(failures: set[str]) -> CacheManager:
     """Create an application manager with one scripted real memory store.
     """  # fmt: skip
@@ -295,6 +329,8 @@ def test_sync_repository_wraps_backend_failures(
         operation(cache)
 
     assert _PRIVATE_BACKEND_ERROR not in str(captured.value)
+    rendered = "".join(format_exception(captured.value))
+    assert _PRIVATE_BACKEND_ERROR not in rendered
 
 
 _ASYNC_FAILURES: tuple[
@@ -340,6 +376,8 @@ async def test_async_repository_wraps_backend_failures(
         await operation(cache)
 
     assert _PRIVATE_BACKEND_ERROR not in str(captured.value)
+    rendered = "".join(format_exception(captured.value))
+    assert _PRIVATE_BACKEND_ERROR not in rendered
 
 
 def test_repository_validates_tags_defaults_and_counter_inputs() -> None:
@@ -770,8 +808,56 @@ def test_memory_counter_errors_are_native_and_namespaced() -> None:
     cache = CacheManager(CacheConfiguration(namespace="bad-counter")).store()
     cache.put("counter", "not-an-integer")
 
-    with pytest.raises(CacheBackendError, match="counter value is invalid"):
+    with pytest.raises(
+        CacheBackendError,
+        match="counter value is invalid",
+    ) as captured:
         cache.increment("counter")
+    rendered = "".join(format_exception(captured.value))
+    assert "not-an-integer" not in rendered
+
+
+def test_event_listener_failure_is_visible_after_sync_cache_write() -> None:
+    """Keep event errors visible after a completed synchronous cache write.
+
+    The test checks backend state without dispatching a second event.
+    """
+    manager = CacheManager(
+        CacheConfiguration(namespace="event-write-failure"),
+        events=_FailingEventDispatcher(),
+    )
+    cache = manager.store()
+    backend = manager.resolve_backend(cache.name)
+    backend_key = cast("Repository", cache).backend_key("key")
+
+    with pytest.raises(RuntimeError, match=_PRIVATE_EVENT_ERROR):
+        cache.put("key", "stored")
+
+    payload = backend.get(backend_key)
+    assert payload is not None
+    assert manager.serializer.decode(payload) == "stored"
+
+
+@pytest.mark.anyio
+async def test_async_event_failure_after_cache_write() -> None:
+    """Keep async event errors visible after a completed cache write.
+
+    The test checks backend state without dispatching a second event.
+    """
+    manager = CacheManager(
+        CacheConfiguration(namespace="async-event-write-failure"),
+        events=_FailingEventDispatcher(),
+    )
+    cache = manager.store()
+    backend = manager.resolve_backend(cache.name)
+    backend_key = cast("Repository", cache).backend_key("key")
+
+    with pytest.raises(RuntimeError, match=_PRIVATE_EVENT_ERROR):
+        await cache.put_async("key", "stored")
+
+    payload = await backend.get_async(backend_key)
+    assert payload is not None
+    assert manager.serializer.decode(payload) == "stored"
 
 
 def test_tagged_clear_requires_explicit_tag_capability() -> None:

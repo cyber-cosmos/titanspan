@@ -211,9 +211,11 @@ def test_application_provider_shares_facade_injection_and_scoped_fake() -> None:
         captured["manager"].store().get("shared")
 
 
-def test_cache_facade_exposes_coherent_sync_and_async_operations() -> None:
-    """Exercise the public facade through one real application context.
-    """  # fmt: skip
+def test_foundation_registers_cache_by_default() -> None:
+    """Exercise automatic provider registration and public cache operations.
+
+    Dependency injection and facade consumers share the default memory store.
+    """
     app = Application(
         config={
             "app": {"name": "cache-facade"},
@@ -225,7 +227,6 @@ def test_cache_facade_exposes_coherent_sync_and_async_operations() -> None:
                 },
             },
         },
-        service_providers=(CacheServiceProvider(),),
     )
 
     async def exercise() -> dict[str, bool]:

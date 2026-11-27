@@ -8,6 +8,7 @@ from __future__ import annotations
 
 from collections.abc import Mapping
 from dataclasses import dataclass, field
+from hashlib import sha256
 from types import MappingProxyType
 from typing import TYPE_CHECKING, TypeGuard, cast
 
@@ -150,7 +151,13 @@ class CacheConfiguration:
             raise CacheConfigurationError(msg)
         values = cast("Mapping[str, object]", raw)
         app_name = repository.get("app.name", _DEFAULT_NAMESPACE)
-        namespace = values.get("namespace", app_name)
+        if "namespace" in values:
+            namespace = values["namespace"]
+        else:
+            if not isinstance(app_name, str):
+                msg = "Application name used for cache namespace must be text."
+                raise CacheConfigurationError(msg)
+            namespace = _application_namespace(app_name)
         if not isinstance(namespace, str):
             msg = "Cache namespace must be a string."
             raise CacheConfigurationError(msg)
@@ -174,6 +181,34 @@ class CacheConfiguration:
             max_value_bytes=_int_value(values, "max_value_bytes", 1_000_000),
             events=_bool_value(values, "events", True),
         )
+
+
+def _application_namespace(name: str) -> str:
+    """Derive a stable safe namespace from an application display name.
+
+    Args:
+        name: Human-readable application name from canonical Config.
+
+    Returns:
+        The unchanged safe name or a bounded slug with a collision-resistant
+        suffix for display names containing unsupported characters.
+    """
+    if _valid_name(name):
+        return name
+    pieces: list[str] = []
+    separator_pending = False
+    for character in name:
+        if character.isascii() and (character.isalnum() or character in "-_."):
+            pieces.append(character)
+            separator_pending = False
+        elif not separator_pending:
+            pieces.append("-")
+            separator_pending = True
+    stem = "".join(pieces).strip("-_.")
+    digest = sha256(name.encode("utf-8")).hexdigest()[:12]
+    stem_limit = _NAME_LIMIT - len(digest) - 1
+    bounded_stem = stem[:stem_limit].rstrip("-_.") or "application"
+    return f"{bounded_stem}-{digest}"
 
 
 def _store_configuration(

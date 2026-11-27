@@ -334,14 +334,14 @@ class FailoverStore:
         """Raise only when every child store failed to answer.
         """  # fmt: skip
         if failures and not responses:
-            raise CacheBackendError(_ALL_FAILED) from failures[0]
+            raise CacheBackendError(_ALL_FAILED) from None
 
     @staticmethod
     def _raise_if_any_failed(failures: list[Exception]) -> None:
         """Report partial deletion when any child store could not respond.
         """  # fmt: skip
         if failures:
-            raise CacheBackendError(_ALL_FAILED) from failures[0]
+            raise CacheBackendError(_ALL_FAILED) from None
 
     _stores: tuple[CacheStore, ...]
     _clear_stores: tuple[PrefixClearStore, ...]

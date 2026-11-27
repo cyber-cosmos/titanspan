@@ -94,9 +94,9 @@ class Lock:
             )
         except CacheCapabilityError:
             raise
-        except Exception as error:
+        except Exception:
             self._emit("lock_inspect", success=False)
-            raise _lock_backend_error() from error
+            raise _lock_backend_error() from None
         self._emit("lock_inspect", success=True)
         return acquired
 
@@ -110,9 +110,9 @@ class Lock:
             )
         except CacheCapabilityError:
             raise
-        except Exception as error:
+        except Exception:
             await self._emit_async("lock_inspect", success=False)
-            raise _lock_backend_error() from error
+            raise _lock_backend_error() from None
         await self._emit_async("lock_inspect", success=True)
         return acquired
 
@@ -134,9 +134,9 @@ class Lock:
             )
         except CacheCapabilityError:
             raise
-        except Exception as error:
+        except Exception:
             self._emit("lock_acquire", success=False)
-            raise _lock_backend_error() from error
+            raise _lock_backend_error() from None
         self._emit("lock_acquire", success=acquired)
         return acquired
 
@@ -151,9 +151,9 @@ class Lock:
             )
         except CacheCapabilityError:
             raise
-        except Exception as error:
+        except Exception:
             await self._emit_async("lock_acquire", success=False)
-            raise _lock_backend_error() from error
+            raise _lock_backend_error() from None
         await self._emit_async("lock_acquire", success=acquired)
         return acquired
 
@@ -167,9 +167,9 @@ class Lock:
             )
         except CacheCapabilityError:
             raise
-        except Exception as error:
+        except Exception:
             self._emit("lock_release", success=False)
-            raise _lock_backend_error() from error
+            raise _lock_backend_error() from None
         self._emit("lock_release", success=released)
         return released
 
@@ -183,9 +183,9 @@ class Lock:
             )
         except CacheCapabilityError:
             raise
-        except Exception as error:
+        except Exception:
             await self._emit_async("lock_release", success=False)
-            raise _lock_backend_error() from error
+            raise _lock_backend_error() from None
         await self._emit_async("lock_release", success=released)
         return released
 
@@ -201,9 +201,9 @@ class Lock:
             )
         except CacheCapabilityError:
             raise
-        except Exception as error:
+        except Exception:
             self._emit("lock_force_release", success=False)
-            raise _lock_backend_error() from error
+            raise _lock_backend_error() from None
         self._emit("lock_force_release", success=released)
         return released
 
@@ -216,9 +216,9 @@ class Lock:
             )
         except CacheCapabilityError:
             raise
-        except Exception as error:
+        except Exception:
             await self._emit_async("lock_force_release", success=False)
-            raise _lock_backend_error() from error
+            raise _lock_backend_error() from None
         await self._emit_async("lock_force_release", success=released)
         return released
 

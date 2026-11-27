@@ -5,7 +5,9 @@ title: "Cache configuration"
 <span id="cache-configuration"></span>
 
 Cache reads settings from the canonical Config repository under the cache
-namespace. Each application receives a separate CacheManager.
+namespace. Each application receives a separate CacheManager. Foundation
+registers CacheServiceProvider automatically. Provide one explicitly when
+registering trusted custom drivers.
 
 ## Configure named stores
 
@@ -40,14 +42,16 @@ application = Application(
             },
         },
     },
-    service_providers=(CacheServiceProvider(),),
 )
 ~~~
 
-The namespace defaults to app.name, or to titanspan if the application does
-not define a name. The prefix defaults to titanspan. Store names, namespace,
-and prefix accept bounded ASCII letters, digits, hyphens, underscores, and
-periods. Names must start with a letter or digit.
+The namespace defaults to `app.name`, or to `titanspan` when no application
+name is set. Safe names remain unchanged. Other display names become a
+bounded safe slug with a stable hash suffix, preventing distinct names from
+collapsing into one Redis namespace. An explicit `cache.namespace` must use
+ASCII letters, numbers, periods, underscores, and hyphens, and must start with
+an alphanumeric character. The prefix defaults to `titanspan` and follows the
+same explicit-name rules.
 
 All store keys include the configured prefix and application namespace.
 Cache.flush clears only that store namespace. It never flushes an entire
@@ -86,7 +90,6 @@ application = Application(
             },
         },
     },
-    service_providers=(CacheServiceProvider(),),
 )
 ~~~
 

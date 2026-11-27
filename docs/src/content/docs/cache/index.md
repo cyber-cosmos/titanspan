@@ -8,13 +8,9 @@ Cache provides application-owned named stores through one native repository.
 The memory store is ready by default. Redis adds persistent shared storage
 when its optional integration is installed.
 
-## Register Cache
-
-Pass CacheServiceProvider to the application. Foundation does not register
-this provider automatically yet.
+## Use Cache
 
 ~~~python
-from titanspan.cache import CacheServiceProvider
 from titanspan.facades.cache import Cache
 from titanspan.foundation import Application
 
@@ -23,7 +19,6 @@ application = Application(
         "app": {"name": "storefront"},
         "cache": {"default": "memory"},
     },
-    service_providers=(CacheServiceProvider(),),
 )
 
 async def get_catalog() -> dict[str, object]:
@@ -35,10 +30,11 @@ async def get_catalog() -> dict[str, object]:
     )
 ~~~
 
-The Cache provider registers one CacheManager and one CacheRepository in the
-application Container. The Cache facade and injected repository resolve the
-same application-owned services. Stores open lazily and close during
-application shutdown.
+Foundation registers one CacheServiceProvider and binds its CacheManager and
+CacheRepository in the application Container. The Cache facade and injected
+repository resolve the same application-owned services. Stores open lazily
+and close during application shutdown. Supply a CacheServiceProvider when
+registering trusted custom drivers.
 
 Use CacheRepository for constructor injection:
 

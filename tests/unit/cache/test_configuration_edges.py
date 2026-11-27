@@ -103,6 +103,26 @@ def test_repository_configuration_rejects_malformed_values(
         CacheConfiguration.from_repository(repository)
 
 
+def test_application_display_names_produce_stable_safe_namespaces() -> None:
+    """Normalize unsafe display names without collapsing distinct apps.
+    """  # fmt: skip
+    first = Repository({"app": {"name": "Sales / West"}})
+    second = Repository({"app": {"name": "Sales ? West"}})
+
+    first_namespace = CacheConfiguration.from_repository(first).namespace
+    second_namespace = CacheConfiguration.from_repository(second).namespace
+
+    repeated_namespace = CacheConfiguration.from_repository(first).namespace
+
+    assert first_namespace == repeated_namespace
+    assert first_namespace != second_namespace
+    assert first_namespace.isascii()
+    assert all(
+        character.isalnum() or character in "-_."
+        for character in first_namespace
+    )
+
+
 @pytest.mark.parametrize(
     "arguments",
     [

@@ -4,6 +4,17 @@ Domain packages own each protocol. These exports provide convenient imports
 without creating additional contract identities or concrete implementations.
 """
 
+from titanspan.contracts.cache import (
+    CacheCapabilities,
+    CacheLock,
+    CacheRepository,
+    CacheStore,
+    CacheTTL,
+    LockClearStore,
+    LockStore,
+    PrefixClearStore,
+    TaggableCacheStore,
+)
 from titanspan.contracts.config import (
     ConfigArray,
     ConfigDiagnostics,
@@ -119,6 +130,11 @@ __all__ = [
     "AsyncValidationRule",
     "AsyncValidationRuleCheck",
     "BootableServiceProvider",
+    "CacheCapabilities",
+    "CacheLock",
+    "CacheRepository",
+    "CacheStore",
+    "CacheTTL",
     "CommandHandler",
     "CommandRegistrar",
     "ConfigArray",
@@ -146,6 +162,8 @@ __all__ = [
     "HttpResponse",
     "InstanceRegistration",
     "JsonValue",
+    "LockClearStore",
+    "LockStore",
     "LogBridge",
     "LogCustomizer",
     "LogDriver",
@@ -163,6 +181,7 @@ __all__ = [
     "ParameterizedHttpMiddleware",
     "PipelineContinuation",
     "PipelineMiddlewareHandler",
+    "PrefixClearStore",
     "ProgressTask",
     "QueryParameterValue",
     "QueryParameters",
@@ -185,6 +204,7 @@ __all__ = [
     "StorageDisk",
     "StorageDiskOverride",
     "StorageManager",
+    "TaggableCacheStore",
     "TypedConfigReader",
     "UriUrlGenerator",
     "ValidationIssue",

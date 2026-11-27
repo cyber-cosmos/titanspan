@@ -5,6 +5,7 @@ stores; failure factories are limited to lifecycle boundary cases.
 """
 
 from collections.abc import Mapping
+from traceback import format_exception
 from typing import TYPE_CHECKING, cast
 
 import pytest
@@ -179,8 +180,13 @@ def test_manager_wraps_custom_factory_and_memory_configuration_errors() -> None:
             "broken": _raise_factory_error,
         },
     )
-    with pytest.raises(CacheBackendError, match="could not be created"):
+    with pytest.raises(
+        CacheBackendError,
+        match="could not be created",
+    ) as captured:
         broken.store().get("key")
+    rendered = "".join(format_exception(captured.value))
+    assert _PRIVATE_DRIVER_ERROR not in rendered
 
     invalid_memory = CacheManager(
         CacheConfiguration(
@@ -204,6 +210,64 @@ def test_manager_wraps_custom_factory_and_memory_configuration_errors() -> None:
     )
     with pytest.raises(CacheConfigurationError, match="driver registration"):
         unknown_driver.store().get("key")
+
+
+def test_status_suppresses_private_backend_statistics_errors(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Keep statistics failure messages out of ordinary status errors.
+
+    Status shares the backend error boundary used by repository operations.
+    """
+    manager = CacheManager()
+    backend = manager.resolve_backend("memory")
+
+    def fail_stats() -> dict[str, object]:
+        """Raise a private status error for the memory backend.
+
+        The status adapter must suppress the backend message.
+        """
+        raise OSError(_PRIVATE_DRIVER_ERROR)
+
+    monkeypatch.setattr(backend, "stats", fail_stats)
+
+    with pytest.raises(CacheBackendError) as captured:
+        manager.status()
+
+    rendered = "".join(format_exception(captured.value))
+    assert _PRIVATE_DRIVER_ERROR not in rendered
+
+
+@pytest.mark.anyio
+async def test_status_async_suppresses_private_statistics_errors(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Hide private backend messages when async stats collection fails.
+
+    Status uses the same safe error boundary as ordinary cache operations.
+    """
+    manager = CacheManager()
+    backend = manager.resolve_backend("memory")
+
+    async def fail_stats() -> dict[str, object]:
+        """Raise a private status error for the memory backend.
+
+        The status adapter must suppress the backend message.
+        """
+        raise OSError(_PRIVATE_DRIVER_ERROR)
+
+    monkeypatch.setattr(
+        backend,
+        "stats_async",
+        fail_stats,
+        raising=False,
+    )
+
+    with pytest.raises(CacheBackendError) as captured:
+        await manager.status_async()
+
+    rendered = "".join(format_exception(captured.value))
+    assert _PRIVATE_DRIVER_ERROR not in rendered
 
 
 def _raise_factory_error(_: CacheStoreConfiguration) -> CacheStore:
@@ -325,8 +389,10 @@ async def test_manager_aggregates_close_failures_and_is_idempotent() -> None:
     with pytest.raises(
         CacheBackendError,
         match="resources could not be closed",
-    ):
+    ) as captured:
         await manager.aclose()
+    rendered = "".join(format_exception(captured.value))
+    assert _PRIVATE_CLOSE_ERROR not in rendered
     await manager.aclose()
 
     assert closed == ["ok", "failed"]

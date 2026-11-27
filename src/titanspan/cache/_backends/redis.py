@@ -186,9 +186,9 @@ class RedisStore:
         try:
             import redis  # noqa: PLC0415
             from redis import asyncio as redis_async  # noqa: PLC0415
-        except ImportError as error:
+        except ImportError:
             msg = "Redis caching requires the optional redis extra."
-            raise CacheConfigurationError(msg) from error
+            raise CacheConfigurationError(msg) from None
         options = _redis_options(configuration)
         self._prefix = prefix
         url = options.pop("url", None)

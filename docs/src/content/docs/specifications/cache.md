@@ -20,7 +20,7 @@ normalization, events, and higher-level operations.
 | Bulk retrieval and writes | Implemented | Bounded batches; not transactional |
 | Namespaces and safe clearing | Implemented | App prefix on all data keys; no database-wide flush |
 | Remember and stampede protection | Implemented | Sync and async factories; lease coordination where supported |
-| Stale refresh | Implemented with boundary | Async only; caller-owned task group required for deferred refresh |
+| Stale refresh | Implemented with boundary | Async-only; caller-owned task group required for deferred refresh |
 | Tags | Implemented with boundary | Memory and Redis; canonical hashed groups; invalidation can race writes |
 | Memoized repository | Implemented | ContextVar execution scope, app/fake/generation isolation, bounded entries |
 | Lock contracts and leases | Implemented | Memory local lease; Redis owner-token lease; expiry limits exclusivity |
@@ -45,12 +45,11 @@ are truly atomic, whether tags and scoped clear exist, and whether locks
 coordinate across processes. PrefixClearStore, TaggableCacheStore, and
 LockStore express optional backend guarantees.
 
-CacheServiceProvider binds CacheManager and CacheRepository through the
-existing application Container. It reads ConfigRepository and Events
-contracts. The manager constructs stores on first use and closes all created
-stores during application shutdown. Foundation still requires explicit
-provider registration; automatic registration is coordinated with
-Foundation consolidation.
+Foundation registers CacheServiceProvider as a built-in while allowing one
+explicit provider to supply custom drivers. The provider binds CacheManager
+and CacheRepository through the existing application Container. It reads
+ConfigRepository and Events contracts. The manager constructs stores on
+first use and closes all created stores during application shutdown.
 
 The Cache facade, injected CacheRepository, and direct CacheManager views
 resolve repositories from that same manager. No process-global production

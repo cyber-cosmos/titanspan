@@ -212,18 +212,27 @@ class CacheManager:
 
     def status(self, name: str | None = None) -> Mapping[str, object]:
         """Return safe store capabilities and aggregate backend statistics.
+
+        Raises:
+            CacheBackendError: If a selected backend cannot report status.
         """  # fmt: skip
         selected = (self.default_store,) if name is None else (name,)
         result: dict[str, object] = {}
         for store_name in selected:
             backend = self.resolve_backend(store_name)
             stats = getattr(backend, "stats", None)
+            try:
+                details = stats() if callable(stats) else None
+            except Exception as error:
+                self.emit("failure", store_name, success=False)
+                msg = f"Cache status operation failed ({type(error).__name__})."
+                raise CacheBackendError(msg) from None
             result[store_name] = {
                 "driver": self._configuration.store_configurations[
                     store_name
                 ].driver,
                 "capabilities": backend.capabilities,
-                "stats": stats() if callable(stats) else None,
+                "stats": details,
             }
         return result
 
@@ -232,6 +241,9 @@ class CacheManager:
         name: str | None = None,
     ) -> Mapping[str, object]:
         """Asynchronously return safe store inspection data.
+
+        Raises:
+            CacheBackendError: If a selected backend cannot report status.
         """  # fmt: skip
         selected = (self.default_store,) if name is None else (name,)
         result: dict[str, object] = {}
@@ -245,10 +257,19 @@ class CacheManager:
                 "Callable[[], object] | None",
                 getattr(backend, "stats", None),
             )
-            if stats_async is not None:
-                details = await stats_async()
-            else:
-                details = stats_sync() if stats_sync is not None else None
+            try:
+                if stats_async is not None:
+                    details = await stats_async()
+                else:
+                    details = stats_sync() if stats_sync is not None else None
+            except Exception as error:
+                await self.emit_async(
+                    "failure",
+                    store_name,
+                    success=False,
+                )
+                msg = f"Cache status operation failed ({type(error).__name__})."
+                raise CacheBackendError(msg) from None
             result[store_name] = {
                 "driver": self._configuration.store_configurations[
                     store_name
@@ -402,7 +423,7 @@ class CacheManager:
                 failures.append(error)
         if failures:
             msg = "One or more cache backend resources could not be closed."
-            raise CacheBackendError(msg) from failures[0]
+            raise CacheBackendError(msg) from None
 
     def resolve_backend(self, name: str) -> CacheStore:
         """Resolve one lazily built production or fake backend.
@@ -435,8 +456,8 @@ class CacheManager:
                 store = self._create_backend(name, store_configuration)
             except CacheConfigurationError:
                 raise
-            except Exception as error:
-                raise CacheBackendError(_DRIVER_FAILURE_ERROR) from error
+            except Exception:
+                raise CacheBackendError(_DRIVER_FAILURE_ERROR) from None
             self._stores[name] = store
             return store
 

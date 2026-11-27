@@ -157,7 +157,7 @@ class Repository:
             payload = backend.get(backend_key)
         except Exception as error:
             self._manager.emit("failure", self._name, success=False)
-            raise _backend_error(error) from error
+            raise _backend_error(error) from None
         self._manager.emit(
             "hit" if payload is not None else "miss",
             self._name,
@@ -198,7 +198,7 @@ class Repository:
                 self._name,
                 success=False,
             )
-            raise _backend_error(error) from error
+            raise _backend_error(error) from None
         await self._manager.emit_async(
             "hit" if payload is not None else "miss",
             self._name,
@@ -232,7 +232,7 @@ class Repository:
             result = backend.set(backend_key, payload, ttl=ttl_seconds)
         except Exception as error:
             self._manager.emit("failure", self._name, success=False)
-            raise _backend_error(error) from error
+            raise _backend_error(error) from None
         if result:
             self._manager.invalidate(self._name)
         self._manager.emit("write", self._name, success=result)
@@ -272,7 +272,7 @@ class Repository:
                 self._name,
                 success=False,
             )
-            raise _backend_error(error) from error
+            raise _backend_error(error) from None
         if result:
             self._manager.invalidate(self._name)
         await self._manager.emit_async("write", self._name, success=result)
@@ -330,7 +330,7 @@ class Repository:
             )
         except Exception as error:
             self._manager.emit("failure", self._name, success=False)
-            raise _backend_error(error) from error
+            raise _backend_error(error) from None
         if added:
             self._manager.invalidate(self._name)
         self._manager.emit("write", self._name, success=added)
@@ -374,7 +374,7 @@ class Repository:
                 self._name,
                 success=False,
             )
-            raise _backend_error(error) from error
+            raise _backend_error(error) from None
         if added:
             self._manager.invalidate(self._name)
         await self._manager.emit_async("write", self._name, success=added)
@@ -396,7 +396,7 @@ class Repository:
             found = backend.get(backend_key) is not None
         except Exception as error:
             self._manager.emit("failure", self._name, success=False)
-            raise _backend_error(error) from error
+            raise _backend_error(error) from None
         self._manager.emit("hit" if found else "miss", self._name)
         self._manager.record_fake(self._name, "has", key, found)
         return found
@@ -420,7 +420,7 @@ class Repository:
                 self._name,
                 success=False,
             )
-            raise _backend_error(error) from error
+            raise _backend_error(error) from None
         await self._manager.emit_async("hit" if found else "miss", self._name)
         self._manager.record_fake(self._name, "has", key, found)
         return found
@@ -514,7 +514,7 @@ class Repository:
                 result = backend.set(key, payload, ttl=ttl_seconds) and result
         except Exception as error:
             self._manager.emit("failure", self._name, success=False)
-            raise _backend_error(error) from error
+            raise _backend_error(error) from None
         if prepared:
             self._manager.invalidate(self._name)
         self._manager.emit("write", self._name, success=result)
@@ -557,7 +557,7 @@ class Repository:
                 self._name,
                 success=False,
             )
-            raise _backend_error(error) from error
+            raise _backend_error(error) from None
         if prepared:
             self._manager.invalidate(self._name)
         await self._manager.emit_async("write", self._name, success=result)
@@ -589,7 +589,7 @@ class Repository:
             payload = backend.pull(backend_key)
         except Exception as error:
             self._manager.emit("failure", self._name, success=False)
-            raise _backend_error(error) from error
+            raise _backend_error(error) from None
         if payload is not None:
             self._manager.invalidate(self._name)
         if payload is None:
@@ -627,7 +627,7 @@ class Repository:
                 self._name,
                 success=False,
             )
-            raise _backend_error(error) from error
+            raise _backend_error(error) from None
         if payload is not None:
             self._manager.invalidate(self._name)
         if payload is None:
@@ -651,7 +651,7 @@ class Repository:
             removed = backend.delete(backend_key)
         except Exception as error:
             self._manager.emit("failure", self._name, success=False)
-            raise _backend_error(error) from error
+            raise _backend_error(error) from None
         if removed:
             self._manager.invalidate(self._name)
         self._manager.emit("removal", self._name, success=removed)
@@ -677,7 +677,7 @@ class Repository:
                 self._name,
                 success=False,
             )
-            raise _backend_error(error) from error
+            raise _backend_error(error) from None
         if removed:
             self._manager.invalidate(self._name)
         await self._manager.emit_async("removal", self._name, success=removed)
@@ -702,7 +702,7 @@ class Repository:
                 tagged_backend.clear_tagged(self._tagged_backend_prefix)
         except Exception as error:
             self._manager.emit("failure", self._name, success=False)
-            raise _backend_error(error) from error
+            raise _backend_error(error) from None
         self._manager.invalidate(self._name)
         self._manager.emit("clear", self._name)
         self._manager.record_fake(self._name, "flush", None, True)
@@ -729,7 +729,7 @@ class Repository:
                 self._name,
                 success=False,
             )
-            raise _backend_error(error) from error
+            raise _backend_error(error) from None
         self._manager.invalidate(self._name)
         await self._manager.emit_async("clear", self._name)
         self._manager.record_fake(self._name, "flush", None, True)
@@ -751,7 +751,7 @@ class Repository:
             backend.clear_locks()
         except Exception as error:
             self._manager.emit("failure", self._name, success=False)
-            raise _backend_error(error) from error
+            raise _backend_error(error) from None
         self._manager.emit("lock_clear", self._name)
         self._manager.record_fake(
             self._name,
@@ -781,7 +781,7 @@ class Repository:
                 self._name,
                 success=False,
             )
-            raise _backend_error(error) from error
+            raise _backend_error(error) from None
         await self._manager.emit_async("lock_clear", self._name)
         self._manager.record_fake(
             self._name,
@@ -809,7 +809,7 @@ class Repository:
         try:
             value = backend.increment(backend_key, amount)
         except Exception as error:
-            raise _backend_error(error) from error
+            raise _backend_error(error) from None
         self._manager.invalidate(self._name)
         self._manager.emit("write", self._name)
         return value
@@ -836,7 +836,7 @@ class Repository:
                 amount,
             )
         except Exception as error:
-            raise _backend_error(error) from error
+            raise _backend_error(error) from None
         self._manager.invalidate(self._name)
         await self._manager.emit_async("write", self._name)
         return value
@@ -860,7 +860,7 @@ class Repository:
         try:
             value = backend.increment(backend_key, -amount)
         except Exception as error:
-            raise _backend_error(error) from error
+            raise _backend_error(error) from None
         self._manager.invalidate(self._name)
         self._manager.emit("write", self._name)
         return value
@@ -887,7 +887,7 @@ class Repository:
                 -amount,
             )
         except Exception as error:
-            raise _backend_error(error) from error
+            raise _backend_error(error) from None
         self._manager.invalidate(self._name)
         await self._manager.emit_async("write", self._name)
         return value
@@ -1168,7 +1168,7 @@ class Repository:
                 ttl=ttl_seconds,
             )
         except Exception as error:
-            raise _backend_error(error) from error
+            raise _backend_error(error) from None
         if touched:
             self._manager.invalidate(self._name)
         return touched
@@ -1192,7 +1192,7 @@ class Repository:
                 ttl=ttl_seconds,
             )
         except Exception as error:
-            raise _backend_error(error) from error
+            raise _backend_error(error) from None
         if touched:
             self._manager.invalidate(self._name)
         return touched
@@ -1214,8 +1214,8 @@ class Repository:
             raise CacheKeyError(_KEY_ERROR)
         try:
             byte_length = len(key.encode("utf-8"))
-        except UnicodeEncodeError as error:
-            raise CacheKeyError(_KEY_ERROR) from error
+        except UnicodeEncodeError:
+            raise CacheKeyError(_KEY_ERROR) from None
         if byte_length > _KEY_LIMIT or any(
             ord(character) < _CONTROL_CHARACTER_LIMIT
             or ord(character) == _DELETE_CHARACTER_CODE
@@ -1547,10 +1547,8 @@ def _backend_error(error: Exception) -> CacheBackendError:
         error: Error raised by one backend operation.
 
     Returns:
-        Native error that retains the original as its cause.
+        Native error with no private backend message in its exception chain.
     """
-    if isinstance(error, CacheBackendError):
-        return error
     if isinstance(error, ValueError) and str(error).startswith(
         "Cache counters require"
     ):
