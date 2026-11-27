@@ -12,6 +12,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Annotated, NoReturn, TypeGuard, cast
 
 from titanspan import __version__
+from titanspan.cache.commands import register_cache_commands
 from titanspan.config import ConfigManager, ConfigurationError
 from titanspan.console import (
     Argument,
@@ -55,6 +56,7 @@ console = Console(
     description="Engineer beyond limits.",
     version=__version__,
 )
+register_cache_commands(console)
 _MISSING = object()
 _CONTROLLER_ACTION_PARTS = 2
 _ROUTE_CACHE_PARTS = ("bootstrap", "cache", "routes.json")
