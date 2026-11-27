@@ -196,18 +196,52 @@ async def test_pending_chain_and_batch_reject_reuse() -> None:
 
     async with application:
         manager = application.container.make(QueueManager)
-        chain = manager.chain([_ValueJob("chain")])
+        chain = (
+            manager.chain([_ValueJob("middle")])
+            .prepend(_ValueJob("first"))
+            .append(_ValueJob("last"))
+            .on_connection("sync")
+            .on_queue("chain")
+        )
         chain_receipt = await chain.dispatch_async()
-        batch = manager.batch([_ValueJob("batch")])
+        batch = (
+            manager.batch([_ValueJob("batch")])
+            .name("Unit batch")
+            .on_connection("sync")
+            .on_queue("batch")
+            .allow_failures()
+        )
         batch_handle = await batch.dispatch_async()
 
         with pytest.raises(QueueDispatchError):
             await chain.dispatch_async()
+        with pytest.raises(QueueDispatchError):
+            chain.append(_ValueJob("too-late"))
         with pytest.raises(QueueError):
             await batch.dispatch_async()
+        with pytest.raises(QueueError):
+            batch.allow_failures()
+        with pytest.raises(QueueConfigurationError):
+            manager.chain([])
+        with pytest.raises(QueueConfigurationError):
+            manager.batch([])
+        with pytest.raises(QueueConfigurationError):
+            manager.batch([_ValueJob("invalid")]).name(" \n")
+        with pytest.raises(QueueConfigurationError):
+            manager.chain([_ValueJob("invalid")]).prepend(object())
+        with pytest.raises(QueueConfigurationError):
+            manager.chain([_ValueJob("invalid")]).on_queue("../unsafe")
+        with pytest.raises(QueueConfigurationError):
+            manager.batch([_ValueJob("invalid")]).on_connection("missing")
 
     assert chain_receipt.state == "executed"
+    assert chain_receipt.result == "first"
+    assert batch_handle.name == "Unit batch"
+    assert batch_handle.total_jobs == 1
+    assert batch_handle.pending_jobs == 0
     assert batch_handle.processed_jobs == 1
+    assert batch_handle.failed_jobs == 0
+    assert batch_handle.id
     assert batch_handle.state == "completed"
 
 
