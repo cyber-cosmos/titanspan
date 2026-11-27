@@ -84,6 +84,9 @@ public release.
 - Add sync and async model upserts with mapper-derived column names, guarded
   assignments, and automatic timestamp handling. Real SQLite and PostgreSQL
   behavior is integration-tested; bulk model events are not dispatched.
+- Add model-scoped `without_events()` contexts for quiet sync and async
+  persistence. Suppression is bound to its task or thread and application
+  scope, and remains attached to after-commit callbacks.
 - Add dialect-aware right and full outer joins to the native Query Builder.
   Right joins use SQLAlchemy left-join expressions with the sides reversed.
   Full outer joins use backend support on PostgreSQL and SQLite 3.39 or later.

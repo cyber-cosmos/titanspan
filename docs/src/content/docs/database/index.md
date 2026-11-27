@@ -514,9 +514,20 @@ model operations require synchronous hooks; asynchronous model operations
 await both synchronous and asynchronous hooks. Events registered inside a
 savepoint remain pending until the outer transaction commits; rollback
 discards them. Bulk Query Builder mutations bypass per-model events. Event
-suppression and dedicated soft-delete and restore events are not implemented.
-A listener failure after commit is reported to the caller, but it cannot undo
-a database write that already committed.
+suppression is available through a model-scoped context:
+
+```python
+async with DB.transaction_async():
+    with User.without_events():
+        await user.save_async()
+```
+
+Suppression applies to the current task or thread and application execution
+scope, and remains in effect for that operation's after-commit callbacks.
+Child tasks do not inherit their parent's quiet persistence authority. Dedicated
+soft-delete and restore events are not implemented. A listener failure after
+commit is reported to the caller, but it cannot undo a database write that
+already committed.
 
 ## Relationships and loading
 

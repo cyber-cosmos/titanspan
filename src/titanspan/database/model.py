@@ -113,6 +113,23 @@ class _UnguardedContext:
     scope: object | None
 
 
+@dataclass(frozen=True, slots=True)
+class _ModelEventSuppression:
+    """Bind event suppression to one model hierarchy and execution owner.
+
+    Context variables flow into child tasks and worker threads. The explicit
+    owner fields prevent a quiet persistence scope from silencing unrelated
+    work that inherits its context.
+    """
+
+    model_type: type[object]
+    thread_id: int
+    task_id: int | None
+    application: object | None
+    container: object | None
+    scope: object | None
+
+
 _SERIALIZATION_MAX_DEPTH = 32
 _SERIALIZATION_MAX_NODES = 1024
 
@@ -146,6 +163,9 @@ class _SerializationContext:
 _MASS_ASSIGNMENT_UNGUARDED: ContextVar[_UnguardedContext | None] = ContextVar(
     "titanspan_database_mass_assignment_unguarded",
     default=None,
+)
+_MODEL_EVENT_SUPPRESSIONS: ContextVar[tuple[_ModelEventSuppression, ...]] = (
+    ContextVar("titanspan_database_model_event_suppressions", default=())
 )
 _SNAKE_CASE_BOUNDARY = re.compile(r"([a-z0-9])([A-Z])")
 _SNAKE_CASE_ACRONYM = re.compile(r"([A-Z]+)([A-Z][a-z])")
@@ -358,6 +378,35 @@ class Model(DeclarativeBase):
         if not registrations:
             raise ValueError(_OBSERVER_METHODS_ERROR)
         return tuple(registrations)
+
+    @classmethod
+    @contextmanager
+    def without_events(cls) -> Generator[None, None, None]:
+        """Suppress model lifecycle events for this execution scope.
+
+        The context also works around awaited async persistence operations.
+        Suppression is captured when a model operation starts, so its
+        after-commit callbacks remain quiet if the context exits first.
+
+        Yields:
+            Control while lifecycle callbacks for this model class are muted.
+        """
+        active = active_application_context()
+        suppression = _ModelEventSuppression(
+            model_type=cls,
+            thread_id=threading.get_ident(),
+            task_id=_current_task_id(),
+            application=active.application if active is not None else None,
+            container=active.container if active is not None else None,
+            scope=active.scope if active is not None else None,
+        )
+        token = _MODEL_EVENT_SUPPRESSIONS.set(
+            (*_MODEL_EVENT_SUPPRESSIONS.get(), suppression),
+        )
+        try:
+            yield
+        finally:
+            _MODEL_EVENT_SUPPRESSIONS.reset(token)
 
     @classmethod
     def all(cls) -> ModelCollection[Self]:
@@ -1085,6 +1134,7 @@ class Model(DeclarativeBase):
             self._ensure_session_owner(service, session)
             state = sa_inspect(self)
             created = state.transient or state.pending
+            events_suppressed = _model_events_suppressed(self)
             if state.detached:
                 session.add(self)
             before_events: tuple[ModelEvent[Self], ...] = (
@@ -1113,7 +1163,11 @@ class Model(DeclarativeBase):
                     created=created,
                     changes=changes,
                 )
-                _dispatch_saved_events(self, created)
+                _dispatch_saved_events(
+                    self,
+                    created,
+                    suppressed=events_suppressed,
+                )
 
             service.after_commit(after_commit, type(self).connection)
         return True
@@ -1133,6 +1187,7 @@ class Model(DeclarativeBase):
             self._ensure_session_owner(service, session)
             state = sa_inspect(self)
             created = state.transient or state.pending
+            events_suppressed = _model_events_suppressed(self)
             if state.detached:
                 session.add(self)
             before_events: tuple[ModelEvent[Self], ...] = (
@@ -1161,7 +1216,11 @@ class Model(DeclarativeBase):
                     created=created,
                     changes=changes,
                 )
-                await _dispatch_saved_events_async(self, created)
+                await _dispatch_saved_events_async(
+                    self,
+                    created,
+                    suppressed=events_suppressed,
+                )
 
             await service.after_commit_async(
                 after_commit,
@@ -1369,6 +1428,7 @@ class Model(DeclarativeBase):
             Whether a matching row was updated.
         """
         column = _numeric_column(type(self), column_name)
+        events_suppressed = _model_events_suppressed(self)
         if isinstance(self, SoftDeletes) and self.trashed():
             return False
         if not _dispatch_cancellable_events(
@@ -1422,7 +1482,11 @@ class Model(DeclarativeBase):
                 created=False,
                 changes=changes,
             )
-            _dispatch_saved_events(self, created=False)
+            _dispatch_saved_events(
+                self,
+                created=False,
+                suppressed=events_suppressed,
+            )
 
         service.after_commit(after_commit, type(self).connection)
         return True
@@ -1446,6 +1510,7 @@ class Model(DeclarativeBase):
             Whether a matching row was updated.
         """
         column = _numeric_column(type(self), column_name)
+        events_suppressed = _model_events_suppressed(self)
         if isinstance(self, SoftDeletes) and self.trashed():
             return False
         if not await _dispatch_cancellable_events_async(
@@ -1501,7 +1566,11 @@ class Model(DeclarativeBase):
                 created=False,
                 changes=changes,
             )
-            await _dispatch_saved_events_async(self, created=False)
+            await _dispatch_saved_events_async(
+                self,
+                created=False,
+                suppressed=events_suppressed,
+            )
 
         await service.after_commit_async(
             after_commit,
@@ -1910,6 +1979,7 @@ class Model(DeclarativeBase):
         """
         if not self.exists:
             return False
+        events_suppressed = _model_events_suppressed(self)
         if not _dispatch_cancellable_events((ModelDeleting(self),)):
             return False
         service = DB.resolve_service()
@@ -1926,7 +1996,8 @@ class Model(DeclarativeBase):
                 A rollback discards this callback with the row removal.
                 """
                 remember_deleted(self)
-                Event.dispatch(ModelDeleted(self))
+                if not events_suppressed:
+                    Event.dispatch(ModelDeleted(self))
 
             service.after_commit(after_commit, type(self).connection)
         return True
@@ -1939,6 +2010,7 @@ class Model(DeclarativeBase):
         """
         if not self.exists:
             return False
+        events_suppressed = _model_events_suppressed(self)
         if not await _dispatch_cancellable_events_async(
             (ModelDeleting(self),),
         ):
@@ -1957,7 +2029,8 @@ class Model(DeclarativeBase):
                 A rollback discards this callback with the row removal.
                 """
                 remember_deleted(self)
-                await Event.dispatch_async(ModelDeleted(self))
+                if not events_suppressed:
+                    await Event.dispatch_async(ModelDeleted(self))
 
             await service.after_commit_async(
                 after_commit,
@@ -2323,6 +2396,35 @@ def _unguarded_context_is_active() -> bool:
     )
 
 
+def _model_events_suppressed(model: object) -> bool:
+    """Check whether the current owner suppresses events for one model.
+
+    Args:
+        model: Model instance carried by a lifecycle event.
+
+    Returns:
+        Whether an active model-event suppression context applies.
+    """
+    active = active_application_context()
+    application = active.application if active is not None else None
+    container = active.container if active is not None else None
+    scope = active.scope if active is not None else None
+    task_id = _current_task_id()
+    thread_id = threading.get_ident()
+    for suppression in reversed(_MODEL_EVENT_SUPPRESSIONS.get()):
+        if (
+            suppression.thread_id != thread_id
+            or suppression.task_id != task_id
+            or suppression.application is not application
+            or suppression.container is not container
+            or suppression.scope is not scope
+        ):
+            continue
+        if isinstance(model, suppression.model_type):
+            return True
+    return False
+
+
 def _discard_cancelled_save(
     instance: Model,
     session: Session,
@@ -2476,6 +2578,8 @@ def _dispatch_cancellable_events[ModelT](
     Returns:
         Whether every event allowed persistence to continue.
     """
+    if events and _model_events_suppressed(events[0].model):
+        return True
     for event in events:
         Event.dispatch(event)
         if event.cancelled:
@@ -2494,6 +2598,8 @@ async def _dispatch_cancellable_events_async[ModelT](
     Returns:
         Whether every event allowed persistence to continue.
     """
+    if events and _model_events_suppressed(events[0].model):
+        return True
     for event in events:
         await Event.dispatch_async(event)
         if event.cancelled:
@@ -2501,13 +2607,21 @@ async def _dispatch_cancellable_events_async[ModelT](
     return True
 
 
-def _dispatch_saved_events(model: Model, created: bool) -> None:
+def _dispatch_saved_events(
+    model: Model,
+    created: bool,
+    *,
+    suppressed: bool,
+) -> None:
     """Dispatch model events after its transaction successfully commits.
 
     Args:
         model: Model whose insert or update is durable.
         created: Whether the committed operation inserted a new row.
+        suppressed: Whether the operation started inside a quiet context.
     """
+    if suppressed:
+        return
     Event.dispatch(ModelCreated(model) if created else ModelUpdated(model))
     Event.dispatch(ModelSaved(model))
 
@@ -2515,13 +2629,18 @@ def _dispatch_saved_events(model: Model, created: bool) -> None:
 async def _dispatch_saved_events_async(
     model: Model,
     created: bool,
+    *,
+    suppressed: bool,
 ) -> None:
     """Await committed model events through the async dispatcher.
 
     Args:
         model: Model whose insert or update is durable.
         created: Whether the committed operation inserted a new row.
+        suppressed: Whether the operation started inside a quiet context.
     """
+    if suppressed:
+        return
     await Event.dispatch_async(
         ModelCreated(model) if created else ModelUpdated(model),
     )

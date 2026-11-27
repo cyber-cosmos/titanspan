@@ -41,6 +41,7 @@ if TYPE_CHECKING:
 pytestmark = [pytest.mark.integration, pytest.mark.anyio]
 _ROLLBACK_MARKER = "rollback lifecycle events"
 _OBSERVER_HOOK_COUNT = 3
+_QUIET_TASK_ROW_COUNT = 2
 
 
 class EventRecord(Model):
@@ -231,6 +232,154 @@ async def test_model_events_dispatch_and_allow_cancellation(
                 await DB.scalar_async("SELECT COUNT(*) FROM event_records") == 0
             )
             assert observed == ["saving:cancelled"]
+
+
+async def test_without_events_suppresses_model_lifecycle_callbacks(
+    application: Application,
+) -> None:
+    """Persist and delete quietly without dispatching model events.
+
+    Args:
+        application: Application configured by the test fixture.
+    """
+    observed: list[str] = []
+
+    def cancel_create(event: ModelCreating[EventRecord]) -> None:
+        """Reject creation if the suppression scope dispatches the event.
+
+        Args:
+            event: The pending record creation event.
+        """
+        observed.append("creating")
+        event.cancel()
+
+    def created(event: ModelCreated[EventRecord]) -> None:
+        """Record a committed creation if suppression is missing.
+
+        Args:
+            event: The committed model creation event.
+        """
+        observed.append(f"created:{event.model.name}")
+
+    def deleting(event: ModelDeleting[EventRecord]) -> None:
+        """Reject deletion if the suppression scope dispatches the event.
+
+        Args:
+            event: The pending model deletion event.
+        """
+        observed.append("deleting")
+        event.cancel()
+
+    def deleted(event: ModelDeleted[EventRecord]) -> None:
+        """Record a committed deletion if suppression is missing.
+
+        Args:
+            event: The committed model deletion event.
+        """
+        observed.append(f"deleted:{event.model.name}")
+
+    async with application:
+        await _create_event_records_table()
+        with (
+            Event.listen(ModelCreating, cancel_create),
+            Event.listen(ModelCreated, created),
+            Event.listen(ModelDeleting, deleting),
+            Event.listen(ModelDeleted, deleted),
+        ):
+            async with DB.transaction_async():
+                with EventRecord.without_events():
+                    record = EventRecord(name="quiet")
+                    assert await record.save_async()
+            with EventRecord.without_events():
+                assert await record.delete_async()
+
+        assert observed == []
+        assert await DB.scalar_async("SELECT COUNT(*) FROM event_records") == 0
+
+
+async def test_without_events_does_not_suppress_inherited_child_task_events(
+    application: Application,
+) -> None:
+    """Keep a parent's quiet scope from silencing a concurrent child task.
+
+    Args:
+        application: Application configured by the test fixture.
+    """
+    observed: list[str] = []
+    ready = anyio.Event()
+    proceed = anyio.Event()
+
+    async def create_in_child() -> None:
+        """Create one model after the parent releases the task barrier."""
+        ready.set()
+        await proceed.wait()
+        await EventRecord.create_async({"name": "child"})
+
+    def created(event: ModelCreated[EventRecord]) -> None:
+        """Record which task's model creation reached the dispatcher.
+
+        Args:
+            event: The committed model creation event.
+        """
+        observed.append(event.model.name)
+
+    async with application:
+        await _create_event_records_table()
+        with (
+            Event.listen(ModelCreated, created),
+            EventRecord.without_events(),
+        ):
+            async with anyio.create_task_group() as tasks:
+                tasks.start_soon(create_in_child)
+                await ready.wait()
+                await EventRecord.create_async({"name": "parent"})
+                proceed.set()
+
+        assert observed == ["child"]
+        assert (
+            await DB.scalar_async("SELECT COUNT(*) FROM event_records")
+            == _QUIET_TASK_ROW_COUNT
+        )
+
+
+async def test_sync_without_events_suppresses_model_lifecycle_callbacks(
+    application: Application,
+) -> None:
+    """Suppress sync callbacks within their owning worker thread.
+
+    Args:
+        application: Application configured by the test fixture.
+    """
+    observed: list[str] = []
+
+    def cancel_create(event: ModelCreating[EventRecord]) -> None:
+        """Reject the insert if the sync quiet scope dispatches this event.
+
+        Args:
+            event: The pending record creation event.
+        """
+        observed.append("creating")
+        event.cancel()
+
+    def created(event: ModelCreated[EventRecord]) -> None:
+        """Record a committed creation if suppression is missing.
+
+        Args:
+            event: The committed model creation event.
+        """
+        observed.append(event.model.name)
+
+    async with application:
+        await _create_event_records_table()
+        with (
+            Event.listen(ModelCreating, cancel_create),
+            Event.listen(ModelCreated, created),
+        ):
+            record = await anyio.to_thread.run_sync(_quiet_sync_create)
+
+        assert record.name == "quiet sync"
+        assert observed == []
+        assert await DB.scalar_async("SELECT COUNT(*) FROM event_records") == 1
 
 
 async def test_cancelled_update_discards_changes_before_autoflush(
@@ -764,6 +913,21 @@ async def _rollback_record(callback: Callable[[], Awaitable[None]]) -> None:
         rolled_back = EventRecord(name="rolled back")
         await rolled_back.save_async()
         raise RuntimeError(_ROLLBACK_MARKER)
+
+
+async def _create_event_records_table() -> None:
+    """Create the table used by quiet model-event integration tests."""
+    await DB.statement_async(
+        "CREATE TABLE event_records ("
+        "id INTEGER PRIMARY KEY, name TEXT NOT NULL, "
+        "created_at TIMESTAMP, updated_at TIMESTAMP)"
+    )
+
+
+def _quiet_sync_create() -> EventRecord:
+    """Create one model while suppressing sync lifecycle events."""
+    with EventRecord.without_events():
+        return EventRecord.create({"name": "quiet sync"})
 
 
 def _sync_create(name: str) -> EventRecord:
