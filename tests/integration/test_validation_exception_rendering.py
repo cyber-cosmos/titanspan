@@ -164,7 +164,7 @@ def test_native_typed_route_documents_the_safe_validation_response() -> None:
             "/native",
             json={
                 "credential": "native-route-secret",
-                "attributes": {"mapping-secret": "not-an-integer"},
+                "attributes": {"mapping-key-marker": "not-an-integer"},
             },
         )
 
@@ -191,7 +191,7 @@ def test_native_typed_route_documents_the_safe_validation_response() -> None:
         "errors": {"request": ["Input is invalid."]},
     }
     assert "native-route-secret" not in response.text
-    assert "mapping-secret" not in response.text
+    assert "mapping-key-marker" not in response.text
 
 
 def test_malformed_native_json_is_a_safe_client_error() -> None:
