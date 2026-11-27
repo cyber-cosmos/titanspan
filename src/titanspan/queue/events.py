@@ -60,6 +60,17 @@ class JobProcessed(QueueEvent):
 
 
 @dataclass(frozen=True, slots=True)
+class JobRetried(QueueEvent):
+    """Mark a retry accepted by the configured Taskiq transport.
+
+    Attributes:
+        attempt: One-based retry count selected by Taskiq.
+    """
+
+    attempt: int = 1
+
+
+@dataclass(frozen=True, slots=True)
 class JobFailed(QueueEvent):
     """Mark failed handler execution without exposing exception text.
 
@@ -78,5 +89,6 @@ __all__ = [
     "JobFailed",
     "JobProcessed",
     "JobProcessing",
+    "JobRetried",
     "QueueEvent",
 ]

@@ -15,6 +15,7 @@ from titanspan.queue.events import (
     JobFailed,
     JobProcessed,
     JobProcessing,
+    JobRetried,
     QueueEvent,
 )
 from titanspan.queue.exceptions import (
@@ -50,6 +51,7 @@ __all__ = [
     "JobFailed",
     "JobProcessed",
     "JobProcessing",
+    "JobRetried",
     "PendingBatch",
     "PendingChain",
     "PendingDispatch",

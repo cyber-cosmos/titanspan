@@ -72,6 +72,7 @@ from titanspan.queue.events import (
     JobFailed,
     JobProcessed,
     JobProcessing,
+    JobRetried,
     QueueEvent,
 )
 from titanspan.queue.exceptions import (
@@ -1986,6 +1987,16 @@ class QueueManager(BusDispatcher):
         labels = self._retry_labels(job)
         labels["queue_name"] = state.physical_queue
         job_id = str(decoded.envelope.job_id)
+        labels.update(
+            {
+                "titanspan_job_id": job_id,
+                "titanspan_job_name": decoded.envelope.job_type,
+                "titanspan_connection": connection,
+                "titanspan_queue": queue,
+                "titanspan_chain_id": chain_id or "",
+                "titanspan_batch_id": metadata.batch_id or "",
+            }
+        )
         kicker = state.task.kicker().with_labels(**labels).with_task_id(job_id)
         payload_text = encoded.decode("utf-8")
         if metadata.delay_at is None:
@@ -2634,11 +2645,13 @@ class QueueManager(BusDispatcher):
                 retry_middleware = _QueueRetryMiddleware(
                     source,
                     logger=self._logger,
+                    on_retry=self._emit_retry_async,
                 )
             else:
                 retry_middleware = _QueueRetryMiddleware(
                     None,
                     logger=self._logger,
+                    on_retry=self._emit_retry_async,
                 )
             broker.with_middlewares(retry_middleware)
             task = _register_task(broker, self, connection_name, queue)
@@ -2735,6 +2748,51 @@ class QueueManager(BusDispatcher):
             if isinstance(error, anyio.get_cancelled_exc_class()):
                 raise
             self._log_observer_error(event, error)
+
+    async def _emit_retry_async(
+        self,
+        message: TaskiqMessage,
+        attempt: int,
+    ) -> None:
+        """Emit metadata after Taskiq accepts a retry publication.
+
+        Args:
+            message: Taskiq message being rescheduled.
+            attempt: One-based retry count selected by Taskiq.
+
+        Malformed labels suppress only the observer event. They do not change
+        the retry already accepted by the transport.
+        """
+        labels = message.labels
+        job_id = labels.get("titanspan_job_id")
+        job_name = labels.get("titanspan_job_name")
+        connection = labels.get("titanspan_connection")
+        queue = labels.get("titanspan_queue")
+        if not (
+            isinstance(job_id, str)
+            and isinstance(job_name, str)
+            and isinstance(connection, str)
+            and isinstance(queue, str)
+        ):
+            return
+        chain_id = labels.get("titanspan_chain_id")
+        batch_id = labels.get("titanspan_batch_id")
+        await self._emit_async(
+            JobRetried(
+                job_id=job_id,
+                job_name=job_name,
+                connection=connection,
+                queue=queue,
+                occurred_at=datetime.now(UTC),
+                chain_id=(
+                    chain_id if isinstance(chain_id, str) and chain_id else None
+                ),
+                batch_id=(
+                    batch_id if isinstance(batch_id, str) and batch_id else None
+                ),
+                attempt=attempt,
+            )
+        )
 
     def _emit_sync(self, event: object) -> None:
         """Dispatch metadata while preserving sync operation outcomes.
@@ -3068,12 +3126,14 @@ class _QueueRetryMiddleware(SmartRetryMiddleware):
         source: ScheduleSource | None,
         *,
         logger: LogWriter | None,
+        on_retry: Callable[[TaskiqMessage, int], Awaitable[None]],
     ) -> None:
         """Configure retries with an optional durable schedule source.
 
         Args:
             source: Taskiq source used for delayed retry publication.
             logger: Application logger for safe middleware diagnostics.
+            on_retry: Callback for accepted retry metadata.
         """
         super().__init__(
             default_retry_count=1,
@@ -3082,6 +3142,7 @@ class _QueueRetryMiddleware(SmartRetryMiddleware):
             types_of_exceptions=(Exception,),
         )
         self._logger = logger
+        self._on_retry = on_retry
 
     def make_delay(self, message: TaskiqMessage, retries: int) -> float:
         """Select a job-declared delay for the current retry count.
@@ -3140,6 +3201,7 @@ class _QueueRetryMiddleware(SmartRetryMiddleware):
                 *message.args,
                 **message.kwargs,
             )
+            await self._notify_retry(kicker, message)
             return
         if delay > 0:
             msg = (
@@ -3164,6 +3226,21 @@ class _QueueRetryMiddleware(SmartRetryMiddleware):
             retry_message,
             self._log_post_send_error,
         )
+        await self._notify_retry(kicker, message)
+
+    async def _notify_retry(
+        self,
+        kicker: AsyncKicker[Any, Any],
+        message: TaskiqMessage,
+    ) -> None:
+        """Notify Queue after retry publication succeeds.
+
+        Args:
+            kicker: Taskiq retry publication configuration.
+            message: Original message being retried.
+        """
+        attempt = cast("int", kicker.labels.get("_retries", 1))
+        await self._on_retry(message, attempt)
 
     def _log_post_send_error(self, error: Exception) -> None:
         """Record a safe error after Taskiq accepted a retry message.
@@ -3176,6 +3253,8 @@ class _QueueRetryMiddleware(SmartRetryMiddleware):
                 "A Taskiq post-send observer failed after retry publication.",
                 exception_type=type(error).__name__,
             )
+
+    _on_retry: Callable[[TaskiqMessage, int], Awaitable[None]]
 
 
 async def _send_taskiq_message(

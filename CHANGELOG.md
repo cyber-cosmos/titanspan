@@ -23,6 +23,7 @@ public release.
 - Add selective Queue and Bus fakes for registered job classes. Reject
   filters that would split chains or batches.
 - Add ordered application-wide job middleware through Queue providers.
+- Emit metadata-only retry events after Taskiq accepts retry publication.
 - Bound process-local batch history and reject admission when active batches
   fill the configured capacity.
 - Defer durable failed-job records, unique jobs, distributed batches, queued

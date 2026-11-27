@@ -54,5 +54,7 @@ pickle-based object construction. Add only safe serializable data to job
 payloads. Do not include secrets or live application resources.
 
 Queue lifecycle events carry metadata and omit payloads and exception text.
+`JobRetried` includes the one-based retry count after Taskiq accepts retry
+publication. A failed observer cannot change the accepted retry operation.
 Broker URLs and connection options are redacted from configuration
 representations. Broker access remains an application security boundary.

@@ -4,13 +4,14 @@ These tests exercise the native Container, dispatcher contracts, and facades.
 """
 
 from dataclasses import dataclass
-from typing import cast
+from typing import TYPE_CHECKING, ClassVar, cast
 
 import anyio
 import pytest
-from taskiq import InMemoryBroker
+from taskiq import InMemoryBroker, TaskiqMessage
 from taskiq.abc.broker import AsyncBroker
 
+from titanspan.contracts.events import EventDispatcher
 from titanspan.contracts.queue import (
     BusDispatcher,
     DispatchReceipt,
@@ -22,6 +23,7 @@ from titanspan.facades.queue import Queue
 from titanspan.foundation import Application
 from titanspan.queue import (
     Job,
+    JobRetried,
     QueueCapabilityError,
     QueueConfigurationError,
     QueueDispatchError,
@@ -30,6 +32,10 @@ from titanspan.queue import (
     QueueServiceProvider,
 )
 from titanspan.queue.configuration import QueueConnectionConfiguration
+
+if TYPE_CHECKING:
+    from collections.abc import Awaitable, Callable
+
 
 pytestmark = pytest.mark.unit
 _FAKED_DISPATCH_COUNT = 2
@@ -74,6 +80,26 @@ class _OtherValueJob(Job):
         return self.value
 
 
+@dataclass
+class _FailingRetryJob(Job):
+    """Fail on each attempt to exercise immediate retry delivery.
+
+    Taskiq owns the retry count and invokes this handler twice.
+    """
+
+    tries: ClassVar[int | None] = 2
+    backoff: ClassVar[int | float | tuple[int | float, ...]] = 0
+
+    async def handle(self) -> None:
+        """Raise a controlled error that Taskiq retries once.
+
+        Raises:
+            RuntimeError: The retry test's expected handler failure.
+        """
+        message = "controlled retry failure"
+        raise RuntimeError(message)
+
+
 def _application() -> Application:
     """Create an application with real sync and null Queue drivers.
 
@@ -113,6 +139,25 @@ def _in_memory_broker(
     """
     _ = configuration, connection_name, physical_queue
     return InMemoryBroker()
+
+
+def _immediate_retry_broker(
+    configuration: QueueConnectionConfiguration,
+    connection_name: str,
+    physical_queue: str,
+) -> AsyncBroker:
+    """Create a Taskiq broker that executes accepted publications inline.
+
+    Args:
+        configuration: Trusted connection settings.
+        connection_name: Selected native Queue connection.
+        physical_queue: Namespaced transport destination.
+
+    Returns:
+        A real Taskiq in-memory broker with immediate execution enabled.
+    """
+    _ = configuration, connection_name, physical_queue
+    return InMemoryBroker(await_inplace=True)
 
 
 def _custom_driver_application() -> Application:
@@ -188,6 +233,73 @@ async def test_global_middleware_registration_lifecycle_errors() -> None:
 
     with pytest.raises(QueueError, match="shut down"):
         manager.register_middleware(())
+
+
+@pytest.mark.anyio
+async def test_retry_event_ignores_malformed_transport_metadata() -> None:
+    """Skip retry observation if Taskiq labels omit trusted Queue metadata.
+
+    A malformed observer event cannot affect the retry operation already sent.
+    """
+    application = _application()
+    async with application:
+        manager = application.container.make(QueueManager)
+        dispatcher = application.container.make(EventDispatcher)
+        emitted: list[JobRetried] = []
+        dispatcher.listen(JobRetried, emitted.append)
+        message = TaskiqMessage(
+            task_id="job-id",
+            task_name="titanspan.queue.execute",
+            labels={},
+            args=[],
+            kwargs={},
+        )
+
+        # Exercise the defensive path for malformed broker-controlled labels.
+        callback_name = "_emit_retry_async"
+        emit_retry = cast(
+            "Callable[[TaskiqMessage, int], Awaitable[None]]",
+            getattr(manager, callback_name),
+        )
+        await emit_retry(message, 1)
+
+    assert emitted == []
+
+
+@pytest.mark.anyio
+async def test_immediate_taskiq_retry_emits_after_publication() -> None:
+    """Emit retry metadata after Taskiq accepts an immediate retry.
+
+    The real in-memory broker exercises the branch used without a scheduler.
+    """
+    application = Application(
+        config={
+            "app": {"name": "queue-immediate-retry"},
+            "queue": {
+                "default_connection": "memory",
+                "connections": {"memory": {"driver": "memory"}},
+            },
+        },
+        service_providers=(
+            QueueServiceProvider(
+                jobs=(_FailingRetryJob,),
+                drivers={"memory": _immediate_retry_broker},
+            ),
+        ),
+    )
+    emitted: list[JobRetried] = []
+
+    async with application:
+        manager = application.container.make(QueueManager)
+        dispatcher = application.container.make(EventDispatcher)
+        dispatcher.listen(JobRetried, emitted.append)
+        receipt = await manager.dispatch_async(_FailingRetryJob())
+
+    assert receipt.state == "queued"
+    assert len(emitted) == 1
+    assert emitted[0].attempt == 1
+    assert emitted[0].job_id == receipt.job_id
+    assert emitted[0].connection == "memory"
 
 
 @pytest.mark.anyio

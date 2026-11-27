@@ -29,6 +29,7 @@ from titanspan.queue import (
     Job,
     JobContext,
     JobDispatching,
+    JobRetried,
     QueueCapabilityError,
     QueueConfigurationError,
     QueueError,
@@ -1389,6 +1390,9 @@ async def test_real_redis_stream_worker_executes_registered_job(
 
     async with application:
         manager = application.container.make(QueueManager)
+        dispatcher = application.container.make(EventDispatcher)
+        emitted: list[QueueEvent] = []
+        dispatcher.listen(QueueEvent, emitted.append)
         receipts: list[DispatchReceipt] = []
 
         async def run_worker() -> None:
@@ -1414,6 +1418,12 @@ async def test_real_redis_stream_worker_executes_registered_job(
     assert receipts[0].state == "queued"
     assert record.attempts == _SECOND_ATTEMPT
     assert record.values == ["redis-worker"]
+    retry_events = [event for event in emitted if isinstance(event, JobRetried)]
+    assert len(retry_events) == 1
+    assert retry_events[0].attempt == 1
+    assert retry_events[0].job_id == receipts[0].job_id
+    assert retry_events[0].connection == "redis"
+    assert retry_events[0].queue == "integration"
 
 
 @pytest.mark.anyio

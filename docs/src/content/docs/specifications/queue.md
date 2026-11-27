@@ -136,12 +136,13 @@ recovery remain pending Database repository integration.
 ## Event behavior
 
 Queue emits metadata-only event types for dispatching, dispatched, processing,
-processed, and failed stages. Job payloads and exception messages are omitted.
+processed, failed, and accepted retry stages. Job payloads and exception
+messages are omitted.
 Observer exceptions are logged by type and suppressed after the associated
 operation. Cancellation from asynchronous event dispatch propagates.
 
 Worker startup and shutdown currently emit `QueueEvent` metadata. Queue does
-not yet emit dedicated release, retry, or durable batch lifecycle events.
+not yet emit dedicated release or durable batch lifecycle events.
 
 ## Integration limitations
 
