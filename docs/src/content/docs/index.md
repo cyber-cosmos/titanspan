@@ -63,8 +63,8 @@ underlying dependency resolution, HTTP hosting, settings validation, and
 structured logging mechanisms.
 
 Configuration, the service container, contracts, HTTP, Routing, logging,
-Collections, and Support are implemented. Database, AI workflows, distributed
-jobs, and high-throughput data processing remain planned. See the
+Collections, Support, Database, and Queue are implemented. AI workflows and
+high-throughput data processing remain planned. See the
 [roadmap](https://github.com/titanspan/framework/blob/main/ROADMAP.md) for
 current status.
 
@@ -76,6 +76,7 @@ current status.
   application context, and lifecycle ownership.
 - Explore [configuration](/framework/config/), the [service
   container](/framework/container/), [contracts](/framework/contracts/),
+  [Database](/framework/database/), [Queue](/framework/queue/),
   [HTTP](/framework/http/), [Routing](/framework/routing/),
   [logging](/framework/logging/), [Collections](/framework/collections/),
   and [Support](/framework/support/).

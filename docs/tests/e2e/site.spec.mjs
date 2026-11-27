@@ -96,6 +96,21 @@ test("mobile navigation, nested sidebar, keyboard use, and search work", async (
   await expect(
     desktopSidebar.getByRole("link", { name: /ADR 0005.*Dishka Service Container/ }),
   ).toBeVisible();
+  await page.goto("./database/", { waitUntil: "domcontentloaded" });
+  const databaseSidebarLink = page
+    .locator("#starlight__sidebar")
+    .getByRole("link", { name: "Database", exact: true });
+  await expect(databaseSidebarLink).toBeVisible();
+  const frameworkComponents = desktopSidebar
+    .locator("summary")
+    .filter({ hasText: /^Framework components$/ })
+    .locator("xpath=ancestor::details[1]");
+  await expect(
+    frameworkComponents.getByRole("link", {
+      name: "Database",
+      exact: true,
+    }),
+  ).toBeVisible();
   const longNavigationLabel = desktopSidebar.getByRole("link", {
     name: "Automatic dependency resolution",
     exact: true,

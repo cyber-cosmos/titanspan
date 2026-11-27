@@ -53,6 +53,10 @@ export const documentationSidebar = [
         items: [{ autogenerate: { directory: "cache" } }],
       },
       {
+        label: "Database",
+        items: [{ autogenerate: { directory: "database" } }],
+      },
+      {
         label: "Queue",
         items: [{ autogenerate: { directory: "queue" } }],
       },
@@ -121,10 +125,6 @@ export const documentationSidebar = [
       {
         label: "Data processing",
         items: [{ autogenerate: { directory: "data-processing" } }],
-      },
-      {
-        label: "Database",
-        items: [{ autogenerate: { directory: "database" } }],
       },
       {
         label: "Workflows",
