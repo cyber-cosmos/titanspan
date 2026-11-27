@@ -158,6 +158,31 @@ async def test_soft_delete_and_restore_events_wait_for_commit(
             assert observed == list(_EVENT_ORDER)
 
 
+async def test_restore_of_active_record_is_a_noop(
+    application: Application,
+) -> None:
+    """Leave an active row unchanged when restore is requested.
+
+    Args:
+        application: Isolated Database application for this test.
+    """
+    async with application:
+        await _create_table()
+        record = await SoftDeleteEventRecord.create_async(
+            {"name": "active"},
+        )
+
+        assert not record.restore()
+        assert not await record.restore_async()
+        assert await DB.table("soft_delete_event_records").count_async() == 1
+        assert (
+            await DB.table("soft_delete_event_records")
+            .where_null("deleted_at")
+            .count_async()
+            == 1
+        )
+
+
 async def test_cancelled_soft_delete_does_not_change_the_record(
     application: Application,
 ) -> None:

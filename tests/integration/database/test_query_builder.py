@@ -814,6 +814,23 @@ async def test_ctes_unions_and_outer_union_filters(
             {"category": "beta", "total": 1},
         ]
 
+        scalar_row = await (
+            DB.table("entries")
+            .add_select_sub(
+                DB.table("entries").select("id").where("id", 1),
+                "first_entry_id",
+            )
+            .first_async()
+        )
+        assert scalar_row == {"first_entry_id": 1}
+
+        duplicate_cte = DB.table("entry_counts").with_cte(
+            "entry_counts",
+            counts,
+        )
+        with pytest.raises(DatabaseQueryError, match="unique safe name"):
+            duplicate_cte.with_cte("entry_counts", counts)
+
         first = DB.table("entries").select("id").where("id", "<=", 2)
         second = DB.table("entries").select("id").where("id", ">=", 2)
         unique_rows = await (
