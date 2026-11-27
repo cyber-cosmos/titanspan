@@ -11,7 +11,8 @@ from typing import TYPE_CHECKING, ClassVar
 
 import anyio
 import pytest
-from sqlalchemy.orm import Mapped  # noqa: TC002
+from sqlalchemy import ForeignKey
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from titanspan.database import DatabaseServiceProvider, Model
 from titanspan.database.events import (
@@ -22,6 +23,7 @@ from titanspan.database.events import (
     ModelSaved,
     ModelSaving,
     ModelUpdated,
+    ModelUpdating,
 )
 from titanspan.facades.database import DB
 from titanspan.facades.event import Event
@@ -46,6 +48,37 @@ class EventRecord(Model):
     fillable = ("name",)
 
     name: Mapped[str]
+
+
+class EventParent(Model):
+    """Represent a parent used to verify cancelled relationship mutations.
+
+    The relationship provides a pending child to the same Unit of Work.
+    """
+
+    table = "event_parents"
+    fillable = ("name",)
+
+    name: Mapped[str]
+    children: Mapped[list[EventChild]] = relationship(
+        back_populates="parent",
+    )
+
+
+class EventChild(Model):
+    """Represent a child cascaded from a rejected parent update.
+
+    The foreign key proves that no child insert escaped cancellation.
+    """
+
+    table = "event_children"
+    fillable = ("parent_id", "name")
+
+    parent_id: Mapped[int] = mapped_column(
+        ForeignKey("event_parents.id"),
+    )
+    name: Mapped[str]
+    parent: Mapped[EventParent] = relationship(back_populates="children")
 
 
 class ObserverDependency:
@@ -193,6 +226,319 @@ async def test_model_events_dispatch_and_allow_cancellation(
                 await DB.scalar_async("SELECT COUNT(*) FROM event_records") == 0
             )
             assert observed == ["saving:cancelled"]
+
+
+async def test_cancelled_update_discards_changes_before_autoflush(
+    application: Application,
+) -> None:
+    """Discard a rejected persistent update without reverting other models.
+
+    Args:
+        application: Application configured by the test fixture.
+    """
+
+    async def cancel(event: ModelUpdating[EventRecord]) -> None:
+        """Reject this model update before SQLAlchemy flushes it.
+
+        Args:
+            event: Update event for the model whose save was rejected.
+        """
+        event.cancel()
+
+    async with application:
+        await DB.statement_async(
+            "CREATE TABLE event_records ("
+            "id INTEGER PRIMARY KEY, name TEXT NOT NULL, "
+            "created_at TIMESTAMP, updated_at TIMESTAMP)"
+        )
+        await EventRecord.create_many_async(
+            [{"name": "original"}, {"name": "independent"}],
+        )
+
+        async with DB.transaction_async():
+            rejected = await EventRecord.find_async(1)
+            retained = await EventRecord.find_async(2)
+            assert rejected is not None
+            assert retained is not None
+            retained.name = "legitimate"
+
+            async with DB.transaction_async():
+                rejected.name = "rejected"
+                with Event.listen(ModelUpdating, cancel):
+                    assert not await rejected.save_async()
+
+                persisted_name = await (
+                    EventRecord.query()
+                    .where("id", rejected.id)
+                    .value_async("name")
+                )
+                assert persisted_name == "original"
+
+        assert await (
+            EventRecord.query().where("id", rejected.id).value_async("name")
+        ) == "original"
+        assert await (
+            EventRecord.query().where("id", retained.id).value_async("name")
+        ) == "legitimate"
+
+
+async def test_cancelled_pending_model_cannot_autoflush(
+    application: Application,
+) -> None:
+    """Remove a cancelled pending model from its owning Unit of Work.
+
+    Args:
+        application: Application configured by the test fixture.
+    """
+
+    def cancel(event: ModelCreating[EventRecord]) -> None:
+        """Reject the pending insert before its first flush.
+
+        Args:
+            event: Create event for the pending model.
+        """
+        event.cancel()
+
+    async with application:
+        await DB.statement_async(
+            "CREATE TABLE event_records ("
+            "id INTEGER PRIMARY KEY, name TEXT NOT NULL, "
+            "created_at TIMESTAMP, updated_at TIMESTAMP)"
+        )
+        async with DB.transaction_async():
+            record = EventRecord(name="pending")
+            service = DB.resolve_service()
+            async with service.session_async() as session:
+                session.add(record)
+
+            with Event.listen(ModelCreating, cancel):
+                assert not await record.save_async()
+
+            assert await EventRecord.query().count_async() == 0
+
+        assert await EventRecord.query().count_async() == 0
+
+
+async def test_cancelled_detached_update_discards_dirty_value(
+    application: Application,
+) -> None:
+    """Keep a cancelled detached update from persisting on a later save.
+
+    Args:
+        application: Application configured by the test fixture.
+    """
+
+    def cancel(event: ModelUpdating[EventRecord]) -> None:
+        """Reject the detached model update.
+
+        Args:
+            event: Update event for the model whose save was rejected.
+        """
+        event.cancel()
+
+    async with application:
+        await DB.statement_async(
+            "CREATE TABLE event_records ("
+            "id INTEGER PRIMARY KEY, name TEXT NOT NULL, "
+            "created_at TIMESTAMP, updated_at TIMESTAMP)"
+        )
+        created = await EventRecord.create_async({"name": "original"})
+        detached = await EventRecord.find_async(created.id)
+        assert detached is not None
+        detached.name = "rejected"
+
+        with Event.listen(ModelUpdating, cancel):
+            assert not await detached.save_async()
+
+        assert detached.name == "original"
+        assert await detached.save_async()
+        assert await (
+            EventRecord.query()
+            .where("id", detached.id)
+            .value_async("name")
+        ) == "original"
+
+
+async def test_sync_cancelled_update_does_not_autoflush(
+    application: Application,
+) -> None:
+    """Discard a rejected sync update and preserve unrelated model changes.
+
+    Args:
+        application: Application configured by the test fixture.
+    """
+
+    def cancel(event: ModelUpdating[EventRecord]) -> None:
+        """Reject an attached synchronous model update.
+
+        Args:
+            event: Update event for the model whose save was rejected.
+        """
+        event.cancel()
+
+    async with application:
+        await DB.statement_async(
+            "CREATE TABLE event_records ("
+            "id INTEGER PRIMARY KEY, name TEXT NOT NULL, "
+            "created_at TIMESTAMP, updated_at TIMESTAMP)"
+        )
+        await EventRecord.create_many_async(
+            [{"name": "original"}, {"name": "independent"}],
+        )
+
+        def update_records() -> tuple[str | None, str | None]:
+            """Run sync ORM operations on their owning worker thread.
+
+            Returns:
+                Values observed after the rejected model's autoflush check.
+            """
+            with DB.transaction():
+                rejected = EventRecord.find(1)
+                retained = EventRecord.find(2)
+                assert rejected is not None
+                assert retained is not None
+                rejected.name = "rejected"
+                retained.name = "legitimate"
+
+                with Event.listen(ModelUpdating, cancel):
+                    assert not rejected.save()
+
+                rejected_name = (
+                    EventRecord.query()
+                    .where("id", rejected.id)
+                    .value("name")
+                )
+                retained_name = (
+                    EventRecord.query()
+                    .where("id", retained.id)
+                    .value("name")
+                )
+                assert rejected_name is None or isinstance(rejected_name, str)
+                assert retained_name is None or isinstance(retained_name, str)
+                return rejected_name, retained_name
+
+        observed = await anyio.to_thread.run_sync(update_records)
+        assert observed == ("original", "legitimate")
+
+
+async def test_sync_cancellation_covers_transient_pending_and_detached_models(
+    application: Application,
+) -> None:
+    """Keep rejected sync writes out of later queries and transaction commits.
+
+    Args:
+        application: Application configured by the test fixture.
+    """
+
+    def cancel_create(event: ModelCreating[EventRecord]) -> None:
+        """Reject a transient or pending insert.
+
+        Args:
+            event: Create event for the model whose insert was rejected.
+        """
+        event.cancel()
+
+    def cancel_update(event: ModelUpdating[EventRecord]) -> None:
+        """Reject an update to a detached model.
+
+        Args:
+            event: Update event for the model whose write was rejected.
+        """
+        event.cancel()
+
+    async with application:
+        await DB.statement_async(
+            "CREATE TABLE event_records ("
+            "id INTEGER PRIMARY KEY, name TEXT NOT NULL, "
+            "created_at TIMESTAMP, updated_at TIMESTAMP)"
+        )
+        created = await EventRecord.create_async({"name": "original"})
+
+        def reject_sync_models() -> tuple[str | None, int]:
+            """Exercise all non-persistent sync model states on one thread.
+
+            Returns:
+                The detached value after cancellation and committed row count.
+            """
+            detached = EventRecord.find(created.id)
+            assert detached is not None
+            detached.name = "rejected detached"
+            with Event.listen(ModelUpdating, cancel_update):
+                assert not detached.save()
+
+            with DB.transaction():
+                transient = EventRecord(name="transient")
+                with Event.listen(ModelCreating, cancel_create):
+                    assert not transient.save()
+
+                pending = EventRecord(name="pending")
+                service = DB.resolve_service()
+                with service.session() as session:
+                    session.add(pending)
+                with Event.listen(ModelCreating, cancel_create):
+                    assert not pending.save()
+
+                count = EventRecord.query().count()
+
+            return detached.name, count
+
+        detached_name, count = await anyio.to_thread.run_sync(
+            reject_sync_models,
+        )
+        assert detached_name == "original"
+        assert count == 1
+        assert await EventRecord.query().value_async("name") == "original"
+
+
+async def test_cancelled_relationship_mutation_cannot_insert_child(
+    application: Application,
+) -> None:
+    """Discard a new child cascaded by a cancelled parent update.
+
+    Args:
+        application: Application configured by the test fixture.
+    """
+
+    def cancel(event: ModelUpdating[EventParent]) -> None:
+        """Reject the parent update that introduced the child.
+
+        Args:
+            event: Update event for the parent whose save was rejected.
+        """
+        event.cancel()
+
+    async with application:
+        await DB.statement_async(
+            "CREATE TABLE event_parents ("
+            "id INTEGER PRIMARY KEY, name TEXT NOT NULL, "
+            "created_at TIMESTAMP, updated_at TIMESTAMP)"
+        )
+        await DB.statement_async(
+            "CREATE TABLE event_children ("
+            "id INTEGER PRIMARY KEY, parent_id INTEGER NOT NULL, "
+            "name TEXT NOT NULL, created_at TIMESTAMP, "
+            "updated_at TIMESTAMP, FOREIGN KEY (parent_id) "
+            "REFERENCES event_parents(id))"
+        )
+        created = await EventParent.create_async({"name": "parent"})
+
+        async with DB.transaction_async():
+            parent = await (
+                EventParent.query()
+                .with_("children")
+                .where("id", created.id)
+                .first_async()
+            )
+            assert parent is not None
+            parent.children.append(EventChild(name="rejected child"))
+
+            with Event.listen(ModelUpdating, cancel):
+                assert not await parent.save_async()
+
+            assert parent.children == []
+            assert await EventChild.query().count_async() == 0
+
+        assert await EventChild.query().count_async() == 0
 
 
 async def test_model_observers_use_container_and_events_lifecycle(

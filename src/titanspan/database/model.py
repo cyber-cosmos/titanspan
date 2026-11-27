@@ -9,6 +9,7 @@ from __future__ import annotations
 import json
 import re
 import sqlite3
+import threading
 from collections.abc import (
     Awaitable,
     Callable,
@@ -19,6 +20,7 @@ from collections.abc import (
 )
 from contextlib import contextmanager
 from contextvars import ContextVar
+from dataclasses import dataclass
 from datetime import UTC, date, datetime, time
 from decimal import Decimal
 from enum import Enum
@@ -27,15 +29,32 @@ from types import MappingProxyType
 from typing import TYPE_CHECKING, ClassVar, Self, cast
 from uuid import UUID
 
-from sqlalchemy import DateTime, Integer, MetaData
+import anyio
+from sqlalchemy import (
+    DateTime,
+    Float,
+    Integer,
+    MetaData,
+    Numeric,
+    select,
+    update,
+)
 from sqlalchemy import inspect as sa_inspect
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import DeclarativeBase, Mapped, declared_attr, mapped_column
+from sqlalchemy.orm import (
+    DeclarativeBase,
+    Mapped,
+    Session,
+    declared_attr,
+    mapped_column,
+)
+from sqlalchemy.orm.attributes import set_committed_value
 from sqlalchemy.orm.base import NO_VALUE
 from sqlalchemy.orm.exc import ObjectDeletedError
 from sqlalchemy.orm.session import object_session
 
+from titanspan._application_context import active_application_context
 from titanspan.database.events import (
     ModelCreated,
     ModelCreating,
@@ -70,12 +89,29 @@ from titanspan.facades.database import DB
 from titanspan.facades.event import Event
 
 if TYPE_CHECKING:
+    from sqlalchemy.sql.schema import Column
+
     from titanspan.contracts.database import DatabaseService
     from titanspan.events.dispatcher import ListenerRegistration
 
-_MASS_ASSIGNMENT_UNGUARDED: ContextVar[bool] = ContextVar(
+@dataclass(frozen=True, slots=True)
+class _UnguardedContext:
+    """Identify the execution and app allowed to bypass fill guards.
+
+    ContextVars propagate into child tasks. Matching the task, thread, app,
+    container, and active scope prevents inherited authority from escaping.
+    """
+
+    thread_id: int
+    task_id: int | None
+    application: object | None
+    container: object | None
+    scope: object | None
+
+
+_MASS_ASSIGNMENT_UNGUARDED: ContextVar[_UnguardedContext | None] = ContextVar(
     "titanspan_database_mass_assignment_unguarded",
-    default=False,
+    default=None,
 )
 _SNAKE_CASE_BOUNDARY = re.compile(r"([a-z0-9])([A-Z])")
 _SNAKE_CASE_ACRONYM = re.compile(r"([A-Z]+)([A-Z][a-z])")
@@ -148,6 +184,8 @@ class Model(DeclarativeBase):
 
     Subclasses declare `Mapped` columns normally, set `fillable`, and may
     override the inferred table or connection through class attributes.
+    Direct constructor assignment follows trusted SQLAlchemy mapping semantics;
+    request mappings must use guarded `fill` or `create` methods.
     """
 
     __abstract__ = True
@@ -822,7 +860,15 @@ class Model(DeclarativeBase):
         Yields:
             Control while mass assignment is explicitly unguarded.
         """
-        token = _MASS_ASSIGNMENT_UNGUARDED.set(True)
+        active = active_application_context()
+        context = _UnguardedContext(
+            thread_id=threading.get_ident(),
+            task_id=_current_task_id(),
+            application=active.application if active is not None else None,
+            container=active.container if active is not None else None,
+            scope=active.scope if active is not None else None,
+        )
+        token = _MASS_ASSIGNMENT_UNGUARDED.set(context)
         try:
             yield
         finally:
@@ -881,11 +927,14 @@ class Model(DeclarativeBase):
             self._ensure_session_owner(service, session)
             state = sa_inspect(self)
             created = state.transient or state.pending
+            if state.detached:
+                session.add(self)
             before_events: tuple[ModelEvent[Self], ...] = (
                 ModelSaving(self),
                 ModelCreating(self) if created else ModelUpdating(self),
             )
             if not _dispatch_cancellable_events(before_events):
+                _discard_cancelled_save(self, session)
                 return False
             changes = self._changed_attributes()
             self._set_timestamps(created=created)
@@ -926,11 +975,14 @@ class Model(DeclarativeBase):
             self._ensure_session_owner(service, session)
             state = sa_inspect(self)
             created = state.transient or state.pending
+            if state.detached:
+                session.add(self)
             before_events: tuple[ModelEvent[Self], ...] = (
                 ModelSaving(self),
                 ModelCreating(self) if created else ModelUpdating(self),
             )
             if not await _dispatch_cancellable_events_async(before_events):
+                await _discard_cancelled_save_async(self, session)
                 return False
             changes = self._changed_attributes()
             self._set_timestamps(created=created)
@@ -1042,21 +1094,34 @@ class Model(DeclarativeBase):
         return await self._delete_async()
 
     def increment(self, column_name: str, amount: int = 1) -> bool:
-        """Increase one loaded numeric attribute and persist the model.
+        """Atomically increase a persisted numeric column.
 
         Args:
             column_name: Mapped integer, float, or decimal attribute.
             amount: Signed integer delta to add.
 
         Returns:
-            Whether SQLAlchemy flushed the model update.
+            Whether the row still existed and the update succeeded.
 
         Raises:
             DatabaseQueryError: If the attribute is absent or non-numeric.
         """
-        current = self._numeric_attribute(column_name)
-        setattr(self, column_name, current + amount)
-        return self.save()
+        service = DB.resolve_service()
+        with service.session(type(self).connection) as session:
+            self._ensure_session_owner(service, session)
+            state = sa_inspect(self)
+            if state.transient or state.pending:
+                current = self._numeric_attribute(column_name)
+                setattr(self, column_name, current + amount)
+                return self.save()
+            if state.detached:
+                session.add(self)
+            return self._increment_in_session(
+                service,
+                session,
+                column_name,
+                amount,
+            )
 
     def decrement(self, column_name: str, amount: int = 1) -> bool:
         """Decrease one loaded numeric attribute and persist the model.
@@ -1075,18 +1140,31 @@ class Model(DeclarativeBase):
         column_name: str,
         amount: int = 1,
     ) -> bool:
-        """Asynchronously increase a loaded numeric model attribute.
+        """Asynchronously atomically increase a persisted numeric column.
 
         Args:
             column_name: Mapped integer, float, or decimal attribute.
             amount: Signed integer delta to add.
 
         Returns:
-            Whether SQLAlchemy flushed the model update.
+            Whether the row still existed and the update succeeded.
         """
-        current = self._numeric_attribute(column_name)
-        setattr(self, column_name, current + amount)
-        return await self.save_async()
+        service = DB.resolve_service()
+        async with service.session_async(type(self).connection) as session:
+            self._ensure_session_owner(service, session)
+            state = sa_inspect(self)
+            if state.transient or state.pending:
+                current = self._numeric_attribute(column_name)
+                setattr(self, column_name, current + amount)
+                return await self.save_async()
+            if state.detached:
+                session.add(self)
+            return await self._increment_in_session_async(
+                service,
+                session,
+                column_name,
+                amount,
+            )
 
     async def decrement_async(
         self,
@@ -1103,6 +1181,159 @@ class Model(DeclarativeBase):
             Whether SQLAlchemy flushed the model update.
         """
         return await self.increment_async(column_name, -amount)
+
+    def _increment_in_session(
+        self,
+        service: DatabaseService,
+        session: Session,
+        column_name: str,
+        amount: int,
+    ) -> bool:
+        """Execute and synchronize an atomic update in the owning session.
+
+        Args:
+            service: Application-owned Database service.
+            session: Session that owns this model and transaction.
+            column_name: Mapped numeric attribute to increase.
+            amount: Signed integer delta.
+
+        Returns:
+            Whether a matching row was updated.
+        """
+        column = _numeric_column(type(self), column_name)
+        if isinstance(self, SoftDeletes) and self.trashed():
+            return False
+        if not _dispatch_cancellable_events(
+            (ModelSaving(self), ModelUpdating(self)),
+        ):
+            _discard_cancelled_save(self, session)
+            return False
+        self._set_timestamps(created=False)
+        changes = self._changed_attributes()
+        session.flush()
+        values: dict[object, object] = {column: column + amount}
+        updated_at = _updated_at_column(type(self))
+        now: datetime | None = None
+        if updated_at is not None:
+            now = datetime.now(UTC)
+            values[updated_at] = now
+        statement = update(column.table).values(values)
+        conditions = [
+            key_column == key_value
+            for key_column, key_value in _identity_values(self)
+        ]
+        if isinstance(self, SoftDeletes):
+            deleted_column = sa_inspect(type(self)).attrs[
+                type(self).deleted_at_name
+            ].columns[0]
+            conditions.append(deleted_column.is_(None))
+        statement = statement.where(*conditions)
+        session.execute(statement)
+        row = session.execute(
+            select(column).where(*conditions),
+        ).one_or_none()
+        if row is None:
+            return False
+        value = row[0]
+        set_committed_value(self, column_name, value)
+        changes[column_name] = value
+        if updated_at is not None and now is not None:
+            updated_name = type(self).updated_at_name
+            set_committed_value(self, updated_name, now)
+            changes[updated_name] = now
+        remember_service(self, service)
+
+        def after_commit() -> None:
+            """Record the durable change and dispatch model events."""
+            remember_save(
+                self,
+                service,
+                created=False,
+                changes=changes,
+            )
+            _dispatch_saved_events(self, created=False)
+
+        service.after_commit(after_commit, type(self).connection)
+        return True
+
+    async def _increment_in_session_async(
+        self,
+        service: DatabaseService,
+        session: AsyncSession,
+        column_name: str,
+        amount: int,
+    ) -> bool:
+        """Execute and synchronize an async atomic update.
+
+        Args:
+            service: Application-owned Database service.
+            session: Task-owned session for this model operation.
+            column_name: Mapped numeric attribute to increase.
+            amount: Signed integer delta.
+
+        Returns:
+            Whether a matching row was updated.
+        """
+        column = _numeric_column(type(self), column_name)
+        if isinstance(self, SoftDeletes) and self.trashed():
+            return False
+        if not await _dispatch_cancellable_events_async(
+            (ModelSaving(self), ModelUpdating(self)),
+        ):
+            await _discard_cancelled_save_async(self, session)
+            return False
+        self._set_timestamps(created=False)
+        changes = self._changed_attributes()
+        await session.flush()
+        values: dict[object, object] = {column: column + amount}
+        updated_at = _updated_at_column(type(self))
+        now: datetime | None = None
+        if updated_at is not None:
+            now = datetime.now(UTC)
+            values[updated_at] = now
+        statement = update(column.table).values(values)
+        identity = _identity_values(self)
+        conditions = [
+            key_column == key_value for key_column, key_value in identity
+        ]
+        if isinstance(self, SoftDeletes):
+            deleted_column = sa_inspect(type(self)).attrs[
+                type(self).deleted_at_name
+            ].columns[0]
+            conditions.append(deleted_column.is_(None))
+        statement = statement.where(*conditions)
+        await session.execute(statement)
+        row = (
+            await session.execute(
+                select(column).where(*conditions),
+            )
+        ).one_or_none()
+        if row is None:
+            return False
+        value = row[0]
+        set_committed_value(self, column_name, value)
+        changes[column_name] = value
+        if updated_at is not None and now is not None:
+            updated_name = type(self).updated_at_name
+            set_committed_value(self, updated_name, now)
+            changes[updated_name] = now
+        remember_service(self, service)
+
+        async def after_commit() -> None:
+            """Record the durable change and await model event listeners."""
+            remember_save(
+                self,
+                service,
+                created=False,
+                changes=changes,
+            )
+            await _dispatch_saved_events_async(self, created=False)
+
+        await service.after_commit_async(
+            after_commit,
+            type(self).connection,
+        )
+        return True
 
     @classmethod
     def destroy(cls, identifiers: Sequence[object]) -> int:
@@ -1400,7 +1631,7 @@ class Model(DeclarativeBase):
                 continue
             permitted = (
                 force
-                or _MASS_ASSIGNMENT_UNGUARDED.get()
+                or _unguarded_context_is_active()
                 or self._is_fillable(name)
             )
             if not permitted:
@@ -1449,10 +1680,16 @@ class Model(DeclarativeBase):
             attribute.key for attribute in sa_inspect(type(self)).column_attrs
         }
         now = datetime.now(UTC)
-        if created and "created_at" in mapped_names and self.created_at is None:
-            self.created_at = now
-        if "updated_at" in mapped_names:
-            self.updated_at = now
+        created_name = type(self).created_at_name
+        updated_name = type(self).updated_at_name
+        if (
+            created
+            and created_name in mapped_names
+            and getattr(self, created_name) is None
+        ):
+            setattr(self, created_name, now)
+        if updated_name in mapped_names:
+            setattr(self, updated_name, now)
 
     def _ensure_session_owner(
         self,
@@ -1582,6 +1819,257 @@ def _snake_case(name: str) -> str:
     """
     separated = _SNAKE_CASE_ACRONYM.sub(r"\1_\2", name)
     return _SNAKE_CASE_BOUNDARY.sub(r"\1_\2", separated).casefold()
+
+
+def _current_task_id() -> int | None:
+    """Return the current AnyIO task identity when async execution is active.
+
+    Returns:
+        The task identifier or ``None`` in a synchronous thread.
+    """
+    try:
+        return anyio.get_current_task().id
+    except anyio.NoEventLoopError:
+        return None
+
+
+def _numeric_column(
+    model_type: type[Model],
+    column_name: str,
+) -> Column[object]:
+    """Resolve a mapped SQL numeric column without reading its stale value.
+
+    Args:
+        model_type: Declaratively mapped model class.
+        column_name: Mapped attribute name selected for atomic arithmetic.
+
+    Returns:
+        The SQLAlchemy column used by the model attribute.
+
+    Raises:
+        DatabaseQueryError: If the attribute is not a supported number.
+    """
+    mapper = sa_inspect(model_type)
+    if column_name not in mapper.column_attrs:
+        msg = "Model increments require a mapped numeric column."
+        raise DatabaseQueryError(msg)
+    attribute = mapper.column_attrs[column_name]
+    column = cast("Column[object]", attribute.columns[0])
+    if not isinstance(column.type, (Integer, Float, Numeric)):
+        msg = "Model increments require a mapped numeric column."
+        raise DatabaseQueryError(msg)
+    return column
+
+
+def _identity_values(
+    instance: Model,
+) -> tuple[tuple[Column[object], object], ...]:
+    """Pair the mapped primary key columns with this model's identity.
+
+    Args:
+        instance: Persistent SQLAlchemy model instance.
+
+    Returns:
+        Mapped key columns and their identity-map values.
+
+    Raises:
+        DatabaseQueryError: If the model has no persistent identity.
+    """
+    state = sa_inspect(instance)
+    identity = state.identity
+    primary_key = state.mapper.primary_key
+    if identity is None or len(identity) != len(primary_key):
+        msg = "Atomic model updates require a persistent primary key."
+        raise DatabaseQueryError(msg)
+    return tuple(
+        (cast("Column[object]", column), value)
+        for column, value in zip(primary_key, identity, strict=True)
+    )
+
+
+def _updated_at_column(
+    model_type: type[Model],
+) -> Column[object] | None:
+    """Resolve the configured update timestamp for an atomic row update.
+
+    Args:
+        model_type: Declaratively mapped model class.
+
+    Returns:
+        The mapped update timestamp column, if timestamping is enabled.
+    """
+    if not model_type.timestamps:
+        return None
+    name = model_type.updated_at_name
+    mapper = sa_inspect(model_type)
+    if name not in mapper.column_attrs:
+        return None
+    return cast("Column[object]", mapper.column_attrs[name].columns[0])
+
+
+def _unguarded_context_is_active() -> bool:
+    """Check whether a temporary guard bypass still owns this execution.
+
+    Returns:
+        Whether the current thread, task, and application scope match the
+        context that entered ``Model.unguarded()``.
+    """
+    owner = _MASS_ASSIGNMENT_UNGUARDED.get()
+    if owner is None:
+        return False
+    active = active_application_context()
+    application = active.application if active is not None else None
+    container = active.container if active is not None else None
+    scope = active.scope if active is not None else None
+    return (
+        owner.thread_id == threading.get_ident()
+        and owner.task_id == _current_task_id()
+        and owner.application is application
+        and owner.container is container
+        and owner.scope is scope
+    )
+
+
+def _discard_cancelled_save(
+    instance: Model,
+    session: Session,
+) -> None:
+    """Restore rejected mapped changes before an automatic Unit of Work flush.
+
+    SQLAlchemy's attribute history remains authoritative. Known old scalar
+    values are restored as committed state. Attributes without loaded history
+    are expired and refreshed through the owning Session.
+
+    Args:
+        instance: Model whose cancellable save was rejected.
+        session: Synchronous SQLAlchemy session owning the operation.
+    """
+    state = sa_inspect(instance)
+    relationship_names = set(state.mapper.relationships.keys())
+    changed_names = tuple(
+        name
+        for name, attribute in state.attrs.items()
+        if attribute.history.has_changes()
+    )
+    added_related = _pending_related_models(
+        instance,
+        session,
+        changed_names,
+        relationship_names,
+    )
+
+    if state.pending:
+        _expunge_pending(added_related, session)
+        session.expunge(instance)
+        return
+    if not state.persistent:
+        return
+
+    refresh_names: list[str] = []
+    for name in changed_names:
+        history = state.attrs[name].history
+        if name in relationship_names:
+            refresh_names.append(name)
+        elif history.deleted:
+            set_committed_value(instance, name, history.deleted[0])
+        else:
+            refresh_names.append(name)
+
+    _expunge_pending(added_related, session)
+    if refresh_names:
+        session.expire(instance, attribute_names=refresh_names)
+        session.refresh(instance, attribute_names=refresh_names)
+
+
+async def _discard_cancelled_save_async(
+    instance: Model,
+    session: AsyncSession,
+) -> None:
+    """Restore rejected async ORM changes before later autoflush operations.
+
+    Args:
+        instance: Model whose cancellable save was rejected.
+        session: Task-owned SQLAlchemy async session.
+    """
+    state = sa_inspect(instance)
+    sync_session = session.sync_session
+    relationship_names = set(state.mapper.relationships.keys())
+    changed_names = tuple(
+        name
+        for name, attribute in state.attrs.items()
+        if attribute.history.has_changes()
+    )
+    added_related = _pending_related_models(
+        instance,
+        sync_session,
+        changed_names,
+        relationship_names,
+    )
+
+    if state.pending:
+        _expunge_pending(added_related, sync_session)
+        sync_session.expunge(instance)
+        return
+    if not state.persistent:
+        return
+
+    refresh_names: list[str] = []
+    for name in changed_names:
+        history = state.attrs[name].history
+        if name in relationship_names:
+            refresh_names.append(name)
+        elif history.deleted:
+            set_committed_value(instance, name, history.deleted[0])
+        else:
+            refresh_names.append(name)
+
+    _expunge_pending(added_related, sync_session)
+    if refresh_names:
+        sync_session.expire(instance, attribute_names=refresh_names)
+        await session.refresh(instance, attribute_names=refresh_names)
+
+
+def _pending_related_models(
+    instance: Model,
+    session: Session,
+    changed_names: tuple[str, ...],
+    relationship_names: set[str],
+) -> tuple[Model, ...]:
+    """Find new related models introduced by the rejected relationship edit.
+
+    Args:
+        instance: Model whose relationship change was rejected.
+        session: Owning synchronous session, including the async adapter.
+        changed_names: Mapped attributes with pending SQLAlchemy history.
+        relationship_names: Relationship attributes mapped on the instance.
+
+    Returns:
+        Pending related Titanspan models that were cascaded into this session.
+    """
+    return tuple(
+        value
+        for name in changed_names
+        if name in relationship_names
+        for value in sa_inspect(instance).attrs[name].history.added
+        if isinstance(value, Model)
+        and object_session(value) is session
+        and sa_inspect(value).pending
+    )
+
+
+def _expunge_pending(
+    instances: tuple[Model, ...],
+    session: Session,
+) -> None:
+    """Remove cascaded new related instances from a rejected Unit of Work.
+
+    Args:
+        instances: Related models captured from changed relationships.
+        session: Synchronous SQLAlchemy session owning the Unit of Work.
+    """
+    for instance in instances:
+        if object_session(instance) is session and sa_inspect(instance).pending:
+            session.expunge(instance)
 
 
 def _dispatch_cancellable_events[ModelT](

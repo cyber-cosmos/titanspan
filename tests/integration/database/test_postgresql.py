@@ -11,10 +11,12 @@ from typing import TYPE_CHECKING
 import anyio
 import pytest
 from sqlalchemy.engine import make_url
+from sqlalchemy.orm import Mapped, mapped_column
 
 from titanspan.database import (
     DatabaseServiceProvider,
     MigrationManager,
+    Model,
     Schema,
 )
 from titanspan.facades.database import DB
@@ -26,6 +28,7 @@ _POSTGRES_URL_ENV = "TITANSPAN_TEST_POSTGRES_URL"
 _REQUIRE_POSTGRES_ENV = "TITANSPAN_REQUIRE_POSTGRES"
 _CONCURRENT_TASK_COUNT = 2
 _EXPECTED_UPSERTED_SCORE = 2
+_EXPECTED_INCREMENT_VALUES = [1, 2]
 _UNKNOWN_ROWCOUNT = -1
 _ROLLBACK_MARKER = "rollback marker"
 _MIGRATION_UP = '''    def up(self) -> None:
@@ -39,6 +42,17 @@ _MIGRATION_DOWN = '''    def down(self) -> None:
         with Schema.drop_if_exists("postgres_migration_rows"):
             pass
 '''
+
+
+class PostgreSQLAtomicCounter(Model):
+    """Represent a counter row updated by independent PostgreSQL sessions."""
+
+    table = "postgres_atomic_counters"
+    fillable = ("value",)
+    timestamps = False
+
+    value: Mapped[int] = mapped_column(default=0)
+
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -170,6 +184,62 @@ async def test_postgresql_transactions_and_concurrent_sessions(
         await migrations.rollback_async()
 
         assert not await Schema.has_table_async("postgres_migration_rows")
+
+
+async def test_postgresql_model_increments_are_atomic(
+    application: Application,
+) -> None:
+    """Preserve both increments through competing real database sessions.
+
+    Args:
+        application: Isolated PostgreSQL integration application.
+    """
+    async with application:
+        await DB.statement_async(
+            "DROP TABLE IF EXISTS postgres_atomic_counters",
+        )
+        await DB.statement_async(
+            "CREATE TABLE postgres_atomic_counters ("
+            "id BIGSERIAL PRIMARY KEY, value BIGINT NOT NULL)"
+        )
+        counter = await PostgreSQLAtomicCounter.create_async({"value": 0})
+        first = await PostgreSQLAtomicCounter.find_async(counter.id)
+        second = await PostgreSQLAtomicCounter.find_async(counter.id)
+        assert first is not None
+        assert second is not None
+
+        ready = anyio.Event()
+        rendezvous_lock = anyio.Lock()
+        ready_count = 0
+        observed_values: list[int] = []
+
+        async def increment(model: PostgreSQLAtomicCounter) -> None:
+            """Run one instance increment after both models are ready.
+
+            Args:
+                model: Detached model loaded in an independent operation.
+            """
+            nonlocal ready_count
+            async with rendezvous_lock:
+                ready_count += 1
+                if ready_count == _CONCURRENT_TASK_COUNT:
+                    ready.set()
+            await ready.wait()
+            assert await model.increment_async("value")
+            observed_values.append(model.value)
+
+        async with anyio.create_task_group() as tasks:
+            tasks.start_soon(increment, first)
+            tasks.start_soon(increment, second)
+
+        assert sorted(observed_values) == _EXPECTED_INCREMENT_VALUES
+        assert (
+            await PostgreSQLAtomicCounter.query().value_async("value")
+            == _CONCURRENT_TASK_COUNT
+        )
+        await DB.statement_async(
+            "DROP TABLE postgres_atomic_counters",
+        )
 
 
 async def test_postgresql_upsert_and_insert_or_ignore_are_atomic(
