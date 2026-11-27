@@ -6,7 +6,8 @@ SQLite transactions together.
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+from contextlib import ExitStack
+from typing import TYPE_CHECKING, ClassVar
 
 import anyio
 import pytest
@@ -32,6 +33,7 @@ if TYPE_CHECKING:
 
 pytestmark = [pytest.mark.integration, pytest.mark.anyio]
 _ROLLBACK_MARKER = "rollback lifecycle events"
+_OBSERVER_HOOK_COUNT = 3
 
 
 class EventRecord(Model):
@@ -44,6 +46,73 @@ class EventRecord(Model):
     fillable = ("name",)
 
     name: Mapped[str]
+
+
+class ObserverDependency:
+    """Supply a transient dependency to observer instances.
+
+    The unique token proves each observer hook uses Container resolution.
+    """
+
+    def __init__(self) -> None:
+        """Create a token that identifies this resolved dependency.
+
+        Each observer invocation receives a separately constructed value.
+        """
+        self.token = object()
+
+
+class EventRecordObserver:
+    """Observe event-record creation and reject its deletion.
+
+    The test uses shared events only within one isolated test application.
+    """
+
+    events: ClassVar[list[str]] = []
+    dependency_tokens: ClassVar[list[object]] = []
+
+    def __init__(self, dependency: ObserverDependency) -> None:
+        """Retain a dependency constructed by the active Container.
+
+        Args:
+            dependency: Transient value resolved for this hook invocation.
+        """
+        self._dependency = dependency
+
+    def creating(self, model: EventRecord) -> bool:
+        """Record the pending insert and allow it to continue.
+
+        Args:
+            model: Record being inserted by the application.
+
+        Returns:
+            ``True`` to allow the insert to continue.
+        """
+        self.dependency_tokens.append(self._dependency.token)
+        self.events.append(f"creating:{model.name}")
+        return True
+
+    async def created(self, model: EventRecord) -> None:
+        """Record the insert after the owning transaction commits.
+
+        Args:
+            model: Record whose insert has committed.
+        """
+        self.dependency_tokens.append(self._dependency.token)
+        self.events.append(f"created:{model.name}")
+
+    def deleting(self, model: EventRecord) -> bool:
+        """Reject deletion through the observer's typed model hook.
+
+        Args:
+            model: Record whose delete has not yet been flushed.
+
+        Returns:
+            ``False`` to cancel the deletion.
+        """
+        self.dependency_tokens.append(self._dependency.token)
+        self.events.append(f"deleting:{model.name}")
+        return False
 
 
 @pytest.fixture
@@ -124,6 +193,71 @@ async def test_model_events_dispatch_and_allow_cancellation(
                 await DB.scalar_async("SELECT COUNT(*) FROM event_records") == 0
             )
             assert observed == ["saving:cancelled"]
+
+
+async def test_model_observers_use_container_and_events_lifecycle(
+    application: Application,
+) -> None:
+    """Resolve an observer and deliver typed hooks through Events.
+
+    Args:
+        application: Application configured by the test fixture.
+    """
+    EventRecordObserver.events.clear()
+    EventRecordObserver.dependency_tokens.clear()
+    async with application:
+        await DB.statement_async(
+            "CREATE TABLE event_records ("
+            "id INTEGER PRIMARY KEY, name TEXT NOT NULL, "
+            "created_at TIMESTAMP, updated_at TIMESTAMP)"
+        )
+        registrations = EventRecord.observe(EventRecordObserver)
+        with ExitStack() as stack:
+            for registration in registrations:
+                stack.enter_context(registration)
+
+            record = await EventRecord.create_async({"name": "observed"})
+            assert not await record.delete_async()
+
+        assert EventRecordObserver.events == [
+            "creating:observed",
+            "created:observed",
+            "deleting:observed",
+        ]
+        assert (
+            len(EventRecordObserver.dependency_tokens) == _OBSERVER_HOOK_COUNT
+        )
+        assert len(set(EventRecordObserver.dependency_tokens)) == (
+            _OBSERVER_HOOK_COUNT
+        )
+        assert await DB.scalar_async("SELECT COUNT(*) FROM event_records") == 1
+
+
+def test_model_observers_reject_missing_or_invalid_hooks() -> None:
+    """Reject observer classes that cannot handle a model lifecycle event.
+
+    No application context is needed because validation happens before
+    registrations are created.
+    """
+
+    class EmptyObserver:
+        """Represent an observer without lifecycle hooks.
+
+        Registration must reject this empty declaration.
+        """
+
+    class InvalidObserver:
+        """Represent an observer with a non-callable lifecycle hook.
+
+        Registration must reject this invalid declaration.
+        """
+
+        creating = object()
+
+    with pytest.raises(ValueError, match="lifecycle method"):
+        EventRecord.observe(EmptyObserver)
+    with pytest.raises(TypeError, match="hooks must be callable"):
+        EventRecord.observe(InvalidObserver)
 
 
 async def test_created_events_wait_for_the_outer_transaction_commit(

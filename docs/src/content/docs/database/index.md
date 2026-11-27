@@ -311,13 +311,45 @@ def register_database_listeners() -> None:
     Event.listen(ModelCreated, record_creation)
 ```
 
-Synchronous model operations dispatch synchronous listeners. Async model
-operations use `dispatch_async` and await async listeners. Events registered
-inside a savepoint remain pending until the outer transaction commits; rollback
-discards them. Bulk Query Builder mutations bypass per-model events. Observer
-classes, event suppression, and dedicated soft-delete and restore events are
-not implemented. A listener failure after commit is reported to the caller,
-but it cannot undo a database write that already committed.
+Register observer classes on the model when their hooks belong to one model:
+
+```python
+from app.models import User
+
+
+class UserObserver:
+    """Handle User lifecycle hooks through the active Container.
+
+    Observer methods may use dependencies constructed by the Container.
+    """
+
+    async def created(self, user: User) -> None:
+        """Run after the user's insert commits.
+
+        Args:
+            user: User whose insert is durable.
+        """
+        print(user.id)
+
+
+def register_user_observer() -> None:
+    """Register observers while the application context is active.
+
+    Observer handles can be retained for later cleanup.
+    """
+    User.observe(UserObserver)
+```
+
+The active Container resolves an observer for each matching hook, so scoped
+dependencies follow the current execution scope. Keep returned registration
+handles if the application must later unregister those hooks. Synchronous
+model operations require synchronous hooks; asynchronous model operations
+await both synchronous and asynchronous hooks. Events registered inside a
+savepoint remain pending until the outer transaction commits; rollback
+discards them. Bulk Query Builder mutations bypass per-model events. Event
+suppression and dedicated soft-delete and restore events are not implemented.
+A listener failure after commit is reported to the caller, but it cannot undo
+a database write that already committed.
 
 ## Relationships and loading
 
@@ -371,8 +403,8 @@ model operations, safe conversion, and batch relationship loading. Ordinary
 collection behavior remains owned by `titanspan.collections`.
 
 Through and polymorphic relationships, relationship persistence helpers,
-relationship aggregates, global and local scopes, casts, accessors, observers,
-and API resources are not implemented yet.
+relationship aggregates, global and local scopes, broad custom cast and
+accessor APIs, and API resources are not implemented yet.
 
 ## Schema and migrations
 
@@ -493,9 +525,9 @@ boundary. Use SQLAlchemy and Alembic APIs directly for capabilities not yet
 exposed by the native layer.
 
 The Database component does not yet provide scoped or automatic Routing model
-binding, model-based URL generation, observer classes, soft-delete and restore
-events, query-count assertions, database test isolation helpers, read replicas,
-query caching, or distributed migration coordination. See
+binding, model-based URL generation, soft-delete and restore events,
+query-count assertions, database test isolation helpers, read replicas, query
+caching, or distributed migration coordination. See
 [ADR 0006](/titanspan/architecture/decisions/0006-sqlalchemy-persistence/) for
 the accepted persistence boundary and
 [the backend boundary specification](/titanspan/specifications/backend-boundaries/)

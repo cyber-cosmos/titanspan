@@ -67,6 +67,8 @@ public release.
   Pre-persistence listeners can cancel writes. Sync and async listeners
   run after commit, in transaction and savepoint registration order.
   Add `DB.after_commit_async()` for task-owned transaction callbacks.
+- Add model observer registration through the active Container and Events
+  dispatcher, including scoped dependency resolution and async lifecycle hooks.
 - Add sync and async database, model, and soft-delete assertions.
   The helpers run real Query Builder and ORM queries through the active
   Database service and reuse the existing Testing lifecycle.

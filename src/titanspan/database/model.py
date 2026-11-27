@@ -9,12 +9,20 @@ from __future__ import annotations
 import json
 import re
 import sqlite3
-from collections.abc import Callable, Generator, Iterable, Mapping, Sequence
+from collections.abc import (
+    Awaitable,
+    Callable,
+    Generator,
+    Iterable,
+    Mapping,
+    Sequence,
+)
 from contextlib import contextmanager
 from contextvars import ContextVar
 from datetime import UTC, date, datetime, time
 from decimal import Decimal
 from enum import Enum
+from inspect import iscoroutinefunction
 from types import MappingProxyType
 from typing import TYPE_CHECKING, ClassVar, Self, cast
 from uuid import UUID
@@ -63,6 +71,7 @@ from titanspan.facades.event import Event
 
 if TYPE_CHECKING:
     from titanspan.contracts.database import DatabaseService
+    from titanspan.events.dispatcher import ListenerRegistration
 
 _MASS_ASSIGNMENT_UNGUARDED: ContextVar[bool] = ContextVar(
     "titanspan_database_mass_assignment_unguarded",
@@ -73,6 +82,8 @@ _SNAKE_CASE_ACRONYM = re.compile(r"([A-Z]+)([A-Z][a-z])")
 _MODEL_NOT_FOUND_MESSAGE = "The requested model was not found."
 _MYSQL_DUPLICATE_ENTRY_CODE = 1062
 _DESTROY_CHUNK_SIZE = 500
+_OBSERVER_METHODS_ERROR = "A model observer must define a lifecycle method."
+_OBSERVER_HOOK_ERROR = "Observer lifecycle hooks must be callable."
 _COMPOSITE_KEY_ERROR = (
     "This model operation requires a single-column primary key."
 )
@@ -226,6 +237,54 @@ class Model(DeclarativeBase):
             a factory operation creates records.
         """
         return ModelFactory(cls, cls.factory_attributes)
+
+    @classmethod
+    def observe(
+        cls,
+        observer_type: type[object],
+    ) -> tuple[ListenerRegistration, ...]:
+        """Register one Container-resolved lifecycle observer for this model.
+
+        The observer may define any subset of supported hook names. Its
+        registrations belong to the active application's Events dispatcher.
+
+        Args:
+            observer_type: Trusted class resolved by the active Container.
+
+        Returns:
+            Removable handles for every registered lifecycle method.
+
+        Raises:
+            ValueError: If the observer defines no supported lifecycle method.
+            TypeError: If a supported hook exists but is not callable.
+        """
+        hooks: tuple[tuple[str, type[object]], ...] = (
+            ("saving", ModelSaving),
+            ("saved", ModelSaved),
+            ("creating", ModelCreating),
+            ("created", ModelCreated),
+            ("updating", ModelUpdating),
+            ("updated", ModelUpdated),
+            ("deleting", ModelDeleting),
+            ("deleted", ModelDeleted),
+        )
+        registrations: list[ListenerRegistration] = []
+        for method_name, event_type in hooks:
+            method = getattr(observer_type, method_name, None)
+            if method is None:
+                continue
+            if not callable(method):
+                raise TypeError(_OBSERVER_HOOK_ERROR)
+            listener = _observer_listener(
+                cls,
+                observer_type,
+                method_name,
+                method,
+            )
+            registrations.append(Event.listen(event_type, listener))
+        if not registrations:
+            raise ValueError(_OBSERVER_METHODS_ERROR)
+        return tuple(registrations)
 
     @classmethod
     def all(cls) -> ModelCollection[Self]:
@@ -1586,6 +1645,75 @@ async def _dispatch_saved_events_async(
         ModelCreated(model) if created else ModelUpdated(model),
     )
     await Event.dispatch_async(ModelSaved(model))
+
+
+def _observer_listener[ModelT: Model](
+    model_type: type[ModelT],
+    observer_type: type[object],
+    method_name: str,
+    method: object,
+) -> (
+    Callable[[ModelEvent[object]], object]
+    | Callable[[ModelEvent[object]], Awaitable[object]]
+):
+    """Adapt one observer hook to the active model-event dispatcher.
+
+    Args:
+        model_type: Model class whose instances the observer accepts.
+        observer_type: Trusted observer resolved for each lifecycle dispatch.
+        method_name: Name of the observer hook to invoke.
+        method: Class-level hook used to select sync or async dispatch.
+
+    Returns:
+        A synchronous or asynchronous event listener matching the hook.
+    """
+    if iscoroutinefunction(method):
+
+        async def listen_async(event: ModelEvent[object]) -> object:
+            """Invoke an async observer only for its model class.
+
+            Args:
+                event: Lifecycle event selected by the dispatcher.
+
+            Returns:
+                The observer hook result, if it returned one.
+            """
+            if not isinstance(event.model, model_type):
+                return None
+            observer = Event.active_container().make(observer_type)
+            callback = cast(
+                "Callable[[ModelT], Awaitable[object]]",
+                getattr(observer, method_name),
+            )
+            result = await callback(event.model)
+            if result is False:
+                event.cancel()
+            return result
+
+        return listen_async
+
+    def listen(event: ModelEvent[object]) -> object:
+        """Invoke a sync observer only for its model class.
+
+        Args:
+            event: Lifecycle event selected by the dispatcher.
+
+        Returns:
+            The observer hook result, if it returned one.
+        """
+        if not isinstance(event.model, model_type):
+            return None
+        observer = Event.active_container().make(observer_type)
+        callback = cast(
+            "Callable[[ModelT], object]",
+            getattr(observer, method_name),
+        )
+        result = callback(event.model)
+        if result is False:
+            event.cancel()
+        return result
+
+    return listen
 
 
 def _pluralize(name: str) -> str:
