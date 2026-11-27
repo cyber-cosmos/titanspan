@@ -12,6 +12,8 @@ from titanspan.contracts.database import (
     DatabaseService,
     LengthAwarePage,
     SimplePage,
+    TransactionOutcome,
+    TransactionReceipt,
 )
 from titanspan.database.configuration import (
     ConnectionConfiguration,
@@ -31,6 +33,7 @@ from titanspan.database.events import (
 )
 from titanspan.database.exceptions import (
     AsyncOperationRequiredError,
+    DatabaseCommitOutcomeUnknownError,
     DatabaseConfigurationError,
     DatabaseConnectionError,
     DatabaseError,
@@ -39,10 +42,13 @@ from titanspan.database.exceptions import (
     DatabaseQueryError,
     DatabaseSchemaError,
     DatabaseSeederError,
+    DatabaseTransactionCallbackError,
     DatabaseTransactionError,
     DatabaseTransactionOwnershipError,
     MassAssignmentError,
     ModelNotFoundError,
+    ModelPersistenceCancelledError,
+    ModelSerializationLimitError,
     MultipleModelsFoundError,
 )
 from titanspan.database.factory import FactoryBatch, ModelFactory
@@ -93,6 +99,7 @@ __all__ = [
     "ColumnDefinition",
     "Connection",
     "ConnectionConfiguration",
+    "DatabaseCommitOutcomeUnknownError",
     "DatabaseConfiguration",
     "DatabaseConfigurationError",
     "DatabaseConnectionError",
@@ -108,6 +115,7 @@ __all__ = [
     "DatabaseSeederError",
     "DatabaseService",
     "DatabaseServiceProvider",
+    "DatabaseTransactionCallbackError",
     "DatabaseTransactionError",
     "DatabaseTransactionOwnershipError",
     "FactoryBatch",
@@ -126,9 +134,11 @@ __all__ = [
     "ModelEvent",
     "ModelFactory",
     "ModelNotFoundError",
+    "ModelPersistenceCancelledError",
     "ModelQueryBuilder",
     "ModelSaved",
     "ModelSaving",
+    "ModelSerializationLimitError",
     "ModelUpdated",
     "ModelUpdating",
     "MultipleModelsFoundError",
@@ -138,6 +148,8 @@ __all__ = [
     "Seeder",
     "SimplePage",
     "SoftDeletes",
+    "TransactionOutcome",
+    "TransactionReceipt",
     "assert_database_count",
     "assert_database_count_async",
     "assert_database_empty",

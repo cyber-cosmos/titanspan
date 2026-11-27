@@ -57,6 +57,15 @@ class Connection(DatabaseConnectionService):
         return self._manager.dialect_name(self._name)
 
     @property
+    def target_identity(self) -> str:
+        """Return the redacted configured database target.
+
+        Returns:
+            A database URL without usernames, passwords, or query options.
+        """
+        return self._manager.target_identity(self._name)
+
+    @property
     def engine(self) -> Engine:
         """Expose the native SQLAlchemy sync engine for interoperability.
 

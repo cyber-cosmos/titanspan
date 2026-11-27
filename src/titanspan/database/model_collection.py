@@ -15,13 +15,29 @@ from sqlalchemy.orm import InstanceState
 from sqlalchemy.orm.attributes import set_committed_value
 
 from titanspan.collections import Collection
+from titanspan.database.exceptions import (
+    DatabaseTransactionOwnershipError,
+    ModelSerializationLimitError,
+)
+from titanspan.database.model_state import (
+    database_ownership,
+    remember_service_graph,
+    require_service,
+)
+from titanspan.facades.database import DB
 
 if TYPE_CHECKING:
     from collections.abc import Iterable
 
+    from titanspan.contracts.database import DatabaseService
     from titanspan.database.orm_builder import ModelQueryBuilder
 
-type _Identity = tuple[type[object], tuple[object, ...]]
+type _Identity = tuple[
+    type[object],
+    tuple[object, ...],
+    object | None,
+]
+_MAX_SERIALIZED_MODELS = 256
 
 
 class ModelCollection[ModelT](Collection[ModelT]):
@@ -189,11 +205,21 @@ class ModelCollection[ModelT](Collection[ModelT]):
         return Collection(self)
 
     def to_dicts(self) -> list[dict[str, object]]:
-        """Serialize each model through its own safe representation.
+        """Serialize each model within the bounded collection limit.
 
         Returns:
             Model dictionaries in collection order.
+
+        Raises:
+            ModelSerializationLimitError: If collection size exceeds the
+                serialization limit.
         """
+        if len(self) > _MAX_SERIALIZED_MODELS:
+            message = (
+                "Model collection serialization is limited to "
+                f"{_MAX_SERIALIZED_MODELS} items."
+            )
+            raise ModelSerializationLimitError(message)
         return [cast("_SerializableModel", model).to_dict() for model in self]
 
     def to_json(self) -> str:
@@ -201,6 +227,10 @@ class ModelCollection[ModelT](Collection[ModelT]):
 
         Returns:
             A JSON array generated from each model's public dictionary.
+
+        Raises:
+            ModelSerializationLimitError: If collection size exceeds the
+                serialization limit or a model graph exceeds its limits.
         """
         return json.dumps(self.to_dicts(), ensure_ascii=False)
 
@@ -268,7 +298,13 @@ class ModelCollection[ModelT](Collection[ModelT]):
         if not identifiers:
             return ModelCollection()
         model_class = cast("type[_ModelQueryHost[ModelT]]", type(self[0]))
-        fresh_models = model_class.query().find_many(identifiers)
+        service, connection_name = _require_collection_owner(self)
+        query = model_class.query()
+        if getattr(model_class, "__soft_delete_enabled__", False):
+            query.with_trashed()
+        fresh_models = query.find_many(identifiers)
+        for model in fresh_models:
+            remember_service_graph(model, service, connection_name)
         return _ordered_fresh_models(identifiers, fresh_models)
 
     async def fresh_async(self) -> ModelCollection[ModelT]:
@@ -284,7 +320,13 @@ class ModelCollection[ModelT](Collection[ModelT]):
         if not identifiers:
             return ModelCollection()
         model_class = cast("type[_ModelQueryHost[ModelT]]", type(self[0]))
-        fresh_models = await model_class.query().find_many_async(identifiers)
+        service, connection_name = _require_collection_owner(self)
+        query = model_class.query()
+        if getattr(model_class, "__soft_delete_enabled__", False):
+            query.with_trashed()
+        fresh_models = await query.find_many_async(identifiers)
+        for model in fresh_models:
+            remember_service_graph(model, service, connection_name)
         return _ordered_fresh_models(identifiers, fresh_models)
 
     def _load_relationships(
@@ -302,7 +344,11 @@ class ModelCollection[ModelT](Collection[ModelT]):
         if not paths or not self:
             return
         model_class = cast("type[_ModelQueryHost[ModelT]]", type(self[0]))
-        query = model_class.query().with_(*paths)
+        service, connection_name = _require_collection_owner(self)
+        query = model_class.query()
+        if getattr(model_class, "__soft_delete_enabled__", False):
+            query.with_trashed()
+        query.with_(*paths)
         selected = _missing_paths(self, paths) if missing_only else paths
         if not selected:
             return
@@ -316,6 +362,8 @@ class ModelCollection[ModelT](Collection[ModelT]):
             selected,
             missing_only=missing_only,
         )
+        for model in self:
+            remember_service_graph(model, service, connection_name)
 
     async def _load_relationships_async(
         self,
@@ -332,7 +380,11 @@ class ModelCollection[ModelT](Collection[ModelT]):
         if not paths or not self:
             return
         model_class = cast("type[_ModelQueryHost[ModelT]]", type(self[0]))
-        query = model_class.query().with_(*paths)
+        service, connection_name = _require_collection_owner(self)
+        query = model_class.query()
+        if getattr(model_class, "__soft_delete_enabled__", False):
+            query.with_trashed()
+        query.with_(*paths)
         selected = _missing_paths(self, paths) if missing_only else paths
         if not selected:
             return
@@ -346,6 +398,8 @@ class ModelCollection[ModelT](Collection[ModelT]):
             selected,
             missing_only=missing_only,
         )
+        for model in self:
+            remember_service_graph(model, service, connection_name)
 
 
 class _SerializableModel(Protocol):
@@ -393,7 +447,11 @@ def _model_identity(value: object) -> _Identity | None:
     state = sa_inspect(value, raiseerr=False)
     if not isinstance(state, InstanceState) or state.identity is None:
         return None
-    return type(value), cast("tuple[object, ...]", state.identity)
+    return (
+        type(value),
+        cast("tuple[object, ...]", state.identity),
+        database_ownership(value),
+    )
 
 
 def _primary_key_value(value: object) -> object | None:
@@ -550,6 +608,36 @@ def _refresh_keys[ModelT](
             raise ValueError(msg)
         identifiers.append(identity[1][0])
     return tuple(identifiers)
+
+
+def _require_collection_owner[ModelT](
+    collection: ModelCollection[ModelT],
+) -> tuple[DatabaseService, str]:
+    """Validate one collection against the active app and connection.
+
+    Args:
+        collection: Persisted models selected for refresh or relation loading.
+
+    Returns:
+        The canonical service and connection shared by all models.
+
+    Raises:
+        DatabaseTransactionOwnershipError: If models have different classes,
+            application owners, or logical connection owners.
+    """
+    model_class = type(collection[0])
+    service = DB.resolve_service()
+    connection_name = service.connection(
+        cast("str | None", getattr(model_class, "connection", None)),
+    ).name
+    for model in collection:
+        if type(model) is not model_class:
+            msg = "A model collection refresh requires one mapped model type."
+            raise DatabaseTransactionOwnershipError(msg)
+        # The mapped class owns one default connection; recorded per-instance
+        # ownership catches instances previously used by another connection.
+        require_service(model, service, connection_name)
+    return service, connection_name
 
 
 def _ordered_fresh_models[ModelT](

@@ -20,7 +20,7 @@ from collections.abc import (
 )
 from contextlib import contextmanager
 from contextvars import ContextVar
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import UTC, date, datetime, time
 from decimal import Decimal
 from enum import Enum
@@ -72,6 +72,8 @@ from titanspan.database.exceptions import (
     DatabaseTransactionOwnershipError,
     MassAssignmentError,
     ModelNotFoundError,
+    ModelPersistenceCancelledError,
+    ModelSerializationLimitError,
 )
 from titanspan.database.factory import ModelFactory
 from titanspan.database.model_collection import ModelCollection
@@ -89,10 +91,12 @@ from titanspan.facades.database import DB
 from titanspan.facades.event import Event
 
 if TYPE_CHECKING:
+    from sqlalchemy.orm import InstanceState, Mapper
     from sqlalchemy.sql.schema import Column
 
     from titanspan.contracts.database import DatabaseService
     from titanspan.events.dispatcher import ListenerRegistration
+
 
 @dataclass(frozen=True, slots=True)
 class _UnguardedContext:
@@ -109,6 +113,36 @@ class _UnguardedContext:
     scope: object | None
 
 
+_SERIALIZATION_MAX_DEPTH = 32
+_SERIALIZATION_MAX_NODES = 1024
+
+
+@dataclass(slots=True)
+class _SerializationContext:
+    """Bound a model graph and detect recursive object references.
+
+    The active set tracks only the current path, so shared objects may appear
+    more than once without being mistaken for a cycle.
+    """
+
+    active: set[int] = field(default_factory=lambda: set[int]())
+    remaining_nodes: int = _SERIALIZATION_MAX_NODES
+
+    def consume(self, depth: int) -> None:
+        """Enforce depth and node budgets before adding another value.
+
+        Args:
+            depth: Current graph depth, starting at zero for a model.
+
+        Raises:
+            ModelSerializationLimitError: If a configured bound is exceeded.
+        """
+        if depth > _SERIALIZATION_MAX_DEPTH or self.remaining_nodes <= 0:
+            message = "The model graph exceeds safe serialization limits."
+            raise ModelSerializationLimitError(message)
+        self.remaining_nodes -= 1
+
+
 _MASS_ASSIGNMENT_UNGUARDED: ContextVar[_UnguardedContext | None] = ContextVar(
     "titanspan_database_mass_assignment_unguarded",
     default=None,
@@ -117,6 +151,7 @@ _SNAKE_CASE_BOUNDARY = re.compile(r"([a-z0-9])([A-Z])")
 _SNAKE_CASE_ACRONYM = re.compile(r"([A-Z]+)([A-Z][a-z])")
 _MODEL_NOT_FOUND_MESSAGE = "The requested model was not found."
 _MYSQL_DUPLICATE_ENTRY_CODE = 1062
+_OMIT_SERIALIZED_VALUE = object()
 _DESTROY_CHUNK_SIZE = 500
 _OBSERVER_METHODS_ERROR = "A model observer must define a lifecycle method."
 _OBSERVER_HOOK_ERROR = "Observer lifecycle hooks must be callable."
@@ -590,6 +625,9 @@ class Model(DeclarativeBase):
 
         Returns:
             An existing or newly persisted detached model.
+
+        Raises:
+            ModelPersistenceCancelledError: If a model event rejects creation.
         """
         model = cls.first_or_new(attributes, values)
         if model.exists:
@@ -610,6 +648,9 @@ class Model(DeclarativeBase):
 
         Returns:
             An existing or newly persisted detached model.
+
+        Raises:
+            ModelPersistenceCancelledError: If a model event rejects creation.
         """
         model = await cls.first_or_new_async(attributes, values)
         if model.exists:
@@ -634,12 +675,13 @@ class Model(DeclarativeBase):
         Raises:
             DatabaseTransactionError: If persistence fails for a reason other
                 than a recognized unique constraint violation.
+            ModelPersistenceCancelledError: If a model event rejects creation.
         """
         model = cls().fill(_creation_values(attributes, values))
         service = DB.resolve_service()
         try:
             with service.transaction(cls.connection):
-                model.save()
+                _require_successful_save(model, model.save())
         except DatabaseTransactionError as error:
             if not _is_unique_constraint_violation(error):
                 raise
@@ -667,12 +709,14 @@ class Model(DeclarativeBase):
         Raises:
             DatabaseTransactionError: If persistence fails for a reason other
                 than a recognized unique constraint violation.
+            ModelPersistenceCancelledError: If a model event rejects creation.
         """
         model = cls().fill(_creation_values(attributes, values))
         service = DB.resolve_service()
         try:
             async with service.transaction_async(cls.connection):
-                await model.save_async()
+                saved = await model.save_async()
+                _require_successful_save(model, saved)
         except DatabaseTransactionError as error:
             if not _is_unique_constraint_violation(error):
                 raise
@@ -696,6 +740,9 @@ class Model(DeclarativeBase):
 
         Returns:
             A persisted model after the enclosing transaction commits.
+
+        Raises:
+            ModelPersistenceCancelledError: If a model event rejects a write.
         """
         service = DB.resolve_service()
         with service.transaction(cls.connection):
@@ -703,7 +750,8 @@ class Model(DeclarativeBase):
             if model is None:
                 model = cls.create_or_first(attributes, values)
             elif values:
-                model.update(values)
+                saved = model.update(values)
+                _require_successful_save(model, saved)
         return model
 
     @classmethod
@@ -720,6 +768,9 @@ class Model(DeclarativeBase):
 
         Returns:
             A persisted model after the enclosing transaction commits.
+
+        Raises:
+            ModelPersistenceCancelledError: If a model event rejects a write.
         """
         service = DB.resolve_service()
         async with service.transaction_async(cls.connection):
@@ -727,7 +778,8 @@ class Model(DeclarativeBase):
             if model is None:
                 model = await cls.create_or_first_async(attributes, values)
             elif values:
-                await model.update_async(values)
+                saved = await model.update_async(values)
+                _require_successful_save(model, saved)
         return model
 
     @classmethod
@@ -739,9 +791,12 @@ class Model(DeclarativeBase):
 
         Returns:
             The newly persisted, detached model.
+
+        Raises:
+            ModelPersistenceCancelledError: If a model event rejects creation.
         """
         model = cls().fill(attributes)
-        model.save()
+        _require_successful_save(model, model.save())
         return model
 
     @classmethod
@@ -753,9 +808,13 @@ class Model(DeclarativeBase):
 
         Returns:
             The newly persisted, detached model.
+
+        Raises:
+            ModelPersistenceCancelledError: If a model event rejects creation.
         """
         model = cls().fill(attributes)
-        await model.save_async()
+        saved = await model.save_async()
+        _require_successful_save(model, saved)
         return model
 
     @classmethod
@@ -770,13 +829,16 @@ class Model(DeclarativeBase):
 
         Returns:
             Persisted models in input order.
+
+        Raises:
+            ModelPersistenceCancelledError: If a model event rejects a write.
         """
         service = DB.resolve_service()
         models: list[Self] = []
         with service.transaction(cls.connection):
             for attributes in records:
                 model = cls().fill(attributes)
-                model.save()
+                _require_successful_save(model, model.save())
                 models.append(model)
         return ModelCollection(models)
 
@@ -792,13 +854,17 @@ class Model(DeclarativeBase):
 
         Returns:
             Persisted models in input order.
+
+        Raises:
+            ModelPersistenceCancelledError: If a model event rejects a write.
         """
         service = DB.resolve_service()
         models: list[Self] = []
         async with service.transaction_async(cls.connection):
             for attributes in records:
                 model = cls().fill(attributes)
-                await model.save_async()
+                saved = await model.save_async()
+                _require_successful_save(model, saved)
                 models.append(model)
         return ModelCollection(models)
 
@@ -811,9 +877,12 @@ class Model(DeclarativeBase):
 
         Returns:
             The newly persisted, detached model.
+
+        Raises:
+            ModelPersistenceCancelledError: If a model event rejects creation.
         """
         model = cls().force_fill(attributes)
-        model.save()
+        _require_successful_save(model, model.save())
         return model
 
     @classmethod
@@ -828,9 +897,13 @@ class Model(DeclarativeBase):
 
         Returns:
             The newly persisted, detached model.
+
+        Raises:
+            ModelPersistenceCancelledError: If a model event rejects creation.
         """
         model = cls().force_fill(attributes)
-        await model.save_async()
+        saved = await model.save_async()
+        _require_successful_save(model, saved)
         return model
 
     @classmethod
@@ -1016,16 +1089,26 @@ class Model(DeclarativeBase):
 
         Returns:
             ``True`` after the save succeeds.
+
+        Raises:
+            ModelPersistenceCancelledError: If a model event cancels the save.
         """
-        return self.save()
+        saved = self.save()
+        _require_successful_save(self, saved)
+        return True
 
     async def save_or_fail_async(self) -> bool:
         """Asynchronously persist this model and propagate database failures.
 
         Returns:
             ``True`` after the save succeeds.
+
+        Raises:
+            ModelPersistenceCancelledError: If a model event cancels the save.
         """
-        return await self.save_async()
+        saved = await self.save_async()
+        _require_successful_save(self, saved)
+        return True
 
     def update(self, attributes: Mapping[str, object]) -> bool:
         """Mass-assign permitted columns and persist this instance.
@@ -1223,9 +1306,11 @@ class Model(DeclarativeBase):
             for key_column, key_value in _identity_values(self)
         ]
         if isinstance(self, SoftDeletes):
-            deleted_column = sa_inspect(type(self)).attrs[
-                type(self).deleted_at_name
-            ].columns[0]
+            deleted_column = (
+                sa_inspect(type(self))
+                .attrs[type(self).deleted_at_name]
+                .columns[0]
+            )
             conditions.append(deleted_column.is_(None))
         statement = statement.where(*conditions)
         session.execute(statement)
@@ -1244,7 +1329,8 @@ class Model(DeclarativeBase):
         remember_service(self, service)
 
         def after_commit() -> None:
-            """Record the durable change and dispatch model events."""
+            """Record the durable change and dispatch model events.
+            """  # fmt: skip
             remember_save(
                 self,
                 service,
@@ -1297,9 +1383,11 @@ class Model(DeclarativeBase):
             key_column == key_value for key_column, key_value in identity
         ]
         if isinstance(self, SoftDeletes):
-            deleted_column = sa_inspect(type(self)).attrs[
-                type(self).deleted_at_name
-            ].columns[0]
+            deleted_column = (
+                sa_inspect(type(self))
+                .attrs[type(self).deleted_at_name]
+                .columns[0]
+            )
             conditions.append(deleted_column.is_(None))
         statement = statement.where(*conditions)
         await session.execute(statement)
@@ -1320,7 +1408,8 @@ class Model(DeclarativeBase):
         remember_service(self, service)
 
         async def after_commit() -> None:
-            """Record the durable change and await model event listeners."""
+            """Record the durable change and await model event listeners.
+            """  # fmt: skip
             remember_save(
                 self,
                 service,
@@ -1553,50 +1642,37 @@ class Model(DeclarativeBase):
         return type(self)().force_fill(values)
 
     def to_dict(self) -> dict[str, object]:
-        """Serialize loaded columns and relationships without lazy I/O.
+        """Serialize a bounded graph of loaded model attributes.
 
         Returns:
             A safe dictionary excluding hidden and unloaded attributes.
+
+        Raises:
+            ModelSerializationLimitError: If the graph exceeds depth or size
+                limits.
         """
-        state = sa_inspect(self)
-        mapped = sa_inspect(type(self))
-        allowed = set(type(self).visible) if type(self).visible else None
-        hidden = set(type(self).hidden)
-        values: dict[str, object] = {}
-        for attribute in mapped.column_attrs:
-            name = attribute.key
-            if name in hidden or (allowed is not None and name not in allowed):
-                continue
-            current = state.attrs[name].loaded_value
-            if current is not NO_VALUE:
-                values[name] = _serialize(current)
-        for relationship in mapped.relationships:
-            name = relationship.key
-            if name in hidden or (allowed is not None and name not in allowed):
-                continue
-            current = state.attrs[name].loaded_value
-            if current is not NO_VALUE:
-                values[name] = _serialize(current)
-        for name in type(self).appends:
-            if name not in hidden and (allowed is None or name in allowed):
-                values[name] = _serialize(getattr(self, name))
-        return values
+        serialized = _serialize_model(self, _SerializationContext(), depth=0)
+        return cast("dict[str, object]", serialized)
 
     def to_json(self) -> str:
-        """Serialize this model to JSON without loading relationships.
+        """Serialize this model's bounded loaded graph to JSON.
 
         Returns:
             A JSON string generated from :meth:`to_dict`.
+
+        Raises:
+            ModelSerializationLimitError: If the graph exceeds depth or size
+                limits.
         """
         return json.dumps(self.to_dict(), separators=(",", ":"))
 
     def __repr__(self) -> str:
-        """Return a representation that respects hidden model attributes.
+        """Return a representation without exposing model attribute values.
 
         Returns:
-            A class-named representation of the safe serialized values.
+            A class-named marker with all model values redacted.
         """
-        return f"{type(self).__name__}({self.to_dict()!r})"
+        return f"{type(self).__name__}(<redacted>)"
 
     def _assign_attributes(
         self,
@@ -2220,31 +2296,276 @@ def _pluralize(name: str) -> str:
     return f"{name}s"
 
 
-def _serialize(value: object) -> object:
-    """Convert supported Python values and loaded models recursively.
+def _serialize_model(
+    model: Model,
+    context: _SerializationContext,
+    *,
+    depth: int,
+) -> object:
+    """Serialize one model without loading deferred attributes.
+
+    Args:
+        model: Mapped model selected for serialization.
+        context: Active path and finite graph budget shared by nested values.
+        depth: Current graph depth.
+
+    Returns:
+        A dictionary of visible, loaded model attributes or an omission marker
+        when this model would introduce a cycle.
+    """
+    identity = id(model)
+    if identity in context.active:
+        return _OMIT_SERIALIZED_VALUE
+    context.consume(depth)
+    context.active.add(identity)
+    try:
+        state = sa_inspect(model)
+        mapper = sa_inspect(type(model))
+        allowed = set(type(model).visible) if type(model).visible else None
+        hidden = set(type(model).hidden)
+        values = _serialize_mapped_attributes(
+            state,
+            mapper,
+            context,
+            depth=depth,
+            hidden=hidden,
+            allowed=allowed,
+        )
+        if _all_mapped_attributes_loaded(state, mapper):
+            values.update(
+                _serialize_appended_attributes(
+                    model,
+                    context,
+                    depth=depth,
+                    hidden=hidden,
+                    allowed=allowed,
+                ),
+            )
+        return values
+    finally:
+        context.active.remove(identity)
+
+
+def _serialize_mapped_attributes(
+    state: InstanceState[Model],
+    mapper: Mapper[Model],
+    context: _SerializationContext,
+    *,
+    depth: int,
+    hidden: set[str],
+    allowed: set[str] | None,
+) -> dict[str, object]:
+    """Serialize only loaded mapped values allowed by model visibility.
+
+    Args:
+        state: SQLAlchemy state for one model instance.
+        mapper: Mapper that owns the instance's mapped attributes.
+        context: Bounded serialization state shared by the graph.
+        depth: Current model graph depth.
+        hidden: Attribute names hidden by this model class.
+        allowed: Optional explicit visibility allowlist.
+
+    Returns:
+        The serialized mapped values that are already loaded.
+    """
+    values: dict[str, object] = {}
+    for attributes in (mapper.column_attrs, mapper.relationships):
+        for attribute in attributes:
+            name = attribute.key
+            if name in hidden or (allowed is not None and name not in allowed):
+                continue
+            current = state.attrs[name].loaded_value
+            if current is NO_VALUE:
+                continue
+            serialized = _serialize_value(current, context, depth=depth + 1)
+            if serialized is not _OMIT_SERIALIZED_VALUE:
+                values[name] = serialized
+    return values
+
+
+def _serialize_appended_attributes(
+    model: Model,
+    context: _SerializationContext,
+    *,
+    depth: int,
+    hidden: set[str],
+    allowed: set[str] | None,
+) -> dict[str, object]:
+    """Serialize declared append properties after mapped state is loaded.
+
+    Args:
+        model: Model whose appended properties may be evaluated.
+        context: Bounded serialization state shared by the graph.
+        depth: Current model graph depth.
+        hidden: Attribute names hidden by this model class.
+        allowed: Optional explicit visibility allowlist.
+
+    Returns:
+        Serialized appended values that pass visibility checks.
+    """
+    values: dict[str, object] = {}
+    for name in type(model).appends:
+        if name in hidden or (allowed is not None and name not in allowed):
+            continue
+        # Appended descriptors run only after SQLAlchemy has no unloaded
+        # mapped values that could trigger lazy I/O.
+        appended = _serialize_value(
+            getattr(model, name),
+            context,
+            depth=depth + 1,
+        )
+        if appended is not _OMIT_SERIALIZED_VALUE:
+            values[name] = appended
+    return values
+
+
+def _serialize_value(
+    value: object,
+    context: _SerializationContext,
+    *,
+    depth: int,
+) -> object:
+    """Convert bounded nested values and model graphs to JSON values.
 
     Args:
         value: Loaded model field or relationship value.
+        context: Active path and finite graph budget shared by nested values.
+        depth: Current graph depth.
 
     Returns:
-        A JSON-compatible value that contains no SQLAlchemy internals.
+        A JSON-compatible value or an omission marker for a cycle.
+
+    Raises:
+        ModelSerializationLimitError: If depth or node limits are exceeded.
     """
     if isinstance(value, Model):
-        return value.to_dict()
+        return _serialize_model(value, context, depth=depth)
     if isinstance(value, Mapping):
         mapping = cast("Mapping[object, object]", value)
-        return {str(key): _serialize(item) for key, item in mapping.items()}
+        return _serialize_mapping(mapping, context, depth=depth)
     if isinstance(value, (list, tuple, set, frozenset)):
-        return [_serialize(item) for item in cast("Iterable[object]", value)]
+        iterable = cast("Iterable[object]", value)
+        return _serialize_sequence(iterable, context, depth=depth)
+    context.consume(depth)
+    return _serialize_scalar(value, context, depth=depth)
+
+
+def _serialize_mapping(
+    value: Mapping[object, object],
+    context: _SerializationContext,
+    *,
+    depth: int,
+) -> object:
+    """Serialize a mapping with cycle detection and shared node limits.
+
+    Args:
+        value: Mapping whose values may contain nested model data.
+        context: Active path and finite graph budget shared by the graph.
+        depth: Current nested value depth.
+
+    Returns:
+        A JSON-compatible dictionary or an omission marker for a cycle.
+    """
+    identity = id(value)
+    if identity in context.active:
+        return _OMIT_SERIALIZED_VALUE
+    context.consume(depth)
+    context.active.add(identity)
+    try:
+        result: dict[str, object] = {}
+        for key, item in value.items():
+            serialized = _serialize_value(
+                item,
+                context,
+                depth=depth + 1,
+            )
+            if serialized is not _OMIT_SERIALIZED_VALUE:
+                result[str(key)] = serialized
+        return result
+    finally:
+        context.active.remove(identity)
+
+
+def _serialize_sequence(
+    value: Iterable[object],
+    context: _SerializationContext,
+    *,
+    depth: int,
+) -> object:
+    """Serialize an iterable with cycle detection and shared node limits.
+
+    Args:
+        value: Sequence or set whose values may contain nested model data.
+        context: Active path and finite graph budget shared by the graph.
+        depth: Current nested value depth.
+
+    Returns:
+        A JSON-compatible list or an omission marker for a cycle.
+    """
+    identity = id(value)
+    if identity in context.active:
+        return _OMIT_SERIALIZED_VALUE
+    context.consume(depth)
+    context.active.add(identity)
+    try:
+        result: list[object] = []
+        for item in value:
+            serialized = _serialize_value(
+                item,
+                context,
+                depth=depth + 1,
+            )
+            if serialized is not _OMIT_SERIALIZED_VALUE:
+                result.append(serialized)
+        return result
+    finally:
+        context.active.remove(identity)
+
+
+def _serialize_scalar(
+    value: object,
+    context: _SerializationContext,
+    *,
+    depth: int,
+) -> object:
+    """Convert supported scalar values while preserving database precision.
+
+    Args:
+        value: Loaded scalar value.
+        context: Bounded serialization state shared by the graph.
+        depth: Current nested value depth.
+
+    Returns:
+        A JSON-compatible scalar value when a native conversion is needed.
+    """
     if isinstance(value, (datetime, date, time)):
         return value.isoformat()
     if isinstance(value, Decimal):
         return str(value)
     if isinstance(value, Enum):
-        return _serialize(value.value)
+        return _serialize_value(value.value, context, depth=depth + 1)
     if isinstance(value, UUID):
         return str(value)
     return value
+
+
+def _all_mapped_attributes_loaded(
+    state: InstanceState[Model],
+    mapper: Mapper[Model],
+) -> bool:
+    """Check whether appended getters can access mapped values safely.
+
+    Args:
+        state: SQLAlchemy state for one model instance.
+        mapper: Mapper that owns the instance's mapped attributes.
+
+    Returns:
+        Whether every mapped column and relationship is already loaded.
+    """
+    return all(
+        state.attrs[attribute.key].loaded_value is not NO_VALUE
+        for attribute in (*mapper.column_attrs, *mapper.relationships)
+    )
 
 
 def _creation_values(
@@ -2261,6 +2582,22 @@ def _creation_values(
         New values without mutating either caller-owned mapping.
     """
     return {**dict(values or {}), **attributes}
+
+
+def _require_successful_save(model: Model, saved: bool) -> None:
+    """Raise when a high-level operation cannot return a persisted model.
+
+    Args:
+        model: Model whose direct save operation was attempted.
+        saved: Result returned by the direct Boolean save operation.
+
+    Raises:
+        ModelPersistenceCancelledError: If a lifecycle event cancelled saving.
+    """
+    if not saved:
+        model_name = type(model).__name__
+        message = f"Persistence of {model_name} was cancelled by an event."
+        raise ModelPersistenceCancelledError(message)
 
 
 def _chunks[T](values: Sequence[T], size: int) -> Iterable[Sequence[T]]:

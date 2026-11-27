@@ -10,9 +10,14 @@ from copy import copy
 from datetime import UTC, datetime
 from typing import TYPE_CHECKING, NoReturn, Self, cast
 
+from sqlalchemy import and_, not_
 from sqlalchemy import inspect as sa_inspect
-from sqlalchemy import not_
-from sqlalchemy.orm import load_only, raiseload, selectinload
+from sqlalchemy.orm import (
+    load_only,
+    raiseload,
+    selectinload,
+    with_loader_criteria,
+)
 
 from titanspan.database.exceptions import (
     DatabaseQueryError,
@@ -20,7 +25,7 @@ from titanspan.database.exceptions import (
     MultipleModelsFoundError,
 )
 from titanspan.database.model_collection import ModelCollection
-from titanspan.database.model_state import remember_service
+from titanspan.database.model_state import remember_service_graph
 from titanspan.database.pagination import LengthAwarePaginator, Paginator
 from titanspan.database.query_builder import QueryBuilder
 
@@ -797,6 +802,7 @@ class ModelQueryBuilder[ModelT]:
         options.extend(self._loader_option(path) for path in self._eager_paths)
         if self._prevent_lazy:
             options.append(raiseload("*"))
+        options.extend(_soft_delete_loader_options(self._model))
         return statement.options(*options)
 
     def get(self) -> ModelCollection[ModelT]:
@@ -812,7 +818,11 @@ class ModelQueryBuilder[ModelT]:
             )
             results = scalar_result.unique().all()
             for model in results:
-                remember_service(model, self._service)
+                remember_service_graph(
+                    model,
+                    self._service,
+                    self._connection_name,
+                )
             return ModelCollection(results)
 
     async def get_async(self) -> ModelCollection[ModelT]:
@@ -830,7 +840,11 @@ class ModelQueryBuilder[ModelT]:
             )
             models = scalar_result.unique().all()
             for model in models:
-                remember_service(model, self._service)
+                remember_service_graph(
+                    model,
+                    self._service,
+                    self._connection_name,
+                )
             return ModelCollection(models)
 
     def first(self) -> ModelT | None:
@@ -860,14 +874,8 @@ class ModelQueryBuilder[ModelT]:
         Returns:
             A detached model or ``None``.
         """
-        if self._soft_delete_column is not None:
-            key_name = _primary_key_name(self._model)
-            return self.clone().where(key_name, identifier).first()
-        with self._service.session(self._connection_name) as session:
-            model = session.get(self._model, identifier)
-            if model is not None:
-                remember_service(model, self._service)
-            return model
+        key_name = _primary_key_name(self._model)
+        return self.clone().where(key_name, identifier).first()
 
     async def find_async(self, identifier: object) -> ModelT | None:
         """Asynchronously find a model by its primary key.
@@ -878,16 +886,8 @@ class ModelQueryBuilder[ModelT]:
         Returns:
             A detached model or ``None``.
         """
-        if self._soft_delete_column is not None:
-            key_name = _primary_key_name(self._model)
-            return await self.clone().where(key_name, identifier).first_async()
-        async with self._service.session_async(
-            self._connection_name,
-        ) as session:
-            model = await session.get(self._model, identifier)
-            if model is not None:
-                remember_service(model, self._service)
-            return model
+        key_name = _primary_key_name(self._model)
+        return await self.clone().where(key_name, identifier).first_async()
 
     def find_many(
         self,
@@ -1319,7 +1319,15 @@ class ModelQueryBuilder[ModelT]:
         if constraint is not None:
             constraint(related_query)
         predicate = related_query.to_statement().whereclause
-        for parent, relationship in reversed(chain):
+        for index in range(len(chain) - 1, -1, -1):
+            parent, relationship = chain[index]
+            if index < len(chain) - 1:
+                intermediate_type = relationship.mapper.class_
+                scope = _soft_delete_condition(intermediate_type)
+                if scope is not None:
+                    predicate = (
+                        scope if predicate is None else and_(scope, predicate)
+                    )
             attribute = cast(
                 "QueryableAttribute[object]",
                 getattr(parent, relationship.key),
@@ -1354,10 +1362,21 @@ class ModelQueryBuilder[ModelT]:
         option: ExecutableOption | None = None
         for name in path.split("."):
             relationship = _mapper(current).relationships[name]
+            target = relationship.mapper.class_
             attribute = cast(
                 "QueryableAttribute[object]",
                 getattr(current, name),
             )
+            # Loader criteria are class-wide. A self-relation targets the
+            # query root too, so constrain that path directly to preserve the
+            # root builder's explicit ``with_trashed`` setting.
+            if target is self._model:
+                scope = _soft_delete_condition(target)
+                if scope is not None:
+                    attribute = cast(
+                        "QueryableAttribute[object]",
+                        attribute.and_(scope),
+                    )
             option = (
                 selectinload(attribute)
                 if option is None
@@ -1367,6 +1386,80 @@ class ModelQueryBuilder[ModelT]:
         if option is None:
             _raise_invalid_relationship()
         return option
+
+
+def _soft_delete_loader_options(
+    model: type[object],
+) -> tuple[ExecutableOption, ...]:
+    """Build loader-only criteria for soft-deletable relation targets.
+
+    SQLAlchemy propagates these options into eager and subsequent lazy
+    relationship loads. ``loader_only`` keeps root visibility controlled by
+    the explicit model query builder, including its ``with_trashed`` policy.
+
+    Args:
+        model: Root model whose mapped relationship graph will be inspected.
+
+    Returns:
+        Criteria options for each reachable soft-deletable mapped class.
+    """
+    selected: list[ExecutableOption] = []
+    visited: set[type[object]] = set()
+    pending = [model]
+    while pending:
+        current = pending.pop()
+        if current in visited:
+            continue
+        visited.add(current)
+        mapper = _mapper(current)
+        if current is not model and getattr(
+            current,
+            "__soft_delete_enabled__",
+            False,
+        ):
+            condition = _soft_delete_condition(current)
+            if condition is not None:
+                selected.append(
+                    with_loader_criteria(
+                        current,
+                        condition,
+                        loader_only=True,
+                        include_aliases=True,
+                    ),
+                )
+        pending.extend(
+            relationship.mapper.class_ for relationship in mapper.relationships
+        )
+    return tuple(selected)
+
+
+def _soft_delete_condition(
+    model: type[object],
+) -> ColumnElement[bool] | None:
+    """Return a mapped active-row criterion for a soft-delete model.
+
+    Args:
+        model: Mapped class that may declare ``SoftDeletes`` behavior.
+
+    Returns:
+        A null deletion-timestamp predicate, or ``None`` for other models.
+
+    Raises:
+        DatabaseQueryError: If the configured timestamp is not mapped.
+    """
+    if not getattr(model, "__soft_delete_enabled__", False):
+        return None
+    column_name = getattr(model, "deleted_at_name", "deleted_at")
+    if not isinstance(column_name, str) or not _is_mapped_column(
+        model,
+        column_name,
+    ):
+        msg = "The soft-delete field must be a mapped model column."
+        raise DatabaseQueryError(msg)
+    return cast(
+        "ColumnElement[bool]",
+        getattr(model, column_name).is_(None),
+    )
 
 
 def _mapper(model: type[object]) -> Mapper[object]:

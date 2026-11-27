@@ -6,6 +6,7 @@ the selected persistence backend.
 
 from __future__ import annotations
 
+from enum import StrEnum
 from typing import TYPE_CHECKING, Protocol, runtime_checkable
 
 if TYPE_CHECKING:
@@ -18,6 +19,43 @@ if TYPE_CHECKING:
     from titanspan.contracts.database.connection import (
         DatabaseConnectionService,
     )
+
+
+class TransactionOutcome(StrEnum):
+    """Describe the final outcome of a transaction or savepoint scope.
+    """  # fmt: skip
+
+    COMMITTED = "committed"
+    ROLLED_BACK = "rolled_back"
+    SAVEPOINT_RELEASED = "savepoint_released"
+    SAVEPOINT_ROLLED_BACK = "savepoint_rolled_back"
+    COMMITTED_WITH_CALLBACK_ERRORS = "committed_with_callback_errors"
+    COMMIT_OUTCOME_UNKNOWN = "commit_outcome_unknown"
+    FAILED = "failed"
+
+
+@runtime_checkable
+class TransactionReceipt(Protocol):
+    """Expose the outcome of one transaction or nested savepoint scope.
+    """  # fmt: skip
+
+    @property
+    def outcome(self) -> TransactionOutcome | None:
+        """Return the outcome after its scope has exited.
+
+        Returns:
+            The confirmed outcome, or ``None`` while the scope is active.
+        """
+        ...
+
+    @property
+    def error(self) -> BaseException | None:
+        """Return the operation or callback error associated with the scope.
+
+        Returns:
+            The error associated with the final outcome, if one occurred.
+        """
+        ...
 
 
 @runtime_checkable
@@ -83,29 +121,28 @@ class DatabaseService(Protocol):
     def transaction(
         self,
         name: str | None = None,
-    ) -> AbstractContextManager[None]:
+    ) -> AbstractContextManager[TransactionReceipt]:
         """Open a synchronous transaction owned by the current thread.
 
         Args:
             name: Configured connection name or its default.
 
         Returns:
-            A context manager that commits or rolls back the Unit of Work.
+            A context manager that records the Unit of Work's outcome.
         """
         ...
 
     def transaction_async(
         self,
         name: str | None = None,
-    ) -> AbstractAsyncContextManager[None]:
+    ) -> AbstractAsyncContextManager[TransactionReceipt]:
         """Open an async transaction owned by the current task.
 
         Args:
             name: Configured connection name or its default.
 
         Returns:
-            An async context manager that commits or rolls back the Unit of
-            Work.
+            An async context manager that records the Unit of Work's outcome.
         """
         ...
 
@@ -155,4 +192,4 @@ class DatabaseService(Protocol):
         ...
 
 
-__all__ = ["DatabaseService"]
+__all__ = ["DatabaseService", "TransactionOutcome", "TransactionReceipt"]

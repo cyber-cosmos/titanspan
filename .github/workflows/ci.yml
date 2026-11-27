@@ -447,7 +447,11 @@ jobs:
       TITANSPAN_REQUIRE_RABBITMQ: "1"
       TITANSPAN_TEST_RABBITMQ_URL: amqp://127.0.0.1:5672/
       TITANSPAN_REQUIRE_POSTGRES: "1"
-      TITANSPAN_TEST_POSTGRES_URL: "postgresql+psycopg://postgres:postgres@localhost:5432/titanspan_codex_test_ci" # pragma: allowlist secret
+      TITANSPAN_TEST_POSTGRES_USER: postgres
+      TITANSPAN_TEST_POSTGRES_PASSWORD: postgres # pragma: allowlist secret
+      TITANSPAN_TEST_POSTGRES_HOST: localhost
+      TITANSPAN_TEST_POSTGRES_PORT: "5432"
+      TITANSPAN_TEST_POSTGRES_DATABASE: titanspan_codex_test_ci
     steps:
       - name: Check out source
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1

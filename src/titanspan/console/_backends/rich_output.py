@@ -132,7 +132,9 @@ class RichConsoleOutput:
         Returns:
             The user's answer or the supplied default.
         """
-        return Confirm.ask(prompt, default=default, console=self._stdout)
+        return Confirm.ask(
+            Text(prompt, style="prompt"), default=default, console=self._stdout
+        )
 
     def progress(
         self,

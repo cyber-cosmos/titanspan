@@ -28,7 +28,8 @@ _EXPECTED_COUNTER_VALUE = 2
 
 
 class AtomicCounter(Model):
-    """Represent one counter row updated by competing application tasks."""
+    """Represent one counter row updated by competing application tasks.
+    """  # fmt: skip
 
     table = "atomic_counters"
     fillable = ("value",)

@@ -10,6 +10,7 @@ from typing import TYPE_CHECKING, Annotated
 
 import anyio
 import pytest
+from rich.text import Text
 
 from titanspan.console import Argument, Console, ConsoleExitError, Option
 from titanspan.console.exceptions import (
@@ -479,10 +480,10 @@ def test_terminal_output_passes_confirmation_defaults(
 
     The patch isolates the user response while keeping the native adapter.
     """
-    calls: list[tuple[str, bool]] = []
+    calls: list[tuple[Text, bool]] = []
 
     def ask(
-        prompt: str,
+        prompt: Text,
         *,
         default: bool,
         console: object,
@@ -500,8 +501,10 @@ def test_terminal_output_passes_confirmation_defaults(
         ask,
     )
 
-    assert TerminalOutput().confirm("Continue?", default=False)
-    assert calls == [("Continue?", False)]
+    prompt = "[danger]literal[/danger]"
+    assert TerminalOutput().confirm(prompt, default=False)
+    assert calls[0][0].plain == prompt
+    assert calls[0][1] is False
 
 
 def test_command_discovery_loads_trusted_entries_once(

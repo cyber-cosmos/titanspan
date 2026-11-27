@@ -14,7 +14,12 @@ import pytest
 from sqlalchemy import ForeignKey
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
-from titanspan.database import DatabaseServiceProvider, Model
+from titanspan.database import (
+    DatabaseServiceProvider,
+    DatabaseTransactionCallbackError,
+    Model,
+    TransactionOutcome,
+)
 from titanspan.database.events import (
     ModelCreated,
     ModelCreating,
@@ -274,12 +279,18 @@ async def test_cancelled_update_discards_changes_before_autoflush(
                 )
                 assert persisted_name == "original"
 
-        assert await (
-            EventRecord.query().where("id", rejected.id).value_async("name")
-        ) == "original"
-        assert await (
-            EventRecord.query().where("id", retained.id).value_async("name")
-        ) == "legitimate"
+        assert (
+            await EventRecord.query()
+            .where("id", rejected.id)
+            .value_async("name")
+            == "original"
+        )
+        assert (
+            await EventRecord.query()
+            .where("id", retained.id)
+            .value_async("name")
+            == "legitimate"
+        )
 
 
 async def test_cancelled_pending_model_cannot_autoflush(
@@ -352,11 +363,12 @@ async def test_cancelled_detached_update_discards_dirty_value(
 
         assert detached.name == "original"
         assert await detached.save_async()
-        assert await (
-            EventRecord.query()
+        assert (
+            await EventRecord.query()
             .where("id", detached.id)
             .value_async("name")
-        ) == "original"
+            == "original"
+        )
 
 
 async def test_sync_cancelled_update_does_not_autoflush(
@@ -404,14 +416,10 @@ async def test_sync_cancelled_update_does_not_autoflush(
                     assert not rejected.save()
 
                 rejected_name = (
-                    EventRecord.query()
-                    .where("id", rejected.id)
-                    .value("name")
+                    EventRecord.query().where("id", rejected.id).value("name")
                 )
                 retained_name = (
-                    EventRecord.query()
-                    .where("id", retained.id)
-                    .value("name")
+                    EventRecord.query().where("id", retained.id).value("name")
                 )
                 assert rejected_name is None or isinstance(rejected_name, str)
                 assert retained_name is None or isinstance(retained_name, str)
@@ -730,9 +738,17 @@ async def test_listener_failure_does_not_reverse_a_committed_write(
         )
         with (
             Event.listen(ModelCreated, fail),
-            pytest.raises(ExceptionGroup, match="callbacks failed"),
+            pytest.raises(DatabaseTransactionCallbackError) as captured,
         ):
-            await EventRecord.create_async({"name": "committed first"})
+            await EventRecord.create_async(
+                {"name": "committed first"},
+            )
+
+        assert (
+            captured.value.outcome
+            is TransactionOutcome.COMMITTED_WITH_CALLBACK_ERRORS
+        )
+        assert isinstance(captured.value.__cause__, BaseExceptionGroup)
 
         assert await DB.scalar_async("SELECT COUNT(*) FROM event_records") == 1
 

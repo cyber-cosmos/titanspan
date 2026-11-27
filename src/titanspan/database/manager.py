@@ -20,10 +20,10 @@ from contextvars import ContextVar
 from dataclasses import dataclass, field
 from pathlib import Path
 from types import MappingProxyType
-from typing import TYPE_CHECKING, Literal, NoReturn, cast
+from typing import TYPE_CHECKING, Literal, NoReturn, Protocol, cast
 
 import anyio
-from sqlalchemy import create_engine, text
+from sqlalchemy import create_engine, event, text
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import (
     AsyncSession,
@@ -32,14 +32,20 @@ from sqlalchemy.ext.asyncio import (
 )
 from sqlalchemy.orm import Session, sessionmaker
 
-from titanspan.contracts.database import DatabaseResult
+from titanspan.contracts.database import (
+    DatabaseResult,
+    TransactionOutcome,
+    TransactionReceipt,
+)
 from titanspan.database.configuration import DatabaseConfiguration
 from titanspan.database.connection import Connection
 from titanspan.database.exceptions import (
     AsyncOperationRequiredError,
+    DatabaseCommitOutcomeUnknownError,
     DatabaseConfigurationError,
     DatabaseConnectionError,
     DatabaseQueryError,
+    DatabaseTransactionCallbackError,
     DatabaseTransactionError,
     DatabaseTransactionOwnershipError,
 )
@@ -52,9 +58,18 @@ if TYPE_CHECKING:
     )
     from contextvars import Token
 
-    from sqlalchemy.engine import URL, CursorResult, Engine
+    from sqlalchemy.engine import (
+        URL,
+        CursorResult,
+        Engine,
+    )
+    from sqlalchemy.engine import (
+        Connection as SQLAlchemyConnection,
+    )
+    from sqlalchemy.engine.interfaces import DBAPIConnection
     from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSessionTransaction
     from sqlalchemy.orm import SessionTransaction
+    from sqlalchemy.pool import ConnectionPoolEntry
     from sqlalchemy.sql import Executable
 
     from titanspan.contracts.config import ConfigRepository
@@ -71,6 +86,99 @@ type _AsyncTransactionCallback = Callable[[], Awaitable[None]]
 
 
 type _CommitCallback = _TransactionCallback | _AsyncTransactionCallback
+type _TransactionFinalization = tuple[
+    BaseException | None,
+    tuple[_CommitCallback, ...],
+    TransactionOutcome,
+]
+
+
+@dataclass(slots=True)
+class _MutableTransactionReceipt:
+    """Store the final status for one caller-owned transaction scope.
+    """  # fmt: skip
+
+    _outcome: TransactionOutcome | None = None
+    _error: BaseException | None = None
+
+    @property
+    def outcome(self) -> TransactionOutcome | None:
+        """Return the confirmed outcome after the scope exits.
+
+        Returns:
+            The transaction outcome, or ``None`` while it remains active.
+        """
+        return self._outcome
+
+    @property
+    def error(self) -> BaseException | None:
+        """Return the operation or callback failure associated with the scope.
+
+        Returns:
+            The failure raised while finalizing the scope, if any.
+        """
+        return self._error
+
+    def finish(
+        self,
+        outcome: TransactionOutcome,
+        error: BaseException | None = None,
+    ) -> None:
+        """Record a final outcome and its associated error.
+
+        Args:
+            outcome: Confirmed state selected by transaction finalization.
+            error: Optional operation, cleanup, or callback error.
+        """
+        self._outcome = outcome
+        self._error = error
+
+    def record_error(self, error: BaseException) -> None:
+        """Retain the final exception while preserving an earlier outcome.
+
+        Args:
+            error: Exception raised while cleaning up or dispatching callbacks.
+        """
+        self._error = error
+
+
+class _SQLiteDBAPICursor(Protocol):
+    """Expose the cursor operations used by SQLite connection setup.
+    """  # fmt: skip
+
+    def execute(self, statement: str) -> object:
+        """Execute the trusted connection initialization statement.
+        """  # fmt: skip
+        ...
+
+    def close(self) -> None:
+        """Release the short-lived initialization cursor.
+        """  # fmt: skip
+        ...
+
+
+class _SQLiteDBAPIConnection(Protocol):
+    """Expose SQLite cursor access through SQLAlchemy's driver adapter.
+    """  # fmt: skip
+
+    def cursor(self) -> _SQLiteDBAPICursor:
+        """Create a cursor through SQLAlchemy's sync driver adapter.
+        """  # fmt: skip
+        ...
+
+
+class _SQLiteSyncDBAPIConnection(_SQLiteDBAPIConnection, Protocol):
+    """Expose sync SQLite autocommit control for connection setup.
+    """  # fmt: skip
+
+    autocommit: bool
+
+
+class _SQLiteAsyncDBAPIConnection(_SQLiteDBAPIConnection, Protocol):
+    """Expose aiosqlite transaction-control configuration.
+    """  # fmt: skip
+
+    isolation_level: str | None
 
 
 def _new_callback_list() -> list[_TransactionCallback]:
@@ -194,6 +302,21 @@ class DatabaseManager:
             self._ensure_open()
             definition = self._configuration.connections[connection_name]
             return definition.sync_url.get_backend_name()
+
+    def target_identity(self, name: str | None = None) -> str:
+        """Return the selected database target with credentials redacted.
+
+        Args:
+            name: Configured connection name or its default.
+
+        Returns:
+            A URL identifying the database without usernames or options.
+        """
+        connection_name = self._connection_name(name)
+        with self._lock:
+            self._ensure_open()
+            definition = self._configuration.connections[connection_name]
+            return definition.target_identity
 
     @property
     def transaction_level(self) -> int:
@@ -360,7 +483,7 @@ class DatabaseManager:
     def transaction(
         self,
         name: str | None = None,
-    ) -> Generator[None, None, None]:
+    ) -> Generator[TransactionReceipt, None, None]:
         """Own a synchronous Unit of Work for the current thread.
 
         Nested calls use SQLAlchemy savepoints. Database work inherited by a
@@ -370,7 +493,7 @@ class DatabaseManager:
             name: Configured connection name or its default.
 
         Yields:
-            Control while statements participate in the active transaction.
+            A receipt whose outcome becomes available after the scope exits.
 
         Raises:
             AsyncOperationRequiredError: If sync I/O would block an event loop.
@@ -379,13 +502,24 @@ class DatabaseManager:
         self._ensure_sync_allowed()
         connection_name = self._connection_name(name)
         active = self._active_state("sync", connection_name)
+        receipt = _MutableTransactionReceipt()
         if active is not None:
-            with self._nested_sync(active):
-                yield
+            try:
+                with self._nested_sync(active, receipt):
+                    yield receipt
+            except BaseException as error:
+                if receipt.outcome is None:
+                    receipt.finish(TransactionOutcome.FAILED, error)
+                else:
+                    receipt.record_error(error)
+                raise
+            else:
+                receipt.finish(TransactionOutcome.SAVEPOINT_RELEASED)
             return
 
         callbacks: tuple[_CommitCallback, ...] = ()
         operation_error: BaseException | None = None
+        outcome = TransactionOutcome.FAILED
         try:
             with self._root_sync_scope(connection_name) as (
                 session,
@@ -394,31 +528,48 @@ class DatabaseManager:
                 transaction = session.begin()
                 transaction.__enter__()
                 try:
-                    yield
+                    yield receipt
                 except BaseException as error:
-                    operation_error, callbacks = _rollback_sync(
+                    (
+                        operation_error,
+                        callbacks,
+                        outcome,
+                    ) = _rollback_sync(
                         transaction,
                         state,
                         error,
                     )
                 else:
-                    operation_error, callbacks = _commit_sync(
+                    (
+                        operation_error,
+                        callbacks,
+                        outcome,
+                    ) = _commit_sync(
                         transaction,
                         state,
                     )
+                receipt.finish(outcome, operation_error)
         except BaseException as error:
             operation_error = _combine_failures(
                 operation_error,
                 error,
                 "The database transaction cleanup failed.",
             )
-        _finish_transaction(operation_error, callbacks)
+            if receipt.outcome is None:
+                receipt.finish(TransactionOutcome.FAILED, operation_error)
+            else:
+                receipt.record_error(operation_error)
+        try:
+            _finish_transaction(operation_error, callbacks, receipt)
+        except BaseException as error:
+            receipt.record_error(error)
+            raise
 
     @asynccontextmanager
     async def transaction_async(
         self,
         name: str | None = None,
-    ) -> AsyncGenerator[None, None]:
+    ) -> AsyncGenerator[TransactionReceipt, None]:
         """Own an async Unit of Work for the current asyncio task.
 
         A ContextVar copied into a child task does not grant that task access
@@ -428,7 +579,7 @@ class DatabaseManager:
             name: Configured connection name or its default.
 
         Yields:
-            Control while statements participate in the active transaction.
+            A receipt whose outcome becomes available after the scope exits.
 
         Raises:
             AsyncOperationRequiredError: If no asyncio task is active.
@@ -437,13 +588,24 @@ class DatabaseManager:
         task = self._current_async_task()
         connection_name = self._connection_name(name)
         active = self._active_state("async", connection_name)
+        receipt = _MutableTransactionReceipt()
         if active is not None:
-            async with self._nested_async(active):
-                yield
+            try:
+                async with self._nested_async(active, receipt):
+                    yield receipt
+            except BaseException as error:
+                if receipt.outcome is None:
+                    receipt.finish(TransactionOutcome.FAILED, error)
+                else:
+                    receipt.record_error(error)
+                raise
+            else:
+                receipt.finish(TransactionOutcome.SAVEPOINT_RELEASED)
             return
 
         callbacks: tuple[_CommitCallback, ...] = ()
         operation_error: BaseException | None = None
+        outcome = TransactionOutcome.FAILED
         try:
             async with self._root_async_scope(
                 connection_name,
@@ -452,25 +614,46 @@ class DatabaseManager:
                 transaction = session.begin()
                 await transaction.__aenter__()
                 try:
-                    yield
+                    yield receipt
                 except BaseException as error:
-                    operation_error, callbacks = await _rollback_async(
+                    (
+                        operation_error,
+                        callbacks,
+                        outcome,
+                    ) = await _rollback_async(
                         transaction,
                         state,
                         error,
                     )
                 else:
-                    operation_error, callbacks = await _commit_async(
+                    (
+                        operation_error,
+                        callbacks,
+                        outcome,
+                    ) = await _commit_async(
                         transaction,
                         state,
                     )
+                receipt.finish(outcome, operation_error)
         except BaseException as error:
             operation_error = _combine_failures(
                 operation_error,
                 error,
                 "The database transaction cleanup failed.",
             )
-        await _finish_transaction_async(operation_error, callbacks)
+            if receipt.outcome is None:
+                receipt.finish(TransactionOutcome.FAILED, operation_error)
+            else:
+                receipt.record_error(operation_error)
+        try:
+            await _finish_transaction_async(
+                operation_error,
+                callbacks,
+                receipt,
+            )
+        except BaseException as error:
+            receipt.record_error(error)
+            raise
 
     @contextmanager
     def _root_sync_scope(
@@ -727,6 +910,12 @@ class DatabaseManager:
             except (ImportError, SQLAlchemyError) as error:
                 msg = "The configured sync database driver is unavailable."
                 raise DatabaseConnectionError(msg) from error
+            if definition.sync_url.get_backend_name() == "sqlite":
+                event.listen(
+                    engine,
+                    "connect",
+                    _enable_sync_sqlite_foreign_keys,
+                )
             try:
                 self._prepare_sqlite_path(definition.sync_url)
             except BaseException:
@@ -761,11 +950,23 @@ class DatabaseManager:
                     **_engine_options_for_factory(
                         definition.engine_options,
                         definition.async_url,
+                        async_mode=True,
                     ),
                 )
             except (ImportError, SQLAlchemyError) as error:
                 msg = "The configured async database driver is unavailable."
                 raise DatabaseConnectionError(msg) from error
+            if definition.async_url.get_backend_name() == "sqlite":
+                event.listen(
+                    engine.sync_engine,
+                    "connect",
+                    _enable_async_sqlite_foreign_keys,
+                )
+                event.listen(
+                    engine.sync_engine,
+                    "begin",
+                    _begin_async_sqlite_transaction,
+                )
             try:
                 self._prepare_sqlite_path(definition.async_url)
             except BaseException:
@@ -948,11 +1149,13 @@ class DatabaseManager:
     def _nested_sync(
         self,
         state: _ExecutionState,
+        receipt: _MutableTransactionReceipt,
     ) -> Generator[None, None, None]:
         """Open a SQLAlchemy savepoint inside an owned sync transaction.
 
         Args:
             state: Current owner-validated transaction state.
+            receipt: Caller-owned result for this savepoint scope.
 
         Yields:
             Control while the savepoint is active.
@@ -981,7 +1184,18 @@ class DatabaseManager:
                 nested.__exit__(None, None, None)
         except BaseException as error:
             _pop_savepoint(state)
-            _raise_savepoint_error(error, frame, rollback_confirmed)
+            outcome = (
+                TransactionOutcome.SAVEPOINT_ROLLED_BACK
+                if rollback_confirmed
+                else TransactionOutcome.FAILED
+            )
+            receipt.finish(outcome, error)
+            _raise_savepoint_error(
+                error,
+                frame,
+                rollback_confirmed,
+                receipt,
+            )
         else:
             _merge_savepoint(state, frame)
 
@@ -989,11 +1203,13 @@ class DatabaseManager:
     async def _nested_async(
         self,
         state: _ExecutionState,
+        receipt: _MutableTransactionReceipt,
     ) -> AsyncGenerator[None, None]:
         """Open a SQLAlchemy savepoint inside an owned async transaction.
 
         Args:
             state: Current owner-validated transaction state.
+            receipt: Caller-owned result for this savepoint scope.
 
         Yields:
             Control while the savepoint is active.
@@ -1027,7 +1243,18 @@ class DatabaseManager:
                 raise
         except BaseException as error:
             _pop_savepoint(state)
-            _raise_savepoint_error(error, frame, rollback_confirmed)
+            outcome = (
+                TransactionOutcome.SAVEPOINT_ROLLED_BACK
+                if rollback_confirmed
+                else TransactionOutcome.FAILED
+            )
+            receipt.finish(outcome, error)
+            _raise_savepoint_error(
+                error,
+                frame,
+                rollback_confirmed,
+                receipt,
+            )
         else:
             _merge_savepoint(state, frame)
 
@@ -1280,6 +1507,7 @@ def _raise_savepoint_error(
     error: BaseException,
     frame: _TransactionCallbacks,
     rollback_confirmed: bool,
+    receipt: _MutableTransactionReceipt,
 ) -> NoReturn:
     """Dispatch confirmed savepoint rollback callbacks and raise its failure.
 
@@ -1287,15 +1515,15 @@ def _raise_savepoint_error(
         error: Body, savepoint, or savepoint cleanup failure.
         frame: Callback frame discarded when the savepoint ends.
         rollback_confirmed: Whether rollback completed successfully.
+        receipt: Caller-owned result updated before an error escapes.
     """
     callback_errors = (
-        _run_callbacks(tuple(frame.after_rollback))
+        _run_callbacks(tuple(frame.after_rollback), receipt)
         if rollback_confirmed
         else []
     )
     if callback_errors:
-        message = "The savepoint and its rollback callbacks failed."
-        raise BaseExceptionGroup(message, [error, *callback_errors]) from error
+        _raise_transaction_failure(error, callback_errors, receipt)
     if isinstance(error, SQLAlchemyError):
         message = "The nested database transaction failed."
         raise DatabaseTransactionError(message) from error
@@ -1332,7 +1560,11 @@ def _rollback_sync(
     transaction: SessionTransaction,
     state: _ExecutionState,
     original: BaseException,
-) -> tuple[BaseException, tuple[_TransactionCallback, ...]]:
+) -> tuple[
+    BaseException,
+    tuple[_CommitCallback, ...],
+    TransactionOutcome,
+]:
     """Roll back a sync transaction and select confirmed rollback callbacks.
 
     Args:
@@ -1341,7 +1573,7 @@ def _rollback_sync(
         original: Failure raised by the transaction body.
 
     Returns:
-        The original or combined failure, plus safe rollback callbacks.
+        Failure, eligible rollback callbacks, and the confirmed outcome.
     """
     try:
         transaction.__exit__(
@@ -1354,15 +1586,16 @@ def _rollback_sync(
         return (
             _combine_failures(original, rollback_error, message),
             (),
+            TransactionOutcome.FAILED,
         )
     callbacks = tuple(state.callback_frames[0].after_rollback)
-    return original, callbacks
+    return original, callbacks, TransactionOutcome.ROLLED_BACK
 
 
 def _commit_sync(
     transaction: SessionTransaction,
     state: _ExecutionState,
-) -> tuple[BaseException | None, tuple[_CommitCallback, ...]]:
+) -> _TransactionFinalization:
     """Commit a sync transaction and select post-commit callbacks.
 
     Args:
@@ -1370,26 +1603,60 @@ def _commit_sync(
         state: Owning callback state for that transaction.
 
     Returns:
-        A commit failure and cleanup details, or its callbacks after commit.
+        Failure, callbacks selected after a confirmed outcome, and that
+        transaction outcome.
     """
+    if not isinstance(state.session, Session):
+        message = "The active transaction does not own a sync session."
+        return (
+            DatabaseTransactionOwnershipError(message),
+            (),
+            TransactionOutcome.FAILED,
+        )
     try:
-        transaction.__exit__(None, None, None)
+        state.session.flush()
     except BaseException as error:
-        if transaction.is_active:
-            try:
-                transaction.rollback()
-            except BaseException as rollback_error:
-                message = "The transaction commit and cleanup failed."
-                error = _combine_failures(error, rollback_error, message)
-        return error, ()
-    return None, tuple(state.callback_frames[0].after_commit)
+        return _rollback_sync(transaction, state, error)
+    try:
+        transaction.commit()
+    except BaseException as error:
+        cleanup_error: BaseException | None = None
+        try:
+            # A failed commit leaves the driver's transaction state uncertain.
+            # Invalidate its physical connection instead of returning it to the
+            # pool with a possibly open transaction.
+            state.session.invalidate()
+        except BaseException as invalidate_error:
+            cleanup_error = invalidate_error
+        if not isinstance(error, Exception):
+            error.add_note(
+                "The database commit outcome is unknown because "
+                "commit was interrupted."
+            )
+            if cleanup_error is not None:
+                error.add_note(
+                    "Rollback cleanup also failed: "
+                    f"{type(cleanup_error).__name__}."
+                )
+            return error, (), TransactionOutcome.COMMIT_OUTCOME_UNKNOWN
+        unknown = DatabaseCommitOutcomeUnknownError(error, cleanup_error)
+        return unknown, (), TransactionOutcome.COMMIT_OUTCOME_UNKNOWN
+    return (
+        None,
+        tuple(state.callback_frames[0].after_commit),
+        TransactionOutcome.COMMITTED,
+    )
 
 
 async def _rollback_async(
     transaction: AsyncSessionTransaction,
     state: _ExecutionState,
     original: BaseException,
-) -> tuple[BaseException, tuple[_TransactionCallback, ...]]:
+) -> tuple[
+    BaseException,
+    tuple[_CommitCallback, ...],
+    TransactionOutcome,
+]:
     """Shield async rollback and select callbacks only after it succeeds.
 
     Args:
@@ -1398,7 +1665,7 @@ async def _rollback_async(
         original: Failure or cancellation raised by the transaction body.
 
     Returns:
-        The original or combined failure, plus safe rollback callbacks.
+        Failure, eligible rollback callbacks, and the confirmed outcome.
     """
     try:
         with anyio.CancelScope(shield=True):
@@ -1412,15 +1679,16 @@ async def _rollback_async(
         return (
             _combine_failures(original, rollback_error, message),
             (),
+            TransactionOutcome.FAILED,
         )
     callbacks = tuple(state.callback_frames[0].after_rollback)
-    return original, callbacks
+    return original, callbacks, TransactionOutcome.ROLLED_BACK
 
 
 async def _commit_async(
     transaction: AsyncSessionTransaction,
     state: _ExecutionState,
-) -> tuple[BaseException | None, tuple[_CommitCallback, ...]]:
+) -> _TransactionFinalization:
     """Commit an async transaction and select post-commit callbacks.
 
     A failed commit has an uncertain outcome, so rollback callbacks are not
@@ -1431,56 +1699,76 @@ async def _commit_async(
         state: Owning callback state for that transaction.
 
     Returns:
-        A commit failure and cleanup details, or ordered callbacks selected
-        after a confirmed commit.
+        Failure, callbacks selected after a confirmed outcome, and that
+        transaction outcome.
     """
+    if not isinstance(state.session, AsyncSession):
+        message = "The active transaction does not own an async session."
+        return (
+            DatabaseTransactionOwnershipError(message),
+            (),
+            TransactionOutcome.FAILED,
+        )
     try:
-        await transaction.__aexit__(None, None, None)
+        await state.session.flush()
     except BaseException as error:
-        if transaction.is_active:
-            try:
-                with anyio.CancelScope(shield=True):
-                    await transaction.rollback()
-            except BaseException as rollback_error:
-                message = "The transaction commit and cleanup failed."
-                error = _combine_failures(error, rollback_error, message)
-        return error, ()
-    return None, tuple(state.callback_frames[0].after_commit)
+        return await _rollback_async(transaction, state, error)
+    try:
+        await transaction.commit()
+    except BaseException as error:
+        cleanup_error: BaseException | None = None
+        try:
+            # Do not reuse a physical connection whose commit result is
+            # uncertain. Shield invalidation so cancellation cannot skip it.
+            with anyio.CancelScope(shield=True):
+                await state.session.invalidate()
+        except BaseException as invalidate_error:
+            cleanup_error = invalidate_error
+        if not isinstance(error, Exception):
+            error.add_note(
+                "The database commit outcome is unknown because "
+                "commit was interrupted."
+            )
+            if cleanup_error is not None:
+                error.add_note(
+                    "Rollback cleanup also failed: "
+                    f"{type(cleanup_error).__name__}."
+                )
+            return error, (), TransactionOutcome.COMMIT_OUTCOME_UNKNOWN
+        unknown = DatabaseCommitOutcomeUnknownError(error, cleanup_error)
+        return unknown, (), TransactionOutcome.COMMIT_OUTCOME_UNKNOWN
+    return (
+        None,
+        tuple(state.callback_frames[0].after_commit),
+        TransactionOutcome.COMMITTED,
+    )
 
 
 def _finish_transaction(
     operation_error: BaseException | None,
     callbacks: tuple[_CommitCallback, ...],
+    receipt: _MutableTransactionReceipt,
 ) -> None:
     """Run callbacks after cleanup and re-raise transaction failures.
 
     Args:
         operation_error: Body, commit, or cleanup failure if one occurred.
         callbacks: Callbacks selected by a confirmed transaction outcome.
+        receipt: Caller-owned result updated before raising any failure.
     """
-    callback_errors = _run_callbacks(callbacks)
-    if operation_error is not None:
-        if callback_errors:
-            operation_error = BaseExceptionGroup(
-                "The database transaction and its callbacks failed.",
-                [operation_error, *callback_errors],
-            )
-        if isinstance(operation_error, SQLAlchemyError):
-            message = "The database transaction failed."
-            raise DatabaseTransactionError(message) from operation_error
-        raise operation_error
-    if callback_errors:
-        message = "One or more database transaction callbacks failed."
-        raise ExceptionGroup(message, callback_errors)
+    callback_errors = _run_callbacks(callbacks, receipt)
+    _raise_transaction_failure(operation_error, callback_errors, receipt)
 
 
 def _run_callbacks(
     callbacks: tuple[_CommitCallback, ...],
+    receipt: _MutableTransactionReceipt,
 ) -> list[Exception]:
     """Run every synchronous transaction callback and collect failures.
 
     Args:
         callbacks: Callbacks selected by a committed or rolled-back scope.
+        receipt: Caller-owned result updated before any interruption escapes.
 
     Returns:
         Exceptions raised by callbacks, in registration order.
@@ -1496,18 +1784,23 @@ def _run_callbacks(
                 failures.append(DatabaseTransactionOwnershipError(msg))
         except Exception as error:
             failures.append(error)
+        except BaseException as error:
+            _record_callback_interruption(receipt, error)
+            raise
     return failures
 
 
 async def _finish_transaction_async(
     operation_error: BaseException | None,
     callbacks: tuple[_CommitCallback, ...],
+    receipt: _MutableTransactionReceipt,
 ) -> None:
     """Run sync and awaited callbacks after async transaction cleanup.
 
     Args:
         operation_error: Body, commit, or cleanup failure if one occurred.
         callbacks: Ordered callbacks selected by a confirmed outcome.
+        receipt: Caller-owned result updated before raising any failure.
     """
     callback_errors: list[Exception] = []
     for callback in callbacks:
@@ -1517,19 +1810,157 @@ async def _finish_transaction_async(
                 await result
         except Exception as error:
             callback_errors.append(error)
-    if operation_error is not None:
-        if callback_errors:
-            operation_error = BaseExceptionGroup(
-                "The database transaction and its callbacks failed.",
-                [operation_error, *callback_errors],
-            )
-        if isinstance(operation_error, SQLAlchemyError):
-            message = "The database transaction failed."
-            raise DatabaseTransactionError(message) from operation_error
-        raise operation_error
+        except BaseException as error:
+            _record_callback_interruption(receipt, error)
+            raise
+    _raise_transaction_failure(operation_error, callback_errors, receipt)
+
+
+def _record_callback_interruption(
+    receipt: _MutableTransactionReceipt,
+    error: BaseException,
+) -> None:
+    """Preserve cancellation while recording already completed persistence.
+
+    Args:
+        receipt: Outcome record for the transaction that selected callbacks.
+        error: Non-Exception failure raised by a callback.
+    """
+    outcome = receipt.outcome
+    if outcome is TransactionOutcome.COMMITTED:
+        receipt.finish(
+            TransactionOutcome.COMMITTED_WITH_CALLBACK_ERRORS,
+            error,
+        )
+        error.add_note(
+            "The database transaction committed before callback execution "
+            "was interrupted."
+        )
+    elif outcome is None:
+        receipt.finish(TransactionOutcome.FAILED, error)
+    else:
+        receipt.record_error(error)
+
+
+def _raise_transaction_failure(
+    operation_error: BaseException | None,
+    callback_errors: list[Exception],
+    receipt: _MutableTransactionReceipt,
+) -> None:
+    """Raise a typed failure without obscuring the durable transaction state.
+
+    Args:
+        operation_error: Body, commit, or cleanup failure if one occurred.
+        callback_errors: Ordinary callback failures in registration order.
+        receipt: Caller-owned result updated before any exception escapes.
+    """
+    if operation_error is None and not callback_errors:
+        return
+
+    if operation_error is not None and not isinstance(
+        operation_error,
+        Exception,
+    ):
+        _raise_interrupted_transaction(
+            operation_error,
+            callback_errors,
+            receipt,
+        )
+
     if callback_errors:
-        message = "One or more database transaction callbacks failed."
-        raise ExceptionGroup(message, callback_errors)
+        _raise_callback_failure(
+            operation_error,
+            callback_errors,
+            receipt,
+        )
+
+    if operation_error is None:
+        return
+    receipt.record_error(operation_error)
+    if isinstance(operation_error, DatabaseCommitOutcomeUnknownError):
+        _raise_unknown_commit(operation_error)
+    if isinstance(operation_error, SQLAlchemyError):
+        if receipt.outcome is TransactionOutcome.ROLLED_BACK:
+            message = "The database transaction failed and was rolled back."
+        elif receipt.outcome is TransactionOutcome.COMMITTED:
+            message = "The database transaction committed, but cleanup failed."
+        else:
+            message = "The database transaction outcome could not be confirmed."
+        raise DatabaseTransactionError(message) from operation_error
+    raise operation_error
+
+
+def _raise_callback_failure(
+    operation_error: BaseException | None,
+    callback_errors: list[Exception],
+    receipt: _MutableTransactionReceipt,
+) -> NoReturn:
+    """Raise ordered callback failures with the recorded transaction outcome.
+
+    Args:
+        operation_error: Optional transaction error preceding callback errors.
+        callback_errors: Callback errors in registration order.
+        receipt: Caller-owned result updated before the error escapes.
+    """
+    outcome = receipt.outcome
+    if outcome is TransactionOutcome.COMMITTED:
+        outcome = TransactionOutcome.COMMITTED_WITH_CALLBACK_ERRORS
+    elif outcome is None:
+        outcome = TransactionOutcome.FAILED
+    error = DatabaseTransactionCallbackError(outcome, callback_errors)
+    receipt.finish(outcome, error)
+    failures: list[BaseException] = list(callback_errors)
+    if operation_error is not None:
+        failures.insert(0, operation_error)
+    group = BaseExceptionGroup(
+        "The database transaction and its callbacks failed.",
+        failures,
+    )
+    raise error from group
+
+
+def _raise_interrupted_transaction(
+    operation_error: BaseException,
+    callback_errors: list[Exception],
+    receipt: _MutableTransactionReceipt,
+) -> NoReturn:
+    """Preserve cancellation and other BaseException transaction failures.
+
+    Args:
+        operation_error: Cancellation or other non-Exception failure.
+        callback_errors: Ordinary errors raised by any selected callbacks.
+        receipt: Caller-owned result updated before the error escapes.
+    """
+    receipt.record_error(operation_error)
+    if callback_errors:
+        cause = BaseExceptionGroup(
+            "The transaction and its callbacks failed.",
+            [operation_error, *callback_errors],
+        )
+        operation_error.add_note(
+            "One or more transaction callbacks also failed."
+        )
+        raise operation_error from cause
+    if isinstance(operation_error, DatabaseCommitOutcomeUnknownError):
+        _raise_unknown_commit(operation_error)
+    raise operation_error
+
+
+def _raise_unknown_commit(
+    error: DatabaseCommitOutcomeUnknownError,
+) -> NoReturn:
+    """Raise uncertain commit status with every backend cause preserved.
+
+    Args:
+        error: Native error containing commit and optional cleanup failures.
+    """
+    if error.cleanup_error is None:
+        raise error from error.commit_error
+    group = BaseExceptionGroup(
+        "The commit and connection cleanup both failed.",
+        [error.commit_error, error.cleanup_error],
+    )
+    raise error from group
 
 
 def _combine_failures(
@@ -1577,12 +2008,15 @@ def _detach_result(result: CursorResult[object]) -> DatabaseResult:
 def _engine_options_for_factory(
     options: Mapping[str, object],
     url: URL,
+    *,
+    async_mode: bool = False,
 ) -> dict[str, object]:
     """Copy immutable options into the mutable DBAPI input shape.
 
     Args:
         options: Validated connection options.
         url: SQLAlchemy URL for the selected connection and execution mode.
+        async_mode: Whether the factory will create an AsyncEngine.
 
     Returns:
         A fresh engine keyword mapping with a detached ``connect_args`` map.
@@ -1602,12 +2036,85 @@ def _engine_options_for_factory(
         if detached_args.get("autocommit", False) is not False:
             msg = "SQLite requires PEP 249 transaction control."
             raise DatabaseConfigurationError(msg)
-        # SQLite's legacy mode allows a released SAVEPOINT to outlive its
-        # enclosing transaction when no earlier statement emitted BEGIN.
-        detached_args["autocommit"] = False
+        if async_mode:
+            # aiosqlite does not expose the DBAPI autocommit attribute needed
+            # to apply the foreign-key pragma under PEP 249 mode. Its engine
+            # instead uses SQLAlchemy begin events for equivalent boundaries.
+            detached_args.pop("autocommit", None)
+        else:
+            # SQLite's legacy mode allows a released SAVEPOINT to outlive its
+            # enclosing transaction when no earlier statement emitted BEGIN.
+            detached_args["autocommit"] = False
     if connect_args is not None or url.get_backend_name() == "sqlite":
         copied["connect_args"] = detached_args
     return copied
+
+
+def _enable_sync_sqlite_foreign_keys(
+    dbapi_connection: DBAPIConnection,
+    connection_record: ConnectionPoolEntry,
+) -> None:
+    """Enable referential checks on one synchronous SQLite connection.
+
+    SQLite ignores declared foreign keys unless every physical connection
+    enables the pragma. PEP 249 transaction control requires temporarily
+    enabling autocommit while applying this connection-local setting.
+
+    Args:
+        dbapi_connection: Synchronous SQLite DBAPI connection.
+        connection_record: SQLAlchemy pool record for the new connection.
+    """
+    del connection_record
+    sqlite_connection = cast("_SQLiteSyncDBAPIConnection", dbapi_connection)
+    previous_autocommit = sqlite_connection.autocommit
+    sqlite_connection.autocommit = True
+    try:
+        cursor = sqlite_connection.cursor()
+        try:
+            cursor.execute("PRAGMA foreign_keys=ON")
+        finally:
+            cursor.close()
+    finally:
+        sqlite_connection.autocommit = previous_autocommit
+
+
+def _enable_async_sqlite_foreign_keys(
+    dbapi_connection: DBAPIConnection,
+    connection_record: ConnectionPoolEntry,
+) -> None:
+    """Configure aiosqlite for explicit BEGIN and enforce foreign keys.
+
+    SQLAlchemy's async SQLite adapter does not expose the DBAPI autocommit
+    attribute. The supported isolation-level event strategy leaves the raw
+    connection in autocommit while applying this pragma; a begin event then
+    restores explicit SQLAlchemy transaction boundaries.
+
+    Args:
+        dbapi_connection: SQLAlchemy's aiosqlite DBAPI adapter.
+        connection_record: SQLAlchemy pool record for the new connection.
+    """
+    del connection_record
+    sqlite_connection = cast("_SQLiteAsyncDBAPIConnection", dbapi_connection)
+    sqlite_connection.isolation_level = None
+    cursor = sqlite_connection.cursor()
+    try:
+        cursor.execute("PRAGMA foreign_keys=ON")
+    finally:
+        cursor.close()
+
+
+def _begin_async_sqlite_transaction(
+    connection: SQLAlchemyConnection,
+) -> None:
+    """Start SQLite transactions through SQLAlchemy's begin event.
+
+    The matching connect event disables driver-emitted ``BEGIN`` so SQLite's
+    transaction state remains explicit and savepoints stay inside the root.
+
+    Args:
+        connection: SQLAlchemy connection beginning a transaction.
+    """
+    connection.exec_driver_sql("BEGIN")
 
 
 __all__ = ["DatabaseManager"]

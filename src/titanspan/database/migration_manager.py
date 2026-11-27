@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import re
 from dataclasses import dataclass
+from hashlib import blake2s
 from pathlib import Path
 from typing import TYPE_CHECKING, TypeVar
 
@@ -16,6 +17,7 @@ from alembic.config import Config
 from alembic.migration import MigrationContext
 from alembic.script import Script, ScriptDirectory
 from alembic.util.exc import CommandError
+from sqlalchemy import text
 from sqlalchemy.exc import SQLAlchemyError
 
 from titanspan.database.exceptions import DatabaseMigrationError
@@ -33,6 +35,9 @@ _VERSIONS_DIRECTORY = "versions"
 _TEMPLATE_NAME = "script.py.mako"
 _MIGRATION_CLASS_NAME = "NativeMigration"
 _INVALID_CLASS_CHARS = re.compile(r"[^A-Za-z0-9]+")
+_MIGRATION_LOCK_NAMESPACE = 1_414_083_649
+_MIGRATION_LOCK_OBJECT = 1_296_641_874
+_MIGRATION_LOCK_TIMEOUT_SECONDS = 30
 _Result = TypeVar("_Result")
 
 _ENVIRONMENT = '''"""Run Alembic revisions on a Titanspan-owned connection."""
@@ -146,26 +151,51 @@ class MigrationManager:
         """
         return self._migration_path
 
-    def install(self, connection: str | None = None) -> None:
+    def target_identity(self, connection: str | None = None) -> str:
+        """Return the selected target identity without credentials.
+
+        Args:
+            connection: Optional configured connection name.
+
+        Returns:
+            A URL identifying the database target with credentials removed.
+        """
+        return self._service.connection(connection).target_identity
+
+    def install(
+        self,
+        connection: str | None = None,
+        *,
+        isolated: bool = False,
+    ) -> None:
         """Create Alembic's version table without applying revisions.
 
         Args:
             connection: Optional named application connection.
+            isolated: Require database-supported cross-process coordination.
         """
         self._execute_sync(
             connection,
             lambda config: command.ensure_version(config),
+            isolated=isolated,
         )
 
-    async def install_async(self, connection: str | None = None) -> None:
+    async def install_async(
+        self,
+        connection: str | None = None,
+        *,
+        isolated: bool = False,
+    ) -> None:
         """Asynchronously create Alembic's version table.
 
         Args:
             connection: Optional named application connection.
+            isolated: Require database-supported cross-process coordination.
         """
         await self._execute_async(
             connection,
             lambda config: command.ensure_version(config),
+            isolated=isolated,
         )
 
     def upgrade(
@@ -173,16 +203,19 @@ class MigrationManager:
         revision: str = "heads",
         *,
         connection: str | None = None,
+        isolated: bool = False,
     ) -> None:
         """Apply pending Alembic revisions up to a selected target.
 
         Args:
             revision: Alembic target such as ``heads`` or a revision ID.
             connection: Optional named application connection.
+            isolated: Require database-supported cross-process coordination.
         """
         self._execute_sync(
             connection,
             lambda config: command.upgrade(config, revision),
+            isolated=isolated,
         )
 
     async def upgrade_async(
@@ -190,16 +223,19 @@ class MigrationManager:
         revision: str = "heads",
         *,
         connection: str | None = None,
+        isolated: bool = False,
     ) -> None:
         """Asynchronously apply pending Alembic revisions.
 
         Args:
             revision: Alembic target such as ``heads`` or a revision ID.
             connection: Optional named application connection.
+            isolated: Require database-supported cross-process coordination.
         """
         await self._execute_async(
             connection,
             lambda config: command.upgrade(config, revision),
+            isolated=isolated,
         )
 
     def rollback(
@@ -207,12 +243,14 @@ class MigrationManager:
         steps: int = 1,
         *,
         connection: str | None = None,
+        isolated: bool = False,
     ) -> None:
         """Downgrade a number of Alembic revision steps.
 
         Args:
             steps: Positive number of revisions to reverse.
             connection: Optional named application connection.
+            isolated: Require database-supported cross-process coordination.
 
         Raises:
             DatabaseMigrationError: If the step count is not positive.
@@ -224,6 +262,7 @@ class MigrationManager:
         self._execute_sync(
             connection,
             lambda config: command.downgrade(config, target),
+            isolated=isolated,
         )
 
     async def rollback_async(
@@ -231,12 +270,14 @@ class MigrationManager:
         steps: int = 1,
         *,
         connection: str | None = None,
+        isolated: bool = False,
     ) -> None:
         """Asynchronously downgrade a number of revisions.
 
         Args:
             steps: Positive number of revisions to reverse.
             connection: Optional named application connection.
+            isolated: Require database-supported cross-process coordination.
 
         Raises:
             DatabaseMigrationError: If the step count is not positive.
@@ -248,35 +289,56 @@ class MigrationManager:
         await self._execute_async(
             connection,
             lambda config: command.downgrade(config, target),
+            isolated=isolated,
         )
 
-    def reset(self, connection: str | None = None) -> None:
+    def reset(
+        self,
+        connection: str | None = None,
+        *,
+        isolated: bool = False,
+    ) -> None:
         """Reverse every applied revision through Alembic.
 
         Args:
             connection: Optional named application connection.
+            isolated: Require database-supported cross-process coordination.
         """
         self._execute_sync(
             connection,
             lambda config: command.downgrade(config, "base"),
+            isolated=isolated,
         )
 
-    async def reset_async(self, connection: str | None = None) -> None:
+    async def reset_async(
+        self,
+        connection: str | None = None,
+        *,
+        isolated: bool = False,
+    ) -> None:
         """Asynchronously reverse every applied revision.
 
         Args:
             connection: Optional named application connection.
+            isolated: Require database-supported cross-process coordination.
         """
         await self._execute_async(
             connection,
             lambda config: command.downgrade(config, "base"),
+            isolated=isolated,
         )
 
-    def refresh(self, connection: str | None = None) -> None:
+    def refresh(
+        self,
+        connection: str | None = None,
+        *,
+        isolated: bool = False,
+    ) -> None:
         """Reverse all revisions, then apply the current Alembic heads.
 
         Args:
             connection: Optional named application connection.
+            isolated: Require database-supported cross-process coordination.
         """
 
         def reset_and_upgrade(config: Config) -> None:
@@ -288,13 +350,23 @@ class MigrationManager:
             command.downgrade(config, "base")
             command.upgrade(config, "heads")
 
-        self._execute_sync(connection, reset_and_upgrade)
+        self._execute_sync(
+            connection,
+            reset_and_upgrade,
+            isolated=isolated,
+        )
 
-    async def refresh_async(self, connection: str | None = None) -> None:
+    async def refresh_async(
+        self,
+        connection: str | None = None,
+        *,
+        isolated: bool = False,
+    ) -> None:
         """Asynchronously reverse and reapply all current Alembic heads.
 
         Args:
             connection: Optional named application connection.
+            isolated: Require database-supported cross-process coordination.
         """
 
         def reset_and_upgrade(config: Config) -> None:
@@ -306,7 +378,11 @@ class MigrationManager:
             command.downgrade(config, "base")
             command.upgrade(config, "heads")
 
-        await self._execute_async(connection, reset_and_upgrade)
+        await self._execute_async(
+            connection,
+            reset_and_upgrade,
+            isolated=isolated,
+        )
 
     def create_revision(
         self,
@@ -471,12 +547,15 @@ class MigrationManager:
         self,
         connection: str | None,
         callback: Callable[[Config], _Result],
+        *,
+        isolated: bool = False,
     ) -> _Result:
         """Run one Alembic command in the app's sync transaction.
 
         Args:
             connection: Optional named application connection.
             callback: Alembic operation using a connection-bound config.
+            isolated: Require database-supported cross-process coordination.
 
         Returns:
             The command's result.
@@ -484,8 +563,12 @@ class MigrationManager:
         self._ensure_layout()
         try:
             with self._service.session(connection) as session:
-                config = self._config(session.connection())
-                return callback(config)
+                selected = session.connection()
+                return self._run_coordinated(
+                    selected,
+                    callback,
+                    isolated,
+                )
         except (CommandError, SQLAlchemyError) as error:
             message = "The database migration operation failed."
             raise DatabaseMigrationError(message) from error
@@ -494,12 +577,15 @@ class MigrationManager:
         self,
         connection: str | None,
         callback: Callable[[Config], _Result],
+        *,
+        isolated: bool = False,
     ) -> _Result:
         """Run one Alembic command through SQLAlchemy's async bridge.
 
         Args:
             connection: Optional named application connection.
             callback: Alembic operation using a connection-bound config.
+            isolated: Require database-supported cross-process coordination.
 
         Returns:
             The command's result.
@@ -509,13 +595,133 @@ class MigrationManager:
             async with self._service.session_async(connection) as session:
                 async_connection = await session.connection()
                 return await async_connection.run_sync(
-                    lambda sync_connection: callback(
-                        self._config(sync_connection),
+                    lambda sync_connection: self._run_coordinated(
+                        sync_connection,
+                        callback,
+                        isolated,
                     ),
                 )
         except (CommandError, SQLAlchemyError) as error:
             message = "The database migration operation failed."
             raise DatabaseMigrationError(message) from error
+
+    def _run_coordinated(
+        self,
+        connection: SQLConnection,
+        callback: Callable[[Config], _Result],
+        isolated: bool,
+    ) -> _Result:
+        """Run Alembic with dialect-owned migration coordination.
+
+        PostgreSQL uses a transaction advisory lock. MySQL uses a named
+        connection lock released even when Alembic raises. Other dialects
+        remain usable without a cross-process guarantee; explicit isolated
+        mode fails closed on those dialects.
+
+        Args:
+            connection: Active SQLAlchemy connection owned by the session.
+            callback: Alembic operation using the selected connection.
+            isolated: Whether coordination is mandatory for this operation.
+
+        Returns:
+            The Alembic operation's result.
+
+        Raises:
+            DatabaseMigrationError: If required coordination is unavailable.
+        """
+        dialect = connection.dialect.name
+        if dialect == "postgresql":
+            connection.exec_driver_sql(
+                "SELECT pg_advisory_xact_lock("
+                f"{_MIGRATION_LOCK_NAMESPACE}, {_MIGRATION_LOCK_OBJECT})"
+            ).close()
+            return callback(self._config(connection))
+        if dialect == "mysql":
+            return self._run_with_mysql_lock(connection, callback)
+        if isolated:
+            message = (
+                "Isolated migrations require PostgreSQL or MySQL database "
+                "locks; this dialect does not provide the supported lock."
+            )
+            raise DatabaseMigrationError(message)
+        return callback(self._config(connection))
+
+    def _run_with_mysql_lock(
+        self,
+        connection: SQLConnection,
+        callback: Callable[[Config], _Result],
+    ) -> _Result:
+        """Serialize MySQL migrations with a server-scoped named lock.
+
+        Args:
+            connection: Active connection retained for the lock lifetime.
+            callback: Alembic operation using this same connection.
+
+        Returns:
+            The Alembic operation's result.
+
+        Raises:
+            DatabaseMigrationError: If lock acquisition or release fails.
+        """
+        database = connection.engine.url.database or "default"
+        digest = blake2s(database.encode("utf-8"), digest_size=20).hexdigest()
+        lock_name = f"titanspan:migrations:{digest}"
+        acquired = connection.scalar(
+            text("SELECT GET_LOCK(:lock_name, :timeout)"),
+            {
+                "lock_name": lock_name,
+                "timeout": _MIGRATION_LOCK_TIMEOUT_SECONDS,
+            },
+        )
+        if acquired != 1:
+            message = "Could not acquire the MySQL database migration lock."
+            raise DatabaseMigrationError(message)
+
+        try:
+            result = callback(self._config(connection))
+        except BaseException as operation_error:
+            try:
+                self._release_mysql_lock(connection, lock_name)
+            except BaseException as release_error:
+                operation_error.add_note(
+                    "The MySQL migration lock could not be released; "
+                    "its connection was invalidated. Release failure type: "
+                    f"{type(release_error).__name__}."
+                )
+                raise operation_error from operation_error.__cause__
+            raise
+
+        self._release_mysql_lock(connection, lock_name)
+        return result
+
+    @staticmethod
+    def _release_mysql_lock(
+        connection: SQLConnection,
+        lock_name: str,
+    ) -> None:
+        """Release the MySQL named lock on its acquiring connection.
+
+        Args:
+            connection: Physical connection that owns the lock.
+            lock_name: Stable, non-secret lock name for this database.
+
+        Raises:
+            DatabaseMigrationError: If the database does not confirm release.
+            SQLAlchemyError: If lock release execution fails.
+        """
+        try:
+            released = connection.scalar(
+                text("SELECT RELEASE_LOCK(:lock_name)"),
+                {"lock_name": lock_name},
+            )
+        except BaseException as release_error:
+            _invalidate_failed_lock_connection(connection, release_error)
+            raise
+        if released != 1:
+            message = "The MySQL database migration lock was not released."
+            release_error = DatabaseMigrationError(message)
+            _invalidate_failed_lock_connection(connection, release_error)
+            raise release_error
 
     def _config(self, connection: SQLConnection | None) -> Config:
         """Build a fresh Alembic config without exposing connection URLs.
@@ -553,6 +759,26 @@ class MigrationManager:
         template = self._migration_path / _TEMPLATE_NAME
         if not template.exists():
             template.write_text(_TEMPLATE, encoding="utf-8")
+
+
+def _invalidate_failed_lock_connection(
+    connection: SQLConnection,
+    release_error: BaseException,
+) -> None:
+    """Discard a connection that may still own a MySQL named lock.
+
+    Args:
+        connection: Physical connection that attempted lock release.
+        release_error: Failure that prevented confirmed lock release.
+    """
+    try:
+        connection.invalidate()
+    except BaseException as invalidation_error:
+        release_error.add_note(
+            "The lock-owning connection could not be invalidated. "
+            f"Invalidation failure type: "
+            f"{type(invalidation_error).__name__}."
+        )
 
 
 def _render_native_revision(script: Script, message: str) -> str:

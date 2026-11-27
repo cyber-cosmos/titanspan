@@ -363,7 +363,9 @@ async def test_eager_relationship_loading_avoids_n_plus_one_queries(
             """
             if len(arguments) >= _MINIMUM_STATEMENT_EVENT_ARGUMENTS:
                 statement = arguments[_STATEMENT_EVENT_ARGUMENT_INDEX]
-                if isinstance(statement, str):
+                if isinstance(
+                    statement, str
+                ) and statement.lstrip().upper().startswith("SELECT"):
                     statements.append(statement)
 
         event.listen(engine, "before_cursor_execute", record_query)

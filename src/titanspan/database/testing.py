@@ -9,6 +9,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from titanspan.database.model import Model, SoftDeletes
+from titanspan.database.model_state import require_service
 from titanspan.facades.database import DB
 
 if TYPE_CHECKING:
@@ -278,6 +279,11 @@ def _model_query[ModelT: Model](model: ModelT) -> ModelQueryBuilder[ModelT]:
         A typed query limited to the model's primary-key identity.
     """
     model_type = type(model)
+    service = DB.resolve_service()
+    connection_name = service.connection(
+        model_type.connection,
+    ).name
+    require_service(model, service, connection_name)
     key_name = model_type.primary_key_name()
     identifier = getattr(model, key_name)
     return model_type.query().with_trashed().where(key_name, identifier)

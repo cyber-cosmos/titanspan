@@ -6,22 +6,30 @@ The tests cover generated revisions and migration round trips.
 from __future__ import annotations
 
 from pathlib import Path
-from typing import ClassVar
+from typing import TYPE_CHECKING, ClassVar, cast
 
 import anyio
 import pytest
 from sqlalchemy import String
+from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Mapped, mapped_column
 
 from titanspan.contracts.database import DatabaseService
 from titanspan.database import (
+    DatabaseManager,
     DatabaseMigrationError,
     DatabaseServiceProvider,
     MigrationManager,
     Schema,
 )
 from titanspan.database.model import Model
+from titanspan.facades.database import DB
 from titanspan.foundation import Application
+
+if TYPE_CHECKING:
+    from collections.abc import Callable
+
+    from sqlalchemy.engine import Connection
 
 pytestmark = [pytest.mark.integration, pytest.mark.anyio]
 _UP_BODY = '''    def up(self) -> None:
@@ -198,6 +206,61 @@ async def test_failed_revision_rolls_back_its_version_state(
             await manager.upgrade_async()
 
         assert not (await manager.status_async())[0].applied
+
+
+async def test_isolated_migration_fails_closed_on_sqlite(
+    application: Application,
+) -> None:
+    """Reject explicit isolation when SQLite has no migration lock API.
+
+    Args:
+        application: Isolated SQLite Database application fixture.
+    """
+    async with application:
+        manager = await application.container.make_async(MigrationManager)
+        path = manager.create_revision("isolated sqlite revision")
+        assert path.exists()
+
+        with pytest.raises(
+            DatabaseMigrationError,
+            match="require PostgreSQL or MySQL",
+        ):
+            await manager.upgrade_async(isolated=True)
+
+        assert not await Schema.has_table_async("alembic_version")
+
+
+async def test_failed_named_lock_release_invalidates_its_connection(
+    application: Application,
+) -> None:
+    """Discard a physical connection when a named lock cannot be released.
+
+    Args:
+        application: Isolated SQLite Database application fixture.
+    """
+    async with application:
+        manager = await application.container.make_async(DatabaseManager)
+        connection = manager.engine("sqlite").connect()
+        release_method = "_release_mysql_lock"
+        release_lock = cast(
+            "Callable[[Connection, str], None]",
+            getattr(MigrationManager, release_method),
+        )
+        try:
+            with pytest.raises(SQLAlchemyError):
+                # Exercise invalidation at the real SQLAlchemy connection.
+                release_lock(
+                    connection,
+                    "test-migration-lock",
+                )
+
+            assert connection.invalidated
+            rows = await DB.connection("sqlite").select_async(
+                "SELECT 1 AS value",
+            )
+            assert rows[0]["value"] == 1
+        finally:
+            connection.close()
 
 
 async def test_autogeneration_uses_native_model_metadata(

@@ -4,7 +4,11 @@
 from titanspan.contracts.database.connection import (
     DatabaseConnectionService,
 )
-from titanspan.contracts.database.manager import DatabaseService
+from titanspan.contracts.database.manager import (
+    DatabaseService,
+    TransactionOutcome,
+    TransactionReceipt,
+)
 from titanspan.contracts.database.pagination import (
     LengthAwarePage,
     SimplePage,
@@ -19,4 +23,6 @@ __all__ = [
     "DatabaseService",
     "LengthAwarePage",
     "SimplePage",
+    "TransactionOutcome",
+    "TransactionReceipt",
 ]

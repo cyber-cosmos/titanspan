@@ -56,6 +56,11 @@ public release.
   PostgreSQL integration fails closed when its mandatory CI service
   configuration is missing. See the Database guide for the verified scope
   and current limitations.
+- Distinguish confirmed transaction outcomes from callback failures and
+  uncertain commits. Reject cancelled model writes before later autoflush,
+  apply model increments atomically, enforce SQLite foreign keys, preserve
+  soft-delete visibility across eager loading, and coordinate PostgreSQL and
+  MySQL migrations with database locks.
 - Add explicit asynchronous route model binding through the native Routing
   callback boundary. Models can select a mapped route-key column, and missing
   rows use the framework's not-found response handling.

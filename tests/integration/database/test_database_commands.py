@@ -4,6 +4,7 @@ The cases exercise application-aware command registration.
 """
 
 import importlib.util
+import sqlite3
 import sys
 from pathlib import Path
 
@@ -125,7 +126,233 @@ def test_destructive_migration_command_fails_closed_in_production(
 
     assert result.exit_code == 1
     assert "require --force in production" in result.stderr
+    assert "database/production.sqlite" in "".join(result.stderr.split())
     assert not (tmp_path / "database" / "production.sqlite").exists()
+
+
+def test_migrate_rollback_exposes_isolated_option(
+    tmp_path: Path,
+) -> None:
+    """Forward explicit isolation requests to the migration manager.
+
+    Args:
+        tmp_path: Isolated application root used for a disposable database.
+    """
+
+    def application_factory(provider: ServiceProvider) -> Application:
+        """Build a test application with an isolated SQLite database.
+
+        Args:
+            provider: Console-owned provider for command invocation.
+
+        Returns:
+            An application configured for a disposable SQLite target.
+        """
+        return (
+            Application.builder()
+            .with_base_path(tmp_path)
+            .with_config(
+                {
+                    "app": {"env": "testing"},
+                    "database": {
+                        "default": "sqlite",
+                        "connections": {
+                            "sqlite": {
+                                "driver": "sqlite",
+                                "database": "database/isolated.sqlite",
+                            },
+                        },
+                    },
+                },
+            )
+            .with_service_provider(DatabaseServiceProvider())
+            .with_service_provider(provider)
+            .build()
+        )
+
+    console = Console(application_factory=application_factory)
+    register_database_commands(console)
+
+    result = ConsoleTester(console).invoke(
+        ["migrate:rollback", "--isolated"],
+        stdin="y\n",
+    )
+
+    assert result.exit_code == 1
+    assert "require PostgreSQL or MySQL" in result.stderr
+    with sqlite3.connect(tmp_path / "database" / "isolated.sqlite") as db:
+        version_table = db.execute(
+            "SELECT name FROM sqlite_master WHERE type = ? AND name = ?",
+            ("table", "alembic_version"),
+        ).fetchone()
+
+    assert version_table is None
+
+
+def test_migrate_requires_force_in_production_and_force_runs(
+    tmp_path: Path,
+) -> None:
+    """Require explicit force for ordinary production migration execution.
+
+    Args:
+        tmp_path: Isolated application root used for database safety.
+    """
+
+    def application_factory(provider: ServiceProvider) -> Application:
+        """Build a production app with one disposable SQLite database.
+
+        Args:
+            provider: Console-owned provider for output and invocation.
+
+        Returns:
+            An application configured with a non-existing database target.
+        """
+        return (
+            Application.builder()
+            .with_base_path(tmp_path)
+            .with_config(
+                {
+                    "app": {"env": "production"},
+                    "database": {
+                        "default": "sqlite",
+                        "connections": {
+                            "sqlite": {
+                                "driver": "sqlite",
+                                "database": "database/ordinary.sqlite",
+                            },
+                        },
+                    },
+                },
+            )
+            .with_service_provider(DatabaseServiceProvider())
+            .with_service_provider(provider)
+            .build()
+        )
+
+    console = Console(application_factory=application_factory)
+    register_database_commands(console)
+
+    refused = ConsoleTester(console).invoke(["migrate"])
+    database_path = tmp_path / "database" / "ordinary.sqlite"
+
+    assert refused.exit_code == 1
+    assert "require --force in production" in refused.stderr
+    assert "database/ordinary.sqlite" in "".join(refused.stderr.split())
+    assert not database_path.exists()
+
+    authorized = ConsoleTester(console).invoke(["migrate", "--force"])
+
+    assert authorized.exit_code == 0
+    assert "Migration run completed." in authorized.stdout
+    assert database_path.exists()
+
+
+def test_migrate_confirmation_identifies_target_without_credentials(
+    tmp_path: Path,
+) -> None:
+    """Show the configured database destination without URL credentials.
+
+    Args:
+        tmp_path: Isolated application root used for path safety.
+    """
+
+    def application_factory(provider: ServiceProvider) -> Application:
+        """Build a test app whose SQLite URL includes a secret option.
+
+        Args:
+            provider: Console-owned provider for output and invocation.
+
+        Returns:
+            An application that will decline before connecting.
+        """
+        return (
+            Application.builder()
+            .with_base_path(tmp_path)
+            .with_config(
+                {
+                    "app": {"env": "testing"},
+                    "database": {
+                        "default": "sqlite",
+                        "connections": {
+                            "sqlite": {
+                                "url": (
+                                    "sqlite:///database/[confirmed].sqlite"
+                                    "?password=synthetic-placeholder"
+                                ),
+                            },
+                        },
+                    },
+                },
+            )
+            .with_service_provider(DatabaseServiceProvider())
+            .with_service_provider(provider)
+            .build()
+        )
+
+    console = Console(application_factory=application_factory)
+    register_database_commands(console)
+
+    result = ConsoleTester(console).invoke(["migrate"], stdin="n\n")
+    output = result.stdout + result.stderr
+    normalized_output = "".join(output.split())
+
+    assert result.exit_code == 1
+    assert "database/%5Bconfirmed%5D.sqlite" in normalized_output
+    assert "synthetic-placeholder" not in normalized_output
+    assert "password=" not in normalized_output
+    assert not (tmp_path / "database" / "[confirmed].sqlite").exists()
+
+
+def test_migrate_refuses_an_unconfigured_target_before_prompting(
+    tmp_path: Path,
+) -> None:
+    """Refuse unknown connection names without connecting to a database.
+
+    Args:
+        tmp_path: Isolated application root used for database safety.
+    """
+
+    def application_factory(provider: ServiceProvider) -> Application:
+        """Build a test app with only the default SQLite target.
+
+        Args:
+            provider: Console-owned provider for command invocation.
+
+        Returns:
+            An application with one disposable configured connection.
+        """
+        return (
+            Application.builder()
+            .with_base_path(tmp_path)
+            .with_config(
+                {
+                    "app": {"env": "testing"},
+                    "database": {
+                        "default": "sqlite",
+                        "connections": {
+                            "sqlite": {
+                                "driver": "sqlite",
+                                "database": "database/configured.sqlite",
+                            },
+                        },
+                    },
+                },
+            )
+            .with_service_provider(DatabaseServiceProvider())
+            .with_service_provider(provider)
+            .build()
+        )
+
+    console = Console(application_factory=application_factory)
+    register_database_commands(console)
+
+    result = ConsoleTester(console).invoke(
+        ["migrate", "--database", "missing"],
+    )
+
+    assert result.exit_code == 1
+    assert "requested database connection is not configured" in result.stderr
+    assert not (tmp_path / "database" / "configured.sqlite").exists()
 
 
 def test_seeder_generator_runs_through_native_console(

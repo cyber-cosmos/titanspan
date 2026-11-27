@@ -5,13 +5,15 @@ The required CI flag turns a missing URL into a test failure.
 
 from __future__ import annotations
 
-import os
 from typing import TYPE_CHECKING
 
 import anyio
 import pytest
 from sqlalchemy.engine import make_url
 from sqlalchemy.orm import Mapped, mapped_column
+from tests.integration.database.postgresql_support import (
+    configured_postgres_url,
+)
 
 from titanspan.database import (
     DatabaseServiceProvider,
@@ -24,8 +26,6 @@ from titanspan.foundation import Application
 
 pytestmark = [pytest.mark.integration, pytest.mark.anyio]
 _DATABASE_PREFIX = "titanspan_codex_test_"
-_POSTGRES_URL_ENV = "TITANSPAN_TEST_POSTGRES_URL"
-_REQUIRE_POSTGRES_ENV = "TITANSPAN_REQUIRE_POSTGRES"
 _CONCURRENT_TASK_COUNT = 2
 _EXPECTED_UPSERTED_SCORE = 2
 _EXPECTED_INCREMENT_VALUES = [1, 2]
@@ -45,7 +45,8 @@ _MIGRATION_DOWN = '''    def down(self) -> None:
 
 
 class PostgreSQLAtomicCounter(Model):
-    """Represent a counter row updated by independent PostgreSQL sessions."""
+    """Represent a counter row updated by independent PostgreSQL sessions.
+    """  # fmt: skip
 
     table = "postgres_atomic_counters"
     fillable = ("value",)
@@ -86,23 +87,6 @@ def application(tmp_path: Path) -> Application:
         },
         service_providers=(DatabaseServiceProvider(),),
     )
-
-
-def configured_postgres_url() -> str:
-    """Require the integration URL in CI and skip local runs without it.
-
-    Returns:
-        The configured URL for an isolated PostgreSQL test database.
-
-    Raises:
-        pytest.fail.Exception: If mandatory CI lacks its configured service.
-    """
-    url = os.environ.get(_POSTGRES_URL_ENV)
-    if url is not None:
-        return url
-    if os.environ.get(_REQUIRE_POSTGRES_ENV) == "1":
-        pytest.fail(f"{_REQUIRE_POSTGRES_ENV}=1 requires {_POSTGRES_URL_ENV}.")
-    pytest.skip(f"Set {_POSTGRES_URL_ENV} to run Postgres integration.")
 
 
 async def test_postgresql_transactions_and_concurrent_sessions(
@@ -177,7 +161,7 @@ async def test_postgresql_transactions_and_concurrent_sessions(
             _MIGRATION_DOWN,
         )
         path.write_text(source, encoding="utf-8")
-        await migrations.upgrade_async()
+        await migrations.upgrade_async(isolated=True)
 
         assert await Schema.has_table_async("postgres_migration_rows")
 
@@ -200,7 +184,8 @@ async def test_postgresql_model_increments_are_atomic(
         )
         await DB.statement_async(
             "CREATE TABLE postgres_atomic_counters ("
-            "id BIGSERIAL PRIMARY KEY, value BIGINT NOT NULL)"
+            "id BIGSERIAL PRIMARY KEY, value BIGINT NOT NULL, "
+            "created_at TIMESTAMPTZ NULL, updated_at TIMESTAMPTZ NULL)"
         )
         counter = await PostgreSQLAtomicCounter.create_async({"value": 0})
         first = await PostgreSQLAtomicCounter.find_async(counter.id)

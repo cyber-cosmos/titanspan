@@ -98,6 +98,19 @@ class ConnectionConfiguration:
             hide_password=True
         )
 
+    @property
+    def target_identity(self) -> str:
+        """Return the configured target URL without credential material.
+
+        Returns:
+            A stable target identifier with all query options removed.
+        """
+        return self.sync_url.set(
+            username=None,
+            password=None,
+            query={},
+        ).render_as_string(hide_password=True)
+
 
 @dataclass(frozen=True, slots=True)
 class DatabaseConfiguration:

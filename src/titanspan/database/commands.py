@@ -93,6 +93,7 @@ def register_database_commands(registrar: CommandRegistrar) -> None:
 def run_migrations(
     manager: MigrationManager,
     output: ConsoleOutput,
+    config: ConfigRepository,
     database: Annotated[
         str | None,
         Option(
@@ -100,16 +101,45 @@ def run_migrations(
             description="Named database connection to migrate.",
         ),
     ] = None,
+    force: Annotated[
+        bool,
+        Option(
+            "--force",
+            description="Explicitly authorize migrations in production.",
+        ),
+    ] = False,
+    isolated: Annotated[
+        bool,
+        Option(
+            "--isolated",
+            description="Require database-supported migration locking.",
+        ),
+    ] = False,
 ) -> None:
     """Apply pending Alembic revisions to the selected connection.
 
     Args:
         manager: Application-owned migration service.
         output: Native Console output for this invocation.
+        config: Application configuration used for environment policy.
         database: Optional configured connection name.
+        force: Whether to bypass the confirmation policy explicitly.
+        isolated: Whether supported cross-process coordination is required.
     """
+    if not _confirm_destructive(
+        manager,
+        output,
+        config,
+        database,
+        force,
+        "apply pending database migrations",
+    ):
+        raise ConsoleExitError(1)
     _run_migration(
-        lambda: manager.upgrade(connection=database),
+        lambda: manager.upgrade(
+            connection=database,
+            isolated=isolated,
+        ),
         output,
         "Migration run completed.",
     )
@@ -125,6 +155,13 @@ def install_migrations(
             description="Named database connection to install.",
         ),
     ] = None,
+    isolated: Annotated[
+        bool,
+        Option(
+            "--isolated",
+            description="Require database-supported migration locking.",
+        ),
+    ] = False,
 ) -> None:
     """Create Alembic's revision table without applying revisions.
 
@@ -132,9 +169,10 @@ def install_migrations(
         manager: Application-owned migration service.
         output: Native Console output for this invocation.
         database: Optional configured connection name.
+        isolated: Whether supported cross-process coordination is required.
     """
     _run_migration(
-        lambda: manager.install(database),
+        lambda: manager.install(database, isolated=isolated),
         output,
         "Migration repository installed.",
     )
@@ -176,7 +214,8 @@ def show_migration_status(
     output.table(("Revision", "Status", "Current head"), rows)
 
 
-def rollback_migrations(
+# Console needs one typed parameter for each injected service and option.
+def rollback_migrations(  # noqa: PLR0913
     manager: MigrationManager,
     output: ConsoleOutput,
     config: ConfigRepository,
@@ -198,6 +237,13 @@ def rollback_migrations(
             description="Skip the destructive-operation confirmation.",
         ),
     ] = False,
+    isolated: Annotated[
+        bool,
+        Option(
+            "--isolated",
+            description="Require database-supported migration locking.",
+        ),
+    ] = False,
 ) -> None:
     """Reverse recent revisions after the destructive-operation guard.
 
@@ -208,8 +254,10 @@ def rollback_migrations(
         database: Optional configured connection name.
         step: Positive count of Alembic revisions to reverse.
         force: Whether to bypass confirmation explicitly.
+        isolated: Whether supported cross-process coordination is required.
     """
     if not _confirm_destructive(
+        manager,
         output,
         config,
         database,
@@ -218,7 +266,11 @@ def rollback_migrations(
     ):
         raise ConsoleExitError(1)
     _run_migration(
-        lambda: manager.rollback(step, connection=database),
+        lambda: manager.rollback(
+            step,
+            connection=database,
+            isolated=isolated,
+        ),
         output,
         "Migration rollback completed.",
     )
@@ -242,6 +294,13 @@ def reset_migrations(
             description="Skip the destructive-operation confirmation.",
         ),
     ] = False,
+    isolated: Annotated[
+        bool,
+        Option(
+            "--isolated",
+            description="Require database-supported migration locking.",
+        ),
+    ] = False,
 ) -> None:
     """Reverse all applied revisions after an environment guard.
 
@@ -251,8 +310,10 @@ def reset_migrations(
         config: Application configuration used for environment policy.
         database: Optional configured connection name.
         force: Whether to bypass confirmation explicitly.
+        isolated: Whether supported cross-process coordination is required.
     """
     if not _confirm_destructive(
+        manager,
         output,
         config,
         database,
@@ -261,7 +322,7 @@ def reset_migrations(
     ):
         raise ConsoleExitError(1)
     _run_migration(
-        lambda: manager.reset(database),
+        lambda: manager.reset(database, isolated=isolated),
         output,
         "Migration reset completed.",
     )
@@ -285,6 +346,13 @@ def refresh_migrations(
             description="Skip the destructive-operation confirmation.",
         ),
     ] = False,
+    isolated: Annotated[
+        bool,
+        Option(
+            "--isolated",
+            description="Require database-supported migration locking.",
+        ),
+    ] = False,
 ) -> None:
     """Reverse and reapply revisions after an environment guard.
 
@@ -294,8 +362,10 @@ def refresh_migrations(
         config: Application configuration used for environment policy.
         database: Optional configured connection name.
         force: Whether to bypass confirmation explicitly.
+        isolated: Whether supported cross-process coordination is required.
     """
     if not _confirm_destructive(
+        manager,
         output,
         config,
         database,
@@ -304,7 +374,7 @@ def refresh_migrations(
     ):
         raise ConsoleExitError(1)
     _run_migration(
-        lambda: manager.refresh(database),
+        lambda: manager.refresh(database, isolated=isolated),
         output,
         "Migration refresh completed.",
     )
@@ -513,15 +583,17 @@ def _snake_case(value: str) -> str:
 
 
 def _confirm_destructive(
+    manager: MigrationManager,
     output: ConsoleOutput,
     config: ConfigRepository,
     database: str | None,
     force: bool,
     operation: str,
 ) -> bool:
-    """Apply production refusal and explicit confirmation to DDL changes.
+    """Apply production refusal and confirmation to migration operations.
 
     Args:
+        manager: Application-owned service used to identify the real target.
         output: Native Console output for this invocation.
         config: Canonical configuration repository.
         database: Selected connection name, if supplied.
@@ -531,20 +603,26 @@ def _confirm_destructive(
     Returns:
         Whether the operation was authorized by policy.
     """
+    try:
+        target = manager.target_identity(database)
+    except DatabaseError as error:
+        output.write_error(str(error))
+        return False
+
     environment = config.get("app.env", "production")
     if not isinstance(environment, str):
         output.write_error("The application environment is invalid.")
         return False
     if environment.casefold() == "production" and not force:
         output.write_error(
-            "Destructive migration commands require --force in production."
+            "Database migration commands require --force in production "
+            f"for target ({target})."
         )
         return False
     if force:
         return True
-    target = "default" if database is None else database
     return output.confirm(
-        f"Confirm {operation} on connection [{target}]?",
+        f"Confirm {operation} on database ({target})?",
         default=False,
     )
 

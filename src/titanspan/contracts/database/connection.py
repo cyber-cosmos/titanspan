@@ -40,6 +40,15 @@ class DatabaseConnectionService(Protocol):
         """
         ...
 
+    @property
+    def target_identity(self) -> str:
+        """Return the connection target without usernames or credentials.
+
+        Returns:
+            A redacted URL identifying the configured database destination.
+        """
+        ...
+
     def table(self, name: str) -> DatabaseQueryBuilder:
         """Start a fluent query against one safe table identifier.
 

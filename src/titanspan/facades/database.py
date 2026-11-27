@@ -19,7 +19,7 @@ if TYPE_CHECKING:
     from collections.abc import Awaitable, Callable, Mapping
     from contextlib import AbstractAsyncContextManager, AbstractContextManager
 
-    from titanspan.contracts.database import DatabaseResult
+    from titanspan.contracts.database import DatabaseResult, TransactionReceipt
 
 
 class DB(Facade[DatabaseService]):
@@ -83,14 +83,14 @@ class DB(Facade[DatabaseService]):
     def transaction(
         cls,
         name: str | None = None,
-    ) -> AbstractContextManager[None]:
+    ) -> AbstractContextManager[TransactionReceipt]:
         """Open a sync transaction on the selected connection.
 
         Args:
             name: Configured connection name or ``None`` for the default.
 
         Returns:
-            A context manager that commits or rolls back its Unit of Work.
+            A context manager that records its transaction outcome.
         """
         return cls.resolve_service().transaction(name)
 
@@ -98,15 +98,14 @@ class DB(Facade[DatabaseService]):
     def transaction_async(
         cls,
         name: str | None = None,
-    ) -> AbstractAsyncContextManager[None]:
+    ) -> AbstractAsyncContextManager[TransactionReceipt]:
         """Open an async transaction owned by the current task.
 
         Args:
             name: Configured connection name or ``None`` for the default.
 
         Returns:
-            An async context manager that commits or rolls back its Unit of
-            Work.
+            An async context manager that records its transaction outcome.
         """
         return cls.resolve_service().transaction_async(name)
 

@@ -10,7 +10,10 @@ from __future__ import annotations
 from collections.abc import Callable, Mapping
 from typing import TYPE_CHECKING, ClassVar, Protocol, Self, TypeGuard, cast
 
-from titanspan.database.exceptions import DatabaseFactoryError
+from titanspan.database.exceptions import (
+    DatabaseFactoryError,
+    ModelPersistenceCancelledError,
+)
 from titanspan.database.model_collection import ModelCollection
 from titanspan.facades.database import DB
 
@@ -217,6 +220,9 @@ class ModelFactory[ModelT: _FactoryModel]:
 
         Returns:
             The persisted detached model instance.
+
+        Raises:
+            ModelPersistenceCancelledError: If a model event rejects creation.
         """
         return self.create_many(1, attributes)[0]
 
@@ -233,6 +239,9 @@ class ModelFactory[ModelT: _FactoryModel]:
 
         Returns:
             A native model collection in creation order.
+
+        Raises:
+            ModelPersistenceCancelledError: If a model event rejects a write.
         """
         models = self.make_many(count, attributes)
         if not models:
@@ -240,7 +249,8 @@ class ModelFactory[ModelT: _FactoryModel]:
         service = DB.resolve_service()
         with service.transaction(self._model_class.connection):
             for model in models:
-                model.save()
+                saved = model.save()
+                _require_successful_save(model, saved)
                 self._schedule_after_creating(service, model)
         return models
 
@@ -255,6 +265,9 @@ class ModelFactory[ModelT: _FactoryModel]:
 
         Returns:
             The persisted detached model instance.
+
+        Raises:
+            ModelPersistenceCancelledError: If a model event rejects creation.
         """
         return (await self.create_many_async(1, attributes))[0]
 
@@ -271,6 +284,9 @@ class ModelFactory[ModelT: _FactoryModel]:
 
         Returns:
             A native model collection in creation order.
+
+        Raises:
+            ModelPersistenceCancelledError: If a model event rejects a write.
         """
         models = self.make_many(count, attributes)
         if not models:
@@ -278,7 +294,8 @@ class ModelFactory[ModelT: _FactoryModel]:
         service = DB.resolve_service()
         async with service.transaction_async(self._model_class.connection):
             for model in models:
-                await model.save_async()
+                saved = await model.save_async()
+                _require_successful_save(model, saved)
                 self._schedule_after_creating(service, model)
         return models
 
@@ -487,6 +504,9 @@ class FactoryBatch[ModelT: _FactoryModel]:
 
         Returns:
             A collection of persisted models in creation order.
+
+        Raises:
+            ModelPersistenceCancelledError: If a model event rejects a write.
         """
         return self._factory.create_many(self._count, attributes)
 
@@ -501,6 +521,9 @@ class FactoryBatch[ModelT: _FactoryModel]:
 
         Returns:
             A collection of persisted models in creation order.
+
+        Raises:
+            ModelPersistenceCancelledError: If a model event rejects a write.
         """
         return await self._factory.create_many_async(
             self._count,
@@ -542,6 +565,22 @@ def _is_indexed_value(
         Whether the value is callable with one zero-based index.
     """
     return callable(value)
+
+
+def _require_successful_save(model: _FactoryModel, saved: bool) -> None:
+    """Reject a factory result whose model save was cancelled.
+
+    Args:
+        model: Factory model whose persistence was attempted.
+        saved: Result returned by the model's direct save operation.
+
+    Raises:
+        ModelPersistenceCancelledError: If a model event cancelled the save.
+    """
+    if not saved:
+        model_name = type(model).__name__
+        message = f"Persistence of {model_name} was cancelled by an event."
+        raise ModelPersistenceCancelledError(message)
 
 
 def _validate_count(count: int) -> None:
