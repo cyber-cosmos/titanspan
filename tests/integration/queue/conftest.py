@@ -23,29 +23,22 @@ _REDIS_REQUIRED_ENV = "TITANSPAN_REQUIRE_REDIS"
 _REDIS_PORT_ENV = "TITANSPAN_TEST_REDIS_PORT"
 
 
-@pytest.fixture(scope="module", autouse=True)
-def taskiq_redis_dependency() -> None:
-    """Require Taskiq's Redis adapter in mandatory integration jobs.
+@pytest.fixture
+def queue_redis_port() -> Iterator[int]:
+    """Require the Redis adapter and use CI or local Redis for this test.
 
-    Optional local runs skip only when the dependency is unavailable.
+    Yields:
+        The loopback port used by the Queue Redis integration.
     """
+    required = environ.get(_REDIS_REQUIRED_ENV) == "1"
     try:
         import_module("taskiq_redis")
     except ImportError:
         message = "Install the queue-redis extra to run Queue Redis tests."
-        if environ.get(_REDIS_REQUIRED_ENV) == "1":
+        if required:
             pytest.fail(message)
         pytest.skip(message)
 
-
-@pytest.fixture
-def queue_redis_port() -> Iterator[int]:
-    """Use CI Redis or start a local Redis process for this test.
-
-    Yields:
-        The loopback port that accepts Queue integration connections.
-    """
-    required = environ.get(_REDIS_REQUIRED_ENV) == "1"
     configured_port = environ.get(_REDIS_PORT_ENV)
     if configured_port is not None:
         try:
