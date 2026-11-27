@@ -16,6 +16,7 @@ from titanspan.contracts.foundation import (
     BootableServiceProvider,
 )
 from titanspan.database.manager import DatabaseManager
+from titanspan.database.migration_manager import MigrationManager
 
 if TYPE_CHECKING:
     from titanspan.contracts.container import ServiceRegistry
@@ -62,8 +63,24 @@ class DatabaseServiceProvider(BootableServiceProvider):
             """
             return manager
 
+        def provide_migrations(
+            service: DatabaseService,
+            paths: ApplicationPaths,
+        ) -> MigrationManager:
+            """Bind revision files to the app root and Database service.
+
+            Args:
+                service: The canonical app-owned Database service.
+                paths: The application root and path resolver.
+
+            Returns:
+                A lazy migration manager for this application.
+            """
+            return MigrationManager(service, paths.base_path)
+
         container.singleton(DatabaseManager, provide_manager)
         container.singleton(DatabaseService, provide_service)
+        container.singleton(MigrationManager, provide_migrations)
 
     @property
     def boot(self) -> Callable[..., Awaitable[object] | None]:

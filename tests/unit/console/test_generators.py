@@ -77,6 +77,13 @@ _GENERATED_ARTIFACTS: tuple[
         "class AuditJobMiddleware:",
     ),
     (
+        "seeder",
+        "Analytics",
+        None,
+        "database/seeders/analytics_seeder.py",
+        "class AnalyticsSeeder(Seeder):",
+    ),
+    (
         "test",
         "documents",
         None,

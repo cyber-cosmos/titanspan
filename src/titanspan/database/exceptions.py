@@ -30,6 +30,21 @@ class DatabaseSchemaError(DatabaseError):
     """  # fmt: skip
 
 
+class DatabaseMigrationError(DatabaseError):
+    """Report a migration failure without exposing database credentials.
+    """  # fmt: skip
+
+
+class DatabaseFactoryError(DatabaseError):
+    """Report invalid model-factory configuration or batch values.
+    """  # fmt: skip
+
+
+class DatabaseSeederError(DatabaseError):
+    """Report an invalid or unavailable application database seeder.
+    """  # fmt: skip
+
+
 class DatabaseTransactionError(DatabaseError):
     """Report an invalid transaction lifecycle operation.
     """  # fmt: skip
@@ -65,8 +80,11 @@ __all__ = [
     "DatabaseConfigurationError",
     "DatabaseConnectionError",
     "DatabaseError",
+    "DatabaseFactoryError",
+    "DatabaseMigrationError",
     "DatabaseQueryError",
     "DatabaseSchemaError",
+    "DatabaseSeederError",
     "DatabaseTransactionError",
     "DatabaseTransactionOwnershipError",
     "MassAssignmentError",

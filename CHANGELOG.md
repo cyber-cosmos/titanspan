@@ -47,6 +47,15 @@ public release.
   service.
 - Limit async Hashing worker admission before entering AnyIO's general worker
   pool. Bind HTTP fakes created in an Application context to that Application.
+- Add the optional Database component over SQLAlchemy and Alembic with
+  application-owned named connections, thread-owned sync sessions,
+  task-owned async sessions, explicit transactions, Core and ORM query
+  builders, typed Active Record models, schema operations, migrations, model
+  factories, transactional sync and async Seeders, and native Console
+  integration. SQLite and PostgreSQL have real integration coverage;
+  PostgreSQL integration fails closed when its mandatory CI service
+  configuration is missing. See the Database guide for the verified scope
+  and current limitations.
 - Declare Pydantic as a direct runtime dependency for native schema APIs.
 - Add native application Cache services with memory and optional Redis
   backends, explicit backend capabilities, safe JSON serialization, atomic
@@ -58,7 +67,7 @@ public release.
 - Allow configuration commands to target an explicit application root.
 - Add event inspection and manifest commands to the native Console.
 - Add safe, application-rooted Console generators for controllers, middleware,
-  providers, commands, events, listeners, and application tests.
+  providers, commands, events, listeners, Seeders, and application tests.
 - Add synchronous and asynchronous application test contexts over the
   production Foundation lifecycle, Container, and ASGI application.
 - Extend the clean-install smoke with a multipart document workflow. The
@@ -164,8 +173,9 @@ public release.
   context-local fakes, deferral, and bounded event pushes.
   Class-based subscriber methods resolve in each active dispatch scope;
   explicit instance subscribers remain registration-owned.
-  Queue, Database, and Broadcasting delivery remain pending. Event inspection
-  and cache commands use the native Console registration boundary.
+  Database transactions expose callback registration; transaction-aware
+  Events delivery, Queue, and Broadcasting remain pending. Event inspection
+  and cache/database commands use the native Console registration boundary.
   See `docs/src/content/docs/events/` and
   `docs/src/content/docs/specifications/events.md`.
 - Completed multipart uploads, HTTPX2 fakes, assertions, bounded AnyIO pools,

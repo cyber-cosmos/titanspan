@@ -424,8 +424,7 @@ def _engine_options(values: Mapping[str, object]) -> dict[str, object]:
     ):
         value = options.get(name)
         if value is not None and (
-            type(value) is not int
-            or value < _minimum_pool_value(name)
+            type(value) is not int or value < _minimum_pool_value(name)
         ):
             msg = f"Database engine option [{name}] must be an integer."
             raise DatabaseConfigurationError(msg)

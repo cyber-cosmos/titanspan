@@ -35,6 +35,8 @@ from titanspan.database.exceptions import (
     MassAssignmentError,
     ModelNotFoundError,
 )
+from titanspan.database.factory import ModelFactory
+from titanspan.database.model_collection import ModelCollection
 from titanspan.database.model_state import (
     last_changes,
     recently_created,
@@ -64,6 +66,60 @@ _COMPOSITE_KEY_ERROR = (
 )
 
 
+class SoftDeletes:
+    """Add timestamp-based soft deletion to a declarative model.
+
+    The mixin provides default query filtering and explicit restore or hard
+    deletion methods without replacing SQLAlchemy's mapped state machinery.
+    """
+
+    __soft_delete_enabled__: ClassVar[bool] = True
+    deleted_at_name: ClassVar[str] = "deleted_at"
+
+    @declared_attr
+    def deleted_at(self: SoftDeletes) -> Mapped[datetime | None]:
+        """Map the configured nullable soft-delete timestamp.
+
+        Returns:
+            A timezone-aware timestamp column on the concrete model table.
+        """
+        return mapped_column(
+            self.deleted_at_name,
+            DateTime(timezone=True),
+            nullable=True,
+        )
+
+    def trashed(self) -> bool:
+        """Return whether the mapped deletion timestamp is set.
+
+        Returns:
+            Whether this model currently represents a soft-deleted row.
+        """
+        return getattr(self, self.deleted_at_name) is not None
+
+    def restore(self) -> bool:
+        """Clear the deletion timestamp and persist the model.
+
+        Returns:
+            Whether the model was previously soft deleted and was saved.
+        """
+        if not self.trashed():
+            return False
+        setattr(self, self.deleted_at_name, None)
+        return cast("Model", self).save()
+
+    async def restore_async(self) -> bool:
+        """Asynchronously clear and persist the deletion timestamp.
+
+        Returns:
+            Whether the model was previously soft deleted and was saved.
+        """
+        if not self.trashed():
+            return False
+        setattr(self, self.deleted_at_name, None)
+        return await cast("Model", self).save_async()
+
+
 class Model(DeclarativeBase):
     """Base SQLAlchemy model with native active-record operations.
 
@@ -85,7 +141,6 @@ class Model(DeclarativeBase):
     id: Mapped[int] = mapped_column(
         Integer,
         primary_key=True,
-        autoincrement=True,
     )
 
     table: ClassVar[str | None] = None
@@ -95,6 +150,7 @@ class Model(DeclarativeBase):
     hidden: ClassVar[tuple[str, ...]] = ()
     visible: ClassVar[tuple[str, ...]] = ()
     appends: ClassVar[tuple[str, ...]] = ()
+    factory_attributes: ClassVar[Mapping[str, object]] = MappingProxyType({})
     strict_mass_assignment: ClassVar[bool] = False
     timestamps: ClassVar[bool] = True
     created_at_name: ClassVar[str] = "created_at"
@@ -148,7 +204,18 @@ class Model(DeclarativeBase):
         return ModelQueryBuilder(cls, DB.resolve_service())
 
     @classmethod
-    def all(cls) -> list[Self]:
+    def factory(cls) -> ModelFactory[Self]:
+        """Create a factory using this model's trusted attribute defaults.
+
+        Returns:
+            A reusable native factory bound to this model class, not a database
+            application. Persistence resolves the active Database service when
+            a factory operation creates records.
+        """
+        return ModelFactory(cls, cls.factory_attributes)
+
+    @classmethod
+    def all(cls) -> ModelCollection[Self]:
         """Retrieve every matching model using the sync database API.
 
         Returns:
@@ -157,7 +224,7 @@ class Model(DeclarativeBase):
         return cls.query().get()
 
     @classmethod
-    async def all_async(cls) -> list[Self]:
+    async def all_async(cls) -> ModelCollection[Self]:
         """Retrieve every matching model using asynchronous database I/O.
 
         Returns:
@@ -258,7 +325,10 @@ class Model(DeclarativeBase):
         return await cls.query().find_async(identifier)
 
     @classmethod
-    def find_many(cls, identifiers: Iterable[object]) -> list[Self]:
+    def find_many(
+        cls,
+        identifiers: Iterable[object],
+    ) -> ModelCollection[Self]:
         """Retrieve rows matching any of the supplied primary keys.
 
         Args:
@@ -273,7 +343,7 @@ class Model(DeclarativeBase):
     async def find_many_async(
         cls,
         identifiers: Iterable[object],
-    ) -> list[Self]:
+    ) -> ModelCollection[Self]:
         """Asynchronously retrieve rows matching supplied identifiers.
 
         Args:
@@ -582,7 +652,7 @@ class Model(DeclarativeBase):
     def create_many(
         cls,
         records: Iterable[Mapping[str, object]],
-    ) -> list[Self]:
+    ) -> ModelCollection[Self]:
         """Persist multiple mass-assigned models in one transaction.
 
         Args:
@@ -598,13 +668,13 @@ class Model(DeclarativeBase):
                 model = cls().fill(attributes)
                 model.save()
                 models.append(model)
-        return models
+        return ModelCollection(models)
 
     @classmethod
     async def create_many_async(
         cls,
         records: Iterable[Mapping[str, object]],
-    ) -> list[Self]:
+    ) -> ModelCollection[Self]:
         """Asynchronously persist models sequentially in one transaction.
 
         Args:
@@ -620,7 +690,7 @@ class Model(DeclarativeBase):
                 model = cls().fill(attributes)
                 await model.save_async()
                 models.append(model)
-        return models
+        return ModelCollection(models)
 
     @classmethod
     def force_create(cls, attributes: Mapping[str, object]) -> Self:
@@ -836,6 +906,11 @@ class Model(DeclarativeBase):
         Returns:
             Whether SQLAlchemy flushed a delete for this instance.
         """
+        if isinstance(self, SoftDeletes):
+            if not self.exists or self.trashed():
+                return False
+            setattr(self, type(self).deleted_at_name, datetime.now(UTC))
+            return self.save()
         return self._delete_sync()
 
     async def delete_async(self) -> bool:
@@ -843,6 +918,27 @@ class Model(DeclarativeBase):
 
         Returns:
             Whether SQLAlchemy flushed a delete for this instance.
+        """
+        if isinstance(self, SoftDeletes):
+            if not self.exists or self.trashed():
+                return False
+            setattr(self, type(self).deleted_at_name, datetime.now(UTC))
+            return await self.save_async()
+        return await self._delete_async()
+
+    def force_delete(self) -> bool:
+        """Hard-delete this row regardless of soft-delete behavior.
+
+        Returns:
+            Whether SQLAlchemy flushed a delete for this model.
+        """
+        return self._delete_sync()
+
+    async def force_delete_async(self) -> bool:
+        """Asynchronously hard-delete this row.
+
+        Returns:
+            Whether SQLAlchemy flushed a delete for this model.
         """
         return await self._delete_async()
 
@@ -946,9 +1042,7 @@ class Model(DeclarativeBase):
         key_name = cls.primary_key_name()
         async with service.transaction_async(cls.connection):
             for chunk in _chunks(identifiers, _DESTROY_CHUNK_SIZE):
-                models = await (
-                    cls.query().where_in(key_name, chunk).get_async()
-                )
+                models = await cls.query().where_in(key_name, chunk).get_async()
                 for model in models:
                     deleted += int(await model.delete_async())
         return deleted

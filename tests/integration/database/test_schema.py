@@ -75,10 +75,59 @@ async def test_async_schema_create_alter_and_inspection(
             "users",
             ("email", "display_name"),
         )
+        assert await Schema.list_columns_async("users") == [
+            "id",
+            "email",
+            "active",
+            "created_at",
+            "updated_at",
+            "display_name",
+        ]
         await DB.table("users").insert_async(
             {"email": "ada@example.test", "active": True},
         )
         assert await DB.table("users").count_async() == 1
+
+
+async def test_schema_indexes_foreign_keys_and_morph_columns(
+    application: Application,
+) -> None:
+    """Create and inspect conventional database constraints and columns.
+
+    Args:
+        application: Isolated application fixture.
+    """
+    async with application:
+        async with Schema.create("accounts") as table:
+            table.id()
+            table.string("email").index()
+
+        async with Schema.create("comments") as table:
+            table.id()
+            table.foreign_id("account_id").references("accounts")
+            table.morphs("commentable")
+
+        assert await Schema.has_index_async(
+            "accounts",
+            "ix_accounts_email",
+        )
+        assert await Schema.has_foreign_key_async(
+            "comments",
+            "account_id",
+            "accounts",
+        )
+        assert await Schema.has_columns_async(
+            "comments",
+            ("commentable_type", "commentable_id"),
+        )
+
+        async with Schema.alter("accounts") as table:
+            table.drop_index("ix_accounts_email")
+
+        assert not await Schema.has_index_async(
+            "accounts",
+            "ix_accounts_email",
+        )
 
 
 async def test_sync_schema_operations_use_the_application_session(

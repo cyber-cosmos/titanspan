@@ -4,10 +4,408 @@ title: "Database"
 
 <span id="database"></span>
 
-Database integration is planned and is not included in the current package.
-The selected direction is SQLAlchemy for async persistence and Alembic for
-migrations, with explicit transactions and native SQLAlchemy interoperability.
+Titanspan Database provides application-owned connections, synchronous and
+asynchronous queries, Active Record models, schema operations, and Alembic
+migrations. SQLAlchemy owns connections, SQL compilation, ORM mapping, session
+identity, and Unit of Work behavior. Alembic owns migration revisions and
+revision state.
 
-No Titanspan ORM, model, query builder, or migration API is available yet.
-See [ADR 0006](/titanspan/architecture/decisions/0006-sqlalchemy-persistence/) and the
-[architecture guide](https://github.com/titanspan/titanspan/blob/main/ARCHITECTURE.md#database-and-transaction-semantics).
+The component is under active development. This guide describes the APIs that
+are implemented and exercised by the current SQLite and PostgreSQL integration
+tests. It does not imply support for every SQLAlchemy dialect or every feature
+listed in the project roadmap.
+
+## Install
+
+Install the optional Database and migration dependencies:
+
+```shell
+uv add "titanspan[database]"
+```
+
+SQLite and PostgreSQL drivers have separate extras. PostgreSQL applications
+can install the tested Psycopg driver with:
+
+```shell
+uv add "titanspan[database,postgresql]"
+```
+
+The base Titanspan installation does not import SQLAlchemy or Alembic. Add the
+Database provider to the application that uses persistence:
+
+```python
+from pathlib import Path
+
+from titanspan.database import DatabaseServiceProvider
+from titanspan.foundation import Application
+
+application = Application(
+    base_path=Path.cwd(),
+    config={
+        "database": {
+            "default": "sqlite",
+            "connections": {
+                "sqlite": {
+                    "driver": "sqlite",
+                    "database": "database/application.sqlite",
+                },
+            },
+        },
+    },
+    service_providers=(DatabaseServiceProvider(),),
+)
+```
+
+Provider registration creates a lazy, application-owned manager. It does not
+open a connection during application construction. Relative SQLite paths are
+resolved beneath `Application.base_path`; the process working directory is
+not changed.
+
+## Connections and execution
+
+Configure named connections under `database.connections` and select one with
+`database.default`. A connection may use a SQLAlchemy URL or structured fields
+such as `driver`, `host`, `port`, `database`, `username`, and `password`.
+Provide `sync_url` and `async_url` when the two execution modes need different
+drivers. Pooling and isolation settings belong under `options` and are
+validated before engine construction.
+
+```python
+from collections.abc import Mapping
+
+from titanspan.facades.database import DB
+
+
+def active_users() -> list[Mapping[str, object]]:
+    """Return active user rows from the selected database."""
+    return (
+        DB.connection("sqlite")
+        .table("users")
+        .where("active", True)
+        .get()
+    )
+```
+
+`DB.connection()` selects a logical connection. SQLAlchemy creates the
+underlying engine on first use. `Connection.engine` and
+`Connection.async_engine` are explicit SQLAlchemy interoperability points.
+`Connection.execute()` and `execute_async()` accept trusted SQL text with
+separately bound values; they are escape hatches, not identifier sanitizers.
+
+Synchronous calls use SQLAlchemy synchronous engines and thread-owned
+sessions. Async calls use SQLAlchemy asynchronous engines and task-owned
+sessions. Titanspan rejects an inherited transaction context when a different
+thread or task tries to use its mutable session. Sync and async engines have
+separate connection and transaction boundaries.
+
+## Transactions
+
+Use explicit transaction scopes when multiple statements must commit or roll
+back together:
+
+```python
+from titanspan.facades.database import DB
+
+
+async def add_user() -> None:
+    """Insert a user within one asynchronous transaction."""
+    async with DB.transaction_async():
+        await DB.table("users").insert_async(
+            {"name": "Ada", "active": True},
+        )
+```
+
+The synchronous API is `DB.transaction()`. Nested scopes use SQLAlchemy
+savepoints where supported. A model save flushes its Unit of Work; the
+outermost transaction owns commit. Operations outside an explicit transaction
+use and finish an operation-owned Unit of Work. `DB.after_commit()` callbacks
+run only after a successful outer commit. Rollback callbacks follow their
+owning transaction or savepoint.
+
+Retry policies, distributed transactions, and exactly-once side-effect
+delivery are not provided. A callback registered for commit must not be used
+to hide work that needs atomicity with an external service.
+
+## Query Builder
+
+`DB.table()` returns a mutable builder intended for one operation. Clone it
+before composing independent queries. Values are bound through SQLAlchemy;
+table and column identifiers are validated before expression construction.
+
+```python
+from titanspan.facades.database import DB
+
+
+active_users = (
+    DB.table("users")
+    .select("id", "name", "email")
+    .where("active", True)
+    .where_not_null("email")
+    .order_by("name")
+    .get()
+)
+```
+
+Implemented operations include selected columns and raw projections, nested
+conditions, comparisons, `IN`, `BETWEEN`, null checks, existence predicates,
+joins, grouping, `HAVING`, ordering, limits, offsets, aggregates, inserts,
+multi-row inserts, updates, deletes, increments, and decrements. Raw SQL
+expressions require explicit trusted application-authored strings and bound
+values.
+
+Retrieval methods include `get`, `first`, `value`, `pluck`, `count`, `sum`,
+`avg`, `min`, `max`, and `exists`. The current pagination API offers
+length-aware and simple page results. Equivalent asynchronous terminal methods
+use an `_async` suffix. Streaming cursors, chunk iteration, unions, atomic
+upserts, and dialect-aware locking are not yet available through the native
+builder.
+
+## Models
+
+Models use SQLAlchemy's typed declarative mapping. Titanspan adds safe
+mass-assignment rules, application-aware persistence methods, timestamps,
+hidden-field serialization, and typed query builders.
+
+```python
+from typing import ClassVar
+
+from sqlalchemy import String
+from sqlalchemy.orm import Mapped, mapped_column
+
+from titanspan.database import Model
+
+
+class User(Model):
+    """Represent one application user."""
+
+    table = "users"
+    fillable = ("name", "email")
+    hidden = ("private_note",)
+    factory_attributes: ClassVar[dict[str, object]] = {
+        "name": lambda index: f"User {index}",
+        "email": lambda index: f"user-{index}@example.test",
+    }
+
+    name: Mapped[str] = mapped_column(String(120))
+    email: Mapped[str] = mapped_column(String(320), unique=True)
+    private_note: Mapped[str] = mapped_column(String(255))
+```
+
+Declare columns with SQLAlchemy `Mapped` and `mapped_column`; bare annotations
+do not define arbitrary column types. The base `Model` supplies an integer
+`id` and nullable `created_at` and `updated_at` columns. Override `table`, the
+timestamp names, or `timestamps` when the convention does not fit.
+
+```python
+async def create_user() -> User:
+    """Create and update a model through asynchronous persistence."""
+    user = await User.create_async(
+        {
+            "name": "Ada",
+            "email": "ada@example.test",
+            "private_note": "not included in serialized output",
+        },
+    )
+    user.name = "Ada Lovelace"
+    await user.save_async()
+    return user
+```
+
+Mass assignment accepts only declared `fillable` columns by default. Use
+`force_fill()` only with trusted application values. Mass-assignment rules do
+not replace authorization. `User.query()` supports typed retrieval,
+conditions, ordering, eager loading, aggregates, pagination, and bulk
+mutations. Simple and length-aware pagination are implemented; cursor
+pagination is not.
+
+### Factories
+
+Declare trusted defaults on `factory_attributes`. Values may be constants or
+callables that receive the zero-based index of each generated model. The
+factory resolves its Database service only when a create operation runs:
+
+```python
+from titanspan.database import ModelCollection
+
+
+async def create_users() -> ModelCollection[User]:
+    """Create ten users in one task-owned transaction."""
+    return await (
+        User.factory()
+        .state({"name": lambda index: f"Member {index}"})
+        .count(10)
+        .create_async()
+    )
+```
+
+`make()` and `make_many()` return transient models without database I/O.
+`create()` and `create_many()` use the synchronous transaction policy;
+`create_async()` uses a task-owned transaction. Batch persistence is sequential
+and returns the native `ModelCollection`. `sequence()` applies repeating
+ordered overrides. `after_making()` runs after transient construction, while
+`after_creating()` waits for the owning transaction to commit. A rollback
+discards pending create callbacks. Applications can use Faker in their own
+attribute callbacks; the Database extra does not install a fake-data engine.
+
+Relationship factories and model recycling are not implemented.
+
+### Seeders
+
+Seeders are application classes resolved through the native Container. Their
+default execution wraps each seeder in a transaction; `call()` and
+`call_async()` resolve nested seeders and inherit the selected connection.
+Implement `run()` for synchronous work or `run_async()` for asynchronous
+work:
+
+```python
+from titanspan.database import Seeder
+
+
+class UserSeeder(Seeder):
+    """Create representative users for local development."""
+
+    def run(self) -> None:
+        """Insert ten users in the seeder transaction."""
+        User.factory().count(10).create()
+```
+
+Call `UserSeeder().execute()` from an active application context. The async
+equivalent is `await UserSeeder().execute_async()`. Set
+`transactional = False` only when a seeder deliberately owns its transaction
+policy. Seeders are application code and are not assumed to be idempotent.
+
+`titanspan db:seed` accepts a class name from
+`database.seeders.<snake_case_name>` or a trusted `module:Class` path.
+Non-production execution asks for confirmation unless `--force` is supplied.
+Production execution fails closed unless the operator supplies `--force`.
+Use `--database` to select and pass a connection through the seeder tree.
+Models used by the seeder must be configured for that same connection.
+
+The `SoftDeletes` mixin adds a nullable deletion timestamp and filters deleted
+rows from model queries by default. `with_trashed()`, `only_trashed()`,
+`restore()`, and `force_delete()` provide explicit visibility and deletion
+operations. Raw table queries intentionally bypass model scopes.
+
+## Relationships and loading
+
+Relationship helpers delegate mapping and loading to SQLAlchemy. The current
+native declaration helpers are `has_one`, `has_many`, `belongs_to`, and
+`belongs_to_many`. The related classes and foreign-key metadata must form a
+valid SQLAlchemy mapping.
+
+```python
+from __future__ import annotations
+
+from sqlalchemy import ForeignKey, mapped_column
+from sqlalchemy.orm import Mapped, relationship
+
+from titanspan.database import Model, has_many
+
+
+class Post(Model):
+    """Represent a post owned by one user."""
+
+    table = "posts"
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"))
+    user: Mapped[User] = relationship(back_populates="posts")
+
+
+class User(Model):
+    """Represent a user with related posts."""
+
+    table = "users"
+    posts: Mapped[list[Post]] = has_many(Post, back_populates="user")
+```
+
+Use `with_()` to load relationships as part of the query:
+
+```python
+from titanspan.database import ModelCollection
+
+
+async def users_with_posts() -> ModelCollection[User]:
+    """Return users with their posts loaded."""
+    return await User.query().with_("posts").get_async()
+```
+
+Async model results are detached after the operation. Accessing an unloaded
+relationship does not initiate hidden async I/O. Serialization includes only
+already-loaded relationships and omits attributes listed in `hidden`; it does
+not lazy-load related records.
+
+`ModelCollection` extends the native Collections component for identity-aware
+model operations, safe conversion, and batch relationship loading. Ordinary
+collection behavior remains owned by `titanspan.collections`.
+
+Through and polymorphic relationships, relationship persistence helpers,
+relationship aggregates, global and local scopes, casts, accessors, observers,
+and API resources are not implemented yet.
+
+## Schema and migrations
+
+`Schema` and `Blueprint` use SQLAlchemy metadata and Alembic operations for
+schema work. A blueprint applies its operations when its context exits:
+
+```python
+from titanspan.database import Schema
+
+
+async def create_user_schema() -> None:
+    """Create the user table using the native schema builder."""
+    async with Schema.create("users") as table:
+        table.id()
+        table.string("email", length=320).unique()
+        table.boolean("active").default(True)
+        table.timestamps()
+```
+
+The current schema API creates, alters, and drops tables; defines common
+columns and constraints; and inspects tables, columns, indexes, and foreign
+keys through SQLAlchemy. SQLite alterations use Alembic batch operations.
+Dialect-specific operations fail explicitly when the selected backend cannot
+provide them.
+
+Alembic owns the revision graph and version table. Native `Migration` classes
+run through Alembic's operation context. `MigrationManager` provides revision
+creation, status, install, upgrade, rollback, reset, and refresh operations.
+The Console currently registers `migrate`, `migrate:install`,
+`migrate:status`, `migrate:rollback`, `migrate:reset`, `migrate:refresh`,
+`db:seed`, and `make:seeder`.
+Destructive rollback, reset, and refresh commands confirm before operating
+and refuse production execution unless the explicit force policy permits it.
+
+Fresh-database, schema-dump, database-inspection, and model-generation
+commands are not implemented. Autogenerated revisions require review before
+execution. DDL rollback guarantees follow the selected dialect; some
+databases commit schema changes implicitly.
+
+## Application tests
+
+Use the existing `ApplicationTest` or `AsyncApplicationTest` from
+`titanspan.testing` and add `DatabaseServiceProvider` to the test application.
+The Database component does not create another application lifecycle.
+Current integration tests use temporary SQLite databases and a disposable
+PostgreSQL database. PostgreSQL integration is mandatory in CI; it fails if
+the job's required URL is missing.
+
+MySQL and MariaDB drivers can be installed through optional extras, but this
+repository does not yet run real integration tests for those dialects. Other
+SQLAlchemy dialects may interoperate through documented SQLAlchemy APIs, but
+they are not claimed as Titanspan-tested backends.
+
+## Interoperability and boundaries
+
+Advanced applications can use the SQLAlchemy engine, sessions, mapped
+attributes, and statement objects exposed by the Database service. Such code
+must preserve the active session's task or thread ownership and transaction
+boundary. Use SQLAlchemy and Alembic APIs directly for capabilities not yet
+exposed by the native layer.
+
+The Database component does not yet provide database-backed Validation rules,
+Routing model binding, model lifecycle events through the Events component,
+database-specific Testing assertions, read replicas, query caching, or
+distributed migration coordination. See
+[ADR 0006](/titanspan/architecture/decisions/0006-sqlalchemy-persistence/) for
+the accepted persistence boundary and
+[the backend boundary specification](/titanspan/specifications/backend-boundaries/)
+for current interoperability ownership.

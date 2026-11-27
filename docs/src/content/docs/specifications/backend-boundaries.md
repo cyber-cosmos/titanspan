@@ -19,6 +19,7 @@ Selected libraries own mature infrastructure behind private adapters.
 | HTTP server | Starlette request, response, and ASGI handling | Typed contracts, request limits, and request resource ownership |
 | HTTP client | HTTPX2 transports, pools, and protocol handling | Immutable request options, retry policy, and application ownership |
 | Routing | FastAPI and Starlette matching and ASGI hosting | Route catalog, metadata, controller dispatch, constraints, and URL generation |
+| Database | SQLAlchemy Core and ORM, database drivers, and Alembic | Application configuration, connection and session ownership, native query and model APIs, transaction policy, and migration orchestration |
 | Collections | Python iterators, mappings, and standard operations | Ordered eager and lazy APIs, including equality for unhashable values |
 | Pipeline | Python callables and the native Container | Ordered sync and async value transformation without task scheduling |
 | Events | Blinker receiver storage | Native ordering, selection, injection, async dispatch, and lifecycle |

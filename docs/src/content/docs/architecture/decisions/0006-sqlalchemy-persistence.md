@@ -4,13 +4,14 @@ title: "ADR 0006: SQLAlchemy Persistence"
 
 <span id="adr-0006-sqlalchemy-persistence"></span>
 
-- Status: Accepted for the planned database module
+- Status: Accepted
 - Date: 2026-11-24
 
 ## Context
 
-The database module needs async I/O, transactions, migrations, and an
-Eloquent-inspired API without implementing SQL compilation or persistence.
+The Database component needs asynchronous I/O, transactions, migrations,
+and expressive native model and query APIs without implementing SQL
+compilation or persistence.
 
 ## Decision
 
@@ -19,8 +20,9 @@ primitives. Use Alembic for migrations. A future Titanspan model and query API
 must keep native SQLAlchemy access, use explicit transactions, and avoid
 sharing unsafe mutable async sessions across concurrent tasks.
 
-Neither package is an initial runtime dependency. Recheck compatible versions
-and advisories when the database vertical slice begins.
+SQLAlchemy and Alembic are optional Database dependencies, not base runtime
+requirements. The package lock records the selected stable versions; driver
+extras keep backend-specific packages optional.
 
 ## Alternatives considered
 

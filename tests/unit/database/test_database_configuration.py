@@ -160,9 +160,9 @@ def test_direct_connection_fields_and_immutable_driver_options(
         paths,
     )
 
-    engine_connect_args = configuration.connections[
-        "default"
-    ].engine_options["connect_args"]
+    engine_connect_args = configuration.connections["default"].engine_options[
+        "connect_args"
+    ]
     connect_args["application_name"] = "mutated"
 
     assert configuration.default == "default"

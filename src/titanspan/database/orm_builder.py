@@ -7,9 +7,11 @@ the source of identifiers, predicates, joins, ordering, and SQL statements.
 from __future__ import annotations
 
 from copy import copy
+from datetime import UTC, datetime
 from typing import TYPE_CHECKING, NoReturn, Self, cast
 
 from sqlalchemy import inspect as sa_inspect
+from sqlalchemy import not_
 from sqlalchemy.orm import load_only, raiseload, selectinload
 
 from titanspan.database.exceptions import (
@@ -17,16 +19,19 @@ from titanspan.database.exceptions import (
     ModelNotFoundError,
     MultipleModelsFoundError,
 )
+from titanspan.database.model_collection import ModelCollection
 from titanspan.database.model_state import remember_service
+from titanspan.database.pagination import LengthAwarePaginator, Paginator
 from titanspan.database.query_builder import QueryBuilder
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Mapping, Sequence
 
     from sqlalchemy.engine import ScalarResult
-    from sqlalchemy.orm import Mapper, QueryableAttribute
+    from sqlalchemy.orm import Mapper, QueryableAttribute, RelationshipProperty
     from sqlalchemy.orm.strategy_options import Load
     from sqlalchemy.sql.base import ExecutableOption
+    from sqlalchemy.sql.elements import ColumnElement
     from sqlalchemy.sql.schema import Table
     from sqlalchemy.sql.selectable import Select, TableClause
 
@@ -35,6 +40,8 @@ if TYPE_CHECKING:
 _MISSING = object()
 _NO_MODELS_FOUND = "The query did not match a model."
 _MULTIPLE_MODELS_FOUND = "The query matched more than one model."
+_FIRST_PAGE = 1
+_MINIMUM_PAGE_SIZE = 1
 
 
 class ModelQueryBuilder[ModelT]:
@@ -62,12 +69,26 @@ class ModelQueryBuilder[ModelT]:
         connection = service.connection(self._connection_name)
         mapper = _mapper(model)
         table = cast("Table", mapper.local_table)
+        self._table = table
         table_name = table.fullname
         self._query = QueryBuilder(
             connection,
             table_name,
             table_clause=cast("TableClause", table),
         )
+        self._soft_delete_column: str | None = None
+        if getattr(model, "__soft_delete_enabled__", False):
+            column_name = getattr(model, "deleted_at_name", "deleted_at")
+            if not isinstance(column_name, str) or not _is_mapped_column(
+                model,
+                column_name,
+            ):
+                msg = "The soft-delete field must be a mapped model column."
+                raise DatabaseQueryError(msg)
+            self._soft_delete_column = column_name
+            self._query.set_scope_condition(
+                cast("ColumnElement[bool]", table.c[column_name].is_(None)),
+            )
         self._eager_paths: list[str] = []
         self._prevent_lazy = False
         self._selected_columns: tuple[str, ...] = ()
@@ -311,6 +332,127 @@ class ModelQueryBuilder[ModelT]:
         self._query.where_not_like(column_name, pattern)
         return self
 
+    def has(self, relationship: str) -> Self:
+        """Require at least one related model along a mapped path.
+
+        Args:
+            relationship: Mapped relation name or nested path.
+
+        Returns:
+            This builder for further model query composition.
+        """
+        return self.where_has(relationship)
+
+    def doesnt_have(self, relationship: str) -> Self:
+        """Require no related model along a mapped path.
+
+        Args:
+            relationship: Mapped relation name or nested path.
+
+        Returns:
+            This builder for further model query composition.
+        """
+        condition = self._relationship_predicate(relationship, None)
+        self._query.where_predicate(not_(condition))
+        return self
+
+    def where_has(
+        self,
+        relationship: str,
+        constraint: Callable[[ModelQueryBuilder[object]], object] | None = None,
+    ) -> Self:
+        """Require a related model that satisfies an optional query callback.
+
+        Args:
+            relationship: Mapped relation name or nested path.
+            constraint: Optional query mutation for the final related model.
+
+        Returns:
+            This builder for further model query composition.
+        """
+        condition = self._relationship_predicate(relationship, constraint)
+        self._query.where_predicate(condition)
+        return self
+
+    def or_where_has(
+        self,
+        relationship: str,
+        constraint: Callable[[ModelQueryBuilder[object]], object] | None = None,
+    ) -> Self:
+        """Add an OR condition for a matching related model.
+
+        Args:
+            relationship: Mapped relation name or nested path.
+            constraint: Optional query mutation for the final related model.
+
+        Returns:
+            This builder for further model query composition.
+        """
+        condition = self._relationship_predicate(relationship, constraint)
+        self._query.where_predicate(condition, boolean="or")
+        return self
+
+    def where_doesnt_have(self, relationship: str) -> Self:
+        """Require no matching model along a mapped relationship path.
+
+        Args:
+            relationship: Mapped relation name or nested path.
+
+        Returns:
+            This builder for further model query composition.
+        """
+        condition = self._relationship_predicate(relationship, None)
+        self._query.where_predicate(not_(condition))
+        return self
+
+    def or_where_doesnt_have(self, relationship: str) -> Self:
+        """Add an OR condition that requires no related model.
+
+        Args:
+            relationship: Mapped relation name or nested path.
+
+        Returns:
+            This builder for further model query composition.
+        """
+        condition = self._relationship_predicate(relationship, None)
+        self._query.where_predicate(
+            not_(condition),
+            boolean="or",
+        )
+        return self
+
+    def where_relation(
+        self,
+        relationship: str,
+        column_name: str,
+        operator_or_value: object,
+        value: object = _MISSING,
+    ) -> Self:
+        """Filter a related model using a bound column comparison.
+
+        Args:
+            relationship: Mapped relation name or nested path.
+            column_name: Safe mapped column on the final related model.
+            operator_or_value: Equality value or allowlisted comparison.
+            value: Comparison value when an operator is supplied.
+
+        Returns:
+            This builder for further model query composition.
+        """
+        if value is _MISSING:
+            return self.where_has(
+                relationship,
+                lambda query: query.where(column_name, operator_or_value),
+            )
+        return self.where_has(
+            relationship,
+            lambda query: query.where(
+                column_name,
+                operator_or_value,
+                value,
+            ),
+        )
+
     def order_by(
         self,
         column_name: str,
@@ -377,6 +519,134 @@ class ModelQueryBuilder[ModelT]:
         self._query.offset(count)
         return self
 
+    def paginate(
+        self,
+        per_page: int = 15,
+        *,
+        page: int = _FIRST_PAGE,
+    ) -> LengthAwarePaginator[ModelT]:
+        """Retrieve model items with an exact matching-row count.
+
+        Args:
+            per_page: Positive maximum page size.
+            page: Positive one-based page number.
+
+        Returns:
+            Page items and total-count navigation metadata.
+        """
+        _validate_page(per_page, page)
+        total = self.count()
+        items = (
+            self.clone()
+            .limit(per_page)
+            .offset(
+                (page - _FIRST_PAGE) * per_page,
+            )
+            .get()
+        )
+        return LengthAwarePaginator(
+            tuple(items),
+            total,
+            per_page,
+            page,
+        )
+
+    async def paginate_async(
+        self,
+        per_page: int = 15,
+        *,
+        page: int = _FIRST_PAGE,
+    ) -> LengthAwarePaginator[ModelT]:
+        """Asynchronously retrieve model items and total row count.
+
+        Args:
+            per_page: Positive maximum page size.
+            page: Positive one-based page number.
+
+        Returns:
+            Page items and total-count navigation metadata.
+        """
+        _validate_page(per_page, page)
+        total = await self.count_async()
+        items = (
+            await self.clone()
+            .limit(per_page)
+            .offset(
+                (page - _FIRST_PAGE) * per_page,
+            )
+            .get_async()
+        )
+        return LengthAwarePaginator(
+            tuple(items),
+            total,
+            per_page,
+            page,
+        )
+
+    def simple_paginate(
+        self,
+        per_page: int = 15,
+        *,
+        page: int = _FIRST_PAGE,
+    ) -> Paginator[ModelT]:
+        """Retrieve model items without a total-count query.
+
+        Args:
+            per_page: Positive maximum page size.
+            page: Positive one-based page number.
+
+        Returns:
+            Page items and a bounded next-page indicator.
+        """
+        _validate_page(per_page, page)
+        items = (
+            self.clone()
+            .limit(per_page + 1)
+            .offset(
+                (page - _FIRST_PAGE) * per_page,
+            )
+            .get()
+        )
+        has_more = len(items) > per_page
+        return Paginator(
+            tuple(items[:per_page]),
+            per_page,
+            page,
+            has_more,
+        )
+
+    async def simple_paginate_async(
+        self,
+        per_page: int = 15,
+        *,
+        page: int = _FIRST_PAGE,
+    ) -> Paginator[ModelT]:
+        """Asynchronously retrieve a page with one-row lookahead.
+
+        Args:
+            per_page: Positive maximum page size.
+            page: Positive one-based page number.
+
+        Returns:
+            Page items and a bounded next-page indicator.
+        """
+        _validate_page(per_page, page)
+        items = (
+            await self.clone()
+            .limit(per_page + 1)
+            .offset(
+                (page - _FIRST_PAGE) * per_page,
+            )
+            .get_async()
+        )
+        has_more = len(items) > per_page
+        return Paginator(
+            tuple(items[:per_page]),
+            per_page,
+            page,
+            has_more,
+        )
+
     def select(self, *columns: str) -> Self:
         """Load only selected mapped columns while returning model instances.
 
@@ -413,6 +683,72 @@ class ModelQueryBuilder[ModelT]:
             self._validate_relationship_path(path)
             self._eager_paths.append(path)
         return self
+
+    def with_trashed(self) -> Self:
+        """Include soft-deleted rows in this query when supported.
+
+        Returns:
+            This builder with its default deletion condition removed.
+        """
+        if self._soft_delete_column is not None:
+            self._query.set_scope_condition(None)
+        return self
+
+    def without_trashed(self) -> Self:
+        """Restrict a soft-delete query to active rows.
+
+        Returns:
+            This builder with the active-row condition applied.
+        """
+        if self._soft_delete_column is not None:
+            self._query.set_scope_condition(
+                cast(
+                    "ColumnElement[bool]",
+                    self._table.c[self._soft_delete_column].is_(None),
+                ),
+            )
+        return self
+
+    def only_trashed(self) -> Self:
+        """Restrict a soft-delete query to deleted rows.
+
+        Returns:
+            This builder with the deleted-row condition applied.
+        """
+        if self._soft_delete_column is not None:
+            self._query.set_scope_condition(
+                cast(
+                    "ColumnElement[bool]",
+                    self._table.c[self._soft_delete_column].is_not(None),
+                ),
+            )
+        return self
+
+    def restore(self) -> int:
+        """Restore matching soft-deleted records with one set-based update.
+
+        Returns:
+            Driver-reported affected rows or ``-1`` when unknown.
+        """
+        if self._soft_delete_column is None:
+            return 0
+        query = self.clone().only_trashed()
+        return query._query.update(  # noqa: SLF001
+            {self._soft_delete_column: None},
+        )
+
+    async def restore_async(self) -> int:
+        """Asynchronously restore matching soft-deleted records.
+
+        Returns:
+            Driver-reported affected rows or ``-1`` when unknown.
+        """
+        if self._soft_delete_column is None:
+            return 0
+        query = self.clone().only_trashed()
+        return await query._query.update_async(  # noqa: SLF001
+            {self._soft_delete_column: None},
+        )
 
     def prevent_lazy_loading(self, enabled: bool = True) -> Self:
         """Raise on unloaded relationship access for fetched models.
@@ -463,7 +799,7 @@ class ModelQueryBuilder[ModelT]:
             options.append(raiseload("*"))
         return statement.options(*options)
 
-    def get(self) -> list[ModelT]:
+    def get(self) -> ModelCollection[ModelT]:
         """Execute the ORM query and detach its model results.
 
         Returns:
@@ -477,9 +813,9 @@ class ModelQueryBuilder[ModelT]:
             results = scalar_result.unique().all()
             for model in results:
                 remember_service(model, self._service)
-            return list(results)
+            return ModelCollection(results)
 
-    async def get_async(self) -> list[ModelT]:
+    async def get_async(self) -> ModelCollection[ModelT]:
         """Execute the ORM query asynchronously and detach model results.
 
         Returns:
@@ -495,7 +831,7 @@ class ModelQueryBuilder[ModelT]:
             models = scalar_result.unique().all()
             for model in models:
                 remember_service(model, self._service)
-            return list(models)
+            return ModelCollection(models)
 
     def first(self) -> ModelT | None:
         """Return the first matching model, if one exists.
@@ -524,6 +860,9 @@ class ModelQueryBuilder[ModelT]:
         Returns:
             A detached model or ``None``.
         """
+        if self._soft_delete_column is not None:
+            key_name = _primary_key_name(self._model)
+            return self.clone().where(key_name, identifier).first()
         with self._service.session(self._connection_name) as session:
             model = session.get(self._model, identifier)
             if model is not None:
@@ -539,6 +878,9 @@ class ModelQueryBuilder[ModelT]:
         Returns:
             A detached model or ``None``.
         """
+        if self._soft_delete_column is not None:
+            key_name = _primary_key_name(self._model)
+            return await self.clone().where(key_name, identifier).first_async()
         async with self._service.session_async(
             self._connection_name,
         ) as session:
@@ -547,7 +889,10 @@ class ModelQueryBuilder[ModelT]:
                 remember_service(model, self._service)
             return model
 
-    def find_many(self, identifiers: Sequence[object]) -> list[ModelT]:
+    def find_many(
+        self,
+        identifiers: Sequence[object],
+    ) -> ModelCollection[ModelT]:
         """Retrieve models matching any supplied primary-key value.
 
         Args:
@@ -563,7 +908,7 @@ class ModelQueryBuilder[ModelT]:
     async def find_many_async(
         self,
         identifiers: Sequence[object],
-    ) -> list[ModelT]:
+    ) -> ModelCollection[ModelT]:
         """Asynchronously retrieve models matching supplied identifiers.
 
         Args:
@@ -614,7 +959,7 @@ class ModelQueryBuilder[ModelT]:
             ModelNotFoundError: If no row matched.
             MultipleModelsFoundError: If more than one row matched.
         """
-        models = self.clone().limit(2).get()
+        models = self.clone().limit(2).get().all()
         return _sole_model(models)
 
     async def sole_async(self) -> ModelT:
@@ -627,7 +972,7 @@ class ModelQueryBuilder[ModelT]:
             ModelNotFoundError: If no row matched.
             MultipleModelsFoundError: If more than one row matched.
         """
-        models = await self.clone().limit(2).get_async()
+        models = (await self.clone().limit(2).get_async()).all()
         return _sole_model(models)
 
     def count(self) -> int:
@@ -832,7 +1177,11 @@ class ModelQueryBuilder[ModelT]:
         Returns:
             Driver-reported affected rows or ``-1`` when unknown.
         """
-        return self._query.delete()
+        if self._soft_delete_column is None:
+            return self._query.delete()
+        return self._query.update(
+            {self._soft_delete_column: datetime.now(UTC)},
+        )
 
     async def delete_async(self) -> int:
         """Asynchronously delete matching rows as a set.
@@ -840,7 +1189,31 @@ class ModelQueryBuilder[ModelT]:
         Returns:
             Driver-reported affected rows or ``-1`` when unknown.
         """
-        return await self._query.delete_async()
+        if self._soft_delete_column is None:
+            return await self._query.delete_async()
+        return await self._query.update_async(
+            {self._soft_delete_column: datetime.now(UTC)},
+        )
+
+    def force_delete(self) -> int:
+        """Hard-delete matching rows, including rows already soft deleted.
+
+        Returns:
+            Driver-reported affected rows or ``-1`` when unknown.
+        """
+        query = self._query.clone()
+        query.set_scope_condition(None)
+        return query.delete()
+
+    async def force_delete_async(self) -> int:
+        """Asynchronously hard-delete matching rows in one statement.
+
+        Returns:
+            Driver-reported affected rows or ``-1`` when unknown.
+        """
+        query = self._query.clone()
+        query.set_scope_condition(None)
+        return await query.delete_async()
 
     def increment(self, column_name: str, amount: int = 1) -> int:
         """Atomically increment every matching row without model events.
@@ -916,6 +1289,57 @@ class ModelQueryBuilder[ModelT]:
             if relationship is None:
                 _raise_invalid_relationship()
             current = cast("type[ModelT]", relationship.mapper.class_)
+
+    def _relationship_predicate(
+        self,
+        path: str,
+        constraint: Callable[[ModelQueryBuilder[object]], object] | None,
+    ) -> ColumnElement[bool]:
+        """Build one correlated SQLAlchemy relationship-existence predicate.
+
+        Args:
+            path: Dot-separated mapped relationship names.
+            constraint: Optional final-model query mutation.
+
+        Returns:
+            A SQLAlchemy EXISTS predicate with nested relations correlated.
+        """
+        self._validate_relationship_path(path)
+        chain: list[tuple[type[object], RelationshipProperty[object]]] = []
+        current = cast("type[object]", self._model)
+        for name in path.split("."):
+            relationship = cast(
+                "RelationshipProperty[object]",
+                _mapper(current).relationships[name],
+            )
+            chain.append((current, relationship))
+            current = relationship.mapper.class_
+
+        related_query = ModelQueryBuilder(current, self._service)
+        if constraint is not None:
+            constraint(related_query)
+        predicate = related_query.to_statement().whereclause
+        for parent, relationship in reversed(chain):
+            attribute = cast(
+                "QueryableAttribute[object]",
+                getattr(parent, relationship.key),
+            )
+            if relationship.uselist:
+                expression = (
+                    attribute.any()
+                    if predicate is None
+                    else attribute.any(predicate)
+                )
+            else:
+                expression = (
+                    attribute.has()
+                    if predicate is None
+                    else attribute.has(predicate)
+                )
+            predicate = expression
+        if predicate is None:
+            _raise_invalid_relationship()
+        return predicate
 
     def _loader_option(self, path: str) -> ExecutableOption:
         """Build a nested SQLAlchemy select-in loading option.
@@ -1018,6 +1442,24 @@ def _raise_invalid_relationship() -> NoReturn:
     """
     msg = "The requested relationship path is not mapped on this model."
     raise DatabaseQueryError(msg)
+
+
+def _validate_page(per_page: int, page: int) -> None:
+    """Require positive page size and one-based page numbering.
+
+    Args:
+        per_page: Requested maximum number of items.
+        page: Requested one-based page number.
+
+    Raises:
+        ValueError: If either value is not a positive integer.
+    """
+    if type(per_page) is not int or per_page < _MINIMUM_PAGE_SIZE:
+        msg = "Page size must be a positive integer."
+        raise ValueError(msg)
+    if type(page) is not int or page < _FIRST_PAGE:
+        msg = "Page number must be a positive integer."
+        raise ValueError(msg)
 
 
 __all__ = ["ModelQueryBuilder"]

@@ -14,7 +14,7 @@ explicit async interfaces.
 
 Implemented components include Foundation, Container, Config, Contracts,
 Events, Filesystem, Hashing, HTTP, Routing, Logging, Cache, Support,
-Collections, Console, and the initial Queue and Bus runtime. FastAPI and
+Collections, Console, Database, and the initial Queue and Bus runtime. FastAPI and
 Starlette provide ASGI hosting. Dishka resolves dependencies. Other
 infrastructure remains planned unless the table below marks it implemented.
 
@@ -70,22 +70,22 @@ tracked in [`docs/src/content/docs/specifications/backend-boundaries.md`](docs/s
 | --- | --- | --- |
 | `foundation` | Application composition, bootstrap, provider lifecycle, and shutdown. | `Application` and its typed builder own native startup, callbacks, paths, exception rendering, and shutdown independently of ASGI hosting. See `docs/src/content/docs/specifications/foundation.md`. |
 | `container` | Dependency injection, bindings, concrete graph discovery, scopes, and resource management. | Native sync-first container composes framework services and supplies request-scoped HTTP dependencies; a private adapter remains for explicit external route providers. See `docs/src/content/docs/specifications/container.md`. |
-| `contracts` | Dependency-independent typed protocols and shared abstraction boundaries. | Cache, configuration, container, foundation, hashing, HTTP, logging, pipeline, queue, routing, Support, and Validation domains are implemented; other component contracts remain pending. See `docs/src/content/docs/specifications/contracts.md`. |
+| `contracts` | Dependency-independent typed protocols and shared abstraction boundaries. | Cache, configuration, container, Console, database, Events, filesystem, foundation, hashing, HTTP, logging, Pipeline, Queue, routing, Support, and Validation domains are implemented; other component contracts remain pending. See `docs/src/content/docs/specifications/contracts.md`. |
 | `support` | Shared utilities, managers, and lightweight helpers. | Selected native utilities implemented; see `docs/src/content/docs/specifications/support.md`. |
 | `config` | Typed configuration, trusted sources, environment integration, and safe snapshots. | Native repository, settings, source loader, configuration snapshot cache, commands, and application provider implemented; see `docs/src/content/docs/config/`. |
-| `facades` | Typed access to application-owned services through the active application context. | Shared typed base and `Bus`, `Cache`, `Config`, `Event`, `Hash`, `Log`, `Http`, `Queue`, `Route`, `Storage`, and `Validation` facades implemented. Temporary replacements delegate to Container overrides. |
+| `facades` | Typed access to application-owned services through the active application context. | Shared typed base and `Bus`, `Cache`, `Config`, `DB`, `Event`, `Hash`, `Log`, `Http`, `Queue`, `Route`, `Storage`, and `Validation` facades implemented. Temporary replacements delegate to Container overrides. |
 | `routing` | Application-owned route registration, groups, matching, controller dispatch, URL generation, and HTTP integration. | Initial component implemented against one route catalog; see `docs/src/content/docs/specifications/routing.md` for verified and pending capabilities. |
 | `http` | Incoming ASGI requests, native responses, middleware, streaming, and pooled outgoing clients. | Initial component implemented and application-integrated; pending behavior is listed in `docs/src/content/docs/specifications/http.md`. |
 | `auth` | Authentication, authorization, guards, gates, and policies. | Planned. |
 | `hashing` | Password hashing, verification, inspection, and hash upgrades. | Argon2-CFFI and PyCA Bcrypt services integrate through Config, Container, and the `Hash` facade. Authentication remains planned. See `docs/src/content/docs/specifications/hashing.md`. |
-| `database` | SQLAlchemy-backed models, queries, transactions, migrations, and persistence. | Planned. |
+| `database` | SQLAlchemy-backed models, queries, transactions, migrations, and persistence. | Application-owned sync and async connections, fluent queries, Active Record models, relationships, schema and migrations, factories, seeders, and native Console operations are implemented; advanced ORM features remain in progress. See `docs/src/content/docs/database/`. |
 | `collections` | Typed eager and lazy APIs over ordinary Python iterables. | Eager and lazy value APIs are implemented. The component depends on Support and does not require Application or Container. Async iteration remains planned elsewhere. |
 | `cache` | Application caching, expiration, named stores, and backend adapters. | Native memory and optional Redis stores integrate with Config, Container, Events, Facades, lifecycle, and Console. See `docs/src/content/docs/specifications/cache.md`. |
 | `concurrency` | Structured asynchronous concurrency, bounded pools, and cancellation. | Planned. |
 | `parallel` | CPU-bound multiprocessing and parallel computation. | Planned. |
 | `pipeline` | Ordered synchronous and asynchronous value transformations. | Sequential callable and Container-resolved stages are implemented. Pipeline does not own streaming or concurrent execution. See `docs/src/content/docs/specifications/pipeline.md`. |
 | `validation` | Pydantic-backed schema validation, safe field issues, and ordered application rules. | Native sync and async services, explicit HTTP input validation, typed route rules, and safe Foundation rendering are implemented. Endpoint annotations own OpenAPI schemas. See `docs/src/content/docs/specifications/validation.md`. |
-| `events` | Event dispatching, listeners, subscribers, and application event lifecycle integration. | Native Blinker-backed dispatch, listener injection, scoped fakes, deferred and pushed events, and trusted discovery are implemented. Queue, Database, Broadcasting, and event-owned CLI commands remain pending. See `docs/src/content/docs/specifications/events.md`. |
+| `events` | Event dispatching, listeners, subscribers, and application event lifecycle integration. | Native Blinker-backed dispatch, listener injection, scoped fakes, deferred and pushed events, trusted discovery, and Database transaction callbacks are implemented. Queue, Broadcasting, and event-owned CLI commands remain pending. See `docs/src/content/docs/specifications/events.md`. |
 | `queue` | Trusted job declarations, dispatch, worker execution, retries, chains, and batches. | Native Queue and Bus dispatch use one application-owned manager, bounded versioned JSON envelopes, native JOB scopes, Taskiq Redis Streams, and explicit local batches. Durable failed-job records, distributed batches, results, uniqueness, and transaction-aware publication remain deferred. See `docs/src/content/docs/specifications/queue.md`. |
 | `mail` | Email messages, delivery, templates, and attachments. | Planned. |
 | `notifications` | Multi-channel application notifications. | Planned. |

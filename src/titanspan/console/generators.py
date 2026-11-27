@@ -26,6 +26,7 @@ type ArtifactKind = Literal[
     "listener",
     "job",
     "job_middleware",
+    "seeder",
     "test",
 ]
 
@@ -42,6 +43,7 @@ _ARTIFACT_LAYOUT: dict[ArtifactKind, tuple[tuple[str, ...], str, str]] = {
         "",
         "_job_middleware",
     ),
+    "seeder": (("database", "seeders"), "", "_seeder"),
     "test": (("tests",), "test_", ""),
 }
 _NAME_SEGMENT = re.compile(r"[A-Za-z][A-Za-z0-9_]*\Z", re.ASCII)
@@ -188,6 +190,7 @@ def _class_suffix(kind: ArtifactKind) -> str:
         "listener": "_listener",
         "job": "_job",
         "job_middleware": "_job_middleware",
+        "seeder": "_seeder",
         "test": "_test",
     }[kind]
 
@@ -210,6 +213,7 @@ def _generated_class_suffix(kind: ArtifactKind) -> str:
         "listener": "Listener",
         "job": "Job",
         "job_middleware": "JobMiddleware",
+        "seeder": "Seeder",
         "test": "",
     }[kind]
 
@@ -250,6 +254,8 @@ def _render_source(
         source = _job_source(class_name, artifact_name)
     elif kind == "job_middleware":
         source = _job_middleware_source(class_name)
+    elif kind == "seeder":
+        source = _seeder_source(class_name)
     else:
         source = _test_source(artifact_name)
     return dedent(source).lstrip() + "\n"
@@ -522,6 +528,39 @@ def _job_middleware_source(class_name: str) -> str:
             """
             _ = context
             return await next_handler()
+'''
+
+
+def _seeder_source(class_name: str) -> str:
+    """Render a sync seeder that uses Titanspan's transaction boundary.
+
+    Args:
+        class_name: Generated Seeder subclass name.
+
+    Returns:
+        Importable application seeder source.
+    """
+    return f'''\
+    """Provide the generated {class_name} database seeder.
+
+    The seeder runs through the application Database service.
+    """
+
+    from titanspan.database import Seeder
+
+
+    class {class_name}(Seeder):
+        """Insert trusted baseline records for the application.
+
+        Add application-specific model factories to ``run``.
+        """
+
+        def run(self) -> None:
+            """Create initial database records in one transaction.
+
+            This starter seeder intentionally has no initial data.
+            """
+            pass
 '''
 
 

@@ -5,16 +5,23 @@ These tests exercise SQLAlchemy's real instrumentation without opening a DB.
 
 from __future__ import annotations
 
+from typing import TYPE_CHECKING, cast
+
 import pytest
 
 # SQLAlchemy evaluates mapped declarations during class construction.
+from sqlalchemy.dialects.sqlite import dialect as sqlite_dialect
 from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy.schema import CreateTable
 
 from titanspan.database import (
     DatabaseQueryError,
     MassAssignmentError,
     Model,
 )
+
+if TYPE_CHECKING:
+    from sqlalchemy import Table
 
 pytestmark = pytest.mark.unit
 
@@ -74,6 +81,16 @@ def test_primary_key_name_reports_query_capability_error() -> None:
     """
     with pytest.raises(DatabaseQueryError, match="single-column"):
         CompositeRecord.primary_key_name()
+
+
+def test_composite_model_metadata_compiles_for_sqlite() -> None:
+    """Avoid autoincrement on an inherited composite primary key.
+
+    Alembic inspects every mapped table during autogeneration. SQLite rejects
+    an auto-increment declaration on a composite primary key.
+    """
+    table = cast("Table", CompositeRecord.__table__)
+    CreateTable(table).compile(dialect=sqlite_dialect())
 
 
 def test_fill_rejects_disallowed_columns_without_assigning_them() -> None:

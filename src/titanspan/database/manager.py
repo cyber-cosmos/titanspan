@@ -671,6 +671,7 @@ class DatabaseManager:
                     definition.sync_url,
                     **_engine_options_for_factory(
                         definition.engine_options,
+                        definition.sync_url,
                     ),
                 )
             except (ImportError, SQLAlchemyError) as error:
@@ -709,6 +710,7 @@ class DatabaseManager:
                     definition.async_url,
                     **_engine_options_for_factory(
                         definition.engine_options,
+                        definition.async_url,
                     ),
                 )
             except (ImportError, SQLAlchemyError) as error:
@@ -1485,21 +1487,37 @@ def _detach_result(result: CursorResult[object]) -> DatabaseResult:
 
 def _engine_options_for_factory(
     options: Mapping[str, object],
+    url: URL,
 ) -> dict[str, object]:
     """Copy immutable options into the mutable DBAPI input shape.
 
     Args:
         options: Validated connection options.
+        url: SQLAlchemy URL for the selected connection and execution mode.
 
     Returns:
         A fresh engine keyword mapping with a detached ``connect_args`` map.
+
+    Raises:
+        DatabaseConfigurationError: If SQLite's legacy autocommit mode is
+            explicitly requested, because it breaks nested rollback.
     """
     copied = dict(options)
     connect_args = copied.get("connect_args")
-    if connect_args is not None:
-        copied["connect_args"] = dict(
-            cast("Mapping[str, object]", connect_args),
-        )
+    detached_args = (
+        {}
+        if connect_args is None
+        else dict(cast("Mapping[str, object]", connect_args))
+    )
+    if url.get_backend_name() == "sqlite":
+        if detached_args.get("autocommit", False) is not False:
+            msg = "SQLite requires PEP 249 transaction control."
+            raise DatabaseConfigurationError(msg)
+        # SQLite's legacy mode allows a released SAVEPOINT to outlive its
+        # enclosing transaction when no earlier statement emitted BEGIN.
+        detached_args["autocommit"] = False
+    if connect_args is not None or url.get_backend_name() == "sqlite":
+        copied["connect_args"] = detached_args
     return copied
 
 

@@ -9,7 +9,6 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 import pytest
-from sqlalchemy import text
 
 from titanspan.database import (
     DatabaseQueryError,
@@ -189,10 +188,7 @@ async def test_where_exists_and_not_exists_accept_trusted_sqlalchemy_text(
         non_authors = (
             await DB.table("users")
             .where_not_exists(
-                text(
-                    "SELECT 1 FROM posts WHERE posts.user_id = users.id "
-                    "AND posts.user_id = :user_id",
-                ).bindparams(user_id=1),
+                "SELECT 1 FROM posts WHERE posts.user_id = users.id",
             )
             .get_async()
         )

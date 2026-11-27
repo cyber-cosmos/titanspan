@@ -41,6 +41,22 @@ class DatabaseQueryBuilder(Protocol):
         """
         ...
 
+    def select_raw(
+        self,
+        expression: str,
+        bindings: Mapping[str, object] | None = None,
+    ) -> Self:
+        """Append trusted SQL projection text with separately bound values.
+
+        Args:
+            expression: Application-authored SQL projection and aliases.
+            bindings: Values bound independently by SQLAlchemy.
+
+        Returns:
+            This builder for further query composition.
+        """
+        ...
+
     @overload
     def where(self, column: str, value: object, /) -> Self:
         """Add an equality condition for one column.
@@ -213,6 +229,82 @@ class DatabaseQueryBuilder(Protocol):
 
         Args:
             column_name: Safe column name or qualified name.
+
+        Returns:
+            This builder for further query composition.
+        """
+        ...
+
+    def where_raw(
+        self,
+        expression: str,
+        bindings: Mapping[str, object] | None = None,
+    ) -> Self:
+        """Add trusted SQL predicate text with separately bound values.
+
+        Args:
+            expression: Application-authored SQL predicate.
+            bindings: Values bound independently by SQLAlchemy.
+
+        Returns:
+            This builder for further query composition.
+        """
+        ...
+
+    def or_where_raw(
+        self,
+        expression: str,
+        bindings: Mapping[str, object] | None = None,
+    ) -> Self:
+        """Add a trusted bound SQL predicate joined by SQL OR.
+
+        Args:
+            expression: Application-authored SQL predicate.
+            bindings: Values bound independently by SQLAlchemy.
+
+        Returns:
+            This builder for further query composition.
+        """
+        ...
+
+    def where_exists(self, subquery: str) -> Self:
+        """Require an application-authored EXISTS subquery to return rows.
+
+        Args:
+            subquery: Trusted SQL subquery text.
+
+        Returns:
+            This builder for further query composition.
+        """
+        ...
+
+    def where_not_exists(self, subquery: str) -> Self:
+        """Require an application-authored EXISTS subquery to return none.
+
+        Args:
+            subquery: Trusted SQL subquery text.
+
+        Returns:
+            This builder for further query composition.
+        """
+        ...
+
+    def or_where_exists(self, subquery: str) -> Self:
+        """Add an OR condition for a subquery that returns rows.
+
+        Args:
+            subquery: Trusted SQL subquery text.
+
+        Returns:
+            This builder for further query composition.
+        """
+        ...
+
+    def or_where_not_exists(self, subquery: str) -> Self:
+        """Add an OR condition for a subquery that returns no rows.
+
+        Args:
+            subquery: Trusted SQL subquery text.
 
         Returns:
             This builder for further query composition.

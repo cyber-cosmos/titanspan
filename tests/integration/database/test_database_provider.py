@@ -23,6 +23,7 @@ from titanspan.database import (
 )
 from titanspan.facades.database import DB
 from titanspan.foundation import Application
+from titanspan.testing import AsyncApplicationTest
 
 if TYPE_CHECKING:
     from collections.abc import Mapping
@@ -105,6 +106,42 @@ async def test_provider_shares_manager_and_initializes_sqlite_lazily(
 
         assert database_path.exists()
         assert rows == [{"name": "native"}]
+
+
+async def test_native_async_application_test_owns_database_lifecycle(
+    tmp_path: Path,
+) -> None:
+    """Use the existing Testing context to own Database startup and shutdown.
+
+    Args:
+        tmp_path: Temporary application root for its SQLite database.
+    """
+    testing = AsyncApplicationTest(
+        base_path=tmp_path,
+        config={
+            "database": {
+                "default": "sqlite",
+                "connections": {
+                    "sqlite": {
+                        "driver": "sqlite",
+                        "database": "database/testing.sqlite",
+                    },
+                },
+            },
+        },
+        service_providers=(DatabaseServiceProvider(),),
+    )
+
+    async with testing:
+        manager = await testing.application.container.make_async(
+            DatabaseManager,
+        )
+        await manager.connection().statement_async(
+            "CREATE TABLE testing_rows (id INTEGER PRIMARY KEY)"
+        )
+        assert await manager.connection().select_async(
+            "SELECT COUNT(*) AS total FROM testing_rows",
+        ) == [{"total": 0}]
 
 
 async def test_async_transaction_rolls_back_through_the_facade(
@@ -764,8 +801,7 @@ def _sync_insert_then_raise(
     """
     with manager.transaction():
         assert (
-            manager.connection_transaction_level()
-            == _EXPECTED_SAVEPOINT_LEVEL
+            manager.connection_transaction_level() == _EXPECTED_SAVEPOINT_LEVEL
         )
         connection.statement(
             "INSERT INTO entries (name) VALUES (:name)",

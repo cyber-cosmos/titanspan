@@ -33,6 +33,12 @@ batches, results, unique jobs, queued event listeners, and
 transaction-aware dispatch remain planned. Console provides native command
 registration and application-aware execution.
 
+Database provides optional SQLAlchemy and Alembic persistence with
+application-owned connections and sessions, sync and async query and model
+APIs, migrations, factories, seeders, and SQLite and PostgreSQL integration
+coverage. Advanced relationship persistence, broader migration commands,
+additional ORM features, and complete Console generation remain planned.
+
 ## Phase 0 — Engineering foundation
 
 - Repository configuration and community health files.

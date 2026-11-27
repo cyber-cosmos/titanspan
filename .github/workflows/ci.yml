@@ -411,6 +411,17 @@ jobs:
         options: >-
           --health-cmd "rabbitmq-diagnostics -q check_running"
           --health-interval 10s --health-timeout 5s --health-retries 10
+      postgres:
+        image: postgres:17.12-alpine
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: titanspan_codex_test_ci
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d titanspan_codex_test_ci"
+          --health-interval 10s --health-timeout 5s --health-retries 5
     needs:
       - lint
       - format
@@ -435,6 +446,9 @@ jobs:
       TITANSPAN_TEST_REDIS_PORT: "6379"
       TITANSPAN_REQUIRE_RABBITMQ: "1"
       TITANSPAN_TEST_RABBITMQ_URL: amqp://127.0.0.1:5672/
+      TITANSPAN_REQUIRE_POSTGRES: "1"
+      TITANSPAN_TEST_POSTGRES_URL: >-
+        postgresql+psycopg://postgres:postgres@localhost:5432/titanspan_codex_test_ci
     steps:
       - name: Check out source
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -447,7 +461,7 @@ jobs:
       - name: Install locked dependencies
         run: >-
           uv sync --locked --all-groups --extra redis --extra queue-redis
-          --extra queue-rabbitmq
+          --extra queue-rabbitmq --extra database --extra postgresql --extra mysql
       - name: Run real dependency integrations
         id: tests
         run: make integration-test

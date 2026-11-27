@@ -13,10 +13,10 @@ column distinguishes static assignments and behavioral tests from real
 application integration. The cross-component test target runs tests marked
 `architecture` and is a required job in the CI gate.
 
-The shared Contracts package defines public protocols across twelve domains:
-configuration, container, Console, Events, foundation, HTTP, logging,
-Pipeline, Queue, Routing, Support, and Validation. Domain value types are
-identified separately.
+The shared Contracts package defines public protocols across fifteen domains:
+configuration, container, Console, Database, Events, filesystem, foundation,
+hashing, HTTP, logging, Pipeline, Queue, Routing, Support, and Validation.
+Domain value types are identified separately.
 One public abstract facade base and one private production protocol are also
 listed. Every public contract appears in its canonical domain package. The
 root package re-exports the same object. Private implementation and test-only

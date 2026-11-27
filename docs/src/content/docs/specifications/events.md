@@ -46,7 +46,7 @@ sequential-await semantics. It does not keep a second listener registry.
 | Deferred events | Adapted | Bounded sync and async context managers; successful frames flush in order and failed frames discard. |
 | Pushed events | Adapted | Named payloads remain in memory after flush, repeat on later flush, and clear explicitly. |
 | Queued listeners, retries, and queue metadata | Deferred | Queue owns jobs, serialization, backoff, uniqueness, middleware, and failure handling. Events does not execute queued listeners inline. |
-| Dispatch after database commit | Deferred | Database must own transaction state, nested commit semantics, and rollback callbacks. |
+| Dispatch after database commit | Deferred | Database owns transaction state and nested callbacks; Events still needs an explicit adapter for transaction-aware dispatch. |
 | Broadcasting and remote delivery | Deferred | Broadcasting must own channels, authorization, brokers, delivery, and distributed guarantees. |
 | Event CLI inspection | Implemented | The native Console exposes event list, cache, and clear commands through the discovery API. |
 | Event generation | Deferred | Console artifact generators remain pending. |
@@ -202,7 +202,7 @@ Application lifecycles.
 | Component | Required ownership before integration |
 | --- | --- |
 | Queue | Durable jobs, safe payload serialization, retries, backoff, uniqueness, queue selection, middleware, and worker lifecycle. |
-| Database | Transaction state, nested commit and rollback callbacks, and after-commit listener rules. |
+| Database | Transaction state and nested commit and rollback callbacks; Events must register dispatch through the canonical Database boundary. |
 | Broadcasting | Remote channels, authorization, brokers, delivery guarantees, and transaction-aware publication. |
 | Console | Application and event/listener generators. |
 | Streaming | Bounded high-frequency token and progress streams. |

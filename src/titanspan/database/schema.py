@@ -7,11 +7,14 @@ use SQLAlchemy inspection for metadata queries.
 from __future__ import annotations
 
 import re
+from contextlib import contextmanager
+from contextvars import ContextVar
 from typing import TYPE_CHECKING, Any, Literal, TypedDict
 
 from alembic.migration import MigrationContext
 from alembic.operations import Operations
 from sqlalchemy import (
+    CHAR,
     JSON,
     BigInteger,
     Boolean,
@@ -21,6 +24,7 @@ from sqlalchemy import (
     Enum,
     Float,
     ForeignKey,
+    ForeignKeyConstraint,
     Integer,
     LargeBinary,
     Numeric,
@@ -41,7 +45,7 @@ from titanspan.database.exceptions import DatabaseSchemaError
 from titanspan.facades.base import Facade
 
 if TYPE_CHECKING:
-    from collections.abc import Callable, Sequence
+    from collections.abc import Callable, Generator, Sequence
 
     from sqlalchemy.engine import Connection as SQLConnection
     from sqlalchemy.engine.reflection import Inspector
@@ -51,7 +55,10 @@ if TYPE_CHECKING:
 
 
 class _Alteration(TypedDict):
-    """Keep Alembic alteration arguments statically checked."""
+    """Keep Alembic alteration arguments statically checked.
+
+    The shape mirrors supported operation keyword arguments.
+    """
 
     name: str
     existing_type: TypeEngine[Any]
@@ -59,9 +66,14 @@ class _Alteration(TypedDict):
     nullable: bool | None
     server_default: str | TextClause | None
 
+
 _IDENTIFIER = re.compile(r"^[A-Za-z_][A-Za-z0-9_$]*$")
 _SCHEMA_PARTS = 2
 _DEFAULT_INDEX_PREFIX = "ix"
+_MIGRATION_OPERATIONS: ContextVar[Operations | None] = ContextVar(
+    "titanspan_database_migration_operations",
+    default=None,
+)
 
 type _Operation = Literal[
     "create",
@@ -294,7 +306,8 @@ class Schema(Facade[DatabaseService]):
         return _inspect_sync(
             cls.resolve_service(),
             connection,
-            lambda inspector, schema, name: column_name in {
+            lambda inspector, schema, name: column_name
+            in {
                 item["name"]
                 for item in inspector.get_columns(name, schema=schema)
             },
@@ -323,7 +336,8 @@ class Schema(Facade[DatabaseService]):
         return await _inspect_async(
             cls.resolve_service(),
             connection,
-            lambda inspector, schema, name: column_name in {
+            lambda inspector, schema, name: column_name
+            in {
                 item["name"]
                 for item in inspector.get_columns(name, schema=schema)
             },
@@ -389,6 +403,190 @@ class Schema(Facade[DatabaseService]):
                 item["name"]
                 for item in inspector.get_columns(name, schema=schema)
             ),
+            table_name,
+        )
+
+    @classmethod
+    def has_index(
+        cls,
+        table_name: str,
+        index_name: str,
+        *,
+        connection: str | None = None,
+    ) -> bool:
+        """Check whether a table has the named SQLAlchemy reflected index.
+
+        Args:
+            table_name: Safe table name, optionally schema-qualified.
+            index_name: Safe index identifier.
+            connection: Optional named application connection.
+
+        Returns:
+            Whether the named index is present.
+        """
+        _validate_identifier(index_name)
+        return _inspect_sync(
+            cls.resolve_service(),
+            connection,
+            lambda inspector, schema, name: any(
+                index["name"] == index_name
+                for index in inspector.get_indexes(name, schema=schema)
+            ),
+            table_name,
+        )
+
+    @classmethod
+    async def has_index_async(
+        cls,
+        table_name: str,
+        index_name: str,
+        *,
+        connection: str | None = None,
+    ) -> bool:
+        """Asynchronously check whether an index exists on one table.
+
+        Args:
+            table_name: Safe table name, optionally schema-qualified.
+            index_name: Safe index identifier.
+            connection: Optional named application connection.
+
+        Returns:
+            Whether the named index is present.
+        """
+        _validate_identifier(index_name)
+        return await _inspect_async(
+            cls.resolve_service(),
+            connection,
+            lambda inspector, schema, name: any(
+                index["name"] == index_name
+                for index in inspector.get_indexes(name, schema=schema)
+            ),
+            table_name,
+        )
+
+    @classmethod
+    def has_foreign_key(
+        cls,
+        table_name: str,
+        column_name: str,
+        referred_table: str,
+        *,
+        connection: str | None = None,
+    ) -> bool:
+        """Check for a foreign key from one column to a target table.
+
+        Args:
+            table_name: Safe local table name.
+            column_name: Safe local column name.
+            referred_table: Safe referenced table name.
+            connection: Optional named application connection.
+
+        Returns:
+            Whether the Inspector reports the requested relationship.
+        """
+        _validate_identifier(column_name)
+        target_schema, target_name = _split_table_name(referred_table)
+        return _inspect_sync(
+            cls.resolve_service(),
+            connection,
+            lambda inspector, schema, name: any(
+                column_name in (foreign_key["constrained_columns"] or ())
+                and foreign_key["referred_table"] == target_name
+                and foreign_key["referred_schema"] == target_schema
+                for foreign_key in inspector.get_foreign_keys(
+                    name,
+                    schema=schema,
+                )
+            ),
+            table_name,
+        )
+
+    @classmethod
+    async def has_foreign_key_async(
+        cls,
+        table_name: str,
+        column_name: str,
+        referred_table: str,
+        *,
+        connection: str | None = None,
+    ) -> bool:
+        """Asynchronously inspect a local foreign-key declaration.
+
+        Args:
+            table_name: Safe local table name.
+            column_name: Safe local column name.
+            referred_table: Safe referenced table name.
+            connection: Optional named application connection.
+
+        Returns:
+            Whether the Inspector reports the requested relationship.
+        """
+        _validate_identifier(column_name)
+        target_schema, target_name = _split_table_name(referred_table)
+        return await _inspect_async(
+            cls.resolve_service(),
+            connection,
+            lambda inspector, schema, name: any(
+                column_name in (foreign_key["constrained_columns"] or ())
+                and foreign_key["referred_table"] == target_name
+                and foreign_key["referred_schema"] == target_schema
+                for foreign_key in inspector.get_foreign_keys(
+                    name,
+                    schema=schema,
+                )
+            ),
+            table_name,
+        )
+
+    @classmethod
+    def list_columns(
+        cls,
+        table_name: str,
+        *,
+        connection: str | None = None,
+    ) -> list[str]:
+        """Return reflected column names in database declaration order.
+
+        Args:
+            table_name: Safe table name, optionally schema-qualified.
+            connection: Optional named application connection.
+
+        Returns:
+            Column names returned by the selected dialect's Inspector.
+        """
+        return _inspect_sync(
+            cls.resolve_service(),
+            connection,
+            lambda inspector, schema, name: [
+                column["name"]
+                for column in inspector.get_columns(name, schema=schema)
+            ],
+            table_name,
+        )
+
+    @classmethod
+    async def list_columns_async(
+        cls,
+        table_name: str,
+        *,
+        connection: str | None = None,
+    ) -> list[str]:
+        """Asynchronously return reflected column names in declaration order.
+
+        Args:
+            table_name: Safe table name, optionally schema-qualified.
+            connection: Optional named application connection.
+
+        Returns:
+            Column names returned by the selected dialect's Inspector.
+        """
+        return await _inspect_async(
+            cls.resolve_service(),
+            connection,
+            lambda inspector, schema, name: [
+                column["name"]
+                for column in inspector.get_columns(name, schema=schema)
+            ],
             table_name,
         )
 
@@ -475,6 +673,8 @@ class Blueprint:
         self._constraints: list[SchemaItem] = []
         self._indexes: list[tuple[str | None, tuple[str, ...], bool]] = []
         self._drop_columns: list[str] = []
+        self._drop_indexes: list[str] = []
+        self._drop_constraints: list[tuple[str, str]] = []
         self._rename_columns: list[tuple[str, str]] = []
         self._alterations: list[_Alteration] = []
 
@@ -593,6 +793,88 @@ class Blueprint:
             The column definition, including ``references`` configuration.
         """
         return self._add_column(name, Integer())
+
+    def foreign_uuid(self, name: str) -> ColumnDefinition:
+        """Add a UUID column for a UUID-backed foreign key.
+
+        Args:
+            name: Safe foreign-key column name.
+
+        Returns:
+            The column definition for a following ``references`` call.
+        """
+        return self._add_column(name, Uuid(as_uuid=True))
+
+    def foreign_ulid(self, name: str) -> ColumnDefinition:
+        """Add a 26-character column for a ULID-backed foreign key.
+
+        Args:
+            name: Safe foreign-key column name.
+
+        Returns:
+            The column definition for a following ``references`` call.
+        """
+        return self._add_column(name, String(26))
+
+    def ulid(self, name: str) -> ColumnDefinition:
+        """Add a string column sized for a canonical ULID value.
+
+        Args:
+            name: Safe column name.
+
+        Returns:
+            The column definition for additional modifiers.
+        """
+        return self._add_column(name, String(26))
+
+    def char(self, name: str, *, length: int = 1) -> ColumnDefinition:
+        """Add a fixed-width character column.
+
+        Args:
+            name: Safe column name.
+            length: Positive fixed character width.
+
+        Returns:
+            The column definition for additional modifiers.
+        """
+        if length <= 0:
+            message = "Character length must be positive."
+            raise DatabaseSchemaError(message)
+        return self._add_column(name, CHAR(length))
+
+    def morphs(
+        self,
+        name: str,
+        *,
+        nullable: bool = False,
+    ) -> Blueprint:
+        """Add a trusted type discriminator and integer morph key pair.
+
+        Args:
+            name: Safe relationship name used for the generated columns.
+            nullable: Whether both discriminator and key permit NULL.
+
+        Returns:
+            This blueprint for further declarations.
+        """
+        _validate_identifier(name)
+        discriminator = self.string(f"{name}_type")
+        identifier = self.big_integer(f"{name}_id")
+        if nullable:
+            discriminator.nullable()
+            identifier.nullable()
+        return self
+
+    def nullable_morphs(self, name: str) -> Blueprint:
+        """Add nullable type and key columns for a morph association.
+
+        Args:
+            name: Safe relationship name used for the generated columns.
+
+        Returns:
+            This blueprint for further declarations.
+        """
+        return self.morphs(name, nullable=True)
 
     def boolean(self, name: str) -> ColumnDefinition:
         """Add a boolean column.
@@ -822,6 +1104,87 @@ class Blueprint:
         self._indexes.append((name, tuple(column_names), unique))
         return self
 
+    def foreign(
+        self,
+        *column_names: str,
+        references: str,
+        referenced_columns: Sequence[str] = ("id",),
+        name: str | None = None,
+        on_delete: str | None = None,
+        on_update: str | None = None,
+    ) -> Blueprint:
+        """Add a table-level foreign key with validated identifiers.
+
+        Args:
+            column_names: Local columns participating in the constraint.
+            references: Safe target table, optionally schema-qualified.
+            referenced_columns: Corresponding target columns.
+            name: Optional explicit constraint name.
+            on_delete: Optional supported database delete action.
+            on_update: Optional supported database update action.
+
+        Returns:
+            This blueprint for further declarations.
+        """
+        self._require_operation("create")
+        _validate_columns(column_names)
+        _validate_columns(referenced_columns)
+        _validate_optional_identifier(name)
+        if len(column_names) != len(referenced_columns):
+            message = "Foreign-key column counts must match."
+            raise DatabaseSchemaError(message)
+        schema, table_name = _split_table_name(references)
+        target = [
+            f"{schema}.{table_name}.{column}"
+            if schema is not None
+            else f"{table_name}.{column}"
+            for column in referenced_columns
+        ]
+        self._constraints.append(
+            ForeignKeyConstraint(
+                column_names,
+                target,
+                name=name,
+                ondelete=_validate_action(on_delete),
+                onupdate=_validate_action(on_update),
+            ),
+        )
+        return self
+
+    def drop_index(self, name: str) -> Blueprint:
+        """Drop a named index from an existing table.
+
+        Args:
+            name: Safe index identifier.
+
+        Returns:
+            This blueprint for further declarations.
+        """
+        self._require_operation("alter")
+        _validate_identifier(name)
+        self._drop_indexes.append(name)
+        return self
+
+    def drop_constraint(
+        self,
+        name: str,
+        *,
+        type_: Literal["foreignkey", "unique", "check", "primary"],
+    ) -> Blueprint:
+        """Drop a named supported constraint through Alembic.
+
+        Args:
+            name: Safe database constraint identifier.
+            type_: Alembic constraint category for the selected dialect.
+
+        Returns:
+            This blueprint for further declarations.
+        """
+        self._require_operation("alter")
+        _validate_identifier(name)
+        self._drop_constraints.append((name, type_))
+        return self
+
     def drop_column(self, name: str) -> Blueprint:
         """Drop a column from an altered table.
 
@@ -888,6 +1251,10 @@ class Blueprint:
     def apply(self) -> None:
         """Apply the declared operation synchronously in the app Unit of Work.
         """  # fmt: skip
+        operations = _MIGRATION_OPERATIONS.get()
+        if operations is not None:
+            self._apply(operations)
+            return
         with self._service.session(self._connection) as session:
             connection = session.connection()
             self._apply(Operations(MigrationContext.configure(connection)))
@@ -895,6 +1262,10 @@ class Blueprint:
     async def apply_async(self) -> None:
         """Apply the declared operation through the async app Unit of Work.
         """  # fmt: skip
+        operations = _MIGRATION_OPERATIONS.get()
+        if operations is not None:
+            self._apply(operations)
+            return
         async with self._service.session_async(
             self._connection,
         ) as session:
@@ -956,6 +1327,19 @@ class Blueprint:
         Args:
             operations: Alembic operations bound to the owned SQL connection.
         """
+        for index_name in self._drop_indexes:
+            operations.drop_index(
+                index_name,
+                table_name=self._table_name,
+                schema=self._schema,
+            )
+        for constraint_name, constraint_type in self._drop_constraints:
+            operations.drop_constraint(
+                constraint_name,
+                self._table_name,
+                type_=constraint_type,
+                schema=self._schema,
+            )
         for definition in self._columns:
             operations.add_column(
                 self._table_name,
@@ -1076,6 +1460,25 @@ class Blueprint:
         if self._operation is not expected:
             message = f"This declaration requires a {expected} blueprint."
             raise DatabaseSchemaError(message)
+
+
+@contextmanager
+def use_migration_operations(
+    operations: Operations,
+) -> Generator[None, None, None]:
+    """Bind Alembic operations while a native migration method runs.
+
+    Args:
+        operations: Alembic Operations bound to the migration connection.
+
+    Yields:
+        Control while Schema blueprints use the migration transaction.
+    """
+    token = _MIGRATION_OPERATIONS.set(operations)
+    try:
+        yield
+    finally:
+        _MIGRATION_OPERATIONS.reset(token)
 
 
 class ColumnDefinition:
@@ -1259,12 +1662,12 @@ class ColumnDefinition:
         )
 
 
-def _inspect_sync(
+def _inspect_sync[InspectionT](
     service: DatabaseService,
     connection: str | None,
-    inspect_value: Callable[[Inspector, str | None, str], bool],
+    inspect_value: Callable[[Inspector, str | None, str], InspectionT],
     table_name: str,
-) -> bool:
+) -> InspectionT:
     """Run a typed schema inspection callback on a sync SQL connection.
 
     Args:
@@ -1282,12 +1685,12 @@ def _inspect_sync(
         return inspect_value(inspector, schema, name)
 
 
-async def _inspect_async(
+async def _inspect_async[InspectionT](
     service: DatabaseService,
     connection: str | None,
-    inspect_value: Callable[[Inspector, str | None, str], bool],
+    inspect_value: Callable[[Inspector, str | None, str], InspectionT],
     table_name: str,
-) -> bool:
+) -> InspectionT:
     """Run schema inspection with SQLAlchemy's async run_sync bridge.
 
     Args:
@@ -1303,8 +1706,10 @@ async def _inspect_async(
     async with service.session_async(connection) as session:
         async_connection = await session.connection()
         return await async_connection.run_sync(
-            lambda sync_connection: bool(
-                inspect_value(inspect(sync_connection), schema, name)
+            lambda sync_connection: inspect_value(
+                inspect(sync_connection),
+                schema,
+                name,
             ),
         )
 
@@ -1468,4 +1873,9 @@ def _index_name(table_name: str, columns: Sequence[str]) -> str:
     return "_".join((_DEFAULT_INDEX_PREFIX, table_name, *columns))
 
 
-__all__ = ["Blueprint", "ColumnDefinition", "Schema"]
+__all__ = [
+    "Blueprint",
+    "ColumnDefinition",
+    "Schema",
+    "use_migration_operations",
+]
