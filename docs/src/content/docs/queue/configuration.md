@@ -114,8 +114,9 @@ uv add 'titanspan[queue-rabbitmq]'
 ```
 
 Redis and RabbitMQ integrations run against real local or CI services.
-RabbitMQ coverage verifies publication, consumption, and cleanup. It does not
-verify crash redelivery or delayed scheduling.
+RabbitMQ coverage verifies publication, consumption, cleanup, and redelivery
+after a worker process dies inside a handler. It does not support delayed
+scheduling.
 
 ## Register job classes
 

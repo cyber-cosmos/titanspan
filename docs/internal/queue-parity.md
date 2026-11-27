@@ -97,7 +97,7 @@ or prose.
 | --- | --- | --- |
 | Inline synchronous driver | Equivalent | Implemented and exercised through Foundation. |
 | Redis queue | Backend-dependent | Real Redis tests verify concurrent workers and process-crash redelivery after fresh queue activity. Taskiq checks pending messages after fresh reads, so an idle queue does not trigger recovery by itself. |
-| RabbitMQ queue | Backend-dependent | Mandatory real-broker test verifies publication, consumption, and cleanup. Crash redelivery and delayed scheduling remain unverified. |
+| RabbitMQ queue | Backend-dependent | Mandatory real-broker tests verify publication, consumption, cleanup, and redelivery after a worker process dies inside a handler. Delayed scheduling is unsupported. |
 | SQS queue | Unsupported with a technical justification | No supported, stable Taskiq integration is selected. |
 | Null driver | Equivalent with Python-native syntax | Explicit `discarded` receipt. |
 | Results | Backend-dependent | Redis exposes bounded JSON results with finite retention; other built-in drivers do not provide result handles. |
