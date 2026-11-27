@@ -16,6 +16,7 @@ if TYPE_CHECKING:
     )
 
     from sqlalchemy.sql import Executable
+    from sqlalchemy.sql.elements import ClauseElement
 
     from titanspan.contracts.database.query import DatabaseQueryBuilder
     from titanspan.contracts.database.result import DatabaseResult
@@ -118,6 +119,20 @@ class DatabaseConnectionService(Protocol):
 
         Returns:
             Detached result rows and affected-row metadata.
+        """
+        ...
+
+    def compile_statement(
+        self,
+        statement: ClauseElement,
+    ) -> tuple[str, Mapping[str, object]]:
+        """Compile a statement using this connection's SQLAlchemy dialect.
+
+        Args:
+            statement: SQLAlchemy Core or ORM statement.
+
+        Returns:
+            SQL text with placeholders and its separately bound values.
         """
         ...
 

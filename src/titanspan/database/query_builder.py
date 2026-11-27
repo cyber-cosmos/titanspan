@@ -164,6 +164,7 @@ _NO_ROWS_FOUND = "The database query returned no rows."
 _MULTIPLE_ROWS_FOUND = "The database query returned multiple rows."
 _MAXIMUM_CURSOR_LENGTH = 4096
 _MAXIMUM_JSON_PATH_LENGTH = 512
+_REDACTED_QUERY_BINDING = "<redacted>"
 _CURSOR_PAIR_LENGTH = 2
 
 
@@ -2804,6 +2805,34 @@ class QueryBuilder(DatabaseQueryBuilder):
             cast("Select[tuple[object, ...]]", statement),
         )
         return self._apply_lock(statement)
+
+    def to_sql(self) -> str:
+        """Compile the current query without interpolating bound values.
+
+        Returns:
+            SQL text with placeholders from the configured dialect.
+        """
+        sql, _ = self._connection.compile_statement(self.to_statement())
+        return sql
+
+    def get_bindings(
+        self,
+        *,
+        redact: bool = True,
+    ) -> Mapping[str, object]:
+        """Inspect compiled values with redaction enabled by default.
+
+        Args:
+            redact: Replace every parameter value unless trusted diagnostic
+                code explicitly disables redaction.
+
+        Returns:
+            Compiled parameter values keyed by SQLAlchemy's bind names.
+        """
+        _, bindings = self._connection.compile_statement(self.to_statement())
+        if redact:
+            return dict.fromkeys(bindings, _REDACTED_QUERY_BINDING)
+        return dict(bindings)
 
     def _apply_lock(
         self,

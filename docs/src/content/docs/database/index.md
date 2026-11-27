@@ -161,6 +161,10 @@ multi-row inserts, insert-from-query, conflict-safe upserts, insert-or-ignore,
 updates, deletes, and atomic single- or multi-column increments and decrements.
 Raw SQL expressions require
 explicit trusted application-authored strings and bound values.
+`to_sql()` compiles placeholders using the configured SQLAlchemy dialect.
+`get_bindings()` returns parameter names with values redacted by default.
+Set `redact=False` only in trusted diagnostics; returned values may contain
+sensitive application data and must not be written to ordinary logs.
 
 `insert_returning()`, `update_returning()`, and `delete_returning()` expose
 database-produced rows on SQLite and PostgreSQL. Other dialects reject these

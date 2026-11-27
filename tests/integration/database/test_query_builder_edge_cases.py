@@ -878,6 +878,33 @@ def _update_json_with_sync_connection() -> int:
     )
 
 
+async def test_query_diagnostics_redact_bound_values(
+    application: Application,
+) -> None:
+    """Inspect SQL while hiding sensitive binding values by default.
+
+    Args:
+        application: Application configured by this test.
+    """
+    async with application:
+        query = (
+            DB.table("diagnostic_users")
+            .select("id")
+            .where("email", "private@example.test")
+        )
+
+        sql = query.to_sql()
+        redacted = query.get_bindings()
+        visible = query.get_bindings(redact=False)
+
+        assert "diagnostic_users" in sql
+        assert "private@example.test" not in sql
+        assert redacted
+        assert set(redacted) == set(visible)
+        assert set(redacted.values()) == {"<redacted>"}
+        assert "private@example.test" in visible.values()
+
+
 async def test_cursor_pagination_stabilizes_order_and_supports_reverse_pages(
     application: Application,
 ) -> None:

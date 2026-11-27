@@ -6,7 +6,7 @@ the current Unit of Work or opens a short-lived session through its manager.
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, cast
 
 from titanspan.contracts.database import (
     DatabaseConnectionService,
@@ -21,6 +21,7 @@ if TYPE_CHECKING:
     from sqlalchemy.engine import Engine
     from sqlalchemy.ext.asyncio import AsyncEngine
     from sqlalchemy.sql import Executable
+    from sqlalchemy.sql.elements import ClauseElement
 
     from titanspan.database.manager import DatabaseManager
 
@@ -116,6 +117,26 @@ class Connection(DatabaseConnectionService):
             statement,
             parameters,
         )
+
+    def compile_statement(
+        self,
+        statement: ClauseElement,
+    ) -> tuple[str, Mapping[str, object]]:
+        """Compile a statement without opening a database connection.
+
+        Args:
+            statement: SQLAlchemy Core or ORM statement.
+
+        Returns:
+            SQL placeholders and a separate copy of bound values.
+        """
+        compiled = statement.compile(
+            dialect=self._manager.engine(self._name).dialect,
+        )
+        # SQLAlchemy's compiler overload types bind names as bytes here, while
+        # runtime named parameter mappings use string keys.
+        bindings = cast("Mapping[str, object]", compiled.params)
+        return str(compiled), dict(bindings)
 
     async def execute_statement_async(
         self,

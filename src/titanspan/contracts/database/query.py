@@ -1477,6 +1477,30 @@ class DatabaseQueryBuilder(Protocol):
         """
         ...
 
+    def to_sql(self) -> str:
+        """Compile the current query with its configured dialect.
+
+        Returns:
+            SQL text containing placeholders, without interpolated values.
+        """
+        ...
+
+    def get_bindings(
+        self,
+        *,
+        redact: bool = True,
+    ) -> Mapping[str, object]:
+        """Inspect query parameters, redacting their values by default.
+
+        Args:
+            redact: Replace values with a marker unless trusted diagnostic
+                code explicitly disables redaction.
+
+        Returns:
+            Compiled parameter values keyed by SQLAlchemy's bind names.
+        """
+        ...
+
     def with_cte(
         self,
         name: str,

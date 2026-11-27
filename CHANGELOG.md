@@ -104,6 +104,8 @@ public release.
   SQLite FTS, MySQL, and MariaDB.
 - Add safe JSON containment, nested key-existence, and array-length predicates
   plus nested JSON updates through supported database JSON functions.
+- Add Query Builder SQL compilation and binding inspection with default value
+  redaction.
 - Declare Pydantic as a direct runtime dependency for native schema APIs.
 - Add native application Cache services with memory and optional Redis
   backends, explicit backend capabilities, safe JSON serialization, atomic
