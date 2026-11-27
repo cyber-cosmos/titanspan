@@ -10,10 +10,12 @@ from __future__ import annotations
 from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING
+from uuid import uuid4
 
+import anyio
 from pydantic import BaseModel, ConfigDict, Field
 
-from titanspan import Application
+from titanspan import Application, app
 from titanspan.contracts.config import ConfigRepository  # noqa: TC001
 from titanspan.contracts.events import EventDispatcher
 from titanspan.contracts.filesystem import StorageManager  # noqa: TC001
@@ -38,6 +40,7 @@ if TYPE_CHECKING:
 
     from titanspan.console import Console
     from titanspan.contracts.container import ServiceRegistry
+    from titanspan.routing import Router
 
 _APPLICATION_NAME = "Document Processor"
 _DEFAULT_MAX_DOCUMENT_BYTES = 1_048_576
@@ -45,6 +48,8 @@ _DOCUMENT_TOO_LARGE_ERROR = "The uploaded document exceeds the size limit."
 _MISSING_UPLOAD_ERROR = "A document file is required."
 _INVALID_PATH_ERROR = "The uploaded filename cannot be used as a path."
 _STORE_FAILED_ERROR = "The document could not be stored."
+_DOCUMENT_NOT_FOUND_DETAIL = "The requested document does not exist."
+_PRIVATE_FAILURE_DETAIL = "private-reference-diagnostic"
 
 
 class DocumentMetadata(BaseModel):
@@ -86,6 +91,26 @@ class DocumentAudit:
         Each registered application receives its own audit service.
         """
         self.records: list[DocumentStored] = []
+
+
+class _RequestScopeProbe:
+    """Expose one identity owned by a single HTTP request scope.
+
+    The reference route uses this service to demonstrate request isolation.
+    """
+
+    __slots__ = ("token",)
+
+    def __init__(self) -> None:
+        """Create an identity that cannot collide across live requests."""
+        self.token = uuid4().hex
+
+
+class DocumentNotFoundError(Exception):
+    """Represent a deliberately safe public document lookup failure.
+
+    The exception carries no user-controlled path or identifier.
+    """
 
 
 class _RequestIdMiddleware:
@@ -305,6 +330,7 @@ class _DocumentProvider(ServiceProvider):
         """
         container.singleton(DocumentAudit, DocumentAudit)
         container.singleton(_OperationMiddleware, _OperationMiddleware)
+        container.scoped(_RequestScopeProbe, _RequestScopeProbe)
         # Request scope lets each execution resolve its active log service.
         container.scoped(DocumentProcessor, DocumentProcessor)
 
@@ -388,6 +414,132 @@ def _append_line_ending(content: bytes) -> bytes:
     return content if content.endswith(b"\n") else content + b"\n"
 
 
+async def _health(request: HttpRequest) -> dict[str, str]:
+    """Return readiness and verify request context setup.
+
+    Args:
+        request: Request scoped to the current ASGI execution.
+
+    Returns:
+        A small readiness object.
+
+    Raises:
+        RuntimeError: If Foundation did not assign a request identifier.
+    """
+    if not request.request_id:
+        message = "The active request has no request identifier."
+        raise RuntimeError(message)
+    return {"status": "ok", "application": _APPLICATION_NAME}
+
+
+async def _discovered_status() -> dict[str, str]:
+    """Return a response from the conventional route module.
+
+    Returns:
+        A marker showing that Foundation loaded the trusted route file.
+    """
+    return {"status": "discovered"}
+
+
+def register_discovered_routes(router: Router) -> None:
+    """Register one route through the conventional route-file hook.
+
+    Args:
+        router: Application-owned router supplied by route discovery.
+    """
+    router.get(
+        "/runtime/discovered",
+        _discovered_status,
+    ).name("runtime.discovered")
+
+
+async def _request_scope_probe(
+    probe: _RequestScopeProbe,
+    request: HttpRequest,
+) -> dict[str, str | bool]:
+    """Show request scope identity through concurrent ASGI execution.
+
+    Args:
+        probe: Request-scoped service injected into this handler.
+        request: Native request for the same execution scope.
+
+    Returns:
+        The request identifier and scope identity check.
+    """
+    resolved_probe = app().make(_RequestScopeProbe)
+    await anyio.lowlevel.checkpoint()
+    return {
+        "request_id": request.request_id,
+        "scope_token": probe.token,
+        "same_instance": probe is resolved_probe,
+    }
+
+
+async def _missing_document() -> None:
+    """Raise an application exception with an intentional public result.
+
+    Raises:
+        DocumentNotFoundError: The example has no such document.
+    """
+    raise DocumentNotFoundError
+
+
+async def _unexpected_failure() -> None:
+    """Raise a private failure to verify safe production handling.
+
+    Raises:
+        RuntimeError: A synthetic diagnostic that must remain private.
+    """
+    raise RuntimeError(_PRIVATE_FAILURE_DETAIL)
+
+
+def _render_document_not_found(
+    request: HttpRequest,
+    exception: DocumentNotFoundError,
+    response_factory: ResponseFactory,
+) -> HttpResponse:
+    """Render a fixed public response through native HTTP contracts.
+
+    Args:
+        request: Active request for the exception.
+        exception: Safe application exception without user input.
+        response_factory: Canonical response service from the Container.
+
+    Returns:
+        A public not-found response with no internal diagnostic data.
+    """
+    _ = request, exception
+    return response_factory.json(
+        {"detail": _DOCUMENT_NOT_FOUND_DETAIL},
+        status=404,
+    )
+
+
+def _register_runtime_routes(application: Application) -> None:
+    """Register lifecycle probes and safe failure examples.
+
+    Args:
+        application: Reference application receiving the native routes.
+    """
+    application.add_exception_handler(
+        DocumentNotFoundError,
+        _render_document_not_found,
+    )
+    application.router.get("/health", _health).name("runtime.health")
+    application.router.get(
+        "/runtime/request-scope",
+        _request_scope_probe,
+    ).name("runtime.request-scope")
+    application.router.get(
+        "/runtime/missing-document",
+        _missing_document,
+    ).name("runtime.missing-document")
+    application.router.get(
+        "/runtime/failure",
+        _unexpected_failure,
+    ).name("runtime.failure")
+
+
 def create_application(base_path: Path) -> Application:
     """Build the document application for one trusted project root.
 
@@ -418,23 +570,6 @@ def create_application(base_path: Path) -> Application:
         service_providers=(_DocumentProvider(),),
         http_middleware=(_REQUEST_ID_MIDDLEWARE,),
     )
-
-    async def health(request: HttpRequest) -> dict[str, str]:
-        """Return a health response and verify request context setup.
-
-        Args:
-            request: Request scoped to the current ASGI execution.
-
-        Returns:
-            A small readiness object.
-
-        Raises:
-            RuntimeError: If Foundation did not assign a request identifier.
-        """
-        if not request.request_id:
-            message = "The active request has no request identifier."
-            raise RuntimeError(message)
-        return {"status": "ok", "application": _APPLICATION_NAME}
 
     async def store_document(
         request: HttpRequest,
@@ -500,7 +635,7 @@ def create_application(base_path: Path) -> Application:
         _ = dispatcher.listen(DocumentStored, _record_document)
 
     application.on_startup(register_document_listener)
-    application.router.get("/health", health).name("runtime.health")
+    _register_runtime_routes(application)
     application.router.post(
         "/documents",
         store_document,
@@ -553,4 +688,5 @@ __all__ = [
     "create_application",
     "create_asgi_app",
     "register_console_commands",
+    "register_discovered_routes",
 ]

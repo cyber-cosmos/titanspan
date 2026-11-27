@@ -19,7 +19,7 @@ distinguishes supported behavior from work that needs another component.
 | Controller and callable dependency injection | Canonical Container | `tests/integration/routing/test_dispatch.py` |
 | Middleware aliases, groups, inheritance, and exclusions | `Router`, HTTP middleware contract | `tests/integration/routing/test_dispatch.py`, group unit tests, and installed reference app |
 | Parameterized middleware | `MiddlewareDeclaration`, `ParameterizedHttpMiddleware` | `tests/integration/routing/test_parameterized_middleware.py`; installed reference app verifies route-specific headers |
-| Ordered conventional and configured route discovery | `RouteDiscovery` provider boot | `tests/integration/routing/test_route_discovery.py` |
+| Ordered conventional and configured route discovery | `RouteDiscovery` provider boot | `tests/integration/routing/test_route_discovery.py`; installed reference smoke |
 | Stable inspection and safe route metadata cache | `RouteCollection`, `RouteCache` | `tests/unit/routing/test_route_cache.py` and inspection tests |
 | WebSocket acceptance, messaging, and connection cleanup | FastAPI, Starlette, Container `CONNECTION` scope | `tests/integration/routing/test_advanced_routing.py` |
 | OpenAPI inputs and response metadata | FastAPI and Pydantic | `test_openapi_documents_models_and_hides_container_services` |

@@ -4,7 +4,11 @@ The test runs the same Application path used by the clean-install CI job.
 """
 
 import pytest
-from scripts.ci.runtime_smoke import run_smoke
+from scripts.ci.runtime_smoke import (
+    SmokeResult,
+    require_smoke_success,
+    run_smoke,
+)
 
 pytestmark = pytest.mark.integration
 _HTTP_UNPROCESSABLE_STATUS = 422
@@ -26,6 +30,7 @@ async def test_runtime_smoke_uses_native_routing_and_injected_services() -> (
     }
     assert result["documents"] == {"resource": "Document"}
     assert result["json_metadata"] == {"category": "guides"}
+    assert result["conventional_route_verified"] is True
     assert result["uploaded_document"] == {
         "path": "guides/reference.txt",
         "bytes": 26,
@@ -62,3 +67,39 @@ async def test_runtime_smoke_processes_a_validated_document_upload() -> None:
     assert result["middleware_verified"] is True
     assert result["console_document_count"] == 1
     assert result["testing_context_verified"] is True
+    assert result["concurrent_request_scope_verified"] is True
+    assert result["custom_exception_verified"] is True
+    assert result["safe_failure_verified"] is True
+
+
+def test_installed_smoke_rejects_a_failed_integration_check() -> None:
+    """Fail the installed-package job when a reported check is false.
+
+    Returning a result object alone must not let a broken integration pass.
+    """
+    result: SmokeResult = {
+        "health": {},
+        "documents": {},
+        "uploaded_document": {},
+        "invalid_upload": {"status": _HTTP_UNPROCESSABLE_STATUS, "body": {}},
+        "json_metadata": {},
+        "json_validation_safe": True,
+        "response_cookie_verified": True,
+        "middleware_verified": True,
+        "component_fakes": {
+            "storage_isolated": True,
+            "event_count": 1,
+            "log_captured": True,
+            "http_status": 200,
+        },
+        "password_hash_verified": True,
+        "console_document_count": 1,
+        "testing_context_verified": True,
+        "conventional_route_verified": True,
+        "concurrent_request_scope_verified": False,
+        "custom_exception_verified": True,
+        "safe_failure_verified": True,
+    }
+
+    with pytest.raises(RuntimeError, match="request scope isolation"):
+        require_smoke_success(result)

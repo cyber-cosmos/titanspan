@@ -48,3 +48,6 @@ scoped application context. It verifies that fake storage does not write to
 the configured local disk and checks a password hash through the application
 Hasher. It invokes an injected `documents count` Console command and uses
 `AsyncApplicationTest` to start, request, and close a native test application.
+The installed-package check also sends concurrent requests to verify scoped
+service isolation. It verifies a custom public exception response and a safe
+generic response for an unexpected failure.

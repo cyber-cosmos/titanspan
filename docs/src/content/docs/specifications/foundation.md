@@ -101,6 +101,10 @@ Unit and integration evidence is maintained in:
 The installed-package reference smoke also starts the application, verifies
 typed JSON and multipart requests, exercises middleware and response cookies,
 uses injected Console commands and `AsyncApplicationTest`, then shuts down.
+It discovers a trusted route under the temporary application root and sends
+concurrent requests to verify request-scoped service isolation. It also
+checks a custom public exception response and safe handling of an unexpected
+failure without exposing its detail in production responses or default logs.
 
 This specification does not claim persistent route caching, arbitrary module
 scanning, filesystem containment, or a second web dependency graph for native

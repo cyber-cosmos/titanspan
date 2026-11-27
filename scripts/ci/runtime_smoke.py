@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import json
 import sys
+from collections.abc import Mapping
 from dataclasses import dataclass
 from importlib.util import module_from_spec, spec_from_file_location
 from pathlib import Path
@@ -43,6 +44,21 @@ _INVALID_CATEGORY = "runtime-smoke-secret/../"
 _UNSUPPORTED_JSON_CATEGORY = "private-report-token"
 _DOCUMENT_CONTENT = b"native reference workflow"
 _EXPECTED_STORED_CONTENT = b"native reference workflow\n"
+_CONVENTIONAL_ROUTE_MODULE_LINES = (
+    '"""Register routes through the installed reference application hook.',
+    '"""',
+    "",
+    "from _titanspan_document_processor_example import (",
+    "    register_discovered_routes,",
+    ")",
+    "from titanspan.routing import Router",
+    "",
+    "",
+    "def register_routes(router: Router) -> None:",
+    '    """Register route declarations during application startup.',
+    '    """',
+    "    register_discovered_routes(router)",
+)
 _FAKE_DOCUMENT_PATH = "guides/fake-reference.txt"
 _FAKE_DOCUMENT_CONTENT = b"isolated fake workflow\n"
 _FAKE_HTTP_URL = "https://service.example.test/status"
@@ -52,9 +68,18 @@ _EXPECTED_HEALTH = {
     "application": "Document Processor",
 }
 _EXPECTED_GENERATED_DOCUMENT = {"resource": "Document"}
+_EXPECTED_DISCOVERED_ROUTE = {"status": "discovered"}
 _EXPECTED_JSON_METADATA = {"category": "guides"}
 _EXPECTED_COOKIE_RESPONSE = {"status": "issued"}
 _EXPECTED_COOKIE_COUNT = 2
+_EXPECTED_REQUEST_SCOPE_COUNT = 8
+_EXPECTED_MISSING_DOCUMENT = {
+    "detail": "The requested document does not exist.",
+}
+_EXPECTED_INTERNAL_FAILURE = {"detail": "Internal server error."}
+_PRIVATE_FAILURE_DETAIL = "private-reference-diagnostic"
+_HTTP_NOT_FOUND_STATUS = 404
+_HTTP_INTERNAL_ERROR_STATUS = 500
 _HEADER_PAIR_LENGTH = 2
 _EXPECTED_UPLOADED_DOCUMENT = {
     "path": "guides/reference.txt",
@@ -77,7 +102,7 @@ class _ValidationRejection(TypedDict):
     body: object
 
 
-class _SmokeResult(TypedDict):
+class SmokeResult(TypedDict):
     """Describe the observable results from the reference application.
 
     Attributes:
@@ -93,6 +118,14 @@ class _SmokeResult(TypedDict):
         password_hash_verified: Whether native hashing verifies its result.
         console_document_count: Count returned through an injected command.
         testing_context_verified: Whether native app testing served a route.
+        conventional_route_verified: Whether startup discovered a trusted
+            route file under the application root.
+        concurrent_request_scope_verified: Whether concurrent requests kept
+            distinct scoped services and matching Container resolution.
+        custom_exception_verified: Whether a public exception used its
+            registered native renderer.
+        safe_failure_verified: Whether unexpected failure details stayed
+            private in both the response and log record.
     """
 
     health: object
@@ -107,6 +140,10 @@ class _SmokeResult(TypedDict):
     password_hash_verified: bool
     console_document_count: int
     testing_context_verified: bool
+    conventional_route_verified: bool
+    concurrent_request_scope_verified: bool
+    custom_exception_verified: bool
+    safe_failure_verified: bool
 
 
 class _ComponentFakeResults(TypedDict):
@@ -148,16 +185,24 @@ class _SmokeRoutes(TypedDict):
     Attributes:
         health: Health endpoint path.
         generated: Path for the generated controller action.
+        discovered: Path for the conventionally discovered endpoint.
         upload: Multipart upload path.
         metadata: Typed JSON metadata path.
         cookie: Response-cookie path.
+        scope_probe: Request-scope inspection path.
+        missing_document: Public exception path.
+        failure: Unexpected exception path.
     """
 
     health: str
     generated: str
+    discovered: str
     upload: str
     metadata: str
     cookie: str
+    scope_probe: str
+    missing_document: str
+    failure: str
 
 
 class _PrimaryHttpResults(TypedDict):
@@ -165,6 +210,7 @@ class _PrimaryHttpResults(TypedDict):
 
     Attributes:
         health: Health endpoint response.
+        discovered: Conventional route endpoint response.
         generated: Generated controller response.
         upload: Successful multipart workflow response.
         invalid_upload: Safe rejection for invalid multipart input.
@@ -172,6 +218,7 @@ class _PrimaryHttpResults(TypedDict):
     """
 
     health: _AsgiResponse
+    discovered: _AsgiResponse
     generated: _AsgiResponse
     upload: _AsgiResponse
     invalid_upload: _AsgiResponse
@@ -194,7 +241,7 @@ class _NativeHttpResults(TypedDict):
     middleware_verified: bool
 
 
-async def run_smoke() -> _SmokeResult:
+async def run_smoke() -> SmokeResult:
     """Run CLI generation and a local document workflow through ASGI.
 
     Raises:
@@ -213,15 +260,15 @@ async def run_smoke() -> _SmokeResult:
             base_path,
             abandon_on_cancel=False,
         )
+        _write_conventional_route_module(base_path)
         application = _load_reference_application(base_path)
         application.router.get(
             "/generated-documents",
             _load_document_action(generated_path),
         ).name("generated.documents.index")
 
-        routes = _resolve_smoke_routes(application)
-
         async with application.asgi.router.lifespan_context(application.asgi):
+            routes = _resolve_smoke_routes(application)
             primary_http = await _exercise_primary_http(application, routes)
             native_http = await _exercise_native_http(application, routes)
 
@@ -236,8 +283,22 @@ async def run_smoke() -> _SmokeResult:
                 application,
             )
             testing_context_verified = await _verify_application_testing()
+            concurrent_request_scope_verified = (
+                await _verify_concurrent_request_scopes(
+                    application,
+                    routes["scope_probe"],
+                )
+            )
+            custom_exception_verified = await _verify_public_exception(
+                application,
+                routes["missing_document"],
+            )
+            safe_failure_verified = await _verify_safe_unexpected_failure(
+                application,
+                routes["failure"],
+            )
 
-    return {
+    result: SmokeResult = {
         "health": primary_http["health"].body,
         "documents": primary_http["generated"].body,
         "uploaded_document": primary_http["upload"].body,
@@ -256,7 +317,17 @@ async def run_smoke() -> _SmokeResult:
         "password_hash_verified": password_hash_verified,
         "console_document_count": console_document_count,
         "testing_context_verified": testing_context_verified,
+        "conventional_route_verified": (
+            primary_http["discovered"].body == _EXPECTED_DISCOVERED_ROUTE
+        ),
+        "concurrent_request_scope_verified": (
+            concurrent_request_scope_verified
+        ),
+        "custom_exception_verified": custom_exception_verified,
+        "safe_failure_verified": safe_failure_verified,
     }
+    require_smoke_success(result)
+    return result
 
 
 def _resolve_smoke_routes(application: Application) -> _SmokeRoutes:
@@ -279,6 +350,11 @@ def _resolve_smoke_routes(application: Application) -> _SmokeRoutes:
             {},
             absolute=False,
         ),
+        "discovered": generator.route(
+            "runtime.discovered",
+            {},
+            absolute=False,
+        ),
         "upload": generator.route("documents.store", {}, absolute=False),
         "metadata": generator.route(
             "documents.metadata",
@@ -290,13 +366,32 @@ def _resolve_smoke_routes(application: Application) -> _SmokeRoutes:
             {},
             absolute=False,
         ),
+        "scope_probe": generator.route(
+            "runtime.request-scope",
+            {},
+            absolute=False,
+        ),
+        "missing_document": generator.route(
+            "runtime.missing-document",
+            {},
+            absolute=False,
+        ),
+        "failure": generator.route(
+            "runtime.failure",
+            {},
+            absolute=False,
+        ),
     }
     expected = {
         "health": "/health",
         "generated": "/generated-documents",
+        "discovered": "/runtime/discovered",
         "upload": "/documents",
         "metadata": "/documents/metadata",
         "cookie": "/documents/session-cookie",
+        "scope_probe": "/runtime/request-scope",
+        "missing_document": "/runtime/missing-document",
+        "failure": "/runtime/failure",
     }
     if routes != expected:
         message = "The reference application's named routes are invalid."
@@ -330,6 +425,16 @@ async def _exercise_primary_http(
     if len(request_ids) != 1 or not request_ids[0]:
         message = "Global middleware omitted the request identifier."
         raise RuntimeError(message)
+
+    discovered = await _send_request(
+        application.asgi,
+        routes["discovered"],
+    )
+    _expect_response(
+        discovered,
+        status=_HTTP_OK_STATUS,
+        body=_EXPECTED_DISCOVERED_ROUTE,
+    )
 
     generated = await _send_request(application.asgi, routes["generated"])
     _expect_response(
@@ -382,6 +487,7 @@ async def _exercise_primary_http(
 
     return {
         "health": health,
+        "discovered": discovered,
         "generated": generated,
         "upload": upload,
         "invalid_upload": invalid_upload,
@@ -570,6 +676,136 @@ async def _exercise_application_fakes(
     }
 
 
+async def _verify_concurrent_request_scopes(
+    application: Application,
+    path: str,
+) -> bool:
+    """Verify isolated request services through concurrent ASGI execution.
+
+    Args:
+        application: Started reference application.
+        path: Route exposing a request-scoped service identity.
+
+    Returns:
+        Whether every request had its own scope and stable local identity.
+    """
+    ready = anyio.Event()
+    release = anyio.Event()
+    lock = anyio.Lock()
+    responses: list[_AsgiResponse] = []
+    ready_count = 0
+
+    async def send_request() -> None:
+        """Wait for the batch, then send one overlapping ASGI request."""
+        nonlocal ready_count
+        async with lock:
+            ready_count += 1
+            if ready_count == _EXPECTED_REQUEST_SCOPE_COUNT:
+                ready.set()
+        await release.wait()
+        responses.append(await _send_request(application.asgi, path))
+
+    async with anyio.create_task_group() as task_group:
+        for _ in range(_EXPECTED_REQUEST_SCOPE_COUNT):
+            task_group.start_soon(send_request)
+        await ready.wait()
+        release.set()
+
+    payloads = [_request_scope_payload(response) for response in responses]
+    verified = [payload for payload in payloads if payload is not None]
+    return (
+        len(responses) == _EXPECTED_REQUEST_SCOPE_COUNT
+        and len(verified) == _EXPECTED_REQUEST_SCOPE_COUNT
+        and all(response.status == _HTTP_OK_STATUS for response in responses)
+        and all(same_instance for _, _, same_instance in verified)
+        and len({request_id for request_id, _, _ in verified})
+        == _EXPECTED_REQUEST_SCOPE_COUNT
+        and len({token for _, token, _ in verified})
+        == _EXPECTED_REQUEST_SCOPE_COUNT
+    )
+
+
+def _request_scope_payload(
+    response: _AsgiResponse,
+) -> tuple[str, str, bool] | None:
+    """Read the typed fields returned by the scope-probe endpoint.
+
+    Args:
+        response: Captured response from one concurrent request.
+
+    Returns:
+        Request identifier, scope token, and identity result when valid.
+    """
+    body = response.body
+    if not isinstance(body, Mapping):
+        return None
+    # JSON object keys decode as strings at this response boundary.
+    payload = cast("Mapping[str, object]", body)
+    request_id = payload.get("request_id")
+    scope_token = payload.get("scope_token")
+    same_instance = payload.get("same_instance")
+    if (
+        not isinstance(request_id, str)
+        or not isinstance(scope_token, str)
+        or not isinstance(same_instance, bool)
+    ):
+        return None
+    return request_id, scope_token, same_instance
+
+
+async def _verify_public_exception(
+    application: Application,
+    path: str,
+) -> bool:
+    """Verify a registered application exception renderer through ASGI.
+
+    Args:
+        application: Started reference application.
+        path: Route raising the deliberately public document exception.
+
+    Returns:
+        Whether the renderer emitted the documented safe 404 response.
+    """
+    response = await _send_request(application.asgi, path)
+    return (
+        response.status == _HTTP_NOT_FOUND_STATUS
+        and response.body == _EXPECTED_MISSING_DOCUMENT
+    )
+
+
+async def _verify_safe_unexpected_failure(
+    application: Application,
+    path: str,
+) -> bool:
+    """Verify production failures hide details from responses and logs.
+
+    Args:
+        application: Started reference application with debug disabled.
+        path: Route raising a synthetic unexpected exception.
+
+    Returns:
+        Whether the response and selected log record omit private text.
+    """
+    with application.context(), Log.fake() as log_fake:
+        response = await _send_request(
+            application.asgi,
+            path,
+            expect_internal_error=True,
+        )
+        record = log_fake.assert_logged(
+            "error",
+            "Application operation failed",
+        )
+    return (
+        response.status == _HTTP_INTERNAL_ERROR_STATUS
+        and response.body == _EXPECTED_INTERNAL_FAILURE
+        and _PRIVATE_FAILURE_DETAIL.encode("utf-8") not in response.raw_body
+        and record.context.get("exception_type") == "RuntimeError"
+        and record.exception is None
+        and _PRIVATE_FAILURE_DETAIL not in repr(record)
+    )
+
+
 async def _verify_application_hasher(application: Application) -> bool:
     """Verify generated password data through the application Hasher.
 
@@ -736,6 +972,17 @@ def _generate_document_controller(base_path: Path) -> Path:
     return generated_path
 
 
+def _write_conventional_route_module(base_path: Path) -> None:
+    """Create a trusted conventional route hook for the reference app.
+
+    Args:
+        base_path: Isolated project root containing its routes directory.
+    """
+    route_path = base_path / "routes" / "web.py"
+    source = "\n".join(_CONVENTIONAL_ROUTE_MODULE_LINES) + "\n"
+    route_path.write_text(source, encoding="utf-8")
+
+
 def _load_document_action(generated_path: Path) -> ControllerAction:
     """Import one generated controller and select its native action.
 
@@ -875,6 +1122,7 @@ async def _send_request(
     method: str = "GET",
     headers: Sequence[tuple[bytes, bytes]] = (),
     body: bytes = b"",
+    expect_internal_error: bool = False,
 ) -> _AsgiResponse:
     """Send one request through the real ASGI host and capture its response.
 
@@ -884,6 +1132,8 @@ async def _send_request(
         method: HTTP method used for this request.
         headers: Request headers in ASGI byte form.
         body: Complete request body for bounded local smoke payloads.
+        expect_internal_error: Whether to accept a completed generic 500
+            response followed by the server error middleware re-raise.
 
     Returns:
         Status and decoded JSON body emitted by the ASGI application.
@@ -928,8 +1178,40 @@ async def _send_request(
         "client": ("127.0.0.1", 12345),
         "server": ("127.0.0.1", 80),
     }
-    await application(scope, receive, send)
+    try:
+        await application(scope, receive, send)
+    except Exception:
+        # Starlette re-raises after sending a complete server-error response.
+        if not (
+            expect_internal_error
+            and _has_complete_internal_error_response(messages)
+        ):
+            raise
     return _decode_response(messages)
+
+
+def _has_complete_internal_error_response(
+    messages: Sequence[Message],
+) -> bool:
+    """Check that ASGI transmitted a complete generic server error.
+
+    Args:
+        messages: Response events observed before the application re-raised.
+
+    Returns:
+        Whether a 500 response started and its body completed.
+    """
+    started = any(
+        message.get("type") == "http.response.start"
+        and message.get("status") == _HTTP_INTERNAL_ERROR_STATUS
+        for message in messages
+    )
+    completed = any(
+        message.get("type") == "http.response.body"
+        and message.get("more_body", False) is False
+        for message in messages
+    )
+    return started and completed
 
 
 def _decode_response(messages: Sequence[Message]) -> _AsgiResponse:
@@ -1078,10 +1360,47 @@ def main() -> int:
 
     Returns:
         Zero after the real application and installed CLI pass.
+
+    Raises:
+        RuntimeError: If any installed application integration check fails.
     """
     anyio.run(run_smoke)
     sys.stdout.write("Installed Titanspan reference application passed.\n")
     return 0
+
+
+def require_smoke_success(result: SmokeResult) -> None:
+    """Fail the installed smoke if an integration result is false.
+
+    Args:
+        result: Observations returned by the real application run.
+
+    Raises:
+        RuntimeError: If any expected cross-component behavior is absent.
+    """
+    fake_results = result["component_fakes"]
+    checks = {
+        "route discovery": result["conventional_route_verified"],
+        "middleware": result["middleware_verified"],
+        "storage isolation": fake_results["storage_isolated"],
+        "event dispatch": fake_results["event_count"] == 1,
+        "logging substitution": fake_results["log_captured"],
+        "outgoing HTTP fake": fake_results["http_status"] == _HTTP_OK_STATUS,
+        "password hashing": result["password_hash_verified"],
+        "Console injection": result["console_document_count"] == 1,
+        "native application testing": result["testing_context_verified"],
+        "request scope isolation": result["concurrent_request_scope_verified"],
+        "public exception rendering": result["custom_exception_verified"],
+        "safe unexpected failure": result["safe_failure_verified"],
+        "typed JSON validation": result["json_validation_safe"],
+        "response cookie handling": result["response_cookie_verified"],
+    }
+    failed = tuple(name for name, passed in checks.items() if not passed)
+    if failed:
+        message = (
+            "Installed reference checks failed: " + ", ".join(failed) + "."
+        )
+        raise RuntimeError(message)
 
 
 if __name__ == "__main__":

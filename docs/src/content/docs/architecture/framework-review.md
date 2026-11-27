@@ -691,7 +691,34 @@ checks both redaction and explicit field access.
 | C-019 | Resolved with C-009 | Built-in providers follow one deterministic Foundation registration policy. |
 | C-020 | Resolved as a dependency decision | Hashing keeps direct `argon2-cffi` and `bcrypt` adapters; `pwdlib` was not added. |
 | C-021 | Resolved | Framework-generated request and exception logs resolve active service substitutions. |
-| C-022 | Partial | The installed-package smoke verifies multipart and JSON validation, global and parameterized route middleware, response cookies, Pipeline, local storage, Events, Logging, named URLs, generated-controller dispatch, scoped Storage/Event/Logging/HTTP fakes, Hashing, an injected Console command, Testing, and shutdown. Broader installed-package test coverage remains open. |
+| C-022 | Resolved for the required installed application workflow | The wheel smoke covers route discovery, request isolation, validation, service fakes, Console, Testing, exception handling, and shutdown. It does not claim exhaustive installed-package API coverage. |
+
+### C-022 — Installed reference application did not exercise cross-component paths
+
+**Severity:** P2 — confirmed evidence gap, resolved for the required reference workflow.
+
+**Affected components:** Foundation, Container, HTTP, Routing, Validation,
+Filesystem, Events, Logging, Console, Testing, and package runtime checks.
+
+**Evidence:** The installed wheel smoke covered the document workflow but did
+not verify conventional route discovery, concurrent request scopes, or
+application exception rendering. Source-tree integration tests could not
+prove that these paths worked from an installed distribution.
+
+**Correction:** The smoke creates a trusted `routes/web.py` module under its
+temporary application root. It checks concurrent request-scoped identity,
+the registered public exception renderer, and the generic unexpected-error
+response and log record. The request-scope route compares injected resolution
+with `app().make()` during overlapping requests.
+
+**Verification:**
+`tests/integration/test_runtime_application_smoke.py` asserts these results.
+The installed wheel check runs `scripts/ci/runtime_smoke.py` from outside the
+repository source path and verifies the installed `titanspan` command.
+
+**Remaining boundary:** The smoke is one deterministic vertical slice. It does
+not claim exhaustive per-component API coverage from an installed
+distribution.
 
 ### C-010 — Typed route inputs did not apply application rules
 
