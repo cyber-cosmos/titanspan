@@ -52,9 +52,11 @@ from titanspan.database.relationships import (
     has_many,
     has_one,
 )
+from titanspan.database.routing import bind_model
 from titanspan.database.schema import Blueprint, ColumnDefinition, Schema
 from titanspan.database.seeder import Seeder
 from titanspan.database.service_provider import DatabaseServiceProvider
+from titanspan.database.validation import exists_rule, unique_rule
 
 __all__ = [
     "AsyncOperationRequiredError",
@@ -100,7 +102,10 @@ __all__ = [
     "SoftDeletes",
     "belongs_to",
     "belongs_to_many",
+    "bind_model",
+    "exists_rule",
     "has_many",
     "has_one",
     "run_migration",
+    "unique_rule",
 ]

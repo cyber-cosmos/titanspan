@@ -59,6 +59,10 @@ public release.
 - Add explicit asynchronous route model binding through the native Routing
   callback boundary. Models can select a mapped route-key column, and missing
   rows use the framework's not-found response handling.
+- Add asynchronous Database `unique_rule` and `exists_rule` integration with
+  Validation, including model connection defaults, trusted constraints, and
+  trusted update ignores. Rules delegate SQL construction and binding to the
+  native Query Builder.
 - Declare Pydantic as a direct runtime dependency for native schema APIs.
 - Add native application Cache services with memory and optional Redis
   backends, explicit backend capabilities, safe JSON serialization, atomic

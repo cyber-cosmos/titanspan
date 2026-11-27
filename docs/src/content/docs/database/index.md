@@ -388,6 +388,38 @@ Current integration tests use temporary SQLite databases and a disposable
 PostgreSQL database. PostgreSQL integration is mandatory in CI; it fails if
 the job's required URL is missing.
 
+## Database-backed Validation rules
+
+Use asynchronous `unique_rule` and `exists_rule` values with the existing
+Validation service. The rules accept a mapped model or trusted table name,
+use model connections by default, and bind values through the Query Builder.
+
+```python
+from pydantic import BaseModel
+
+from titanspan.database import unique_rule
+from titanspan.facades import Validation
+
+
+class CreateUserInput(BaseModel):
+    email: str
+
+
+email_rule = unique_rule(User, "email", field="email")
+validated = await Validation.validate_async(
+    {"email": "ada@example.test"},
+    CreateUserInput,
+    async_rules=(email_rule,),
+)
+```
+
+Use `exists_rule` to require a matching record. Add trusted fixed query
+constraints with `constraints={"active": True}`. For updates, pass a trusted
+column and identifier with `ignore=("id", user.id)`. Never take the ignored
+identifier from request data. A `None` field skips the lookup so optional
+inputs remain nullable. Database uniqueness constraints remain necessary
+because a concurrent write can race with validation.
+
 ## Explicit route model binding
 
 Register a model against an existing Router path parameter with
@@ -420,11 +452,10 @@ must preserve the active session's task or thread ownership and transaction
 boundary. Use SQLAlchemy and Alembic APIs directly for capabilities not yet
 exposed by the native layer.
 
-The Database component does not yet provide database-backed Validation rules,
-scoped or automatic Routing model binding, model-based URL generation, model
-lifecycle events through the Events component, database-specific Testing
-assertions, read replicas, query caching, or distributed migration
-coordination. See
+The Database component does not yet provide scoped or automatic Routing model
+binding, model-based URL generation, model lifecycle events through the Events
+component, database-specific Testing assertions, read replicas, query caching,
+or distributed migration coordination. See
 [ADR 0006](/titanspan/architecture/decisions/0006-sqlalchemy-persistence/) for
 the accepted persistence boundary and
 [the backend boundary specification](/titanspan/specifications/backend-boundaries/)

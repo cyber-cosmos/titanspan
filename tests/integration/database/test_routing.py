@@ -13,8 +13,7 @@ from fastapi.testclient import TestClient
 from sqlalchemy import String
 from sqlalchemy.orm import Mapped, mapped_column
 
-from titanspan.database import DatabaseServiceProvider, Model
-from titanspan.database.routing import bind_model
+from titanspan.database import DatabaseServiceProvider, Model, bind_model
 from titanspan.facades.database import DB
 from titanspan.foundation import Application
 from titanspan.routing import Router

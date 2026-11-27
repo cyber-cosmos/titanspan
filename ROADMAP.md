@@ -39,11 +39,12 @@ query and model APIs, schema operations, migrations, and SQLite and PostgreSQL
 integration coverage. Basic model factories support in-memory construction,
 states, sequences, and sync and async persistence. Explicit route model
 binding resolves configured keys through the active Database service.
-Relationship factories, recycling, advanced relationships, database-backed
-Validation, scoped or automatic binding, and model URL generation remain in
-progress. Seeders support sync and async execution through Container-owned
-instances and Database transactions, with native `db:seed` and
-`make:seeder` commands.
+Database-backed async `unique_rule` and `exists_rule` values reuse the native
+Validation service and bind all query values. Relationship factories,
+recycling, advanced relationships, scoped or automatic binding, and model URL
+generation remain in progress. Seeders support sync and async execution
+through Container-owned instances and Database transactions, with native
+`db:seed` and `make:seeder` commands.
 
 ## Phase 0 — Engineering foundation
 
