@@ -205,6 +205,15 @@ filecache = [
 ]
 
 [[package]]
+name = "cachetools"
+version = "8.0.3"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/de/4a/e1204e16df86b6381abdba73cde2e59cda5fbedb110400f335c5dd86fade/cachetools-8.0.3.tar.gz", hash = "sha256:79245d0d90464e29355f13658cd769e57d98ed06242d3c6fbd71796ca0938ef9", size = 52573, upload-time = "2026-11-25T20:20:22.608Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/31/48/50e8de023394349623d6065fd4a8d2a52cc5cc06d9ac96d0e765a5bf556c/cachetools-8.0.3-py3-none-any.whl", hash = "sha256:08bc12eeb7c7ab68abbe2d64d07fd7923ff532e32ff04ae27d22add1c5e8a5f9", size = 19606, upload-time = "2026-11-25T20:20:21.354Z" },
+]
+
+[[package]]
 name = "certifi"
 version = "2026.11.20"
 source = { registry = "https://pypi.org/simple" }
@@ -2047,6 +2056,15 @@ wheels = [
 ]
 
 [[package]]
+name = "redis"
+version = "8.2.0"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/10/8a/408dd829367bb62972bd5d91bd8cc283c24c8344f80a880d4b3901ce43fd/redis-8.2.0.tar.gz", hash = "sha256:58b1493d83ba8f0e3ffe6bd781194ca5c01c91267ae03d29c1087b0b3c7d79c9", size = 5809579, upload-time = "2026-11-23T08:31:56.692Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/ea/8f/98458650cca985032598a59caca0641e7889cf4d536dc12dc032bef7df47/redis-8.2.0-py3-none-any.whl", hash = "sha256:4ff649f10fae5e7e97798fb2a84e84a0a66e98310d75cad2b5a572ce0f9f15a7", size = 732892, upload-time = "2026-11-23T08:31:55.011Z" },
+]
+
+[[package]]
 name = "requests"
 version = "2.34.2"
 source = { registry = "https://pypi.org/simple" }
@@ -2192,6 +2210,7 @@ dependencies = [
     { name = "argon2-cffi" },
     { name = "bcrypt" },
     { name = "blinker" },
+    { name = "cachetools" },
     { name = "dishka" },
     { name = "email-validator" },
     { name = "fastapi" },
@@ -2211,6 +2230,9 @@ dependencies = [
 numbers = [
     { name = "babel" },
     { name = "num2words" },
+]
+redis = [
+    { name = "redis" },
 ]
 
 [package.dev-dependencies]
@@ -2245,6 +2267,7 @@ requires-dist = [
     { name = "babel", marker = "extra == 'numbers'", specifier = ">=2.18,<3" },
     { name = "bcrypt", specifier = ">=5,<6" },
     { name = "blinker", specifier = ">=1.9,<2" },
+    { name = "cachetools", specifier = ">=8,<9" },
     { name = "dishka", specifier = ">=1.6,<2" },
     { name = "email-validator", specifier = ">=2.2,<3" },
     { name = "fastapi", specifier = ">=0.115,<1" },
@@ -2254,13 +2277,14 @@ requires-dist = [
     { name = "pydantic-settings", specifier = ">=2.7,<3" },
     { name = "python-dotenv", specifier = ">=1.0,<2" },
     { name = "python-multipart", specifier = ">=0.0.32,<0.1" },
+    { name = "redis", marker = "extra == 'redis'", specifier = ">=6,<9" },
     { name = "rich", specifier = ">=13.9,<15" },
     { name = "structlog", specifier = ">=26.1,<27" },
     { name = "tenacity", specifier = ">=9.1,<10" },
     { name = "typer", specifier = ">=0.15,<1" },
     { name = "typing-extensions", specifier = ">=4.16,<5" },
 ]
-provides-extras = ["numbers"]
+provides-extras = ["numbers", "redis"]
 
 [package.metadata.requires-dev]
 dev = [

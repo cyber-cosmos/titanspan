@@ -104,6 +104,16 @@ Pydantic-compatible schemas on supported Python versions. The package is
 distributed under the PSF License; see the
 [upstream project](https://github.com/python/typing_extensions).
 
+## Cache adapters
+
+Titanspan delegates bounded in-memory expiry and eviction to cachetools
+8.0.3. cachetools is distributed under the MIT License; see the
+[official cachetools 8.0.3 license](https://github.com/tkem/cachetools/blob/v8.0.3/LICENSE).
+
+The optional `redis` extra uses redis-py 8.2.0 for synchronous and
+asynchronous Redis clients. redis-py is distributed under the MIT License;
+see the [official redis-py 8.2.0 license](https://github.com/redis/redis-py/blob/v8.2.0/LICENSE).
+
 ## python-multipart
 
 Titanspan uses python-multipart 0.0.34 through Starlette's bounded multipart
