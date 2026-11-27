@@ -465,7 +465,9 @@ class QueryBuilder(DatabaseQueryBuilder):
 
     def where_exists(
         self,
-        subquery: str | TextClause | QueryBuilder | Select[tuple[object, ...]],
+        subquery: (
+            str | TextClause | DatabaseQueryBuilder | Select[tuple[object, ...]]
+        ),
     ) -> QueryBuilder:
         """Require an EXISTS subquery authored through a trusted SQL API.
 
@@ -481,7 +483,9 @@ class QueryBuilder(DatabaseQueryBuilder):
 
     def where_not_exists(
         self,
-        subquery: str | TextClause | QueryBuilder | Select[tuple[object, ...]],
+        subquery: (
+            str | TextClause | DatabaseQueryBuilder | Select[tuple[object, ...]]
+        ),
     ) -> QueryBuilder:
         """Require an EXISTS subquery to return no rows.
 
@@ -497,7 +501,9 @@ class QueryBuilder(DatabaseQueryBuilder):
 
     def or_where_exists(
         self,
-        subquery: str | TextClause | QueryBuilder | Select[tuple[object, ...]],
+        subquery: (
+            str | TextClause | DatabaseQueryBuilder | Select[tuple[object, ...]]
+        ),
     ) -> QueryBuilder:
         """Add an OR condition for a subquery that returns any rows.
 
@@ -514,7 +520,9 @@ class QueryBuilder(DatabaseQueryBuilder):
 
     def or_where_not_exists(
         self,
-        subquery: str | TextClause | QueryBuilder | Select[tuple[object, ...]],
+        subquery: (
+            str | TextClause | DatabaseQueryBuilder | Select[tuple[object, ...]]
+        ),
     ) -> QueryBuilder:
         """Add an OR condition for a subquery that returns no rows.
 
@@ -2308,6 +2316,32 @@ class QueryBuilder(DatabaseQueryBuilder):
         cloned._orders = self._orders.copy()  # noqa: SLF001
         cloned._order_specs = self._order_specs.copy()  # noqa: SLF001
         return cloned
+
+    def subquery(self, table_name: str) -> QueryBuilder:
+        """Start a query that can refer to this query's table expressions.
+
+        SQLAlchemy correlates shared outer table expressions when the result
+        is embedded through a scalar or EXISTS subquery.
+
+        Args:
+            table_name: Safe table name that becomes the subquery's FROM.
+
+        Returns:
+            A new builder sharing this query's known table references.
+
+        Raises:
+            DatabaseQueryError: If the subquery table repeats a visible name.
+        """
+        nested = QueryBuilder(self._connection, table_name)
+        table_key = next(iter(nested._tables))
+        if table_key in self._tables:
+            msg = (
+                "A correlated subquery must use a table name that is not "
+                "already visible."
+            )
+            raise DatabaseQueryError(msg)
+        nested._tables = {**self._tables, **nested._tables}
+        return nested
 
     def union(self, query: DatabaseQueryBuilder) -> QueryBuilder:
         """Combine this query with another using duplicate-eliminating UNION.
@@ -5645,7 +5679,9 @@ def _raw_clause(
 
 
 def _exists_predicate(
-    subquery: str | TextClause | QueryBuilder | Select[tuple[object, ...]],
+    subquery: (
+        str | TextClause | DatabaseQueryBuilder | Select[tuple[object, ...]]
+    ),
 ) -> _Condition:
     """Build an EXISTS condition from a trusted SQLAlchemy query input.
 
@@ -5655,7 +5691,7 @@ def _exists_predicate(
     Returns:
         A SQLAlchemy boolean condition for the EXISTS expression.
     """
-    if isinstance(subquery, QueryBuilder):
+    if isinstance(subquery, DatabaseQueryBuilder):
         return cast("_Condition", sql_exists(subquery.to_statement()))
     if isinstance(subquery, str):
         text_subquery = text(subquery)

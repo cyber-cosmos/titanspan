@@ -633,44 +633,56 @@ class DatabaseQueryBuilder(Protocol):
         """
         ...
 
-    def where_exists(self, subquery: str) -> Self:
-        """Require an application-authored EXISTS subquery to return rows.
+    def where_exists(
+        self,
+        subquery: str | DatabaseQueryBuilder,
+    ) -> Self:
+        """Require a trusted SQL or fluent EXISTS subquery to return rows.
 
         Args:
-            subquery: Trusted SQL subquery text.
+            subquery: Trusted SQL text or a fluent query builder.
 
         Returns:
             This builder for further query composition.
         """
         ...
 
-    def where_not_exists(self, subquery: str) -> Self:
-        """Require an application-authored EXISTS subquery to return none.
+    def where_not_exists(
+        self,
+        subquery: str | DatabaseQueryBuilder,
+    ) -> Self:
+        """Require a trusted SQL or fluent EXISTS subquery to return none.
 
         Args:
-            subquery: Trusted SQL subquery text.
+            subquery: Trusted SQL text or a fluent query builder.
 
         Returns:
             This builder for further query composition.
         """
         ...
 
-    def or_where_exists(self, subquery: str) -> Self:
-        """Add an OR condition for a subquery that returns rows.
+    def or_where_exists(
+        self,
+        subquery: str | DatabaseQueryBuilder,
+    ) -> Self:
+        """Add an OR condition for a fluent or trusted SQL EXISTS query.
 
         Args:
-            subquery: Trusted SQL subquery text.
+            subquery: Trusted SQL text or a fluent query builder.
 
         Returns:
             This builder for further query composition.
         """
         ...
 
-    def or_where_not_exists(self, subquery: str) -> Self:
+    def or_where_not_exists(
+        self,
+        subquery: str | DatabaseQueryBuilder,
+    ) -> Self:
         """Add an OR condition for a subquery that returns no rows.
 
         Args:
-            subquery: Trusted SQL subquery text.
+            subquery: Trusted SQL text or a fluent query builder.
 
         Returns:
             This builder for further query composition.
@@ -1203,6 +1215,17 @@ class DatabaseQueryBuilder(Protocol):
 
         Returns:
             A builder with isolated mutable query lists.
+        """
+        ...
+
+    def subquery(self, table_name: str) -> DatabaseQueryBuilder:
+        """Start a query correlated to this builder's visible table sources.
+
+        Args:
+            table_name: Safe table name for the subquery's FROM clause.
+
+        Returns:
+            A new builder sharing this query's visible table references.
         """
         ...
 

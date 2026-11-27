@@ -225,14 +225,30 @@ async def test_scalar_projection_and_membership_subqueries(
         await DB.table("eligible_people").insert_many_async(
             [{"id": 2}, {"id": 3}],
         )
-        await DB.table("query_scores").insert_async(
-            {"id": 1, "person_id": 1, "score": 10},
+        await DB.table("query_scores").insert_many_async(
+            [
+                {"id": 1, "person_id": 1, "score": 10},
+                {"id": 2, "person_id": 2, "score": 20},
+                {"id": 3, "person_id": 2, "score": 22},
+            ],
         )
         eligible = DB.table("eligible_people").select("id")
         score = (
             DB.table("query_scores")
             .select("score")
             .where("person_id", 1)
+            .limit(1)
+        )
+        people = DB.table("query_people")
+        latest_score = (
+            people.subquery("query_scores")
+            .select("score")
+            .where_column(
+                "query_scores.person_id",
+                "=",
+                "query_people.id",
+            )
+            .order_by("score", descending=True)
             .limit(1)
         )
 
@@ -270,6 +286,28 @@ async def test_scalar_projection_and_membership_subqueries(
             .where("id", 2)
             .first_async()
         )
+        correlated = await (
+            people.select("id")
+            .add_select_sub(latest_score, "latest_score")
+            .order_by("id")
+            .get_async()
+        )
+        people_with_scores = DB.table("query_people")
+        high_scores = (
+            people_with_scores.subquery("query_scores")
+            .select("person_id")
+            .where_column(
+                "query_scores.person_id",
+                "=",
+                "query_people.id",
+            )
+            .where("query_scores.score", ">", 15)
+        )
+        with_high_scores = await (
+            people_with_scores.where_exists(high_scores)
+            .order_by("id")
+            .pluck_async("id")
+        )
         excluded = await (
             DB.table("query_people")
             .where_not_in("id", eligible)
@@ -296,6 +334,12 @@ async def test_scalar_projection_and_membership_subqueries(
         ]
         assert sync_selected == selected
         assert appended == {"id": 2, "score": 10}
+        assert correlated == [
+            {"id": 1, "latest_score": 10},
+            {"id": 2, "latest_score": 22},
+            {"id": 3, "latest_score": None},
+        ]
+        assert with_high_scores == [2]
         assert excluded == ["Ada"]
         assert either == [2, 3]
         assert outside_or_selected == [1, 3]

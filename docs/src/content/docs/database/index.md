@@ -202,8 +202,8 @@ operations explicitly.
 
 Retrieval methods include `get`, `first`, `first_or_fail`, `sole`, `find`,
 `find_many`, `value`, `sole_value`, `pluck`, `count`, `sum`, `avg`, `min`,
-`max`, and `exists`. Inner and left subquery joins are available through
-`join_sub()`, `left_join_sub()`, `right_join_sub()`,
+`max`, and `exists`. Subquery joins are available through `join_sub()`,
+`left_join_sub()`, `right_join_sub()`,
 `full_outer_join_sub()`, and `cross_join_sub()` compose fluent subqueries.
 `right_join()` reverses the join sides and uses a left outer join on
 PostgreSQL, MySQL, MariaDB, and SQLite.
@@ -214,7 +214,9 @@ filtering joined rows inside its ON clause.
 and MariaDB do not support full outer joins. MySQL joins are not real
 integration-tested here. `select_sub()` and `add_select_sub()` add named scalar
 projections, and `where_in()` / `where_not_in()` accept a fluent single-column
-subquery as well as bound sequences. `in_random_order()` uses SQLAlchemy's
+subquery as well as bound sequences. Create a correlated builder with
+`subquery(table_name)`; it shares the outer table expressions so SQLAlchemy
+can correlate scalar and EXISTS subqueries. `in_random_order()` uses SQLAlchemy's
 backend-native random function on SQLite, PostgreSQL, and MySQL. Randomly
 ordered queries cannot use cursor pagination. `where_row_values()` and
 `or_where_row_values()` compare bound tuples on SQLite 3.15 or later,
