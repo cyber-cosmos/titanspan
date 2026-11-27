@@ -44,6 +44,29 @@ def test_repository_reads_payload_nesting_limit() -> None:
     assert configuration.max_payload_depth == _PAYLOAD_DEPTH_LIMIT
 
 
+def test_repository_reads_batch_history_limit() -> None:
+    """Load the cap for application-local batch snapshots.
+    """  # fmt: skip
+    history_limit = 2
+    repository = Repository({"queue": {"batch_history_limit": history_limit}})
+
+    configuration = QueueConfiguration.from_repository(repository)
+
+    assert configuration.batch_history_limit == history_limit
+
+
+@pytest.mark.parametrize("value", [0, 100_001, True, "100"])
+def test_repository_rejects_invalid_batch_history_limit(
+    value: object,
+) -> None:
+    """Reject unbounded or malformed batch snapshot limits.
+    """  # fmt: skip
+    repository = Repository({"queue": {"batch_history_limit": value}})
+
+    with pytest.raises(QueueConfigurationError):
+        QueueConfiguration.from_repository(repository)
+
+
 def test_connection_configuration_redacts_secret_options() -> None:
     """Keep connection credentials out of representations and errors.
     """  # fmt: skip

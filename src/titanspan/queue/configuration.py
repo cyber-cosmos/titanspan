@@ -27,6 +27,8 @@ _MAX_PAYLOAD_DEPTH = 256
 _DEFAULT_WORKER_CONCURRENCY = 16
 _DEFAULT_PREFETCH = 0
 _DEFAULT_TRIES = 1
+_DEFAULT_BATCH_HISTORY_LIMIT = 1_024
+_MAX_BATCH_HISTORY_LIMIT = 10_000
 _DEFAULT_SCHEDULE_POLL_INTERVAL = 1.0
 _DEFAULT_SCHEDULE_LOOP_INTERVAL = 1.0
 _MINIMUM_NAME_LENGTH = 1
@@ -49,6 +51,20 @@ def _validate_payload_limits(max_bytes: int, max_depth: int) -> None:
         raise QueueConfigurationError(msg)
     if type(max_depth) is not int or not 1 <= max_depth <= _MAX_PAYLOAD_DEPTH:
         msg = "Queue payload depth must be between 1 and 256."
+        raise QueueConfigurationError(msg)
+
+
+def _validate_batch_history_limit(value: int) -> None:
+    """Bound retained process-local batch status snapshots.
+
+    Args:
+        value: Maximum number of batch snapshots retained by one manager.
+
+    Raises:
+        QueueConfigurationError: If the configured limit is unsafe.
+    """
+    if type(value) is not int or not 1 <= value <= _MAX_BATCH_HISTORY_LIMIT:
+        msg = "Queue batch history must be between 1 and 10000 snapshots."
         raise QueueConfigurationError(msg)
 
 
@@ -108,6 +124,7 @@ class QueueConfiguration:
         worker_concurrency: Maximum asynchronous jobs handled by a worker.
         prefetch: Additional backend messages allowed beyond active capacity.
         default_tries: Total attempts for jobs without an override.
+        batch_history_limit: Maximum retained process-local batch snapshots.
         schedule_poll_interval: Seconds between schedule source refreshes.
         schedule_loop_interval: Seconds between due-time checks.
     """
@@ -127,6 +144,7 @@ class QueueConfiguration:
     worker_concurrency: int = _DEFAULT_WORKER_CONCURRENCY
     prefetch: int = _DEFAULT_PREFETCH
     default_tries: int = _DEFAULT_TRIES
+    batch_history_limit: int = _DEFAULT_BATCH_HISTORY_LIMIT
     schedule_poll_interval: float = _DEFAULT_SCHEDULE_POLL_INTERVAL
     schedule_loop_interval: float = _DEFAULT_SCHEDULE_LOOP_INTERVAL
 
@@ -162,6 +180,7 @@ class QueueConfiguration:
         if type(self.default_tries) is not int or self.default_tries < 1:
             msg = "The default Queue attempt count must be positive."
             raise QueueConfigurationError(msg)
+        _validate_batch_history_limit(self.batch_history_limit)
         if not _positive_finite(self.schedule_poll_interval):
             msg = "The schedule poll interval must be positive and finite."
             raise QueueConfigurationError(msg)
@@ -254,6 +273,11 @@ class QueueConfiguration:
                 values,
                 "default_tries",
                 _DEFAULT_TRIES,
+            ),
+            batch_history_limit=_int_value(
+                values,
+                "batch_history_limit",
+                _DEFAULT_BATCH_HISTORY_LIMIT,
             ),
             schedule_poll_interval=_float_value(
                 values,

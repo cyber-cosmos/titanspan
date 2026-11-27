@@ -1136,8 +1136,29 @@ class QueueManager(BusDispatcher):
 
         Args:
             status: Latest application-local status.
+
+        Raises:
+            QueueCapabilityError: If active batches fill the local capacity.
         """
         with self._lock:
+            if status.id not in self._batches:
+                limit = self._configuration.batch_history_limit
+                while len(self._batches) >= limit:
+                    evictable = next(
+                        (
+                            batch_id
+                            for batch_id, snapshot in self._batches.items()
+                            if snapshot.state != "running"
+                        ),
+                        None,
+                    )
+                    if evictable is None:
+                        msg = (
+                            "The application batch capacity is full with "
+                            "active batches. Wait for a batch to finish."
+                        )
+                        raise QueueCapabilityError(msg)
+                    del self._batches[evictable]
             self._batches[status.id] = status
 
     async def dispatch_chain_async(

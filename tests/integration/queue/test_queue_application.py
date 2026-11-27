@@ -15,6 +15,7 @@ from titanspan.container import Scope
 from titanspan.contracts.container import ServiceRegistry
 from titanspan.contracts.events import EventDispatcher
 from titanspan.contracts.queue import (
+    BatchHandle,
     BusDispatcher,
     DispatchReceipt,
     JobNext,
@@ -1639,6 +1640,79 @@ async def test_bus_batch_records_success_and_allowed_failure_counts() -> None:
     assert batch.failed_jobs == 1
     assert batch.state == "completed_with_failures"
     assert [value[0] for value in record.values] == ["completed"]
+
+
+@pytest.mark.anyio
+async def test_batch_history_evicts_old_status_and_retains_latest() -> None:
+    """Bound completed batch snapshots without evicting active batches.
+
+    A handle reports an unavailable status after its snapshot is evicted.
+    """
+    record = _JobRecord()
+    application = Application(
+        config={
+            "app": {"name": "queue-batch-history"},
+            "queue": {"batch_history_limit": 1},
+        },
+        service_providers=(
+            _QueueTestProvider(record),
+            QueueServiceProvider(jobs=(_RecordJob,)),
+        ),
+    )
+
+    async with application:
+        first_batch = await Bus.batch([_RecordJob("first")]).dispatch_async()
+        second_batch = await Bus.batch([_RecordJob("second")]).dispatch_async()
+
+        with pytest.raises(QueueError, match="not available"):
+            _ = first_batch.state
+
+    assert second_batch.state == "completed"
+    assert [value[0] for value in record.values] == ["first", "second"]
+
+
+@pytest.mark.anyio
+async def test_batch_history_rejects_new_batch_when_capacity_is_active() -> (
+    None
+):
+    """Protect active local batches and reject admission at the configured cap.
+
+    The limit applies before dispatch side effects occur.
+    """
+    gate = _ExecutionGate(target=1)
+    application = Application(
+        config={
+            "app": {"name": "queue-batch-active-capacity"},
+            "queue": {"batch_history_limit": 1},
+        },
+        service_providers=(
+            _GateProvider(gate),
+            QueueServiceProvider(jobs=(_ConcurrentJob,)),
+        ),
+    )
+
+    async with application:
+        batches: list[BatchHandle] = []
+
+        async def run_first_batch() -> None:
+            """Run one batch until the deterministic gate blocks it.
+            """  # fmt: skip
+            batches.append(
+                await Bus.batch([_ConcurrentJob(0)]).dispatch_async()
+            )
+
+        async with anyio.create_task_group() as task_group:
+            task_group.start_soon(run_first_batch)
+            await gate.entered.wait()
+            try:
+                with pytest.raises(QueueCapabilityError, match="capacity"):
+                    await Bus.batch([_ConcurrentJob(1)]).dispatch_async()
+            finally:
+                gate.release.set()
+
+    assert len(batches) == 1
+    assert batches[0].state == "completed"
+    assert gate.dependencies
 
 
 @pytest.mark.anyio

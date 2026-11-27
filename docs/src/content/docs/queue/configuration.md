@@ -39,6 +39,7 @@ application = Application(
             "worker_concurrency": 16,
             "prefetch": 0,
             "default_tries": 1,
+            "batch_history_limit": 1024,
         },
     },
     service_providers=(
@@ -70,6 +71,7 @@ messages.
 | `worker_concurrency` | `16` | Maximum active async handlers per worker. |
 | `prefetch` | `0` | Additional messages permitted beyond active capacity. |
 | `default_tries` | `1` | Total attempts when a job has no `tries` override. |
+| `batch_history_limit` | `1024` | Retained local batch snapshots. Values must be 1 through 10000. |
 | `schedule_poll_interval` | `1.0` seconds | Taskiq schedule-source refresh interval. |
 | `schedule_loop_interval` | `1.0` seconds | Taskiq schedule loop interval. |
 

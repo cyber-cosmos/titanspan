@@ -130,6 +130,8 @@ def test_job_policy_rejects_invalid_declarations(
         lambda: replace(QueueConfiguration(), namespace="bad namespace"),
         lambda: replace(QueueConfiguration(), max_payload_bytes=0),
         lambda: replace(QueueConfiguration(), max_payload_depth=257),
+        lambda: replace(QueueConfiguration(), batch_history_limit=0),
+        lambda: replace(QueueConfiguration(), batch_history_limit=10_001),
         lambda: replace(QueueConfiguration(), worker_concurrency=0),
         lambda: replace(QueueConfiguration(), prefetch=-1),
         lambda: replace(QueueConfiguration(), default_tries=True),

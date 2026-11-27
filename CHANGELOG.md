@@ -16,6 +16,8 @@ public release.
 - Keep RabbitMQ optional; live broker behavior is not verified.
 - Add explicit synchronous Bus chain execution with member preflight and
   isolated job scopes.
+- Bound process-local batch history and reject admission when active batches
+  fill the configured capacity.
 - Defer durable failed-job records, unique jobs, distributed batches, queued
   listeners, and transaction-aware dispatch.
 - Serialize middleware response models with their declared Pydantic schemas.

@@ -68,9 +68,12 @@ without opening a broker. Distributed batches reject before publication
 because no persistent batch repository is registered.
 
 `BatchHandle` exposes `id`, `name`, `total_jobs`, `pending_jobs`,
-`processed_jobs`, `failed_jobs`, and `state`. Status disappears when its
-owning application manager closes. Completion callbacks, cancellation,
-dynamic additions, and batch retries are not implemented.
+`processed_jobs`, `failed_jobs`, and `state`. The manager retains at most
+`queue.batch_history_limit` snapshots. It evicts the oldest non-running
+snapshot first. It rejects new dispatch before execution when active batches
+fill the limit. Accessing an evicted handle raises `QueueError`. All status
+disappears when its owning application manager closes. Completion callbacks,
+cancellation, dynamic additions, and batch retries are not implemented.
 
 Database-backed batch persistence remains deferred until the native Database
 contracts provide suitable atomic operations.
