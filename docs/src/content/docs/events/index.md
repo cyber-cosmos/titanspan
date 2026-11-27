@@ -65,9 +65,9 @@ starting the next. It does not create background tasks or parallel work.
 ## Available integrations
 
 The dispatcher, listener injection, scoped fakes, deferred dispatch, trusted
-module discovery, and JSON manifests are implemented. Queue execution,
-database transaction callbacks, broadcasting, and event CLI commands await
-their owning Titanspan components.
+module discovery, JSON manifests, and event inspection commands are
+implemented. Queue execution, database transaction callbacks, and
+broadcasting await their owning Titanspan components.
 
 Read [dispatch semantics](/titanspan/events/dispatching/),
 [listeners and discovery](/titanspan/events/listeners/),

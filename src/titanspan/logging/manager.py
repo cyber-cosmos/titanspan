@@ -52,6 +52,7 @@ from titanspan.logging.exceptions import (
     LogLifecycleError,
 )
 from titanspan.logging.formatters import create_formatter
+from titanspan.logging.level import LogLevel
 from titanspan.logging.logger import Logger
 from titanspan.logging.processors import RedactionProcessor
 from titanspan.logging.record import LogRecord
@@ -60,7 +61,6 @@ if TYPE_CHECKING:
     from collections.abc import Sequence
 
     from titanspan.contracts.logging import LogProcessor
-    from titanspan.logging.level import LogLevel
 
 DriverFactory = Callable[[ChannelConfiguration], LogDriver[LogRecord]]
 FormatterFactory = Callable[[ChannelConfiguration], LogFormatter[LogRecord]]
@@ -183,7 +183,9 @@ class LogManager:
         Raises:
             LogConfigurationError: If channels, drivers, or stacks are invalid.
         """
-        self.configuration = LoggingConfiguration.from_value(configuration)
+        self.configuration = LoggingConfiguration.from_value(
+            configuration,
+        )
         self._default_channel = self.configuration.default
         self._lock = RLock()
         self._context: ContextVar[Mapping[str, object]] = ContextVar(
@@ -269,6 +271,18 @@ class LogManager:
             context: Optional structured context mapping.
             **values: Additional structured context values.
         """
+        if self._closed:
+            emergency_context = dict(context or {})
+            emergency_context.update(values)
+            self._emergency.write(
+                LogRecord.create(
+                    level=LogLevel.EMERGENCY,
+                    channel=self._default_channel,
+                    message=message,
+                    context=emergency_context,
+                ),
+            )
+            return
         self.channel().emergency(message, context, **values)
 
     def alert(

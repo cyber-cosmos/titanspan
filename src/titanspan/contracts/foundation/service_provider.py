@@ -7,7 +7,7 @@ the complete application service registry has been assembled.
 from collections.abc import Awaitable, Callable
 from typing import Protocol, runtime_checkable
 
-from titanspan.contracts.container import ServiceRegistry
+from titanspan.contracts.container import ServiceContainer, ServiceRegistry
 
 
 @runtime_checkable
@@ -52,4 +52,31 @@ class BootableServiceProvider(ServiceProvider, Protocol):
         ...
 
 
-__all__ = ["BootableServiceProvider", "ServiceProvider"]
+@runtime_checkable
+class ShutdownableServiceProvider(ServiceProvider, Protocol):
+    """Describe a provider that finalizes its owned services.
+
+    Application calls this hook before closing the service Container.
+    Providers inspect already-resolved services and must not resolve new ones.
+    """
+
+    def shutdown(
+        self,
+        container: ServiceContainer,
+    ) -> object | Awaitable[object]:
+        """Return or perform cleanup using the application-owned Container.
+
+        Args:
+            container: Active registry whose owned services are closing.
+
+        Returns:
+            None or an awaitable completed before Container shutdown.
+        """
+        ...
+
+
+__all__ = [
+    "BootableServiceProvider",
+    "ServiceProvider",
+    "ShutdownableServiceProvider",
+]

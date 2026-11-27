@@ -10,10 +10,10 @@ from typing import TYPE_CHECKING, Protocol, runtime_checkable
 
 if TYPE_CHECKING:
     from collections.abc import (
+        AsyncGenerator,
         AsyncIterable,
-        AsyncIterator,
+        Generator,
         Iterable,
-        Iterator,
     )
     from contextlib import AbstractAsyncContextManager, AbstractContextManager
     from datetime import datetime
@@ -305,7 +305,7 @@ class StorageDisk(Protocol):
         path: str,
         *,
         chunk_size: int = 65_536,
-    ) -> Iterator[bytes]:
+    ) -> Generator[bytes, None, None]:
         """Yield file bytes in bounded chunks and close the stream on exit.
 
         Args:
@@ -656,7 +656,7 @@ class StorageDisk(Protocol):
         path: str,
         *,
         chunk_size: int = 65_536,
-    ) -> AsyncIterator[bytes]:
+    ) -> AsyncGenerator[bytes, None]:
         """Yield bounded chunks without blocking the event loop.
 
         Args:
@@ -777,4 +777,38 @@ class StorageManager(Protocol):
         ...
 
 
-__all__ = ["FileMetadata", "StorageDisk", "StorageManager"]
+@runtime_checkable
+class StorageDiskOverride(Protocol):
+    """Describe context-local replacement of a named storage disk.
+
+    This optional capability supports isolated tests and execution-local
+    substitutions without changing the manager's production registry.
+    """
+
+    def override_disk(
+        self,
+        name: str,
+        disk: StorageDisk,
+    ) -> AbstractContextManager[None]:
+        """Temporarily select a replacement disk for the active context.
+
+        Args:
+            name: Configured disk name to replace.
+            disk: Replacement disk selected only in this context.
+
+        Returns:
+            A context manager that restores the previous selection on exit.
+
+        Raises:
+            UnknownFilesystemDiskError: If the manager does not configure
+                ``name``.
+        """
+        ...
+
+
+__all__ = [
+    "FileMetadata",
+    "StorageDisk",
+    "StorageDiskOverride",
+    "StorageManager",
+]

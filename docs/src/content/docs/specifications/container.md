@@ -179,6 +179,11 @@ API.
 All methods use `snake_case`. Sync and async methods are distinct operations;
 neither returns an awaitable conditionally.
 
+`find_resolved(Service)` returns a `(found, value)` pair for a value already
+tracked by the active application or execution scope. It does not construct a
+service. Lifecycle providers use it to close optional resources without
+opening resources that the application never used.
+
 ## Contextual injection and lifecycle hooks
 
 `Container.when(Consumer).needs(selector)` registers a rule for one or more

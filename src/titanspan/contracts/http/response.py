@@ -7,6 +7,10 @@ adapter.
 from collections.abc import AsyncIterable, Mapping
 from typing import Protocol, Self, runtime_checkable
 
+from titanspan.contracts.http.cookies import (
+    DEFAULT_COOKIE_OPTIONS,
+    CookieOptions,
+)
 from titanspan.contracts.http.events import ServerSentEvent
 from titanspan.contracts.http.types import JsonValue
 
@@ -38,6 +42,42 @@ class HttpResponse(Protocol):
         """Set a response header and return this response.
 
         Callers rely on native contracts, not concrete backend types.
+        """
+        ...
+
+    def with_cookie(
+        self,
+        name: str,
+        value: str,
+        *,
+        options: CookieOptions = DEFAULT_COOKIE_OPTIONS,
+    ) -> Self:
+        """Append a response cookie using secure default attributes.
+
+        Args:
+            name: Cookie name.
+            value: Cookie value.
+            options: Cookie attributes with secure defaults.
+
+        Returns:
+            This response for fluent mutation.
+        """
+        ...
+
+    def without_cookie(
+        self,
+        name: str,
+        *,
+        options: CookieOptions = DEFAULT_COOKIE_OPTIONS,
+    ) -> Self:
+        """Expire a response cookie using its original scope.
+
+        Args:
+            name: Cookie name to expire.
+            options: Cookie attributes matching the original scope.
+
+        Returns:
+            This response for fluent mutation.
         """
         ...
 

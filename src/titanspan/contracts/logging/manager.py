@@ -41,6 +41,24 @@ class LoggingManager(Protocol):
         """
         ...
 
+    def emergency(
+        self,
+        message: str,
+        context: Mapping[str, object] | None = None,
+        **values: object,
+    ) -> None:
+        """Write a safe emergency record through the fallback destination.
+
+        Implementations keep this operation available after normal channel
+        resources close.
+
+        Args:
+            message: Bounded diagnostic text without sensitive payloads.
+            context: Optional structured context mapping.
+            **values: Additional structured values.
+        """
+        ...
+
     def build(self, configuration: Mapping[str, object]) -> LogWriter:
         """Create a logger from an independent native configuration.
 

@@ -35,11 +35,14 @@ from titanspan.contracts.events import EventDispatcher
 from titanspan.contracts.filesystem import (
     FileMetadata,
     StorageDisk,
+    StorageDiskOverride,
     StorageManager,
 )
 from titanspan.contracts.foundation import (
+    ApplicationPaths,
     BootableServiceProvider,
     ServiceProvider,
+    ShutdownableServiceProvider,
 )
 from titanspan.contracts.hashing import (
     Hasher,
@@ -105,6 +108,7 @@ from titanspan.contracts.validation import (
 )
 
 __all__ = [
+    "ApplicationPaths",
     "AsyncLogDriver",
     "AsyncPipelineContinuation",
     "AsyncPipelineMiddlewareHandler",
@@ -171,7 +175,9 @@ __all__ = [
     "ServiceOverride",
     "ServiceProvider",
     "ServiceRegistry",
+    "ShutdownableServiceProvider",
     "StorageDisk",
+    "StorageDiskOverride",
     "StorageManager",
     "TypedConfigReader",
     "UriUrlGenerator",

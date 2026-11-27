@@ -62,10 +62,12 @@ explicitly.
 
 ## File paths and secrets
 
-File paths are interpreted by Python's file handlers relative to the process
-working directory unless an absolute path is provided. Create and permission
-the containing directory as part of application deployment. Do not put
-credentials in `options`, filenames, or log context.
+Application-owned file destinations resolve relative to
+`Application.base_path`. `LogManager` used directly keeps Python's normal
+process-relative path behavior. Absolute paths remain unchanged. Application
+paths that escape the root are rejected. Create and permission the containing
+directory as part of deployment. Do not put credentials in `options`,
+filenames, or log context.
 
 Webhook URLs are validated and treated as secret configuration. HTTPS is
 required unless `allow_http` is explicitly enabled for a local test receiver.

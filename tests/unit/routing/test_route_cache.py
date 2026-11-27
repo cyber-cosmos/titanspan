@@ -106,6 +106,23 @@ def test_route_cache_round_trips_metadata_and_preserves_action_identity(
     )
 
 
+def test_route_cache_clear_is_idempotent(tmp_path: Path) -> None:
+    """Remove an existing cache and accept a missing cache file.
+
+    Clearing metadata does not mutate the canonical route collection.
+    """
+    router = _cache_router()
+    cache_path = tmp_path / "routes.json"
+    cache = RouteCache(cache_path)
+    cache.write(router)
+
+    cache.clear()
+    cache.clear()
+
+    assert not cache_path.exists()
+    assert router.routes.all()[0].path == "/health"
+
+
 def test_route_cache_rejects_metadata_changed_after_write(
     tmp_path: Path,
 ) -> None:

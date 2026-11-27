@@ -4,12 +4,12 @@ The operation follows native HTTP contracts and explicit ownership.
 """
 
 from collections.abc import AsyncGenerator, AsyncIterable, Mapping
-from dataclasses import dataclass
 from pathlib import Path, PurePosixPath
-from typing import Literal, Self, cast
+from typing import Self, cast
 from urllib.parse import urlsplit
 
-from titanspan.contracts.http import JsonValue
+from titanspan.contracts.http import CookieOptions, JsonValue
+from titanspan.contracts.http.cookies import DEFAULT_COOKIE_OPTIONS
 from titanspan.contracts.http.events import ServerSentEvent
 from titanspan.http._backends.asgi import (
     FileResponseBackend,
@@ -57,30 +57,6 @@ _ASCII_DELETE = 127
 _BODYLESS_STATUSES = frozenset({204, 205, 304})
 
 
-@dataclass(frozen=True, slots=True)
-class CookieOptions:
-    """Describe response-cookie attributes using secure defaults.
-
-    Attributes:
-        max_age: Optional lifetime in seconds.
-        path: Cookie path scope.
-        domain: Optional host scope.
-        secure: Restrict transmission to HTTPS.
-        http_only: Prevent ordinary browser script access.
-        same_site: Cross-site request policy.
-    """
-
-    max_age: int | None = None
-    path: str = "/"
-    domain: str | None = None
-    secure: bool = True
-    http_only: bool = True
-    same_site: Literal["lax", "strict", "none"] = "lax"
-
-
-_DEFAULT_COOKIE_OPTIONS = CookieOptions()
-
-
 class _ResponseCookieMethods:
     """Add safe fluent cookie operations to native response variants.
 
@@ -92,7 +68,7 @@ class _ResponseCookieMethods:
         name: str,
         value: str,
         *,
-        options: CookieOptions = _DEFAULT_COOKIE_OPTIONS,
+        options: CookieOptions = DEFAULT_COOKIE_OPTIONS,
     ) -> Self:
         """Append a cookie using the selected secure attributes.
 
@@ -107,7 +83,7 @@ class _ResponseCookieMethods:
         Raises:
             ValueError: If any cookie field contains unsafe characters.
         """
-        _validate_cookie(name, value, options)
+        validate_cookie(name, value, options)
         response = cast("ResponseBackend", self)
         response.set_cookie(
             name,
@@ -125,7 +101,7 @@ class _ResponseCookieMethods:
         self,
         name: str,
         *,
-        options: CookieOptions = _DEFAULT_COOKIE_OPTIONS,
+        options: CookieOptions = DEFAULT_COOKIE_OPTIONS,
     ) -> Self:
         """Expire a cookie using the same scope and security attributes.
 
@@ -139,7 +115,7 @@ class _ResponseCookieMethods:
         Raises:
             ValueError: If the cookie name or attributes are malformed.
         """
-        _validate_cookie(name, "", options)
+        validate_cookie(name, "", options)
         response = cast("ResponseBackend", self)
         response.delete_cookie(
             name,
@@ -494,7 +470,7 @@ def validate_header(name: str, value: str) -> None:
         raise ValueError(_INVALID_HEADER_VALUE_ERROR)
 
 
-def _validate_cookie(
+def validate_cookie(
     name: str,
     value: str,
     options: CookieOptions,

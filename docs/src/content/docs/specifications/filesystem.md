@@ -15,10 +15,9 @@ binds `StorageManager` to that same instance. The provider consumes the
 application's `ConfigRepository`. `Storage` resolves `StorageManager` from the
 active application's canonical Container.
 
-Applications opt in through `Application.service_providers`. Foundation does
-not register the provider by default. Adding it to Foundation's built-in
-provider list would require a focused lifecycle integration change by the
-Foundation owner.
+Foundation registers this provider by default. An explicit
+`FilesystemServiceProvider` replaces the default instance, preserving custom
+driver factories without creating a second manager.
 
 Settings live under `filesystem`:
 
@@ -42,7 +41,11 @@ Settings live under `filesystem`:
 }
 ```
 
-The default configuration provides a `local` disk rooted at `storage/app`.
+The default configuration provides a `local` disk rooted at `storage/app`
+under the effective application root. Relative local roots are anchored to
+`Application.base_path`; absolute roots remain unchanged. Relative roots that
+escape the application root are rejected. Remote backend prefixes retain
+their backend-specific meaning.
 Each manager owns its fsspec filesystem objects. Memory storage disables
 fsspec's process-global store and instance cache.
 
@@ -50,6 +53,17 @@ Custom driver factories receive immutable `FilesystemDiskConfiguration`
 values. They return an fsspec `AbstractFileSystem`; optional remote packages
 can be installed by applications that register those factories. Backend
 options remain backend-specific and are passed only to the selected factory.
+Factories must return backend instances owned by the manager. Do not return
+one shared instance from multiple application managers.
+
+On application shutdown, the provider closes manager-owned backends in reverse
+creation order. It calls a public asynchronous `aclose()` capability when
+present, or a synchronous `close()` capability through AnyIO's worker pool.
+Backends without either method require no explicit cleanup. The manager closes
+each backend identity once, even when two configured names share it. Shutdown
+also runs after partial application startup. Unused disks remain unconstructed.
+fsspec does not define one universal close protocol, so backends that expose
+only other cleanup methods require a custom factory with an adapter.
 
 ## Disk semantics
 
@@ -106,10 +120,18 @@ size. Prepend is not atomic.
 
 ## Fakes and assertions
 
-`Storage.fake(name)` selects a private in-memory disk for the active
-application and execution context. It restores nested overlays on every exit.
-The fake does not construct the configured backend. `FilesystemFake` and
-`Storage` provide existence, absence, and exact-content assertions.
+`Storage.fake(name)` selects a private in-memory disk through the canonical
+manager. Facade calls and injected `StorageManager.disk()` calls see the same
+override. Nested contexts restore their preceding selection, and sibling
+execution contexts remain isolated. Fake selection validates the configured
+disk name without constructing its backend.
+
+Custom managers must implement the optional `StorageDiskOverride` contract
+to support `Storage.fake()`. A manager without that capability raises
+`StorageFakeContextError` before disk construction. Applications can instead
+replace the `StorageManager` service through the Container's normal override
+mechanism. `FilesystemFake` and `Storage` provide existence, absence, and
+exact-content assertions.
 
 Production code never resolves fakes from a process-global registry. Each
 application's manager remains the sole owner of configured production disks.

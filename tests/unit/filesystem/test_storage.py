@@ -11,6 +11,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, cast
 
 import anyio
+import fsspec.implementations.memory as _memory  # pyright: ignore
 import pytest
 
 from titanspan.config import Repository
@@ -35,6 +36,7 @@ from titanspan.filesystem._backends import (
 pytestmark = pytest.mark.unit
 _BODY_SIZE = 4
 _PRIVATE_FACTORY_ERROR = "secret-token-value"
+_PRIVATE_BACKEND_CLOSE_ERROR = "backend credential close failure"
 _OPEN_FAILED_ERROR = "open failed"
 _WRITE_FAILED_ERROR = "write failed"
 
@@ -123,6 +125,93 @@ def _collision_token(size: int) -> str:
     """
     _ = size
     return "collision"
+
+
+class _AsyncClosableMemoryFilesystem(
+    _memory.MemoryFileSystem,  # pyright: ignore[reportUnknownBaseType]
+):
+    """Record asynchronous backend cleanup through a public close hook.
+
+    The locked fsspec release does not publish complete typing stubs.
+    """
+
+    def __init__(self, closed: list[str]) -> None:
+        """Create an isolated memory backend with observable cleanup.
+
+        Args:
+            closed: List updated by whichever close hook executes.
+        """
+        super().__init__(  # pyright: ignore[reportUnknownMemberType]
+            global_store=False,
+        )
+        self._closed = closed
+
+    async def aclose(self) -> None:
+        """Record asynchronous backend finalization.
+
+        The manager awaits this hook directly.
+        """
+        self._closed.append("aclose")
+
+    _closed: list[str]
+    cachable = False
+
+
+class _AwaitableCloseMemoryFilesystem(
+    _memory.MemoryFileSystem,  # pyright: ignore[reportUnknownBaseType]
+):
+    """Return an awaitable from a synchronous backend close hook.
+
+    Some fsspec adapters expose a synchronous wrapper for async cleanup.
+    """
+
+    def __init__(self, closed: list[str]) -> None:
+        """Create an isolated memory backend with observable cleanup.
+
+        Args:
+            closed: List updated after the awaitable close completes.
+        """
+        super().__init__(  # pyright: ignore[reportUnknownMemberType]
+            global_store=False,
+        )
+        self._closed = closed
+
+    async def _close_async(self) -> None:
+        """Record cleanup after the synchronous close returns its awaitable.
+
+        The disk adapter must await this result rather than discard it.
+        """
+        self._closed.append("close-awaitable")
+
+    def close(self) -> object:
+        """Return the coroutine that owns asynchronous finalization.
+
+        Returns:
+            An awaitable result consumed by the disk adapter.
+        """
+        return self._close_async()
+
+    _closed: list[str]
+    cachable = False
+
+
+class _FailingCloseMemoryFilesystem(
+    _memory.MemoryFileSystem,  # pyright: ignore[reportUnknownBaseType]
+):
+    """Raise one backend cleanup error without leaking its message.
+
+    The manager must continue finalizing the remaining owned filesystems.
+    """
+
+    cachable = False
+
+    def close(self) -> None:
+        """Raise a secret-bearing close failure for manager translation.
+
+        Raises:
+            OSError: Always, to exercise cleanup failure handling.
+        """
+        raise OSError(_PRIVATE_BACKEND_CLOSE_ERROR)
 
 
 class _TrackedStream:
@@ -262,6 +351,78 @@ def test_filesystem_configuration_uses_the_native_repository(
         )
 
 
+def test_application_relative_roots_are_anchored_and_absolute_roots_remain(
+    tmp_path: Path,
+) -> None:
+    """Anchor local relative paths without rewriting absolute paths.
+
+    Remote backend prefixes remain backend-owned values.
+    """
+    application_root = tmp_path / "application"
+    absolute_root = tmp_path / "external-storage"
+    repository = Repository(
+        {
+            "filesystem": {
+                "default": "relative",
+                "disks": {
+                    "relative": {
+                        "driver": "local",
+                        "root": "storage/app",
+                    },
+                    "absolute": {
+                        "driver": "local",
+                        "root": str(absolute_root),
+                    },
+                    "remote": {
+                        "driver": "remote",
+                        "root": "bucket/documents",
+                    },
+                },
+            },
+        },
+    )
+
+    configuration = FilesystemConfiguration.from_repository(
+        repository,
+        base_path=application_root,
+    )
+
+    assert (
+        configuration.disks["relative"].root
+        == (application_root / "storage/app").resolve()
+    )
+    assert configuration.disks["absolute"].root == str(absolute_root)
+    assert configuration.disks["remote"].root == "bucket/documents"
+
+
+def test_application_relative_local_root_cannot_escape_application(
+    tmp_path: Path,
+) -> None:
+    """Reject parent traversal in application-relative disk roots.
+
+    Explicit absolute roots remain available for trusted configurations.
+    """
+    with pytest.raises(
+        FilesystemConfigurationError,
+        match="inside the application root",
+    ):
+        FilesystemConfiguration.from_repository(
+            Repository(
+                {
+                    "filesystem": {
+                        "disks": {
+                            "local": {
+                                "driver": "local",
+                                "root": "../shared",
+                            },
+                        },
+                    },
+                },
+            ),
+            base_path=tmp_path,
+        )
+
+
 def test_manager_rejects_unknown_disk_and_driver() -> None:
     """Report disk selection and driver errors through native exceptions.
 
@@ -278,6 +439,152 @@ def test_manager_rejects_unknown_disk_and_driver() -> None:
     )
     with pytest.raises(FilesystemDiskError):
         FilesystemManager(configuration).disk()
+
+
+@pytest.mark.anyio
+async def test_manager_closes_async_backend_once_after_shutdown() -> None:
+    """Use the explicit asynchronous close hook and reject later access.
+
+    Repeated shutdown must not finalize a backend more than once.
+    """
+    closed: list[str] = []
+
+    def make_backend(
+        configuration: FilesystemDiskConfiguration,
+    ) -> FsspecFilesystem:
+        """Create an isolated fsspec backend with asynchronous cleanup.
+
+        Args:
+            configuration: Named disk settings supplied by the manager.
+
+        Returns:
+            A real memory filesystem with a tracked async close hook.
+        """
+        _ = configuration
+        # fsspec's incomplete stubs hide this real AbstractFileSystem surface.
+        return cast(
+            "FsspecFilesystem",
+            _AsyncClosableMemoryFilesystem(closed),
+        )
+
+    configuration = FilesystemConfiguration(
+        default_disk="memory",
+        disks={
+            "memory": FilesystemDiskConfiguration(driver="tracked"),
+        },
+    )
+    manager = FilesystemManager(
+        configuration,
+        drivers={"tracked": make_backend},
+    )
+    disk = manager.disk()
+
+    await manager.aclose()
+    await manager.aclose()
+
+    assert closed == ["aclose"]
+    with pytest.raises(FilesystemDiskError):
+        manager.disk()
+    with (
+        pytest.raises(FilesystemDiskError),
+        manager.override_disk("memory", disk),
+    ):
+        pass
+
+
+@pytest.mark.anyio
+async def test_disk_awaits_async_result_from_backend_close() -> None:
+    """Await async cleanup returned by a synchronous fsspec close method.
+
+    The disk adapter supports backends that bridge asynchronous close hooks.
+    """
+    closed: list[str] = []
+
+    def make_backend(
+        configuration: FilesystemDiskConfiguration,
+    ) -> FsspecFilesystem:
+        """Create an isolated backend with a coroutine-returning close hook.
+
+        Args:
+            configuration: Named disk settings supplied by the manager.
+
+        Returns:
+            A real memory filesystem with an awaitable close result.
+        """
+        _ = configuration
+        # The locked fsspec stubs omit several AbstractFileSystem methods.
+        return cast("FsspecFilesystem", _AwaitableCloseMemoryFilesystem(closed))
+
+    manager = FilesystemManager(
+        FilesystemConfiguration(
+            default_disk="memory",
+            disks={
+                "memory": FilesystemDiskConfiguration(driver="tracked"),
+            },
+        ),
+        drivers={"tracked": make_backend},
+    )
+    manager.disk()
+
+    await manager.aclose()
+
+    assert closed == ["close-awaitable"]
+
+
+@pytest.mark.anyio
+async def test_manager_finalizes_all_backends_after_cleanup_failure() -> None:
+    """Continue resource cleanup when one backend close operation fails.
+
+    The manager reports a safe error after attempting every owned backend.
+    """
+    closed: list[str] = []
+
+    def make_backend(
+        configuration: FilesystemDiskConfiguration,
+    ) -> FsspecFilesystem:
+        """Create a backend selected by the configured root marker.
+
+        Args:
+            configuration: Disk settings supplied by the manager.
+
+        Returns:
+            A failing or observable real fsspec memory filesystem.
+        """
+        if configuration.root == "failure":
+            return cast(
+                "FsspecFilesystem",
+                _FailingCloseMemoryFilesystem(),
+            )
+        return cast(
+            "FsspecFilesystem",
+            _AsyncClosableMemoryFilesystem(closed),
+        )
+
+    manager = FilesystemManager(
+        FilesystemConfiguration(
+            default_disk="failure",
+            disks={
+                "failure": FilesystemDiskConfiguration(
+                    driver="tracked",
+                    root="failure",
+                ),
+                "success": FilesystemDiskConfiguration(
+                    driver="tracked",
+                    root="success",
+                ),
+            },
+        ),
+        drivers={"tracked": make_backend},
+    )
+    manager.disk("failure")
+    manager.disk("success")
+
+    with pytest.raises(FilesystemDiskError) as captured:
+        await manager.aclose()
+
+    assert closed == ["aclose"]
+    assert _PRIVATE_BACKEND_CLOSE_ERROR not in str(captured.value)
+    assert captured.value.__cause__ is None
 
 
 def test_manager_wraps_custom_driver_failures_without_sensitive_messages() -> (

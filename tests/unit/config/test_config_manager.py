@@ -214,6 +214,29 @@ def test_manager_resolves_relative_cache_path_and_settings_over_cache(
     assert loaded.string("app.name") == "Explicit application"
 
 
+def test_manager_rejects_relative_cache_path_outside_application_root(
+    tmp_path: Path,
+) -> None:
+    """Reject relative cache paths that escape the effective app root.
+
+    Explicit absolute cache paths remain available to trusted applications.
+    """
+    application_root = tmp_path / "application"
+    outside_cache = tmp_path / "shared" / "config.json"
+
+    with pytest.raises(ConfigurationCacheError, match="inside the root"):
+        ConfigManager(
+            application_root,
+            cache_path="../shared/config.json",
+        )
+
+    manager = ConfigManager(
+        application_root,
+        cache_path=outside_cache,
+    )
+    assert manager.cache_path == outside_cache
+
+
 def test_manager_projects_explicit_custom_and_nested_settings(
     tmp_path: Path,
 ) -> None:

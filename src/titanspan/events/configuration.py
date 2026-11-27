@@ -13,6 +13,10 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from titanspan.events.exceptions import EventError
 
+_UNSAFE_MANIFEST_PATH_ERROR = (
+    "Relative event manifest paths must stay inside the root."
+)
+
 if TYPE_CHECKING:
     from titanspan.contracts.config import ConfigRepository
 
@@ -45,11 +49,14 @@ class EventsConfiguration(BaseModel):
     def from_repository(
         cls,
         repository: ConfigRepository,
+        *,
+        base_path: Path | None = None,
     ) -> EventsConfiguration:
         """Read the event namespace from the canonical configuration source.
 
         Args:
             repository: Application-owned hierarchical repository.
+            base_path: Application root for relative manifest paths.
 
         Returns:
             Validated settings with documented defaults for absent keys.
@@ -59,10 +66,26 @@ class EventsConfiguration(BaseModel):
         """
         values = repository.get("events", {})
         try:
-            return cls.model_validate(values)
+            configuration = cls.model_validate(values)
         except (TypeError, ValueError) as error:
             message = "The events configuration is invalid."
             raise EventsConfigurationError(message) from error
+        manifest_path = configuration.manifest_path
+        if (
+            base_path is None
+            or manifest_path is None
+            or manifest_path.is_absolute()
+        ):
+            return configuration
+
+        root = base_path.resolve()
+        resolved_path = (root / manifest_path).resolve()
+        if not resolved_path.is_relative_to(root):
+            message = _UNSAFE_MANIFEST_PATH_ERROR
+            raise EventsConfigurationError(message)
+        return configuration.model_copy(
+            update={"manifest_path": resolved_path},
+        )
 
 
 __all__ = ["EventsConfiguration", "EventsConfigurationError"]

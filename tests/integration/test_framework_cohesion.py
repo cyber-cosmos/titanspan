@@ -8,9 +8,11 @@ from __future__ import annotations
 
 import asyncio
 from collections.abc import AsyncIterator, Mapping, Sequence
+from http import HTTPStatus
 from types import MappingProxyType
 from typing import TYPE_CHECKING, Annotated, Self, cast, overload
 
+import httpx2
 import pytest
 from dishka import Provider
 from fastapi.testclient import TestClient
@@ -45,15 +47,21 @@ from titanspan.contracts.container import (
     ServiceContainer,
 )
 from titanspan.contracts.events import EventDispatcher
+from titanspan.contracts.filesystem import StorageManager
+from titanspan.contracts.hashing import Hasher
 
 # Exception dispatch resolves these postponed annotations through Container.
 from titanspan.contracts.http import (
-    HttpRequest,  # noqa: TC001
-    HttpResponse,  # noqa: TC001
-    ResponseFactory,  # noqa: TC001
+    DEFAULT_COOKIE_OPTIONS,
+    CookieOptions,
+    HttpRequest,
+    HttpResponse,
+    ResponseFactory,
 )
 from titanspan.contracts.logging import LoggingManager, LogWriter
+from titanspan.contracts.validation import ValidationService
 from titanspan.facades import Config, Event, Facade, Log
+from titanspan.filesystem import FilesystemServiceProvider
 from titanspan.foundation.exceptions import ApplicationLifecycleError
 from titanspan.logging import LogLifecycleError
 from titanspan.support import config
@@ -62,7 +70,10 @@ from titanspan.support.arr import Arr
 _PROVIDER_FAILURE_MESSAGE = "provider startup failed"
 _RESOURCE_CLEANUP_FAILURE_MESSAGE = "resource cleanup failed"
 _PRIVATE_ROUTE_FAILURE = "private exception detail"
+_PRIVATE_EXCEPTION_DETAIL = "credential=foundation-secret-value"
 _UNPROCESSABLE_ENTITY = 422
+_INTERNAL_SERVER_ERROR = 500
+_EXPECTED_COOKIE_COUNT = 3
 
 
 class _BuilderHeaderMiddleware:
@@ -87,6 +98,38 @@ class _BuilderHeaderMiddleware:
         """
         response = await next_handler(request)
         return response.with_header("X-Builder", "enabled")
+
+
+class _CookieResponseMiddleware:
+    """Exercise native cookie operations on a downstream response.
+
+    The middleware uses contract methods rather than backend response types.
+    """
+
+    async def handle(
+        self,
+        request: HttpRequest,
+        next_handler: RequestHandler,
+    ) -> HttpResponse:
+        """Set and expire cookies without merging their headers.
+
+        Args:
+            request: Active request supplied by Foundation.
+            next_handler: Native continuation for the endpoint.
+
+        Returns:
+            The same response with independent cookie headers.
+        """
+        response = await next_handler(request)
+        return (
+            response.with_cookie("session", "opaque")
+            .with_cookie(
+                "preference",
+                "compact",
+                options=CookieOptions(secure=False),
+            )
+            .without_cookie("retired")
+        )
 
 
 class _NonAsgiResponse:
@@ -126,8 +169,48 @@ class _NonAsgiResponse:
         _ = name, value
         return self
 
+    def with_cookie(
+        self,
+        name: str,
+        value: str,
+        *,
+        options: CookieOptions = DEFAULT_COOKIE_OPTIONS,
+    ) -> Self:
+        """Retain cookie mutation in the non-ASGI response fixture.
+
+        Args:
+            name: Cookie name.
+            value: Cookie value.
+            options: Cookie attributes.
+
+        Returns:
+            This response fixture.
+        """
+        _ = name, value, options
+        return self
+
+    def without_cookie(
+        self,
+        name: str,
+        *,
+        options: CookieOptions = DEFAULT_COOKIE_OPTIONS,
+    ) -> Self:
+        """Retain cookie removal in the non-ASGI response fixture.
+
+        Args:
+            name: Cookie name.
+            options: Cookie attributes.
+
+        Returns:
+            This response fixture.
+        """
+        _ = name, options
+        return self
+
 
 if TYPE_CHECKING:
+    from pathlib import Path
+
     from titanspan.contracts.container import ServiceRegistry
     from titanspan.contracts.foundation import (
         BootableServiceProvider,
@@ -587,6 +670,162 @@ def test_application_shares_contract_services_across_public_access_paths() -> (
 
     assert repository.get("app.name") == "Updated"
     assert application.logging.get_default_channel() == "memory"
+
+
+def test_application_registers_supported_component_providers_by_default(
+    tmp_path: Path,
+) -> None:
+    """Resolve supported component contracts from the native application.
+
+    Built-in services must use the application container without requiring
+    callers to repeat each component provider during construction.
+    """
+    application = Application(base_path=tmp_path)
+
+    storage = application.make(StorageManager)
+    hasher = application.make(Hasher)
+    validator = application.make(ValidationService)
+
+    assert callable(storage.disk)
+    assert callable(hasher.make)
+    assert callable(validator.validate)
+    assert application.make(StorageManager) is storage
+    assert application.make(Hasher) is hasher
+    assert application.make(ValidationService) is validator
+
+
+def test_application_rejects_duplicate_builtin_provider_overrides() -> None:
+    """Reject competing registrations for one application service.
+
+    One explicit Filesystem provider replaces the default provider. Multiple
+    instances would create ambiguous manager ownership and fail predictably.
+    """
+    with pytest.raises(ValueError, match="at most one provider"):
+        Application(
+            service_providers=(
+                FilesystemServiceProvider(),
+                FilesystemServiceProvider(),
+            ),
+        )
+
+
+def test_framework_exception_reporting_uses_safe_substituted_logging() -> None:
+    """Keep framework error reports in the canonical logging override.
+
+    Default diagnostics retain the exception class but omit exception text,
+    chained causes, and tracebacks that can contain secrets.
+    """
+    application = Application(config={"app": {"debug": False}})
+    cause = ValueError(_PRIVATE_EXCEPTION_DETAIL)
+    error = RuntimeError(_PRIVATE_EXCEPTION_DETAIL)
+    error.__cause__ = cause
+
+    with application.context(), Log.fake() as fake:
+        assert application.logging is Log.manager()
+        application.report_exception(
+            error,
+            context={"component": "test"},
+        )
+        record = fake.assert_logged(
+            "error",
+            "Application operation failed",
+        )
+
+    assert record.context["exception_type"] == "RuntimeError"
+    assert record.context["component"] == "test"
+    assert record.exception is None
+    assert _PRIVATE_EXCEPTION_DETAIL not in repr(record)
+
+
+def test_application_exception_details_require_explicit_opt_in() -> None:
+    """Capture full exception details only under an explicit policy.
+
+    Application debug mode or the reporting argument can enable traceback
+    records for trusted development environments.
+    """
+    application = Application(config={"app": {"debug": False}})
+    error = RuntimeError(_PRIVATE_EXCEPTION_DETAIL)
+
+    with application.context(), Log.fake() as fake:
+        application.report_exception(error, include_details=True)
+        record = fake.assert_logged("error", "Application operation failed")
+
+    assert record.exception is not None
+    assert _PRIVATE_EXCEPTION_DETAIL in record.exception["message"]
+
+
+@pytest.mark.anyio
+async def test_application_reports_after_shutdown_without_leaking_exception(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """Use the logging emergency path after application resources close.
+
+    The post-shutdown report remains useful and omits arbitrary exception
+    text after the normal logging graph is unavailable.
+    """
+    application = Application(config={"app": {"debug": False}})
+    await application.startup()
+    await application.shutdown()
+
+    application.report_exception(RuntimeError(_PRIVATE_EXCEPTION_DETAIL))
+
+    output = capsys.readouterr().err
+    assert "TITANSPAN EMERGENCY" in output
+    assert "Application operation failed" in output
+    assert "RuntimeError" in output
+    assert _PRIVATE_EXCEPTION_DETAIL not in output
+
+
+@pytest.mark.anyio
+async def test_asgi_exception_logging_uses_request_context() -> None:
+    """Report request failures through the active logger substitution.
+
+    The real ASGI middleware supplies the request identifier to the same
+    application-owned fake selected before request execution.
+    """
+    application = Application(config={"app": {"debug": False}})
+
+    @application.router.get("/failure")
+    async def fail() -> None:
+        """Raise a private failure that must not enter public diagnostics.
+
+        Foundation handles the exception after route dispatch.
+        """
+        Log.info("route started")
+        raise RuntimeError(_PRIVATE_EXCEPTION_DETAIL)
+
+    async def dispatch_with_fake() -> int:
+        """Send one request while the fake owns the active context.
+
+        The ASGI request uses the real application and logging middleware.
+        """
+        with Log.fake() as fake:
+            transport = httpx2.ASGITransport(
+                app=application.asgi,
+                raise_app_exceptions=False,
+            )
+            async with httpx2.AsyncClient(
+                transport=transport,
+                base_url="http://test",
+            ) as client:
+                response = await client.get("/failure")
+
+            record = fake.assert_logged(
+                "error",
+                "Application operation failed",
+            )
+            request_record = fake.assert_logged("info", "route started")
+            assert record.context["exception_type"] == "RuntimeError"
+            assert isinstance(record.context["request_id"], str)
+            assert (
+                request_record.context["request_id"]
+                == record.context["request_id"]
+            )
+            assert record.exception is None
+            assert _PRIVATE_EXCEPTION_DETAIL not in repr(record)
+            return response.status_code
+
+    assert await application.run(dispatch_with_fake) == _INTERNAL_SERVER_ERROR
 
 
 @pytest.mark.concurrency
@@ -1248,6 +1487,39 @@ def test_application_exception_handlers_use_native_contracts() -> None:
     assert response.headers["X-Builder"] == "enabled"
     assert response.json() == {"detail": "Invalid operation"}
     assert _PRIVATE_ROUTE_FAILURE not in response.text
+
+
+@pytest.mark.feature
+def test_native_middleware_preserves_multiple_cookie_headers() -> None:
+    """Expose cookie mutation through the native downstream response.
+
+    Each cookie remains a separate Set-Cookie field on the ASGI response.
+    """
+    application = (
+        Application.builder()
+        .with_fastapi_provider(Provider())
+        .with_http_middleware(_CookieResponseMiddleware)
+        .build()
+    )
+
+    def index() -> dict[str, str]:
+        """Return a small native response for middleware mutation.
+
+        The response keeps the cookie test independent of route behavior.
+        """
+        return {"status": "ok"}
+
+    application.router.get("/cookies", index)
+
+    with TestClient(application.asgi) as client:
+        response = client.get("/cookies")
+
+    cookies = response.headers.get_list("set-cookie")
+    assert response.status_code == HTTPStatus.OK
+    assert len(cookies) == _EXPECTED_COOKIE_COUNT
+    assert any(value.startswith("session=opaque;") for value in cookies)
+    assert any(value.startswith("preference=compact;") for value in cookies)
+    assert any(value.startswith("retired=") for value in cookies)
 
 
 @pytest.mark.feature

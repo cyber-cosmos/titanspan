@@ -5,7 +5,7 @@ The tests use real Pydantic schemas and validation primitives.
 
 from datetime import date, datetime
 from enum import StrEnum
-from typing import Annotated, Self, cast
+from typing import Annotated, NoReturn, Self, cast
 
 import anyio
 import pytest
@@ -14,10 +14,13 @@ from pydantic import (
     BaseModel,
     EmailStr,
     Field,
+    GetCoreSchemaHandler,
     HttpUrl,
     ValidationInfo,
+    field_validator,
     model_validator,
 )
+from pydantic_core import CoreSchema, PydanticCustomError, core_schema
 
 from titanspan.config import Repository
 from titanspan.contracts.validation import (
@@ -43,6 +46,9 @@ _EXPECTED_RULE_ISSUES = 2
 _CONTEXT_LIMIT_ERROR = "The value exceeds its limit."
 _CONFIRMATION_ERROR = "The amount requires confirmation."
 _RULE_SERVICE_ERROR = "Rule service unavailable."
+_PRIVATE_VALIDATION_VALUE = "secret=untrusted-input"
+_CUSTOM_VALIDATION_CODE = "invalid value with secrets"
+_CUSTOM_VALIDATION_MESSAGE = "Rejected value: {value}"
 
 
 class AccessLevel(StrEnum):
@@ -102,6 +108,74 @@ class RequiredNullableInput(BaseModel):
 
     required_value: str | None
     optional_value: str | None = None
+
+
+class _InvalidJsonSchemaInput:
+    """Reject values with a custom code and no JSON Schema representation.
+
+    The type exercises safe diagnostics when a Pydantic schema export fails.
+    """
+
+    @classmethod
+    def __get_pydantic_core_schema__(
+        cls,
+        source_type: object,
+        handler: GetCoreSchemaHandler,
+    ) -> CoreSchema:
+        """Return a validator that raises a deliberately unsafe message.
+
+        Args:
+            source_type: Type Pydantic is adapting.
+            handler: Pydantic's schema handler, unused by this fixture.
+
+        Returns:
+            A plain validator schema without JSON Schema support.
+        """
+        _ = source_type
+        _ = handler
+        return core_schema.no_info_plain_validator_function(cls._reject)
+
+    @staticmethod
+    def _reject(value: object) -> NoReturn:
+        """Raise a custom error that contains the rejected value.
+
+        Args:
+            value: Untrusted input that must not appear in public errors.
+
+        Raises:
+            PydanticCustomError: Always, for the validation safety test.
+        """
+        raise PydanticCustomError(
+            _CUSTOM_VALIDATION_CODE,
+            _CUSTOM_VALIDATION_MESSAGE,
+            {"value": value},
+        )
+
+
+class SecretRejectedInput(BaseModel):
+    """Reject one value with a backend message containing that value.
+
+    Validation must replace backend-generated text before exposing it.
+    """
+
+    credential: str
+
+    @field_validator("credential")
+    @classmethod
+    def reject_credential(cls, value: str) -> str:
+        """Reject the supplied credential using an unsafe backend message.
+
+        Args:
+            value: Untrusted credential supplied to the schema.
+
+        Returns:
+            A value accepted by the schema.
+
+        Raises:
+            ValueError: Always, with the rejected credential in the detail.
+        """
+        message = f"Credential rejected: {value}"
+        raise ValueError(message)
 
 
 def test_validator_coerces_values_and_validates_nested_models() -> None:
@@ -326,9 +400,90 @@ def test_validator_aggregates_field_errors_and_omits_rejected_values() -> None:
             dict[str, Annotated[int, Field(ge=0)]],
             messages={"greater_than_equal": "Choose a nonnegative value."},
         )
-    assert code_message.value.field_errors["count"] == (
+    assert code_message.value.field_errors["<key>"] == (
         "Choose a nonnegative value.",
     )
+
+
+def test_backend_error_messages_do_not_expose_rejected_values() -> None:
+    """Replace Pydantic validator text with a stable safe message.
+
+    Custom application messages remain available through explicit overrides.
+    """
+    validator = Validator()
+    sensitive_value = "credential-marker"
+
+    with pytest.raises(ValidationException) as captured:
+        validator.validate(
+            {"credential": sensitive_value},
+            SecretRejectedInput,
+        )
+
+    issue = captured.value.issues[0]
+    assert issue.field == "credential"
+    assert issue.code == "value_error"
+    assert issue.message == "Input is invalid."
+    assert sensitive_value not in str(captured.value)
+
+    with pytest.raises(ValidationException) as overridden:
+        validator.validate(
+            {"credential": sensitive_value},
+            SecretRejectedInput,
+            messages={"credential": "Enter a valid credential."},
+        )
+    assert overridden.value.field_errors["credential"] == (
+        "Enter a valid credential.",
+    )
+    assert sensitive_value not in str(overridden.value)
+
+
+def test_dynamic_mapping_keys_are_not_exposed_as_field_locations() -> None:
+    """Redact arbitrary mapping keys from public validation locations.
+
+    Integer collection indices and declared schema field names remain useful.
+    """
+    dynamic_key = "token-marker"
+
+    with pytest.raises(ValidationException) as captured:
+        Validator().validate(
+            {dynamic_key: "not-an-integer"},
+            dict[str, int],
+        )
+
+    issue = captured.value.issues[0]
+    assert issue.field == "<key>"
+    assert dynamic_key not in str(captured.value)
+    assert "not-an-integer" not in str(captured.value)
+
+
+def test_malformed_backend_error_metadata_uses_safe_defaults() -> None:
+    """Reject malformed backend codes, locations, and schema metadata.
+
+    The public validation boundary keeps only bounded native diagnostics.
+    """
+    with pytest.raises(ValidationException) as captured:
+        Validator().validate(
+            _PRIVATE_VALIDATION_VALUE,
+            _InvalidJsonSchemaInput,
+        )
+
+    issue = captured.value.issues[0]
+    assert issue.code == "invalid_input"
+    assert issue.message == "Input is invalid."
+    assert _PRIVATE_VALIDATION_VALUE not in str(captured.value)
+
+
+def test_non_string_mapping_keys_are_redacted_in_locations() -> None:
+    """Redact mapping keys whose object representations are untrusted.
+
+    Public issue locations must not call or expose arbitrary key values.
+    """
+    key = object()
+    with pytest.raises(ValidationException) as captured:
+        Validator().validate({key: "bad"}, dict[str, int])
+
+    assert all("<key>" in issue.location for issue in captured.value.issues)
+    assert repr(key) not in str(captured.value)
 
 
 def test_validation_exception_requires_at_least_one_issue() -> None:

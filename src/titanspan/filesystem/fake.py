@@ -8,7 +8,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from titanspan.filesystem.disk import FilesystemDisk
+    from titanspan.contracts.filesystem import StorageDisk
 
 _MISSING_FILE_ERROR = "Expected a stored file at the selected path."
 _EXISTING_FILE_ERROR = "Expected no stored file at the selected path."
@@ -22,7 +22,7 @@ class FilesystemFake:
         disk: Disk selected by the active Storage facade fake scope.
     """
 
-    def __init__(self, disk: FilesystemDisk) -> None:
+    def __init__(self, disk: StorageDisk) -> None:
         """Retain the memory-backed disk scoped by the facade.
 
         Args:
@@ -92,7 +92,7 @@ class FilesystemFake:
         """
         self.assert_missing(path)
 
-    disk: FilesystemDisk
+    disk: StorageDisk
 
 
 __all__ = ["FilesystemFake"]

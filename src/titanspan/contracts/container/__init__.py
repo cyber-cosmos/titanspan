@@ -227,6 +227,23 @@ class ServiceContainer(ServiceRegistry, Protocol):
         """
         ...
 
+    def find_resolved[ServiceT](
+        self,
+        service: type[ServiceT],
+    ) -> tuple[bool, ServiceT | None]:
+        """Inspect one cached service without constructing it.
+
+        This supports lifecycle owners that must close only resources already
+        created by the application.
+
+        Args:
+            service: Service key whose cached value is inspected.
+
+        Returns:
+            Membership and the cached value, preserving a cached ``None``.
+        """
+        ...
+
     async def close(self) -> None:
         """Finalize container-owned asynchronous resources.
 

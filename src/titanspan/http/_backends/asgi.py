@@ -59,40 +59,6 @@ class RequestBoundary(NamedTuple):
     receive: Receive
 
 
-def _bodyless_send(
-    scope: Scope,
-    status_code: int,
-    send: Send,
-) -> Send:
-    """Wrap the sender when the request or status forbids response bytes.
-
-    Args:
-        scope: ASGI connection scope supplied by the server.
-        status_code: Status code selected by the response.
-        send: Original ASGI sender.
-
-    Returns:
-        The original sender or a wrapper that sends empty body messages.
-    """
-    is_head = (
-        scope["type"] == "http" and scope.get("method", "").upper() == "HEAD"
-    )
-    if not is_head and status_code not in _BODYLESS_STATUSES:
-        return send
-
-    async def send_without_body(message: Message) -> None:
-        """Forward response messages without representation bytes.
-
-        Args:
-            message: ASGI message produced by Starlette.
-        """
-        if message["type"] == "http.response.body":
-            message = {**message, "body": b""}
-        await send(message)
-
-    return send_without_body
-
-
 class _BodylessResponseBackend(StarletteResponse):
     """Apply HTTP body rules before Starlette sends response messages.
 
@@ -113,11 +79,22 @@ class _BodylessResponseBackend(StarletteResponse):
             receive: ASGI receiver supplied by the server.
             send: ASGI sender supplied by the server.
         """
-        await super().__call__(
-            scope,
-            receive,
-            _bodyless_send(scope, self.status_code, send),
+        is_head = (
+            scope["type"] == "http"
+            and scope.get("method", "").upper() == "HEAD"
         )
+        if is_head or self.status_code in _BODYLESS_STATUSES:
+            empty = StarletteResponse(
+                content=b"",
+                status_code=self.status_code,
+                background=self.background,
+            )
+            # Preserve duplicate headers such as Set-Cookie and the original
+            # representation length without invoking a stream producer.
+            empty.raw_headers = list(self.raw_headers)
+            await empty(scope, receive, send)
+            return
+        await super().__call__(scope, receive, send)
 
 
 class ResponseBackend(_BodylessResponseBackend):

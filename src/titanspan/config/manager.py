@@ -11,6 +11,7 @@ from pathlib import Path
 from typing import cast
 
 from titanspan.config.cache import ConfigCache
+from titanspan.config.exceptions import ConfigurationCacheError
 from titanspan.config.loader import ConfigLoader
 from titanspan.config.repository import Repository
 from titanspan.config.settings import Settings
@@ -98,13 +99,23 @@ class ConfigManager:
                 self._loader.register_defaults(namespace, values)
         self._provided_settings = settings is not None
         self._settings = settings
-        self.cache_path = (
-            Path(cache_path)
-            if cache_path is not None
-            else self.base_path / "bootstrap" / "cache" / "config.json"
-        )
-        if not self.cache_path.is_absolute():
-            self.cache_path = self.base_path / self.cache_path
+        if cache_path is None:
+            self.cache_path = (
+                self.base_path / "bootstrap" / "cache" / "config.json"
+            )
+        else:
+            selected_cache_path = Path(cache_path)
+            if selected_cache_path.is_absolute():
+                self.cache_path = selected_cache_path
+            else:
+                self.cache_path = (
+                    self.base_path / selected_cache_path
+                ).resolve()
+                if not self.cache_path.is_relative_to(self.base_path):
+                    raise ConfigurationCacheError(
+                        str(self.cache_path),
+                        "relative cache paths must stay inside the root",
+                    )
         self._cache = ConfigCache(self.cache_path)
 
     @property

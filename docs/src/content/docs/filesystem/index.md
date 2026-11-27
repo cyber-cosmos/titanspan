@@ -15,7 +15,7 @@ extension. The provider reads `filesystem` settings from the canonical Config
 repository and registers one manager in the application Container.
 
 ```python
-from titanspan import Application, FilesystemServiceProvider
+from titanspan import Application
 from titanspan.facades import Storage
 
 application = Application(
@@ -31,7 +31,6 @@ application = Application(
             },
         },
     },
-    service_providers=(FilesystemServiceProvider(),),
 )
 
 with application.context():
@@ -39,13 +38,12 @@ with application.context():
     content = Storage.disk("local").get("documents/report.txt")
 ```
 
-The local disk uses `storage/app` when no root is configured. Memory disks
-receive private stores for each manager. Add custom fsspec drivers to
-`FilesystemServiceProvider(drivers=...)` or call `FilesystemManager.extend`
-before resolving any disk.
-
-`FilesystemServiceProvider` is currently supplied explicitly. Foundation does
-not include it among its built-in providers.
+The local disk uses `storage/app` under the application root when no root is
+configured. Relative local roots resolve under `Application.base_path`.
+Absolute roots remain unchanged, and relative roots that escape the root are
+rejected. Memory disks receive private stores for each manager. Supply one
+`FilesystemServiceProvider(drivers=...)` to customize registered fsspec
+drivers. It replaces Foundation's default provider.
 
 ## Read and write files
 
@@ -106,9 +104,11 @@ file, so it can buffer the previous contents in memory.
 
 ## Test fakes
 
-`Storage.fake` overlays one named disk with a context-local memory disk.
-Nested scopes restore the enclosing fake. Sibling asynchronous contexts own
-independent stores.
+`Storage.fake` selects a context-local memory disk through the canonical
+manager. Facade calls and injected `StorageManager.disk()` calls see the same
+disk. Nested scopes restore the enclosing override, and sibling asynchronous
+contexts own independent stores. The fake does not initialize the configured
+backend.
 
 ```python
 with application.context(), Storage.fake("local") as fake:
@@ -117,9 +117,10 @@ with application.context(), Storage.fake("local") as fake:
     Storage.assert_not_stored("documents/missing.txt", disk="local")
 ```
 
-Assertions require an active fake. A fake does not initialize the configured
-backend, so tests can exercise a remote disk without installing its optional
-fsspec integration.
+Assertions require an active fake. Custom managers implement the optional
+`StorageDiskOverride` contract to support this substitution. Managers without
+that capability fail explicitly. Tests can exercise a configured remote disk
+without installing its optional fsspec integration.
 
 See the [Filesystem specification](/titanspan/specifications/filesystem/)
 for path boundaries, error behavior, and backend limitations.

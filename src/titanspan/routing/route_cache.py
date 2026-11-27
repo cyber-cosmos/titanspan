@@ -32,6 +32,7 @@ _CACHE_VERSION = 1
 _CONTROLLER_ACTION_PARTS = 2
 _CACHE_VERSION_ERROR = "The route cache format is unsupported."
 _CACHE_READ_ERROR = "The route metadata cache could not be read."
+_CACHE_CLEAR_ERROR = "The route metadata cache could not be removed."
 _CACHE_WRITE_ERROR = "The route metadata cache could not be written."
 _STALE_CACHE_ERROR = "The route metadata cache is stale."
 _UNSUPPORTED_CACHE_VALUE_ERROR = (
@@ -176,6 +177,17 @@ class RouteCache:
         ):
             raise StaleRouteCacheError(_STALE_CACHE_ERROR)
         return tuple(_entry_from_dict(entry) for entry in entries)
+
+    def clear(self) -> None:
+        """Remove the metadata snapshot when it exists.
+
+        Raises:
+            RouteCacheError: If the cache file cannot be removed.
+        """
+        try:
+            self._path.unlink(missing_ok=True)
+        except OSError as error:
+            raise RouteCacheError(_CACHE_CLEAR_ERROR) from error
 
 
 def _serialized_entries(router: Router) -> list[dict[str, object]]:

@@ -35,6 +35,12 @@ does not configure process-global logging state.
 - Log levels map explicitly between Titanspan severity and standard-library
   levels.
 - Emergency output avoids the failing logger and does not recursively log.
+- `LoggingManager.emergency()` remains available after channel shutdown and
+  writes through the independent standard-error fallback.
+- Application-owned relative file destinations resolve beneath
+  `Application.base_path`; direct `LogManager` paths remain process-relative.
+  Absolute destinations remain unchanged, and relative paths cannot escape
+  the application root.
 - File rotation and shared-file process safety follow the documented driver
   constraints; multiprocess delivery is not promised by ordinary handlers.
 - Arbitrary object representations and full application payloads are never

@@ -6,6 +6,7 @@ The enclosing test observes this target through the framework.
 from __future__ import annotations
 
 from dataclasses import dataclass
+from pathlib import Path
 from typing import TYPE_CHECKING
 
 import pytest
@@ -33,8 +34,6 @@ pytestmark = [pytest.mark.integration, pytest.mark.architecture]
 _MISSING_CONTEXT_ERROR = "The application context was not active."
 
 if TYPE_CHECKING:
-    from pathlib import Path
-
     from titanspan.contracts.container import ServiceRegistry
 
 
@@ -512,6 +511,69 @@ async def test_application_boot_discovers_and_caches_trusted_listeners(
             "union:cached",
             "function:cached",
         ]
+
+
+@pytest.mark.anyio
+async def test_event_manifest_path_uses_the_application_root(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Anchor relative event manifests to their owning application.
+
+    A different process working directory must not receive application files.
+    """
+    application_root = tmp_path / "application"
+    (application_root / "routes").mkdir(parents=True)
+    unrelated_directory = tmp_path / "unrelated"
+    unrelated_directory.mkdir()
+    monkeypatch.chdir(unrelated_directory)
+    relative_manifest = Path("bootstrap/cache/events.json")
+    application = Application(
+        base_path=application_root,
+        config={
+            "events": {
+                "discovery_modules": [
+                    "tests.unit.events._discovery_fixture",
+                ],
+                "manifest_path": str(relative_manifest),
+            },
+        },
+    )
+
+    async with application:
+        assert Event.dispatch(FixtureEvent("rooted"))
+
+    assert (application_root / relative_manifest).is_file()
+    assert not (unrelated_directory / relative_manifest).exists()
+
+
+def test_relative_event_manifest_cannot_escape_application_root(
+    tmp_path: Path,
+) -> None:
+    """Reject relative event cache paths that escape the selected root.
+
+    Explicit absolute manifests remain available to trusted applications.
+    """
+    with pytest.raises(EventsConfigurationError, match="inside the root"):
+        Application(
+            base_path=tmp_path / "application",
+            config={
+                "events": {"manifest_path": "../outside/events.json"},
+            },
+        )
+
+    application_root = tmp_path / "symlink-application"
+    application_root.mkdir()
+    outside_directory = tmp_path / "outside"
+    outside_directory.mkdir()
+    (application_root / "cache").symlink_to(outside_directory)
+    with pytest.raises(EventsConfigurationError, match="inside the root"):
+        Application(
+            base_path=application_root,
+            config={
+                "events": {"manifest_path": "cache/events.json"},
+            },
+        )
 
 
 @pytest.mark.anyio

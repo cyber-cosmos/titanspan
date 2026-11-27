@@ -7,7 +7,9 @@ request input to stable Titanspan boundaries.
 from __future__ import annotations
 
 import inspect
-from typing import TYPE_CHECKING
+import re
+from collections.abc import Mapping
+from typing import TYPE_CHECKING, cast
 
 from pydantic import TypeAdapter, ValidationError
 from typing_extensions import TypeForm
@@ -25,11 +27,32 @@ from titanspan.validation.exceptions import (
 )
 
 if TYPE_CHECKING:
-    from collections.abc import Mapping, Sequence
+    from collections.abc import Sequence
 
     from titanspan.contracts.http import HttpRequest
 
 _ASYNC_RULE_ERROR = "An asynchronous validation rule requires validate_async."
+_SAFE_ERROR_CODE = re.compile(r"[a-z][a-z0-9_]{0,63}\Z", re.ASCII)
+_SAFE_ERROR_MESSAGES = {
+    "bool_parsing": "Input should be a valid boolean",
+    "bool_type": "Input should be a valid boolean",
+    "float_parsing": "Input should be a valid number",
+    "float_type": "Input should be a valid number",
+    "int_parsing": "Input should be a valid integer",
+    "int_type": "Input should be a valid integer",
+    "list_type": "Input should be a valid list",
+    "missing": "Field is required.",
+    "string_type": "Input should be a valid string",
+    "string_too_long": "Input is too long.",
+    "string_too_short": "Input is too short.",
+    "value_error": "Input is invalid.",
+    "assertion_error": "Input is invalid.",
+}
+_SAFE_LOCATION_SEGMENTS = frozenset(
+    {"body", "cookie", "header", "path", "query"},
+)
+_REDACTED_MAPPING_KEY = "<key>"
+_GENERIC_INVALID_INPUT = "Input is invalid."
 
 
 class Validator:
@@ -422,18 +445,22 @@ class Validator:
                     messages=messages,
                     attribute_labels=attribute_labels,
                 )
-                for issue in _pydantic_issues(error)
+                for issue in _pydantic_issues(error, adapter)
             )
             raise ValidationException(issues) from None
 
     _configuration: ValidationConfiguration
 
 
-def _pydantic_issues(error: ValidationError) -> tuple[ValidationIssue, ...]:
+def _pydantic_issues[OutputT](
+    error: ValidationError,
+    adapter: TypeAdapter[OutputT],
+) -> tuple[ValidationIssue, ...]:
     """Extract safe locations, messages, and codes from Pydantic errors.
 
     Args:
         error: Validation failure from a Pydantic TypeAdapter.
+        adapter: Adapter used for the failed schema validation.
 
     Returns:
         Ordered issues without input or context values.
@@ -443,14 +470,98 @@ def _pydantic_issues(error: ValidationError) -> tuple[ValidationIssue, ...]:
         include_context=False,
         include_url=False,
     )
+    schema_fields = _schema_field_names(adapter)
     return tuple(
         ValidationIssue(
-            tuple(item["loc"]),
-            item["msg"],
-            item["type"],
+            _safe_location(item["loc"], schema_fields),
+            _SAFE_ERROR_MESSAGES.get(
+                _safe_error_code(item["type"]),
+                _GENERIC_INVALID_INPUT,
+            ),
+            _safe_error_code(item["type"]),
         )
         for item in details
     )
+
+
+def _safe_error_code(value: object) -> str:
+    """Keep a bounded stable code and reject arbitrary backend text.
+
+    Args:
+        value: Pydantic error type supplied by the backend.
+
+    Returns:
+        A safe lowercase code or a generic code.
+    """
+    if isinstance(value, str) and _SAFE_ERROR_CODE.fullmatch(value):
+        return value
+    return "invalid_input"
+
+
+def _schema_field_names[OutputT](
+    adapter: TypeAdapter[OutputT],
+) -> frozenset[str]:
+    """Collect declared JSON Schema field names for safe error locations.
+
+    Args:
+        adapter: Adapter used by the failed validation.
+
+    Returns:
+        Declared property names, or an empty set if schema export fails.
+    """
+    try:
+        schema = adapter.json_schema(mode="validation")
+    except Exception:
+        # Custom schema hooks must not replace the original validation error.
+        return frozenset()
+    fields: set[str] = set()
+    pending: list[object] = [schema]
+    while pending:
+        current = pending.pop()
+        if isinstance(current, Mapping):
+            current_mapping = cast("Mapping[object, object]", current)
+            properties = current_mapping.get("properties")
+            if isinstance(properties, Mapping):
+                property_mapping = cast(
+                    "Mapping[object, object]",
+                    properties,
+                )
+                fields.update(
+                    key for key in property_mapping if isinstance(key, str)
+                )
+            pending.extend(current_mapping.values())
+        elif isinstance(current, list):
+            pending.extend(cast("list[object]", current))
+    return frozenset(fields)
+
+
+def _safe_location(
+    value: object,
+    schema_fields: frozenset[str],
+) -> tuple[str | int, ...]:
+    """Retain declared fields and redact untrusted dynamic mapping keys.
+
+    Args:
+        value: Location tuple returned by Pydantic.
+        schema_fields: Names declared by the validated JSON Schema.
+
+    Returns:
+        A bounded path without arbitrary input-derived string segments.
+    """
+    if not isinstance(value, tuple):
+        return ()
+    segments: list[str | int] = []
+    for segment in cast("tuple[object, ...]", value):
+        if isinstance(segment, int):
+            segments.append(segment)
+        elif isinstance(segment, str):
+            if segment in schema_fields or segment in _SAFE_LOCATION_SEGMENTS:
+                segments.append(segment)
+            else:
+                segments.append(_REDACTED_MAPPING_KEY)
+        else:
+            segments.append(_REDACTED_MAPPING_KEY)
+    return tuple(segments)
 
 
 def _sync_rule_issues(

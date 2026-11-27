@@ -1341,6 +1341,26 @@ def test_sync_override_reuses_parent_singleton_and_owns_resources() -> None:
 
 
 @pytest.mark.integration
+def test_find_resolved_reads_the_active_override_graph() -> None:
+    """Inspect a resolved replacement through the parent container.
+
+    Cache inspection must follow the same active override as resolution.
+    """
+    container = Container()
+    original = SharedDependency()
+    replacement = SharedDependency()
+    container.instance(SharedDependency, original)
+
+    with container.override({SharedDependency: replacement}) as overridden:
+        assert overridden.make(SharedDependency) is replacement
+        found, value = container.find_resolved(SharedDependency)
+
+    assert found
+    assert value is replacement
+    assert container.make(SharedDependency) is original
+
+
+@pytest.mark.integration
 @pytest.mark.anyio
 async def test_failed_singleton_initialization_can_retry() -> None:
     """Release the shared gate after failure and permit a successful retry.

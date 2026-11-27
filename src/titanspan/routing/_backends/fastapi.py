@@ -84,6 +84,7 @@ _ASYNC_WEBSOCKET_ERROR = "WebSocket route handlers must be asynchronous."
 _INVALID_ROUTE_DEFAULT_ERROR = (
     "A route default cannot be converted to its handler annotation."
 )
+_NO_CONTENT_STATUSES = frozenset({204, 205, 304})
 
 
 class _ScopedServiceContainer(Protocol):
@@ -459,12 +460,22 @@ async def _invoke_with_middleware(
             execution.call_values,
         )
         if definition.response_model_type is not None:
+            if isinstance(result, StarletteResponse):
+                return cast("HttpResponse", result)
             # Pydantic accepts model classes and generic aliases through this
             # adapter boundary, while native metadata stores the value broadly.
             result = TypeAdapter(
                 cast("type[object]", definition.response_model_type),
             ).validate_python(result)
-            result = jsonable_encoder(result)
+            encoded = cast("JsonValue", jsonable_encoder(result))
+            return execution.factory.json(
+                encoded,
+                status=(
+                    200
+                    if definition.response_status is None
+                    else definition.response_status
+                ),
+            )
         return cast(
             "HttpResponse",
             _normalize_response(
@@ -979,9 +990,15 @@ def _normalize_response(
     if isinstance(value, StarletteResponse):
         return value
     if value is None:
+        selected_status = 204 if status is None else status
+        if selected_status in _NO_CONTENT_STATUSES:
+            return cast(
+                "StarletteResponse",
+                factory.no_content(status=selected_status),
+            )
         return cast(
             "StarletteResponse",
-            factory.no_content(status=204 if status is None else status),
+            factory(None, status=selected_status),
         )
     if isinstance(value, (str, bytes)):
         return cast(

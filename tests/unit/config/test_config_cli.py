@@ -51,6 +51,49 @@ def test_config_show_redacts_secret_values(
     assert "private-value" not in result.stdout
 
 
+def test_configuration_commands_use_the_selected_application_root(
+    tmp_path: Path,
+) -> None:
+    """Keep config inspection and cache operations inside the selected app.
+
+    The command must not depend on or change the process working directory.
+    """
+    first_root = tmp_path / "first"
+    second_root = tmp_path / "second"
+    first_root.mkdir()
+    second_root.mkdir()
+    _write_application_config(first_root, "config = {'name': 'First'}\n")
+    _write_application_config(second_root, "config = {'name': 'Second'}\n")
+    tester = ConsoleTester(console)
+
+    shown = tester.invoke(
+        ["config:show", "--path", str(first_root)],
+    )
+    validated = tester.invoke(
+        ["config:validate", "--path", str(first_root)],
+    )
+    cached = tester.invoke(
+        ["config:cache", "--path", str(first_root)],
+    )
+
+    first_cache = first_root / "bootstrap" / "cache" / "config.json"
+    second_cache = second_root / "bootstrap" / "cache" / "config.json"
+    assert shown.exit_code == 0
+    assert "First" in shown.stdout
+    assert "Second" not in shown.stdout
+    assert validated.exit_code == 0
+    assert cached.exit_code == 0
+    assert first_cache.is_file()
+    assert not second_cache.exists()
+
+    cleared = tester.invoke(
+        ["config:clear", "--path", str(first_root)],
+    )
+
+    assert cleared.exit_code == 0
+    assert not first_cache.exists()
+
+
 def test_config_cache_and_clear_manage_only_the_cache_file(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,

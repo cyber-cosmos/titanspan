@@ -4,6 +4,7 @@ The provider registers one dispatcher for the application lifetime.
 """
 
 from collections.abc import Awaitable, Callable
+from pathlib import Path
 
 from titanspan.container import Container
 from titanspan.contracts.config import ConfigRepository
@@ -27,15 +28,21 @@ class EventServiceProvider(BootableServiceProvider):
         self,
         container: Container,
         repository: ConfigRepository,
+        *,
+        base_path: Path | None = None,
     ) -> None:
         """Retain the application registry and validated event settings.
 
         Args:
             container: Native application container used for listener injection.
             repository: Canonical configuration repository.
+            base_path: Effective application root for relative cache paths.
         """
         self._container = container
-        self._configuration = EventsConfiguration.from_repository(repository)
+        self._configuration = EventsConfiguration.from_repository(
+            repository,
+            base_path=base_path,
+        )
         self._dispatcher: NativeEventDispatcher | None = None
 
     def register(self, container: ServiceRegistry) -> None:

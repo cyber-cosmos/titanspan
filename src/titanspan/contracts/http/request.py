@@ -8,6 +8,7 @@ from collections.abc import AsyncIterator, Mapping, Sequence
 from typing import Protocol, runtime_checkable
 
 from titanspan.contracts.http.types import JsonValue
+from titanspan.contracts.http.uploaded_file import HttpUploadedFile
 
 
 @runtime_checkable
@@ -210,6 +211,28 @@ class HttpRequest(Protocol):
         """Parse form input using the configured multipart limits.
 
         Callers rely on native contracts, not concrete backend types.
+        """
+        ...
+
+    async def file(self, key: str) -> HttpUploadedFile | None:
+        """Return one uploaded file by multipart field name.
+
+        Args:
+            key: Multipart field that contains an uploaded file.
+
+        Returns:
+            The file or ``None`` when the field has no file.
+        """
+        ...
+
+    async def files(self, key: str) -> tuple[HttpUploadedFile, ...]:
+        """Return every uploaded file submitted under one field name.
+
+        Args:
+            key: Multipart field that may contain repeated files.
+
+        Returns:
+            Uploaded files in request order.
         """
         ...
 

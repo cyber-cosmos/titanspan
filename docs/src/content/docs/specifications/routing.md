@@ -46,6 +46,16 @@ worker through the Container's synchronous call API. The Container bridges
 worker lookups to the owning application loop, preserving application,
 request, and connection scopes.
 
+Response models use FastAPI and Pydantic filtering with and without route
+middleware. Adding middleware does not change response status, media type,
+scalar JSON encoding, or declared response fields. Explicit native responses
+bypass response-model serialization as they do in FastAPI.
+
+An endpoint returning `None` produces an empty response. The default status is
+204. An explicit 200, 201, or 202 remains an empty response with that status.
+Statuses 204, 205, and 304 remain bodyless. Use an explicit JSON response to
+send the JSON `null` representation.
+
 FastAPI parses supported typed path and query inputs. Handler values are
 passed explicitly by name. Enums are converted through their annotations.
 Defaults are converted against handler annotations during startup and checked
@@ -104,8 +114,10 @@ shortcut. Local or stateful handlers without stable identities are rejected.
 
 Console provides native command registration, application lifecycle handling,
 and typed terminal output. Its `route:list` command receives the active
-catalog through `RouteCatalog` and renders through `ConsoleOutput`. Routing
-does not add a second CLI engine.
+catalog through `RouteCatalog` and renders through `ConsoleOutput`.
+`route:cache` and `route:clear` use `RouteCache` metadata snapshots. These
+snapshots do not change route discovery or startup compilation. Routing does
+not add a second CLI engine.
 
 ## WebSockets and OpenAPI
 

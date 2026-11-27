@@ -3307,6 +3307,27 @@ class Container(ServiceContainer):
             return False
         return self._cached_value(service, self._active_scopes.get())[0]
 
+    def find_resolved[ServiceT](
+        self,
+        service: type[ServiceT],
+    ) -> tuple[bool, ServiceT | None]:
+        """Return a tracked value without triggering new resolution.
+
+        Args:
+            service: Service key whose cached value is inspected.
+
+        Returns:
+            Membership and the cached value, preserving a cached ``None``.
+        """
+        effective = self._effective_container()
+        if effective is not self:
+            return effective.find_resolved(service)
+        found, value = self._cached_value(
+            service,
+            self._active_scopes.get(),
+        )
+        return found, cast("ServiceT | None", value)
+
     def is_shared(self, service: type[object] | str) -> bool:
         """Return whether the explicit binding uses a cached lifetime.
 

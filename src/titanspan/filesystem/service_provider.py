@@ -10,6 +10,7 @@ from typing import TYPE_CHECKING
 
 from titanspan.contracts.config import ConfigRepository  # noqa: TC001
 from titanspan.contracts.filesystem import StorageManager
+from titanspan.contracts.foundation import ApplicationPaths  # noqa: TC001
 from titanspan.filesystem.manager import (
     FilesystemDriverFactory,
     FilesystemManager,
@@ -18,7 +19,7 @@ from titanspan.filesystem.manager import (
 if TYPE_CHECKING:
     from collections.abc import Mapping
 
-    from titanspan.contracts.container import ServiceRegistry
+    from titanspan.contracts.container import ServiceContainer, ServiceRegistry
 
 
 class FilesystemServiceProvider:
@@ -47,12 +48,16 @@ class FilesystemServiceProvider:
             container: Application-owned service registry.
         """
 
-        def make_manager(repository: ConfigRepository) -> FilesystemManager:
+        def make_manager(
+            repository: ConfigRepository,
+            paths: ApplicationPaths,
+        ) -> FilesystemManager:
             """Construct a manager from the final application settings.
 
             Args:
                 repository: Canonical Config repository registered by
                     Foundation.
+                paths: Effective root selected by the composition root.
 
             Returns:
                 One application-owned manager instance.
@@ -60,6 +65,7 @@ class FilesystemServiceProvider:
             return FilesystemManager.from_repository(
                 repository,
                 drivers=self._drivers,
+                base_path=paths.base_path,
             )
 
         def provide_storage_manager(
@@ -77,6 +83,16 @@ class FilesystemServiceProvider:
 
         container.singleton(FilesystemManager, make_manager)
         container.bind(StorageManager, provide_storage_manager)
+
+    async def shutdown(self, container: ServiceContainer) -> None:
+        """Close an existing manager without initializing unused disks.
+
+        Args:
+            container: Stopped application registry available for inspection.
+        """
+        found, manager = container.find_resolved(FilesystemManager)
+        if found and manager is not None:
+            await manager.aclose()
 
     _drivers: dict[str, FilesystemDriverFactory]
 

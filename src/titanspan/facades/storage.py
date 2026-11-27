@@ -1,7 +1,7 @@
 """Resolve application-owned storage through the active context.
 
-Storage fakes use a context-local overlay while production disks remain owned
-by the canonical FilesystemManager registration.
+The canonical manager selects context-local disk overrides for facades and
+injected consumers alike.
 """
 
 from __future__ import annotations
@@ -11,14 +11,17 @@ from contextvars import ContextVar
 from types import MappingProxyType
 from typing import TYPE_CHECKING
 
-from titanspan.contracts.filesystem import StorageDisk, StorageManager
+from titanspan.contracts.filesystem import (
+    StorageDisk,
+    StorageDiskOverride,
+    StorageManager,
+)
 from titanspan.facades.base import Facade
 from titanspan.filesystem._backends import create_memory_filesystem
 from titanspan.filesystem.configuration import FilesystemDiskConfiguration
 from titanspan.filesystem.disk import FilesystemDisk
 from titanspan.filesystem.exceptions import StorageFakeContextError
 from titanspan.filesystem.fake import FilesystemFake
-from titanspan.filesystem.manager import FilesystemManager
 
 if TYPE_CHECKING:
     from collections.abc import Generator, Mapping
@@ -70,20 +73,15 @@ class Storage(Facade[StorageManager]):
 
     @classmethod
     def disk(cls, name: str | None = None) -> StorageDisk:
-        """Resolve a configured disk or its active context-local fake.
+        """Resolve the configured or context-overridden disk.
 
         Args:
             name: Configured disk name, or ``None`` for the default disk.
 
         Returns:
-            The selected production or fake storage disk.
+            The disk selected by the canonical manager.
         """
-        manager = cls.manager()
-        disk_name = manager.default_disk if name is None else name
-        fake = _ACTIVE_FAKES.get().get((id(manager), disk_name))
-        if fake is not None:
-            return fake.disk
-        return manager.disk(disk_name)
+        return cls.manager().disk(name)
 
     @classmethod
     @contextmanager
@@ -100,15 +98,13 @@ class Storage(Facade[StorageManager]):
             The fake disk and its storage assertions.
 
         Notes:
-            The overlay is task-local and restores any enclosing fake scope.
+            The manager owns the task-local override and restores any enclosing
+            selection. Custom managers must implement ``StorageDiskOverride``.
         """
         manager = cls.manager()
         disk_name = manager.default_disk if name is None else name
-        if (
-            not isinstance(manager, FilesystemManager)
-            or disk_name not in manager.disk_names
-        ):
-            manager.disk(disk_name)
+        if not isinstance(manager, StorageDiskOverride):
+            raise StorageFakeContextError(_UNSUPPORTED_FAKE_ERROR)
         settings = FilesystemDiskConfiguration(driver=_FAKE_DISK)
         filesystem = create_memory_filesystem(settings)
         fake_disk = FilesystemDisk(filesystem)
@@ -119,7 +115,8 @@ class Storage(Facade[StorageManager]):
             _ACTIVE_FAKES.set(MappingProxyType(overlay))
         )
         try:
-            yield fake
+            with manager.override_disk(disk_name, fake_disk):
+                yield fake
         finally:
             _ACTIVE_FAKES.reset(token)
 
@@ -210,6 +207,10 @@ class Storage(Facade[StorageManager]):
 
 
 _FAKE_CONTEXT_ERROR = "Use Storage.fake() before making storage assertions."
+_UNSUPPORTED_FAKE_ERROR = (
+    "The active StorageManager does not support scoped disk overrides. "
+    "Implement StorageDiskOverride to use Storage.fake()."
+)
 
 
 __all__ = ["Storage"]

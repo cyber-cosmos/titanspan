@@ -8,14 +8,18 @@ from titanspan.contracts.foundation.lifecycle import (
     ApplicationExceptionHandler,
     ApplicationLifecycleCallback,
 )
+from titanspan.contracts.foundation.paths import ApplicationPaths
 from titanspan.contracts.foundation.service_provider import (
     BootableServiceProvider,
     ServiceProvider,
+    ShutdownableServiceProvider,
 )
 
 __all__ = [
     "ApplicationExceptionHandler",
     "ApplicationLifecycleCallback",
+    "ApplicationPaths",
     "BootableServiceProvider",
     "ServiceProvider",
+    "ShutdownableServiceProvider",
 ]

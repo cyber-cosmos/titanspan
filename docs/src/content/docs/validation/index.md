@@ -54,9 +54,8 @@ works in the standard environment.
 
 ## Use the application service
 
-Register `ValidationServiceProvider` with the Application to use configured
-defaults and the shared Container. The standalone `Validator` has no
-application or lifecycle requirement.
+Foundation registers `ValidationServiceProvider` by default. The standalone
+`Validator` has no application or lifecycle requirement.
 
 ```python
 from typing import Annotated
@@ -65,7 +64,6 @@ from pydantic import BaseModel, EmailStr, Field
 
 from titanspan.facades import Validation
 from titanspan.foundation import Application
-from titanspan.validation import ValidationServiceProvider
 
 
 class CreateAccountInput(BaseModel):
@@ -81,7 +79,6 @@ class CreateAccountInput(BaseModel):
 
 application = Application(
     config={"validation": {"strict": True}},
-    service_providers=(ValidationServiceProvider(),),
 )
 
 async with application:
@@ -184,7 +181,6 @@ from pydantic import BaseModel, EmailStr, Field
 from titanspan.contracts.http import HttpRequest
 from titanspan.facades import Validation
 from titanspan.foundation import Application
-from titanspan.validation import ValidationServiceProvider
 
 
 class CreateAccountInput(BaseModel):
@@ -214,9 +210,7 @@ async def create_account(request: HttpRequest) -> dict[str, object]:
     return {"name": account.name, "email": str(account.email)}
 
 
-application = Application(
-    service_providers=(ValidationServiceProvider(),),
-)
+application = Application()
 application.router.post("/accounts", create_account)
 ```
 
@@ -229,7 +223,14 @@ not yet derive parameter binding or OpenAPI schemas from Validation models.
 `ValidationException` exposes ordered `issues` and immutable
 `field_errors`. Issues include nested field paths, safe messages, stable
 error codes, and optional attribute labels. Rejected input values are not
-retained.
+retained. Pydantic backend messages are replaced with fixed Titanspan
+messages. Unknown error codes use a generic message. Declared schema fields
+remain in error paths; dynamic mapping keys become `"<key>"`.
+
+Application-authored custom rule messages and explicit message overrides are
+returned to clients. Keep them safe for public output. Never include rejected
+values or secrets. Native validation exceptions and FastAPI request validation
+failures use the same generic 422 response policy.
 
 Use `make` or `make_async` when a validation result is data rather than a
 raised exception:

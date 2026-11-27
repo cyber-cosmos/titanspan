@@ -15,10 +15,22 @@ titanspan config:cache
 titanspan config:clear
 ```
 
+Each command accepts `--path` to select an application root explicitly:
+
+```shell
+titanspan config:show app --path /srv/example
+titanspan config:cache --path /srv/example
+```
+
+Without `--path`, a command uses the current directory. Relative `--path`
+values resolve from the current directory. Commands never change the process
+working directory.
+
 `config:show` and `config:validate` load current sources. `config:cache`
 validates fresh sources and writes a deterministic JSON snapshot atomically.
-`config:clear` removes only the configured cache file. `ConfigManager.load()`
-uses a valid cache by default; pass `use_cache=False` to force fresh sources.
+`config:clear` removes only the selected application's cache file.
+`ConfigManager.load()` uses a valid cache by default; pass `use_cache=False`
+to force fresh sources.
 
 The cache accepts only JSON-compatible primitives, string-keyed mappings,
 lists, and tuples. Classes, callables, service references, custom objects,

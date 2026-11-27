@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import re
 from functools import partial
+from threading import BoundedSemaphore
 from typing import TYPE_CHECKING, TypeGuard
 
 import anyio
@@ -32,6 +33,7 @@ if TYPE_CHECKING:
     from titanspan.hashing.configuration import (
         BcryptConfiguration,
         HashingConfiguration,
+        HashVerificationLimits,
     )
 
 _STRING_INPUT_ERROR = "Password values must be strings."
@@ -48,7 +50,6 @@ _ARGON2_MIN_HASH_LENGTH = 4
 _ARGON2_MIN_SALT_LENGTH = 8
 _BCRYPT_MAX_BYTES = 72
 _BCRYPT_MIN_ROUNDS = 4
-_BCRYPT_MAX_ROUNDS = 31
 _BCRYPT_PATTERN = re.compile(
     r"\$(?P<prefix>2[aby])\$(?P<rounds>\d{2})\$"
     r"[./A-Za-z0-9]{53}\Z",
@@ -92,11 +93,15 @@ async def _run_in_worker[ResultT](operation: Callable[[], ResultT]) -> ResultT:
     return result
 
 
-def _argon2_metadata(hashed_password: str) -> HashMetadata | None:
+def _argon2_metadata(
+    hashed_password: str,
+    limits: HashVerificationLimits,
+) -> HashMetadata | None:
     """Read standard Argon2 PHC parameters through its public parser.
 
     Args:
         hashed_password: Encoded value supplied for inspection.
+        limits: Application policy for accepted encoded parameters.
 
     Returns:
         Supported algorithm and work factors, or ``None`` for malformed
@@ -133,6 +138,11 @@ def _argon2_metadata(hashed_password: str) -> HashMetadata | None:
         < _ARGON2_MIN_MEMORY_PER_LANE * parameters.parallelism
         or parameters.hash_len < _ARGON2_MIN_HASH_LENGTH
         or parameters.salt_len < _ARGON2_MIN_SALT_LENGTH
+        or parameters.time_cost > limits.max_argon2_time_cost
+        or parameters.memory_cost > limits.max_argon2_memory_cost_kib
+        or parameters.parallelism > limits.max_argon2_parallelism
+        or parameters.hash_len > limits.max_argon2_hash_length
+        or parameters.salt_len > limits.max_argon2_salt_length
     ):
         return None
     algorithm = _ARGON2_ALGORITHMS.get(parameters.type)
@@ -151,11 +161,15 @@ def _argon2_metadata(hashed_password: str) -> HashMetadata | None:
     )
 
 
-def _bcrypt_metadata(hashed_password: str) -> HashMetadata | None:
+def _bcrypt_metadata(
+    hashed_password: str,
+    limits: HashVerificationLimits,
+) -> HashMetadata | None:
     """Read Bcrypt prefix and cost from its standard encoded form.
 
     Args:
         hashed_password: Encoded value supplied for inspection.
+        limits: Application policy for accepted verification cost.
 
     Returns:
         Supported Bcrypt metadata, or ``None`` for malformed encodings.
@@ -164,7 +178,7 @@ def _bcrypt_metadata(hashed_password: str) -> HashMetadata | None:
     if match is None:
         return None
     rounds = int(match.group("rounds"))
-    if not _BCRYPT_MIN_ROUNDS <= rounds <= _BCRYPT_MAX_ROUNDS:
+    if not _BCRYPT_MIN_ROUNDS <= rounds <= limits.max_bcrypt_rounds:
         return None
     return HashMetadata(
         algorithm="bcrypt",
@@ -232,6 +246,10 @@ class _NativeHasher(Hasher):
         self._argon2_hasher = _argon2_hasher(self._argon2_settings)
         self._algorithm = configuration.driver
         self._bcrypt_settings = configuration.bcrypt
+        self._verification_limits = configuration.verification_limits
+        self._work_limiter = BoundedSemaphore(
+            configuration.max_concurrent_operations,
+        )
 
     @property
     def algorithm(self) -> str:
@@ -256,17 +274,23 @@ class _NativeHasher(Hasher):
         if not _is_string(password):
             raise HashGenerationError(_STRING_INPUT_ERROR)
         try:
-            if self._algorithm == "argon2id":
-                return _generate_argon2_hash(
-                    password,
-                    self._argon2_hasher,
-                )
+            if len(password) > self._verification_limits.max_password_bytes:
+                raise HashGenerationError(_GENERATION_ERROR)
             encoded = password.encode("utf-8")
-            salt = bcrypt.gensalt(
-                rounds=self._bcrypt_settings.rounds,
-                prefix=self._bcrypt_settings.prefix.encode("ascii"),
-            )
-            return bcrypt.hashpw(encoded, salt).decode("ascii")
+            if len(encoded) > self._verification_limits.max_password_bytes:
+                raise HashGenerationError(_GENERATION_ERROR)
+            if self._algorithm == "argon2id":
+                with self._work_limiter:
+                    return _generate_argon2_hash(
+                        password,
+                        self._argon2_hasher,
+                    )
+            with self._work_limiter:
+                salt = bcrypt.gensalt(
+                    rounds=self._bcrypt_settings.rounds,
+                    prefix=self._bcrypt_settings.prefix.encode("ascii"),
+                )
+                return bcrypt.hashpw(encoded, salt).decode("ascii")
         except (Argon2Error, TypeError, ValueError, UnicodeError):
             raise HashGenerationError(_GENERATION_ERROR) from None
 
@@ -294,19 +318,29 @@ class _NativeHasher(Hasher):
         """
         if not _is_string(password) or not _is_string(hashed_password):
             return False
+        try:
+            encoded = password.encode("utf-8")
+        except UnicodeError:
+            return False
+        if len(encoded) > self._verification_limits.max_password_bytes:
+            return False
         metadata = self.inspect(hashed_password)
         if metadata is None:
             return False
         try:
             if metadata.algorithm == "bcrypt":
-                encoded = password.encode("utf-8")
                 if len(encoded) > _BCRYPT_MAX_BYTES:
                     return False
-                return bcrypt.checkpw(
-                    encoded,
-                    hashed_password.encode("ascii"),
+                with self._work_limiter:
+                    return bcrypt.checkpw(
+                        encoded,
+                        hashed_password.encode("ascii"),
+                    )
+            with self._work_limiter:
+                return self._argon2_hasher.verify(
+                    hashed_password,
+                    password,
                 )
-            return self._argon2_hasher.verify(hashed_password, password)
         except (Argon2Error, TypeError, ValueError, UnicodeError):
             return False
 
@@ -383,9 +417,20 @@ class _NativeHasher(Hasher):
         """
         if not _is_string(hashed_password):
             return None
+        if (
+            len(hashed_password)
+            > self._verification_limits.max_encoded_hash_length
+        ):
+            return None
         if hashed_password.startswith("$argon2"):
-            return _argon2_metadata(hashed_password)
-        return _bcrypt_metadata(hashed_password)
+            return _argon2_metadata(
+                hashed_password,
+                self._verification_limits,
+            )
+        return _bcrypt_metadata(
+            hashed_password,
+            self._verification_limits,
+        )
 
     def verify_and_rehash(
         self,
@@ -414,10 +459,11 @@ class _NativeHasher(Hasher):
                 and metadata.algorithm.startswith("argon2")
             ):
                 settings = self._settings_at_least(metadata)
-                replacement = _generate_argon2_hash(
-                    password,
-                    _argon2_hasher(settings),
-                )
+                with self._work_limiter:
+                    replacement = _generate_argon2_hash(
+                        password,
+                        _argon2_hasher(settings),
+                    )
                 return HashVerification(
                     verified=True,
                     replacement_hash=replacement,
@@ -491,6 +537,8 @@ class _NativeHasher(Hasher):
     _argon2_settings: Argon2Configuration
     _argon2_hasher: PasswordHasher
     _bcrypt_settings: BcryptConfiguration
+    _verification_limits: HashVerificationLimits
+    _work_limiter: BoundedSemaphore
 
 
 __all__ = ["_NativeHasher"]

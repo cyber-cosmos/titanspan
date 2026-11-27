@@ -23,7 +23,8 @@ application = (
 
 The builder collects inputs. `Application` remains the only composition root.
 Calls to `with_config()` replace the previous builder override mapping.
-Providers are appended in call order after framework providers.
+Built-in providers register before application providers. Application
+providers retain their supplied order.
 
 Use `Application.run()` for one standalone operation:
 
@@ -44,7 +45,17 @@ helper returns this application only while that context is active.
 Register native provider instances with `with_service_provider()`. Providers
 register services synchronously. Bootable providers run after all services
 are registered, in application registration order, with Container injection.
-Their resource factories remain owned by Container.
+Providers that implement `ShutdownableServiceProvider` close their owned
+resources after application callbacks and before Container finalization.
+Shutdown hooks run in reverse provider order. They receive the stopped
+Container and can inspect existing values with `find_resolved`; they must not
+resolve new services.
+
+Foundation registers Config, Logging, HTTP, Routing, Events, Validation,
+Filesystem, and Hashing providers by default. Applications can supply one
+custom provider for Validation, Filesystem, or Hashing. That instance replaces
+the matching default and keeps its driver configuration. Registering the same
+built-in provider more than once raises `ValueError`.
 
 Applications can opt in to installed provider discovery:
 
@@ -79,10 +90,12 @@ that root. `config_path`, `bootstrap_path`, and `storage_path` return
 conventional paths without creating directories. They do not enforce
 filesystem containment for untrusted values.
 
-Foundation supplies this root to conventional route discovery. An explicit
-`routing.path` setting takes precedence. Other components must use
-`Application.base_path` or `Application.path()` for application-relative
-resources.
+Foundation supplies this root to conventional route discovery, local storage
+roots, and relative file-log destinations. An explicit `routing.path` setting
+takes precedence. Relative storage and log paths resolve below the root;
+absolute paths remain unchanged. Relative paths that escape the root are
+rejected. Other components must use `Application.base_path` or
+`Application.path()` for application-relative resources.
 
 `environment` reads `app.env` and defaults to `production`.
 `is_environment()` compares names without case sensitivity. `debug` returns
@@ -111,6 +124,12 @@ idempotent and rejects active scopes or service operations.
 
 Foundation logs unhandled request exceptions and returns a generic JSON 500
 response. It does not include exception details in the response body.
+Malformed native request input returns a safe 400 response. Oversized request
+bodies return 413. Validation errors return 422.
+Default logs record the exception class without its message or traceback.
+Application debug mode enables detailed logs. Call
+`application.report_exception(error, include_details=True)` only when detailed
+diagnostics are appropriate for a trusted development environment.
 
 Register a typed renderer before startup:
 

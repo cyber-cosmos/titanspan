@@ -32,5 +32,6 @@ path.
 
 Responses with status 204, 205, or 304 do not send a body. Use `no_content`
 for those statuses. Responses to `HEAD` send headers without body bytes while
-preserving the selected response metadata. JSON serialization accepts the
+preserving the selected response metadata. A streaming response does not
+enter its body producer for a `HEAD` request. JSON serialization accepts the
 supported JSON value model and rejects arbitrary application objects.

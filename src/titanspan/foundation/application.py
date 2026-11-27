@@ -12,6 +12,7 @@ from contextlib import (
     asynccontextmanager,
     contextmanager,
 )
+from http import HTTPStatus
 from inspect import isawaitable
 from pathlib import Path
 from typing import TYPE_CHECKING, Self, cast
@@ -19,6 +20,7 @@ from uuid import uuid4
 
 import anyio
 from fastapi import FastAPI
+from fastapi.exceptions import RequestValidationError
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.requests import Request as StarletteRequest
 from starlette.responses import Response as StarletteResponse
@@ -35,7 +37,12 @@ from titanspan.config import (
     ConfigValueError,
     Settings,
 )
-from titanspan.container import Container, Scope, ScopeError
+from titanspan.container import (
+    Container,
+    ContainerClosedError,
+    Scope,
+    ScopeError,
+)
 from titanspan.container._backends.fastapi import (
     create_fastapi_container,
     setup_fastapi_container,
@@ -48,33 +55,43 @@ from titanspan.contracts.container import (
 from titanspan.contracts.foundation import (
     ApplicationExceptionHandler,
     ApplicationLifecycleCallback,
+    ApplicationPaths,
     BootableServiceProvider,
     ServiceProvider,
+    ShutdownableServiceProvider,
 )
 from titanspan.contracts.http import (
+    CookieOptions,
     HttpRequest,
     HttpResponse,
     ResponseFactory,
 )
+from titanspan.contracts.http.cookies import DEFAULT_COOKIE_OPTIONS
 from titanspan.contracts.logging import LoggingManager
 from titanspan.contracts.routing import UriUrlGenerator
 from titanspan.events import EventServiceProvider
+from titanspan.filesystem import FilesystemServiceProvider
 from titanspan.foundation.builder import ApplicationBuilder
 from titanspan.foundation.exceptions import ApplicationLifecycleError
+from titanspan.hashing import HashingServiceProvider
 from titanspan.http import HttpServiceProvider, JsonResponse, Request
 from titanspan.http._backends.asgi import create_request_boundary
 from titanspan.http.configuration import HttpConfiguration
-from titanspan.http.exceptions import RequestBodyTooLargeError
-from titanspan.http.response import validate_header
+from titanspan.http.exceptions import (
+    RequestBodyTooLargeError,
+    RequestInputError,
+)
+from titanspan.http.response import validate_cookie, validate_header
 from titanspan.logging import (
     LogCustomizer,
     LoggingConfiguration,
     LoggingServiceProvider,
 )
+from titanspan.logging.exceptions import LogLifecycleError
 from titanspan.routing import Router, RoutingServiceProvider, UrlGenerator
 from titanspan.routing._backends.fastapi import install_routes
 from titanspan.support.uri import bind_uri_services
-from titanspan.validation import ValidationException
+from titanspan.validation import ValidationException, ValidationServiceProvider
 
 if TYPE_CHECKING:
     from collections.abc import (
@@ -96,6 +113,7 @@ if TYPE_CHECKING:
     from titanspan.logging.logger import Logger
 
 _REQUEST_ID_MAX_LENGTH = 128
+_REQUEST_ID_STATE_KEY = "titanspan_request_id"
 _APP_NAME_KEY = "app.name"
 _APP_DEBUG_KEY = "app.debug"
 _APP_ENVIRONMENT_KEY = "app.env"
@@ -124,11 +142,52 @@ _INVALID_EXCEPTION_RESPONSE_ERROR = (
     "Native exception handlers must return a Titanspan ASGI response."
 )
 _DEFAULT_SERVER_ERROR = "Internal server error."
+_INVALID_REQUEST_INPUT_DETAIL = "Invalid request input."
 _VALIDATION_ERROR_DETAIL = "Request validation failed."
 _INVALID_ENVIRONMENT_ERROR = "Application environment must not be empty."
 _LIFECYCLE_REGISTRATION_ERROR = (
     "Lifecycle hooks and exception handlers must be registered before startup."
 )
+_DUPLICATE_BUILTIN_PROVIDER_ERROR = (
+    "Register at most one provider for each built-in component."
+)
+
+
+def _select_builtin_providers(
+    providers: Sequence[ServiceProvider],
+) -> tuple[tuple[ServiceProvider, ...], tuple[ServiceProvider, ...]]:
+    """Select default component providers without duplicating overrides.
+
+    Args:
+        providers: Explicit application providers in registration order.
+
+    Returns:
+        The selected core providers and remaining application providers.
+
+    Raises:
+        ValueError: If more than one provider targets a built-in component.
+    """
+    provider_types = (
+        ValidationServiceProvider,
+        FilesystemServiceProvider,
+        HashingServiceProvider,
+    )
+    selected: list[ServiceProvider] = []
+    for provider_type in provider_types:
+        matches = tuple(
+            provider
+            for provider in providers
+            if isinstance(provider, provider_type)
+        )
+        if len(matches) > 1:
+            raise ValueError(_DUPLICATE_BUILTIN_PROVIDER_ERROR)
+        selected.append(matches[0] if matches else provider_type())
+    remaining = tuple(
+        provider
+        for provider in providers
+        if not isinstance(provider, provider_types)
+    )
+    return tuple(selected), remaining
 
 
 class _ApplicationContextMiddleware:
@@ -144,7 +203,6 @@ class _ApplicationContextMiddleware:
         *,
         application: Application,
         app_name: str,
-        log_manager: LoggingManager,
     ) -> None:
         """Retain the native application dependencies used by each request.
 
@@ -152,12 +210,10 @@ class _ApplicationContextMiddleware:
             app: Downstream ASGI application wrapped by this middleware.
             application: Composition root providing request scopes.
             app_name: Safe application identifier added to log context.
-            log_manager: Native manager supplying request-local context.
         """
         self._app = app
         self._application = application
         self._app_name = app_name
-        self._log_manager = log_manager
 
     async def __call__(
         self,
@@ -182,6 +238,7 @@ class _ApplicationContextMiddleware:
 
         incoming = StarletteRequest(scope, receive=receive)
         request_id = _request_id(incoming)
+        scope.setdefault("state", {})[_REQUEST_ID_STATE_KEY] = request_id
         server = self._application.http_configuration.server
         request_boundary = create_request_boundary(
             scope,
@@ -194,7 +251,13 @@ class _ApplicationContextMiddleware:
             active.provide_instance(Request, native_request)
             active.provide_instance(HttpRequest, native_request)
             try:
-                with self._log_manager.context(
+                active_context = active_application_context()
+                if active_context is None:
+                    raise ApplicationContextError(_APPLICATION_CONTEXT_ERROR)
+                logging_manager = active_context.container.make(
+                    LoggingManager,
+                )
+                with logging_manager.context(
                     application=self._app_name,
                     request_id=request_id,
                 ):
@@ -206,7 +269,6 @@ class _ApplicationContextMiddleware:
     _app: ASGIApp
     _application: Application
     _app_name: str
-    _log_manager: LoggingManager
 
 
 class _NativeHttpResponseAdapter:
@@ -254,6 +316,62 @@ class _NativeHttpResponseAdapter:
         """
         validate_header(name, value)
         self._response.headers[name] = value
+        return self
+
+    def with_cookie(
+        self,
+        name: str,
+        value: str,
+        *,
+        options: CookieOptions = DEFAULT_COOKIE_OPTIONS,
+    ) -> Self:
+        """Append one validated cookie to the downstream response.
+
+        Args:
+            name: Cookie name.
+            value: Cookie value.
+            options: Secure attributes for the cookie.
+
+        Returns:
+            This response adapter.
+        """
+        validate_cookie(name, value, options)
+        self._response.set_cookie(
+            name,
+            value,
+            max_age=options.max_age,
+            path=options.path,
+            domain=options.domain,
+            secure=options.secure,
+            httponly=options.http_only,
+            samesite=options.same_site,
+        )
+        return self
+
+    def without_cookie(
+        self,
+        name: str,
+        *,
+        options: CookieOptions = DEFAULT_COOKIE_OPTIONS,
+    ) -> Self:
+        """Expire one validated cookie on the downstream response.
+
+        Args:
+            name: Cookie name to expire.
+            options: Attributes matching the original cookie scope.
+
+        Returns:
+            This response adapter.
+        """
+        validate_cookie(name, "", options)
+        self._response.delete_cookie(
+            name,
+            path=options.path,
+            domain=options.domain,
+            secure=options.secure,
+            httponly=options.http_only,
+            samesite=options.same_site,
+        )
         return self
 
     def asgi_response(self) -> StarletteResponse:
@@ -421,6 +539,7 @@ class Application:
             Path.cwd() if base_path is None else base_path,
             settings=settings,
         )
+        self._base_path = config_manager.base_path
         repository: ConfigRepository = (
             config_repository
             if config_repository is not None
@@ -430,6 +549,7 @@ class Application:
         native_container = Container()
         native_container.instance(ServiceContainer, native_container)
         native_container.instance(AsyncServiceContainer, native_container)
+        native_container.instance(ApplicationPaths, self)
         config_provider = ConfigServiceProvider(repository)
         logging_provider = LoggingServiceProvider(
             logging,
@@ -439,14 +559,22 @@ class Application:
             repository,
             base_path=config_manager.base_path,
         )
-        events_provider = EventServiceProvider(native_container, repository)
+        events_provider = EventServiceProvider(
+            native_container,
+            repository,
+            base_path=config_manager.base_path,
+        )
+        selected_built_in_providers, application_providers = (
+            _select_builtin_providers(service_providers)
+        )
         native_providers: tuple[ServiceProvider, ...] = (
             config_provider,
             logging_provider,
             HttpServiceProvider(http_configuration),
             routing_provider,
             events_provider,
-            *service_providers,
+            *selected_built_in_providers,
+            *application_providers,
         )
         for provider in native_providers:
             provider.register(native_container)
@@ -458,7 +586,6 @@ class Application:
         self._config_repository = active_repository
         self._logging_manager = log_manager
         self._config_manager = config_manager
-        self._base_path = config_manager.base_path
         self._http_configuration = http_configuration
         self._environment = _application_environment(active_repository)
         self._router = routing_provider.router
@@ -534,8 +661,16 @@ class Application:
             _request_too_large,
         )
         asgi.add_exception_handler(
+            RequestInputError,
+            self._request_input_exception,
+        )
+        asgi.add_exception_handler(
             ValidationException,
             self._validation_exception,
+        )
+        asgi.add_exception_handler(
+            RequestValidationError,
+            self._request_validation_exception,
         )
         asgi.add_exception_handler(Exception, self._unhandled_exception)
         for exception_type, handler in self._exception_handlers.items():
@@ -562,7 +697,6 @@ class Application:
             _ApplicationContextMiddleware,
             application=self,
             app_name=app_name,
-            log_manager=self._logging_manager,
         )
         return asgi
 
@@ -587,6 +721,12 @@ class Application:
 
         self._starting = True
         try:
+            for provider in self._service_providers:
+                if isinstance(provider, ShutdownableServiceProvider):
+                    self._lifecycle_stack.push_async_callback(
+                        self._shutdown_provider,
+                        provider,
+                    )
             for callback in self._shutdown_callbacks:
                 self._lifecycle_stack.push_async_callback(
                     self._run_lifecycle_callback,
@@ -797,18 +937,56 @@ class Application:
         error: Exception,
         *,
         context: Mapping[str, object] | None = None,
+        include_details: bool | None = None,
     ) -> None:
-        """Report one application failure through the shared logger.
+        """Report one classified failure through the selected application log.
 
         Args:
-            error: Exception to report.
-            context: Safe structured context that excludes request secrets.
+            error: Exception raised by an application operation.
+            context: Structured context that excludes request secrets.
+            include_details: Whether to log exception text and traceback.
+                ``None`` follows the application's explicit ``app.debug``
+                setting.
+
+        Notes:
+            Detailed diagnostics can contain secrets. Keep debug mode disabled
+            in production. After Container shutdown, the lifecycle-owned
+            logging manager remains available for final reports.
         """
-        self._logging_manager.channel().exception(
-            "Application operation failed",
-            context,
-            exception=error,
+        active_context = active_application_context()
+        registry = (
+            active_context.container
+            if active_context is not None and active_context.application is self
+            else self.container
         )
+        try:
+            manager = registry.make(LoggingManager)
+        except ContainerClosedError:
+            manager = self._logging_manager
+        event_context = dict(context or {})
+        event_context["exception_type"] = type(error).__qualname__
+        try:
+            logger = manager.channel()
+        except LogLifecycleError:
+            manager.emergency(
+                f"Application operation failed ({type(error).__qualname__})",
+                context=event_context,
+            )
+            return
+        show_details = (
+            self.debug if include_details is None else include_details
+        )
+        if show_details:
+            logger.exception(
+                "Application operation failed",
+                context=event_context,
+                exception=error,
+            )
+        else:
+            logger.error(
+                "Application operation failed",
+                context=event_context,
+            )
 
     def dependency[ServiceT](
         self,
@@ -956,12 +1134,22 @@ class Application:
 
     @property
     def logging(self) -> LoggingManager:
-        """Return the logging service registered for this application.
+        """Return the currently selected application logging service.
 
         Returns:
-            The exact logging manager resolved through the service container.
+            The active Container service, or its lifecycle-owned manager after
+            Container shutdown begins.
         """
-        return self._logging_manager
+        active_context = active_application_context()
+        registry = (
+            active_context.container
+            if active_context is not None and active_context.application is self
+            else self.container
+        )
+        try:
+            return registry.make(LoggingManager)
+        except ContainerClosedError:
+            return self._logging_manager
 
     @property
     def settings(self) -> Settings:
@@ -1026,6 +1214,22 @@ class Application:
         if isawaitable(result):
             await cast("Awaitable[object]", result)
 
+    async def _shutdown_provider(
+        self,
+        provider: ShutdownableServiceProvider,
+    ) -> None:
+        """Finalize provider-owned services before Container shutdown.
+
+        Args:
+            provider: Provider selected by the application composition root.
+
+        Providers receive the stopped registry for cleanup inspection. They
+        must close existing resources without resolving new graph entries.
+        """
+        result = provider.shutdown(self.container)
+        if isawaitable(result):
+            await cast("Awaitable[object]", result)
+
     def _exception_handler_adapter(
         self,
         handler: ApplicationExceptionHandler,
@@ -1081,8 +1285,13 @@ class Application:
         Returns:
             A generic JSON response with HTTP status 500.
         """
-        _ = request
-        self.report_exception(error)
+        state = request.scope.get("state", {})
+        state_values = cast("Mapping[str, object]", state)
+        request_id = state_values.get(_REQUEST_ID_STATE_KEY)
+        context = (
+            {"request_id": request_id} if isinstance(request_id, str) else None
+        )
+        self.report_exception(error, context=context)
         response = self.container.make(ResponseFactory).json(
             {"detail": _DEFAULT_SERVER_ERROR},
             status=500,
@@ -1113,6 +1322,55 @@ class Application:
                     field: list(messages)
                     for field, messages in validation_error.field_errors.items()
                 },
+            },
+            status=422,
+        )
+        return _require_asgi_response(response)
+
+    async def _request_input_exception(
+        self,
+        request: StarletteRequest,
+        error: Exception,
+    ) -> StarletteResponse:
+        """Render malformed native request input without exposing contents.
+
+        Args:
+            request: Backend request associated with the parsing failure.
+            error: Safe native input error selected by the host.
+
+        Returns:
+            A stable 400 response with no backend exception details.
+        """
+        _ = request, error
+        response = self.container.make(ResponseFactory).json(
+            {"detail": _INVALID_REQUEST_INPUT_DETAIL},
+            status=HTTPStatus.BAD_REQUEST,
+        )
+        return _require_asgi_response(response)
+
+    async def _request_validation_exception(
+        self,
+        request: StarletteRequest,
+        error: Exception,
+    ) -> StarletteResponse:
+        """Render backend request failures without exposing backend details.
+
+        FastAPI may include rejected values, custom validator messages, and
+        input-derived mapping keys in its error details. The native response
+        therefore reports a stable request-level issue.
+
+        Args:
+            request: Backend request associated with the validation failure.
+            error: FastAPI request validation failure.
+
+        Returns:
+            A generic 422 response using the native response factory.
+        """
+        _ = request, error
+        response = self.container.make(ResponseFactory).json(
+            {
+                "detail": _VALIDATION_ERROR_DETAIL,
+                "errors": {"request": ["Input is invalid."]},
             },
             status=422,
         )

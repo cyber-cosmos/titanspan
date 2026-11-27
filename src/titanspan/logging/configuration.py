@@ -7,7 +7,7 @@ does not accept backend logger factories or processor paths.
 from __future__ import annotations
 
 from pathlib import (
-    Path,  # noqa: TC003 - Pydantic resolves this field at runtime.
+    Path,
 )
 from typing import TYPE_CHECKING, Literal
 
@@ -26,6 +26,9 @@ OverflowPolicy = Literal[
     "emergency",
     "await",
 ]
+_LOG_PATH_ESCAPE_ERROR = (
+    "A relative application log path must remain inside the app root."
+)
 
 
 class ChannelConfiguration(BaseModel):
@@ -241,17 +244,37 @@ class LoggingConfiguration(BaseModel):
     def from_value(
         cls,
         value: LoggingConfiguration | Mapping[str, object] | None,
+        *,
+        base_path: Path | None = None,
     ) -> LoggingConfiguration:
         """Validate a native configuration model or mapping.
 
         Args:
             value: A model, mapping, or ``None`` for default configuration.
+            base_path: Application root for relative file destinations.
 
         Returns:
             A validated independent configuration model.
         """
-        if value is None:
-            return cls()
-        if isinstance(value, cls):
-            return value
-        return cls.model_validate(value)
+        configuration = (
+            cls()
+            if value is None
+            else value
+            if isinstance(value, cls)
+            else cls.model_validate(value)
+        )
+        if base_path is None:
+            return configuration
+
+        root = Path(base_path).resolve()
+        channels: dict[str, ChannelConfiguration] = {}
+        for name, channel in configuration.channels.items():
+            path = channel.path
+            rooted_channel = channel
+            if path is not None and not path.expanduser().is_absolute():
+                resolved = (root / path.expanduser()).resolve(strict=False)
+                if not resolved.is_relative_to(root):
+                    raise LogConfigurationError(_LOG_PATH_ESCAPE_ERROR)
+                rooted_channel = channel.model_copy(update={"path": resolved})
+            channels[name] = rooted_channel
+        return configuration.model_copy(update={"channels": channels})

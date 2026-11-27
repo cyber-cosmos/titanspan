@@ -71,9 +71,10 @@ Use `inspect_events()`, `cache_events()`, and `clear_event_cache()` from
 `titanspan.events` to inspect or manage a manifest. These functions use the
 same trusted module list as startup discovery.
 
-Events does not yet provide event list, cache, or clear commands. Those
-commands require event-specific inspection behavior and registration through
-the shared `CommandRegistrar` contract.
+Console provides `event:list`, `event:cache`, and `event:clear`. The list
+command inspects only configured trusted modules. Cache and clear commands
+require `events.manifest_path`. Relative manifest paths use the application
+root. Explicit absolute paths remain available to trusted applications.
 
 ## Configuration
 
@@ -89,3 +90,5 @@ Events reads its settings from the canonical `ConfigRepository` under the
 
 Configuration values are validated through the existing Pydantic settings
 capability. Events does not read environment variables directly.
+Relative manifest paths resolve under the effective application root.
+Configured absolute paths remain unchanged.

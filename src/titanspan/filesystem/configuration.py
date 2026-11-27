@@ -19,6 +19,9 @@ if TYPE_CHECKING:
 _DEFAULT_DISK = "local"
 _DEFAULT_LOCAL_ROOT = Path("storage/app")
 _CONFIGURATION_ERROR = "The filesystem configuration is invalid."
+_LOCAL_ROOT_ESCAPE_ERROR = (
+    "A relative local disk root must remain inside the application root."
+)
 
 
 def _empty_options() -> dict[str, object]:
@@ -77,8 +80,8 @@ def _default_disks() -> dict[str, FilesystemDiskConfiguration]:
 class FilesystemConfiguration:
     """Hold the application default disk and named disk declarations.
 
-    Relative local roots resolve from the process working directory during
-    manager construction. Each application still owns a separate manager.
+    Foundation anchors relative local roots to each application's base path.
+    Absolute local roots and remote backend prefixes retain their meaning.
     """
 
     default_disk: str = _DEFAULT_DISK
@@ -105,11 +108,14 @@ class FilesystemConfiguration:
     def from_repository(
         cls,
         repository: ConfigRepository,
+        *,
+        base_path: Path | None = None,
     ) -> FilesystemConfiguration:
         """Build validated settings from the canonical Config repository.
 
         Args:
             repository: Application-owned configuration repository.
+            base_path: Application root used to anchor relative local roots.
 
         Returns:
             Immutable settings for one manager.
@@ -134,7 +140,11 @@ class FilesystemConfiguration:
         else:
             raise FilesystemConfigurationError(_CONFIGURATION_ERROR)
         try:
+            if base_path is not None:
+                disks = _anchor_local_roots(disks, base_path)
             return cls(default_disk=default_disk, disks=disks)
+        except FilesystemConfigurationError:
+            raise
         except (TypeError, ValueError) as error:
             raise FilesystemConfigurationError(_CONFIGURATION_ERROR) from error
 
@@ -185,6 +195,45 @@ def _parse_disks(
     if not disks:
         raise FilesystemConfigurationError(_CONFIGURATION_ERROR)
     return disks
+
+
+def _anchor_local_roots(
+    disks: Mapping[str, FilesystemDiskConfiguration],
+    base_path: Path,
+) -> dict[str, FilesystemDiskConfiguration]:
+    """Resolve relative local roots and reject paths outside the app root.
+
+    Args:
+        disks: Validated named disk settings.
+        base_path: Effective root selected during application composition.
+
+    Returns:
+        A copy with relative local roots anchored to the application.
+
+    Raises:
+        FilesystemConfigurationError: If a relative local root escapes.
+    """
+    root = base_path.resolve()
+    anchored: dict[str, FilesystemDiskConfiguration] = {}
+    for name, disk in disks.items():
+        disk_root = disk.root
+        anchored_disk = disk
+        if disk.driver == "local" and disk_root is not None:
+            path = Path(disk_root).expanduser()
+            if not path.is_absolute():
+                resolved = (root / path).resolve(strict=False)
+                if not resolved.is_relative_to(root):
+                    raise FilesystemConfigurationError(
+                        _LOCAL_ROOT_ESCAPE_ERROR,
+                    )
+                anchored_disk = FilesystemDiskConfiguration(
+                    driver=disk.driver,
+                    root=resolved,
+                    raise_errors=disk.raise_errors,
+                    options=disk.options,
+                )
+        anchored[name] = anchored_disk
+    return anchored
 
 
 def _valid_disk_name(name: str) -> bool:

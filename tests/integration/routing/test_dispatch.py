@@ -9,6 +9,7 @@ from threading import get_ident
 
 import pytest
 from fastapi.testclient import TestClient
+from pydantic import BaseModel
 
 from titanspan import app, route
 from titanspan.container import Scope
@@ -175,6 +176,38 @@ class ThreadMarkerMiddleware:
         """
         _MIDDLEWARE_THREAD_IDS.append(get_ident())
         return await next_handler(request)
+
+
+class ForwardingMiddleware:
+    """Forward a route without changing its response representation.
+
+    The middleware verifies that adding a route layer preserves serialization.
+    """
+
+    async def handle(
+        self,
+        request: HttpRequest,
+        next_handler: RequestHandler,
+    ) -> HttpResponse:
+        """Continue the request and return the downstream response.
+
+        Args:
+            request: Native request passed through the middleware chain.
+            next_handler: Remaining route dispatch chain.
+
+        Returns:
+            The downstream response without transformation.
+        """
+        return await next_handler(request)
+
+
+class PublicPayload(BaseModel):
+    """Expose public fields from a larger endpoint result.
+
+    FastAPI filters undeclared fields before sending the response.
+    """
+
+    name: str
 
 
 def _ok() -> dict[str, str]:
@@ -381,6 +414,131 @@ def test_endpoint_values_normalize_and_reject_arbitrary_objects() -> None:
     assert text_result.text == "plain"
     assert bytes_result.content == b"binary"
     assert json_result.json() == ["valid", {"nested": 1}]
+
+
+@pytest.mark.parametrize(
+    "status",
+    [200, 201, 202, 204, 205, 304],
+)
+def test_none_result_returns_an_empty_response_with_selected_status(
+    status: int,
+) -> None:
+    """Keep empty endpoint results valid for content and bodyless statuses.
+
+    An explicit JSON null remains available through ``ResponseFactory.json``.
+    """
+    application = Application()
+
+    def empty_result() -> None:
+        """Return no representation body.
+
+        Routing chooses an empty response status for this result.
+        """
+
+    definition = application.router.get(f"/empty/{status}", empty_result)
+    definition.status_code(status)
+
+    with TestClient(application.asgi) as client:
+        result = client.get(f"/empty/{status}")
+
+    assert result.status_code == status
+    assert result.content == b""
+
+
+def test_json_null_requires_an_explicit_json_response() -> None:
+    """Distinguish JSON null from an empty endpoint result.
+
+    Explicit serialization must preserve the JSON representation.
+    """
+    application = Application()
+
+    def json_null() -> object:
+        """Return JSON null as an explicit representation.
+
+        The response factory must serialize this value as JSON.
+        """
+        return application.make(ResponseFactory).json(None)
+
+    application.router.get("/json-null", json_null)
+
+    with TestClient(application.asgi) as client:
+        result = client.get("/json-null")
+
+    assert result.status_code == HTTPStatus.OK
+    assert result.content == b"null"
+
+
+def test_route_middleware_preserves_response_model_serialization() -> None:
+    """Keep media type and model filtering stable when middleware is added.
+
+    Both routes pass through the same response-model serialization contract.
+    """
+    application = Application()
+
+    def scalar() -> str:
+        """Return a scalar response model.
+
+        The route tests model serialization with and without middleware.
+        """
+        return "plain-value"
+
+    def payload() -> dict[str, str]:
+        """Return fields that exercise response filtering.
+
+        FastAPI must omit the field absent from the response model.
+        """
+        return {"name": "public", "internal": "private"}
+
+    def explicit_response() -> HttpResponse:
+        """Return an explicit response that bypasses model serialization.
+
+        The test checks the documented backend response behavior.
+        """
+        return application.make(ResponseFactory).json(
+            {"name": "public", "internal": "explicit"},
+        )
+
+    application.router.get("/scalar", scalar).response_model(str)
+    application.router.get("/scalar/middleware", scalar).response_model(
+        str,
+    ).middleware(ForwardingMiddleware)
+    application.router.get("/payload", payload).response_model(PublicPayload)
+    application.router.get("/payload/middleware", payload).response_model(
+        PublicPayload,
+    ).middleware(ForwardingMiddleware)
+    application.router.get("/explicit", explicit_response).response_model(
+        PublicPayload,
+    )
+    application.router.get(
+        "/explicit/middleware",
+        explicit_response,
+    ).response_model(PublicPayload).middleware(ForwardingMiddleware)
+
+    with TestClient(application.asgi) as client:
+        results = [
+            client.get(path)
+            for path in (
+                "/scalar",
+                "/scalar/middleware",
+                "/payload",
+                "/payload/middleware",
+                "/explicit",
+                "/explicit/middleware",
+            )
+        ]
+
+    assert results[0].headers["content-type"] == "application/json"
+    assert results[1].headers["content-type"] == "application/json"
+    assert results[0].content == results[1].content == b'"plain-value"'
+    assert results[2].json() == results[3].json() == {"name": "public"}
+    assert (
+        results[4].json()
+        == results[5].json()
+        == {
+            "name": "public",
+            "internal": "explicit",
+        }
+    )
 
 
 def test_callable_and_classmethod_controllers_resolve() -> None:

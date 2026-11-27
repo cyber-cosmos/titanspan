@@ -5,7 +5,7 @@ component and its selected password-hashing dependency.
 """
 
 from collections.abc import Mapping
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from types import MappingProxyType
 from typing import Protocol, runtime_checkable
 
@@ -51,7 +51,7 @@ class HashVerification:
     """
 
     verified: bool
-    replacement_hash: str | None = None
+    replacement_hash: str | None = field(default=None, repr=False)
 
     def __post_init__(self) -> None:
         """Keep failed verification from carrying a replacement hash.
@@ -67,7 +67,9 @@ class Hasher(Protocol):
     """Hash and verify passwords through an application-owned service.
 
     Synchronous calls perform blocking password work. Async calls offload that
-    work through the backend's bounded worker mechanism.
+    work through AnyIO's bounded worker mechanism. Built-in work also uses one
+    application-owned capacity limit across synchronous and asynchronous
+    calls.
     """
 
     @property

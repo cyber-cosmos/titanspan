@@ -13,6 +13,7 @@ from titanspan.hashing.configuration import (
     Argon2Configuration,
     BcryptConfiguration,
     HashingConfiguration,
+    HashVerificationLimits,
 )
 from titanspan.hashing.exceptions import (
     HashGenerationError,
@@ -30,6 +31,7 @@ __all__ = [
     "HashInspectionError",
     "HashMetadata",
     "HashVerification",
+    "HashVerificationLimits",
     "Hasher",
     "HasherFactory",
     "HashingConfiguration",

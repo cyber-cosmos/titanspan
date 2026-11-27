@@ -9,6 +9,7 @@ from __future__ import annotations
 from collections.abc import Mapping
 from typing import TYPE_CHECKING, cast
 
+from titanspan.contracts.foundation import ApplicationPaths  # noqa: TC001
 from titanspan.contracts.logging import LoggingManager, LogWriter
 from titanspan.logging.configuration import LoggingConfiguration
 from titanspan.logging.exceptions import LogConfigurationError
@@ -55,11 +56,15 @@ class LoggingServiceProvider:
             container: Shared service registry owned by the application.
         """
 
-        def make_manager(repository: ConfigRepository) -> LogManager:
+        def make_manager(
+            repository: ConfigRepository,
+            paths: ApplicationPaths,
+        ) -> LogManager:
             """Create a manager from explicit or repository settings.
 
             Args:
                 repository: Final repository resolved by the container.
+                paths: Effective application root for relative destinations.
 
             Returns:
                 One native, application-owned logging manager.
@@ -82,8 +87,12 @@ class LoggingServiceProvider:
                 if isinstance(configuration, Mapping)
                 else configuration
             )
-            return LogManager(
+            application_configuration = LoggingConfiguration.from_value(
                 normalized,
+                base_path=paths.base_path,
+            )
+            return LogManager(
+                application_configuration,
                 customizers=self._customizers,
             )
 

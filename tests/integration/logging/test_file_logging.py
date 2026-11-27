@@ -4,6 +4,7 @@ The tests use Python's actual delayed file handlers and isolated temporary
 destinations; no global logging configuration is modified.
 """
 
+import asyncio
 import calendar
 import json
 from datetime import UTC, datetime
@@ -11,6 +12,8 @@ from pathlib import Path
 
 import pytest
 
+from titanspan import Application
+from titanspan.container import BindingResolutionError
 from titanspan.logging import (
     ChannelConfiguration,
     LogManager,
@@ -20,6 +23,7 @@ from titanspan.logging import (
 from titanspan.logging.drivers.standard import (
     next_monthly_rollover_timestamp,
 )
+from titanspan.logging.exceptions import LogConfigurationError
 
 pytestmark = pytest.mark.integration
 MAX_ROTATED_FILES = 3
@@ -72,6 +76,107 @@ def test_single_file_json_channel_writes_structured_record(
     assert record["message"] == "workflow completed"
     assert record["context"] == {"run_id": "run-1"}
     assert record["channel"] == "default"
+
+
+def test_application_file_logs_follow_the_configured_root(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Resolve relative logging destinations under the application root.
+
+    Changing the process working directory after construction must not
+    redirect file output to another project.
+    """
+    application_root = tmp_path / "application"
+    application_root.mkdir()
+    ambient_root = tmp_path / "ambient"
+    ambient_root.mkdir()
+    application = Application(
+        base_path=application_root,
+        logging={
+            "channels": {
+                "default": {
+                    "driver": "single",
+                    "path": "storage/logs/application.log",
+                    "formatter": "text",
+                },
+            },
+        },
+    )
+    monkeypatch.chdir(ambient_root)
+
+    async def write_log() -> None:
+        """Write one record through the app-owned manager.
+
+        The application closes its logging resources after this callback.
+        """
+        application.logging.channel().info("rooted log record")
+
+    asyncio.run(application.run(write_log))
+
+    expected = application_root / "storage/logs/application.log"
+    assert "rooted log record" in expected.read_text(encoding="utf-8")
+    assert not (ambient_root / "storage/logs").exists()
+
+
+def test_application_file_logs_preserve_absolute_destinations(
+    tmp_path: Path,
+) -> None:
+    """Keep explicit absolute log paths independent of application roots.
+
+    Only relative destinations use Foundation's trusted application path.
+    """
+    application_root = tmp_path / "application"
+    application_root.mkdir()
+    explicit_path = tmp_path / "external" / "application.log"
+    application = Application(
+        base_path=application_root,
+        logging={
+            "channels": {
+                "default": {
+                    "driver": "single",
+                    "path": explicit_path,
+                    "formatter": "text",
+                },
+            },
+        },
+    )
+
+    async def write_log() -> None:
+        """Write one record to the explicitly selected destination.
+
+        The call runs within the application's native lifecycle.
+        """
+        application.logging.channel().info("absolute destination")
+
+    asyncio.run(application.run(write_log))
+
+    assert "absolute destination" in explicit_path.read_text(
+        encoding="utf-8",
+    )
+
+
+def test_application_rejects_relative_log_paths_outside_root(
+    tmp_path: Path,
+) -> None:
+    """Reject relative file log destinations outside the application root.
+
+    Validation occurs before any logging handler opens an output file.
+    """
+    with pytest.raises(BindingResolutionError) as error:
+        Application(
+            base_path=tmp_path / "application",
+            logging={
+                "channels": {
+                    "default": {
+                        "driver": "single",
+                        "path": "../outside.log",
+                        "formatter": "text",
+                    },
+                },
+            },
+        )
+    assert isinstance(error.value.__cause__, LogConfigurationError)
 
 
 def test_rotating_file_driver_delegates_rotation_to_stdlib(

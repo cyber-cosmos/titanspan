@@ -4,6 +4,7 @@ The integration uses real components and local test services.
 """
 
 from collections.abc import AsyncIterator
+from http import HTTPStatus
 from pathlib import Path
 from typing import TYPE_CHECKING, cast
 
@@ -33,6 +34,7 @@ _BODY_LIMIT = 3
 _EXPECTED_UPLOAD_COUNT = 2
 _FIRST_UPLOAD_SIZE = 5
 _MULTIPART_BOUNDARY = "titanspan-test-boundary"
+_BODYLESS_RECEIVE_ERROR = "A bodyless response must not receive input."
 
 
 def _scope(
@@ -355,6 +357,64 @@ async def test_asgi_head_suppresses_all_native_response_bodies(
 
     await response(scope, receive, send)
 
+    body_messages = [
+        message
+        for message in messages
+        if message["type"] == "http.response.body"
+    ]
+    assert body_messages
+    assert all(message["body"] == b"" for message in body_messages)
+
+
+@pytest.mark.anyio
+async def test_head_stream_does_not_start_the_producer() -> None:
+    """Avoid consuming a stream when protocol semantics discard its body.
+
+    The response still transmits its status and representation headers.
+    """
+    entered: list[bool] = []
+
+    async def source() -> AsyncIterator[bytes]:
+        """Mark entry before yielding a body that must not be consumed.
+
+        Yields:
+            One byte chunk that the HEAD or 205 response discards.
+        """
+        entered.append(True)
+        yield b"discarded"
+
+    response = StreamResponse(
+        source(),
+        headers={"X-Response": "preserved"},
+    )
+    scope = _scope(headers=())
+    scope["method"] = "HEAD"
+    messages: list[Message] = []
+
+    async def receive() -> Message:
+        """Fail if the response waits for request input.
+
+        A HEAD response must not start its body producer or await a body.
+        """
+        raise AssertionError(_BODYLESS_RECEIVE_ERROR)
+
+    async def send(message: Message) -> None:
+        """Capture messages emitted by the native response.
+
+        The test inspects headers and verifies that no body was sent.
+        """
+        messages.append(message)
+
+    await response(scope, receive, send)
+
+    assert entered == []
+    start = next(
+        message
+        for message in messages
+        if message["type"] == "http.response.start"
+    )
+    assert start["status"] == HTTPStatus.OK
+    assert (b"x-response", b"preserved") in start["headers"]
     body_messages = [
         message
         for message in messages

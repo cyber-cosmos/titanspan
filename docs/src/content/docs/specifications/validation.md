@@ -21,7 +21,7 @@ application-rule sequencing, request integration, and safe native errors.
 | Sync application rules | `ValidationRule` | Validator unit tests |
 | Async application rules | `AsyncValidationRule`, `validate_async` | Validator unit tests |
 | Non-raising test results | `make`, `make_async` | Validator unit tests |
-| Container and Config integration | `ValidationServiceProvider` | `tests/integration/validation/test_validation_application.py` |
+| Default Container and Config integration | Foundation's `ValidationServiceProvider` | `tests/integration/validation/test_validation_application.py`, `tests/integration/test_framework_cohesion.py` |
 | Safe HTTP 422 rendering | Foundation's default `ValidationException` handler | `tests/integration/test_validation_exception_rendering.py` |
 | HTTP request input | `validate_request`, `validate_request_async` | Real ASGI application integration test |
 
@@ -42,10 +42,16 @@ schema validators when the constraint is reusable. Pydantic controls schema
 error aggregation; `Field(fail_fast=True)` applies where supported.
 
 `ValidationIssue.location` retains nested path segments and `field` renders
-them as dotted text. `ValidationException` groups safe messages into an
-immutable mapping. It excludes Pydantic input, context, and documentation URL
-details. Caller-provided field messages take precedence over code messages.
-Attribute labels affect the exception summary but do not alter field keys.
+them as dotted text. Pydantic error values and backend messages are not
+returned. Titanspan maps known error codes to fixed messages and uses a
+generic message for unknown codes. Declared schema fields remain in locations;
+dynamic mapping keys become `"<key>"`. This prevents input values embedded in
+keys from appearing in diagnostics.
+
+`ValidationException` groups safe messages into an immutable mapping.
+Caller-provided field messages and `ValidationRule` messages remain visible.
+Treat those messages as application-authored public text. Attribute labels
+affect the exception summary but do not alter field keys.
 
 `make` and `make_async` return `ValidationResult`. A valid schema whose output
 is `None` remains valid; `is_valid` follows the error tuple.
@@ -66,22 +72,29 @@ checks remain with their respective owners.
 
 ## HTTP and framework integration
 
-The optional `ValidationServiceProvider` registers a singleton under the
-canonical `ValidationService` protocol. Its factory receives the active
-`ConfigRepository` through the application Container. Include the provider
-in `Application(service_providers=...)` until Foundation registers Validation
-as a native default provider. The standalone `Validator` remains independently
-usable.
+Foundation registers `ValidationServiceProvider` by default. The provider
+registers a singleton under the canonical `ValidationService` protocol. Its
+factory receives the active `ConfigRepository` through the application
+Container. An explicit provider replaces the default. The standalone
+`Validator` remains independently usable.
 
 Request validation calls `HttpRequest.all()` before schema execution. This
 reuses HTTP's authoritative JSON, form, multipart, and query input behavior
 and does not add a request parser. HTTP owns upload temporary files and
 request-scoped cleanup.
 
-Foundation maps uncaught `ValidationException` values to status 422 through
-the canonical HTTP response factory. The response contains safe field
-messages and omits rejected input values. Routing integration remains for
-typed route input binding and OpenAPI request and response schemas.
+Foundation maps native `ValidationException` and FastAPI
+`RequestValidationError` values to status 422 through the canonical HTTP
+response factory. Native issues retain fixed safe messages and declared field
+paths. Backend request failures use a generic detail and issue. Foundation
+does not expose Pydantic error dictionaries, custom backend messages, input,
+context, exception text, or dynamic mapping keys. Internal diagnostic detail
+requires the application's explicit exception-reporting policy.
+
+Custom rule messages and explicit `messages` overrides are application-owned
+public text. Do not include rejected values, credentials, tokens, or other
+secrets in them. Routing uses FastAPI request parsing and applies the same
+safe 422 rendering policy.
 
 ## Verification
 

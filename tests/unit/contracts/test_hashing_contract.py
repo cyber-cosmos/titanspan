@@ -66,6 +66,18 @@ def test_failed_verification_cannot_include_a_replacement_hash() -> None:
         )
 
 
+def test_replacement_hash_is_not_exposed_by_result_representation() -> None:
+    """Keep a replacement credential out of ordinary debug output.
+
+    Callers can still read the field explicitly when persistence is needed.
+    """
+    replacement = "replacement-hash-secret-marker"
+    result = HashVerification(True, replacement)
+
+    assert result.replacement_hash == replacement
+    assert replacement not in repr(result)
+
+
 def test_hash_metadata_requires_an_algorithm_identifier() -> None:
     """Reject metadata that cannot identify its encoded format.
 

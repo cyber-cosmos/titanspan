@@ -13,6 +13,7 @@ from collections.abc import Mapping
 from contextlib import asynccontextmanager, contextmanager
 from datetime import UTC, datetime
 from functools import partial
+from inspect import isawaitable
 from pathlib import Path
 from typing import TYPE_CHECKING, cast
 
@@ -28,10 +29,10 @@ if TYPE_CHECKING:
     from collections.abc import (
         AsyncGenerator,
         AsyncIterable,
+        Awaitable,
         Callable,
         Generator,
         Iterable,
-        Iterator,
     )
 
     from titanspan.filesystem._types import (
@@ -102,6 +103,33 @@ class FilesystemDisk:
             self._local_root = local_root.expanduser().resolve(strict=False)
         else:
             self._prefix = _normalize_prefix(root)
+
+    async def aclose(self) -> None:
+        """Close an optional backend resource through its public hook.
+
+        fsspec does not require every filesystem to expose a close method.
+        Titanspan calls only an explicit ``aclose`` or ``close`` capability.
+        Synchronous closers run in AnyIO's bounded worker pool.
+
+        This method is owned by ``FilesystemManager``. Applications should
+        close the manager rather than individual cached disks.
+        """
+        async_closer = getattr(self._filesystem, "aclose", None)
+        if callable(async_closer):
+            result = async_closer()
+            if isawaitable(result):
+                await cast("Awaitable[object]", result)
+            return
+
+        closer = getattr(self._filesystem, "close", None)
+        if not callable(closer):
+            return
+        result = await anyio.to_thread.run_sync(
+            cast("Callable[[], object]", closer),
+            abandon_on_cancel=False,
+        )
+        if isawaitable(result):
+            await cast("Awaitable[object]", result)
 
     def put(
         self,
@@ -509,7 +537,7 @@ class FilesystemDisk:
         path: str,
         *,
         chunk_size: int = _DEFAULT_CHUNK_SIZE,
-    ) -> Iterator[bytes]:
+    ) -> Generator[bytes, None, None]:
         """Yield bounded byte chunks and close the backend stream on exit.
 
         Args:

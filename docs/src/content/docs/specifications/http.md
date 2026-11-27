@@ -19,7 +19,8 @@ Filesystem, Concurrency, or Telemetry components.
 | Request-owned upload lifecycle | `UploadedFile` | `tests/unit/http/test_uploaded_file.py` |
 | Route metadata and request/correlation identifiers | `Request` | Request and dispatch integration tests |
 | Native response construction, bodyless status and HEAD semantics | `ResponseFactory`, response classes | `tests/unit/http/test_response.py`, `tests/integration/http/test_asgi_backend.py` |
-| Response cookies and removal | Native response classes | `tests/unit/http/test_response.py` |
+| Response cookies and removal through injected contract | `HttpResponse`, Foundation adapter | `tests/integration/http/test_contract_capabilities.py` |
+| Single and multiple upload access through injected contract | `HttpRequest`, `HttpUploadedFile` | `tests/integration/http/test_contract_capabilities.py` |
 | Streaming and SSE response encoding | `StreamResponse`, `ServerSentEvent` | Response unit and ASGI lifecycle tests |
 | Ordered dependency-injected middleware | `HttpMiddleware` | `tests/integration/http/test_middleware.py` |
 | CORS, trusted hosts, and HTTPS redirects | Native ASGI middleware | `tests/integration/http/test_middleware.py` |
@@ -65,9 +66,11 @@ Request metadata also exposes AJAX and JSON detection, a bounded correlation
 identifier, and route name and parameters through the request attributes set
 by Routing.
 
-Response fluent header methods mutate the response and return it. JSON values
-are validated against the supported JSON model. Statuses 204, 205, and 304,
-and every `HEAD` response, transmit no body. Redirects reject
+Response fluent header and cookie methods mutate the response and return it.
+The native middleware contract exposes cookie creation and removal. Multiple
+`Set-Cookie` headers remain separate. JSON values are validated against the
+supported JSON model. Statuses 204, 205, and 304, and every `HEAD` response,
+transmit no body. A `HEAD` response does not start a stream producer. Redirects reject
 protocol-relative and unsupported schemes; external HTTP(S) targets need
 explicit permission.
 
@@ -128,10 +131,8 @@ must not be treated as comprehensive SSRF protection.
 - Route-specific middleware composition belongs to Routing, which owns route
   groups and dispatch. HTTP reads selected route metadata from request
   attributes.
-- Concrete response classes support cookie creation and removal. To expose
-  those methods through the dependency-injected `HttpResponse` middleware
-  boundary, Foundation must add them to the contract surface it adapts and
-  delegate them from `_NativeHttpResponseAdapter` to Starlette's response.
+- Response cookies use validated native `CookieOptions`. Foundation delegates
+  cookie mutations to Starlette's response API.
 - Windows and multiprocess behavior for application-owned connection pools
   has not been verified.
 

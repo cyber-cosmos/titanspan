@@ -1,20 +1,24 @@
 """Resolve one application's configured named storage disks.
 
 The manager owns configuration and fsspec instances without adding another
-storage backend or process-global registry.
+storage backend or process-global registry. Execution-local disk overrides
+use the same manager resolution boundary as configured disks.
 """
 
 from __future__ import annotations
 
 from collections.abc import Callable, Mapping
+from contextlib import contextmanager
+from contextvars import ContextVar
 from threading import RLock
+from types import MappingProxyType
 from typing import TYPE_CHECKING, TypeGuard
 
 from fsspec.spec import (  # pyright: ignore[reportMissingTypeStubs]
     AbstractFileSystem,
 )
 
-from titanspan.contracts.filesystem import StorageManager
+from titanspan.contracts.filesystem import StorageDisk, StorageManager
 from titanspan.filesystem._backends import (
     create_local_filesystem,
     create_memory_filesystem,
@@ -33,6 +37,8 @@ from titanspan.filesystem.exceptions import (
 
 if TYPE_CHECKING:
     from _thread import RLock as RLockType
+    from collections.abc import Generator
+    from pathlib import Path
 
     from titanspan.contracts.config import ConfigRepository
 
@@ -50,14 +56,16 @@ _INVALID_FILESYSTEM_ERROR = (
 _DRIVER_CREATION_ERROR = (
     "The configured filesystem driver could not be created."
 )
+_MANAGER_CLOSED_ERROR = "The filesystem manager is closed."
+_BACKEND_CLEANUP_ERROR = "One or more filesystem backends failed to close."
 
 
 class FilesystemManager(StorageManager):
     """Construct and cache disks declared by one application's settings.
 
     Applications register custom fsspec drivers before resolving a disk.
-    The instance lock covers only first construction so concurrent requests
-    share the same disk object.
+    The instance lock covers first construction. Context-local overrides do
+    not mutate this shared cache.
     """
 
     def __init__(
@@ -88,6 +96,14 @@ class FilesystemManager(StorageManager):
         self._configuration = selected
         self._drivers = factories
         self._disks: dict[str, FilesystemDisk] = {}
+        self._owned_disks: dict[int, FilesystemDisk] = {}
+        self._closed = False
+        self._disk_overrides: ContextVar[Mapping[str, StorageDisk]] = (
+            ContextVar(
+                "titanspan_storage_disk_overrides",
+                default=MappingProxyType({}),
+            )
+        )
         self._lock = RLock()
 
     @classmethod
@@ -96,18 +112,23 @@ class FilesystemManager(StorageManager):
         repository: ConfigRepository,
         *,
         drivers: Mapping[str, FilesystemDriverFactory] | None = None,
+        base_path: Path | None = None,
     ) -> FilesystemManager:
         """Construct a manager from the canonical configuration repository.
 
         Args:
             repository: Application-owned Config repository.
             drivers: Additional fsspec filesystem constructors.
+            base_path: Effective root for relative local disk settings.
 
         Returns:
             A manager isolated to one application service graph.
         """
         return cls(
-            FilesystemConfiguration.from_repository(repository),
+            FilesystemConfiguration.from_repository(
+                repository,
+                base_path=base_path,
+            ),
             drivers=drivers,
         )
 
@@ -129,7 +150,7 @@ class FilesystemManager(StorageManager):
         """
         return tuple(self._configuration.disks)
 
-    def disk(self, name: str | None = None) -> FilesystemDisk:
+    def disk(self, name: str | None = None) -> StorageDisk:
         """Resolve the cached instance for one configured disk.
 
         Args:
@@ -143,10 +164,17 @@ class FilesystemManager(StorageManager):
             FilesystemDiskError: If its driver cannot be constructed.
         """
         disk_name = self.default_disk if name is None else name
+        if self._closed:
+            raise FilesystemDiskError(_MANAGER_CLOSED_ERROR)
         configuration = self._configuration.disks.get(disk_name)
         if configuration is None:
             raise UnknownFilesystemDiskError(disk_name)
+        override = self._disk_overrides.get().get(disk_name)
+        if override is not None:
+            return override
         with self._lock:
+            if self._closed:
+                raise FilesystemDiskError(_MANAGER_CLOSED_ERROR)
             current = self._disks.get(disk_name)
             if current is not None:
                 return current
@@ -157,7 +185,68 @@ class FilesystemManager(StorageManager):
                 raise_errors=configuration.raise_errors,
             )
             self._disks[disk_name] = disk
+            self._owned_disks.setdefault(id(filesystem), disk)
             return disk
+
+    async def aclose(self) -> None:
+        """Finalize each manager-owned filesystem backend at most once.
+
+        Backends without a public ``aclose`` or ``close`` capability need no
+        manager cleanup. Every owned backend is attempted even when another
+        backend fails.
+
+        Raises:
+            FilesystemDiskError: If one or more backends fail to close.
+        """
+        with self._lock:
+            if self._closed:
+                return
+            self._closed = True
+            disks = tuple(reversed(tuple(self._owned_disks.values())))
+            self._owned_disks.clear()
+            self._disks.clear()
+
+        failed = False
+        for disk in disks:
+            try:
+                await disk.aclose()
+            except Exception:
+                failed = True
+        if failed:
+            raise FilesystemDiskError(_BACKEND_CLEANUP_ERROR) from None
+
+    @contextmanager
+    def override_disk(
+        self,
+        name: str,
+        disk: StorageDisk,
+    ) -> Generator[None, None, None]:
+        """Select a replacement disk within the active execution context.
+
+        The override is separate from the configured disk cache. This lets a
+        test replace a remote disk without constructing or accessing it.
+
+        Args:
+            name: Configured disk name to replace.
+            disk: Replacement implementing the native storage contract.
+
+        Yields:
+            Control while the selected disk override is active.
+
+        Raises:
+            UnknownFilesystemDiskError: If ``name`` is not configured.
+        """
+        if name not in self._configuration.disks:
+            raise UnknownFilesystemDiskError(name)
+        if self._closed:
+            raise FilesystemDiskError(_MANAGER_CLOSED_ERROR)
+        overrides = dict(self._disk_overrides.get())
+        overrides[name] = disk
+        token = self._disk_overrides.set(MappingProxyType(overrides))
+        try:
+            yield
+        finally:
+            self._disk_overrides.reset(token)
 
     def extend(
         self,
@@ -234,6 +323,7 @@ class FilesystemManager(StorageManager):
     _configuration: FilesystemConfiguration
     _drivers: dict[str, FilesystemDriverFactory]
     _disks: dict[str, FilesystemDisk]
+    _disk_overrides: ContextVar[Mapping[str, StorageDisk]]
     _lock: RLockType
 
 
