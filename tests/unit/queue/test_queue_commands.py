@@ -1,4 +1,5 @@
-"""Verify Queue commands use the native Console and application lifecycle."""
+"""Verify Queue commands use the native Console and application lifecycle.
+"""  # fmt: skip
 
 import inspect
 from importlib.util import module_from_spec, spec_from_file_location
@@ -24,7 +25,8 @@ pytestmark = pytest.mark.unit
 
 
 def test_queue_worker_commands_register_through_console() -> None:
-    """Register worker commands without introducing another CLI registry."""
+    """Register worker commands without introducing another CLI registry.
+    """  # fmt: skip
     console = Console()
 
     register_queue_commands(console)
@@ -123,7 +125,8 @@ def _import_and_run_generated_job(path: Path) -> None:
             pytest.fail("The generated job has no callable handler.")
 
         async def execute() -> None:
-            """Run the generated async handler without an application graph."""
+            """Run the generated async handler without an application graph.
+            """  # fmt: skip
             result = handler()
             if not inspect.isawaitable(result):
                 pytest.fail(

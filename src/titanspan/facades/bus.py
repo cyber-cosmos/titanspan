@@ -1,4 +1,5 @@
-"""Expose native job chains through the active application dispatcher."""
+"""Expose native job chains through the active application dispatcher.
+"""  # fmt: skip
 
 from __future__ import annotations
 
@@ -23,7 +24,8 @@ if TYPE_CHECKING:
 
 
 class Bus(Facade[BusDispatcher]):
-    """Resolve Bus orchestration through the canonical Queue manager."""
+    """Resolve Bus orchestration through the canonical Queue manager.
+    """  # fmt: skip
 
     service_contract = BusDispatcher
 

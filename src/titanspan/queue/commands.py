@@ -1,4 +1,5 @@
-"""Register native Queue worker and generation commands through Console."""
+"""Register native Queue worker and generation commands through Console.
+"""  # fmt: skip
 
 from __future__ import annotations
 

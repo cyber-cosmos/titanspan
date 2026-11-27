@@ -32,12 +32,14 @@ class QueueEvent:
 
 @dataclass(frozen=True, slots=True)
 class JobDispatching(QueueEvent):
-    """Mark the start of one publication attempt."""
+    """Mark the start of one publication attempt.
+    """  # fmt: skip
 
 
 @dataclass(frozen=True, slots=True)
 class JobDispatched(QueueEvent):
-    """Mark a job accepted by an inline or broker connection."""
+    """Mark a job accepted by an inline or broker connection.
+    """  # fmt: skip
 
 
 @dataclass(frozen=True, slots=True)
@@ -53,7 +55,8 @@ class JobProcessing(QueueEvent):
 
 @dataclass(frozen=True, slots=True)
 class JobProcessed(QueueEvent):
-    """Mark successful handler completion without exposing its result."""
+    """Mark successful handler completion without exposing its result.
+    """  # fmt: skip
 
 
 @dataclass(frozen=True, slots=True)

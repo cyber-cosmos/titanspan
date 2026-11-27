@@ -1,4 +1,5 @@
-"""Provide application-local Batch state for native Bus dispatch."""
+"""Provide application-local Batch state for native Bus dispatch.
+"""  # fmt: skip
 
 from __future__ import annotations
 
@@ -53,7 +54,8 @@ class BatchSnapshot:
 
 
 class BatchHandle:
-    """Read status retained by the owning application's Queue manager."""
+    """Read status retained by the owning application's Queue manager.
+    """  # fmt: skip
 
     def __init__(self, manager: QueueManager, batch_id: str) -> None:
         """Create a status handle without duplicating batch state.
@@ -67,37 +69,44 @@ class BatchHandle:
 
     @property
     def snapshot(self) -> BatchSnapshot:
-        """Return the latest in-process batch status snapshot."""
+        """Return the latest in-process batch status snapshot.
+        """  # fmt: skip
         return self._manager.batch_status(self.id)
 
     @property
     def name(self) -> str:
-        """Return the display name selected for this batch."""
+        """Return the display name selected for this batch.
+        """  # fmt: skip
         return self.snapshot.name
 
     @property
     def total_jobs(self) -> int:
-        """Return the number of submitted jobs."""
+        """Return the number of submitted jobs.
+        """  # fmt: skip
         return self.snapshot.total_jobs
 
     @property
     def pending_jobs(self) -> int:
-        """Return the number of jobs without a terminal result."""
+        """Return the number of jobs without a terminal result.
+        """  # fmt: skip
         return self.snapshot.pending_jobs
 
     @property
     def processed_jobs(self) -> int:
-        """Return the number of successful jobs."""
+        """Return the number of successful jobs.
+        """  # fmt: skip
         return self.snapshot.processed_jobs
 
     @property
     def failed_jobs(self) -> int:
-        """Return the number of failed jobs."""
+        """Return the number of failed jobs.
+        """  # fmt: skip
         return self.snapshot.failed_jobs
 
     @property
     def state(self) -> BatchState:
-        """Return the current process-local batch state."""
+        """Return the current process-local batch state.
+        """  # fmt: skip
         return self.snapshot.state
 
     _manager: QueueManager
@@ -105,7 +114,8 @@ class BatchHandle:
 
 
 class PendingBatch:
-    """Configure and explicitly submit a bounded batch of jobs."""
+    """Configure and explicitly submit a bounded batch of jobs.
+    """  # fmt: skip
 
     def __init__(
         self,
@@ -212,7 +222,8 @@ class PendingBatch:
         )
 
     def _ensure_pending(self) -> None:
-        """Reject changes after the one explicit dispatch operation."""
+        """Reject changes after the one explicit dispatch operation.
+        """  # fmt: skip
         if self._used:
             msg = "A batch builder can be dispatched only once."
             raise QueueError(msg)

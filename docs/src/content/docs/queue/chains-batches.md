@@ -32,6 +32,10 @@ With a synchronous connection, jobs run in sequence before the call returns.
 With Redis Streams, Queue stores bounded, versioned continuation data and
 publishes the next member after the current handler succeeds.
 
+Each job's `connection` and `queue` class attributes override the chain-wide
+defaults. Use `prepend()` or `append()` to change the pending chain before
+dispatch. A chain builder accepts one dispatch attempt.
+
 The completion and continuation publication are separate broker operations.
 A worker failure between them can cause duplicate execution or interrupt the
 chain. Make side effects idempotent. Chains are not a durable workflow engine.

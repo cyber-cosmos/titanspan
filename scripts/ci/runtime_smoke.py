@@ -20,8 +20,12 @@ import anyio
 
 from titanspan.console import Console
 from titanspan.contracts.filesystem import StorageManager
+from titanspan.contracts.foundation import ServiceProvider
+from titanspan.contracts.queue import QueueDispatcher
 from titanspan.contracts.routing import ControllerAction, UriUrlGenerator
-from titanspan.facades import Event, Hash, Http, Log, Storage
+from titanspan.facades import Event, Hash, Http, Log, Queue, Storage
+from titanspan.foundation import Application
+from titanspan.queue import Job, QueueManager, QueueServiceProvider
 from titanspan.testing import AsyncApplicationTest
 
 if TYPE_CHECKING:
@@ -29,7 +33,7 @@ if TYPE_CHECKING:
 
     from starlette.types import ASGIApp, Message, Scope
 
-    from titanspan import Application
+    from titanspan.contracts.container import ServiceRegistry
 
 _DOCUMENT_CONTROLLER_NAME = "DocumentController"
 _DOCUMENT_CONTROLLER_ACTION = "index"
@@ -73,6 +77,7 @@ _EXPECTED_JSON_METADATA = {"category": "guides"}
 _EXPECTED_COOKIE_RESPONSE = {"status": "issued"}
 _EXPECTED_COOKIE_COUNT = 2
 _EXPECTED_REQUEST_SCOPE_COUNT = 8
+_EXPECTED_QUEUE_JOBS = 2
 _EXPECTED_MISSING_DOCUMENT = {
     "detail": "The requested document does not exist.",
 }
@@ -126,6 +131,8 @@ class SmokeResult(TypedDict):
             registered native renderer.
         safe_failure_verified: Whether unexpected failure details stayed
             private in both the response and log record.
+        queue_dispatch_verified: Whether native Queue access paths shared
+            one manager and executed injected job services.
     """
 
     health: object
@@ -144,6 +151,7 @@ class SmokeResult(TypedDict):
     concurrent_request_scope_verified: bool
     custom_exception_verified: bool
     safe_failure_verified: bool
+    queue_dispatch_verified: bool
 
 
 class _ComponentFakeResults(TypedDict):
@@ -297,6 +305,7 @@ async def run_smoke() -> SmokeResult:
                 application,
                 routes["failure"],
             )
+        queue_dispatch_verified = await _verify_installed_queue(base_path)
 
     result: SmokeResult = {
         "health": primary_http["health"].body,
@@ -325,6 +334,7 @@ async def run_smoke() -> SmokeResult:
         ),
         "custom_exception_verified": custom_exception_verified,
         "safe_failure_verified": safe_failure_verified,
+        "queue_dispatch_verified": queue_dispatch_verified,
     }
     require_smoke_success(result)
     return result
@@ -932,6 +942,94 @@ async def _test_probe(probe: _RuntimeProbe) -> dict[str, str]:
     return {"status": probe.status}
 
 
+class _QueueSmokeProbe:
+    """Record job execution through an application-injected service.
+    """  # fmt: skip
+
+    def __init__(self) -> None:
+        """Create an empty record owned by one smoke application.
+        """  # fmt: skip
+        self.values = []
+
+    values: list[str]
+
+
+@dataclass
+class _QueueSmokeJob(Job):
+    """Carry one string into an installed-package Queue execution path.
+    """  # fmt: skip
+
+    value: str
+
+    async def handle(self, probe: _QueueSmokeProbe) -> None:
+        """Record job data through the application Container.
+
+        Args:
+            probe: Singleton service registered by the smoke application.
+        """
+        probe.values.append(self.value)
+
+
+class _QueueSmokeProvider(ServiceProvider):
+    """Register one observer for the installed Queue smoke application.
+    """  # fmt: skip
+
+    def __init__(self, probe: _QueueSmokeProbe) -> None:
+        """Retain a service instance owned by the smoke application.
+
+        Args:
+            probe: Service resolved by each job attempt.
+        """
+        self._probe = probe
+
+    def register(self, container: ServiceRegistry) -> None:
+        """Bind the observer through Foundation's canonical registry.
+
+        Args:
+            container: Application-owned Titanspan service registry.
+        """
+        container.instance(_QueueSmokeProbe, self._probe)
+
+    _probe: _QueueSmokeProbe
+
+
+async def _verify_installed_queue(base_path: Path) -> bool:
+    """Exercise Queue facade, contract, Container, and sync driver together.
+
+    Args:
+        base_path: Temporary root used by the installed reference app.
+
+    Returns:
+        Whether both public dispatch paths use one canonical manager.
+    """
+    queue_path = base_path / "queue-smoke"
+    queue_path.mkdir()
+    probe = _QueueSmokeProbe()
+    application = Application(
+        base_path=queue_path,
+        config={"app": {"name": "installed-queue-reference"}},
+        service_providers=(
+            _QueueSmokeProvider(probe),
+            QueueServiceProvider(jobs=(_QueueSmokeJob,)),
+        ),
+    )
+    async with application:
+        manager = application.make(QueueManager)
+        dispatcher = application.make(QueueDispatcher)
+        contract_receipt = await dispatcher.dispatch_async(
+            _QueueSmokeJob("contract")
+        )
+        facade_receipt = await Queue.dispatch_async(_QueueSmokeJob("facade"))
+        return (
+            manager is dispatcher
+            and Queue.manager() is manager
+            and contract_receipt.state == "executed"
+            and facade_receipt.state == "executed"
+            and probe.values == ["contract", "facade"]
+            and len(probe.values) == _EXPECTED_QUEUE_JOBS
+        )
+
+
 def _generate_document_controller(base_path: Path) -> Path:
     """Generate one controller through the installed Titanspan CLI.
 
@@ -1395,6 +1493,7 @@ def require_smoke_success(result: SmokeResult) -> None:
         "request scope isolation": result["concurrent_request_scope_verified"],
         "public exception rendering": result["custom_exception_verified"],
         "safe unexpected failure": result["safe_failure_verified"],
+        "installed Queue integration": result["queue_dispatch_verified"],
         "typed JSON validation": result["json_validation_safe"],
         "response cookie handling": result["response_cookie_verified"],
     }

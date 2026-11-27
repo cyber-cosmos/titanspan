@@ -149,6 +149,28 @@ class ChainBuilder(Protocol):
     Queued continuation guarantees depend on durable backend behavior.
     """
 
+    def prepend(self, job: object) -> Self:
+        """Add one registered job before the current members.
+
+        Args:
+            job: Job instance validated by the owning Queue manager.
+
+        Returns:
+            This chain builder.
+        """
+        ...
+
+    def append(self, job: object) -> Self:
+        """Add one registered job after the current members.
+
+        Args:
+            job: Job instance validated by the owning Queue manager.
+
+        Returns:
+            This chain builder.
+        """
+        ...
+
     def on_connection(self, name: str) -> Self:
         """Select the default connection for jobs without overrides.
 
@@ -248,37 +270,44 @@ class BatchHandle(Protocol):
 
     @property
     def id(self) -> str:
-        """Return the application-local batch identifier."""
+        """Return the application-local batch identifier.
+        """  # fmt: skip
         ...
 
     @property
     def name(self) -> str:
-        """Return the batch display name."""
+        """Return the batch display name.
+        """  # fmt: skip
         ...
 
     @property
     def total_jobs(self) -> int:
-        """Return the total batch job count."""
+        """Return the total batch job count.
+        """  # fmt: skip
         ...
 
     @property
     def pending_jobs(self) -> int:
-        """Return the number of jobs without terminal state."""
+        """Return the number of jobs without terminal state.
+        """  # fmt: skip
         ...
 
     @property
     def processed_jobs(self) -> int:
-        """Return the number of completed jobs."""
+        """Return the number of completed jobs.
+        """  # fmt: skip
         ...
 
     @property
     def failed_jobs(self) -> int:
-        """Return the number of failed jobs."""
+        """Return the number of failed jobs.
+        """  # fmt: skip
         ...
 
     @property
     def state(self) -> str:
-        """Return the batch state name."""
+        """Return the batch state name.
+        """  # fmt: skip
         ...
 
 

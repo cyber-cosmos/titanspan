@@ -5,6 +5,7 @@ The integration executes registered jobs through the production Container.
 
 from collections.abc import AsyncIterator
 from dataclasses import dataclass
+from typing import ClassVar
 from uuid import uuid4
 
 import anyio
@@ -56,6 +57,106 @@ class _JobRecord:
         self.values: list[tuple[str, str, object]] = []
         self.middleware_events: list[str] = []
         self.max_attempts: list[int] = []
+
+
+class _ChainDestinationRecord:
+    """Record the connection and queue used by each chain member.
+    """  # fmt: skip
+
+    def __init__(self) -> None:
+        """Create an empty destination observation list.
+        """  # fmt: skip
+        self.destinations: list[tuple[str, str, str]] = []
+
+
+class _ChainDestinationProvider:
+    """Register one destination observation in the native Container.
+    """  # fmt: skip
+
+    def __init__(self, record: _ChainDestinationRecord) -> None:
+        """Retain the test-owned observation service.
+        """  # fmt: skip
+        self._record = record
+
+    def register(self, container: ServiceRegistry) -> None:
+        """Bind the destination observer as an application singleton.
+
+        Args:
+            container: Canonical application service registry.
+        """
+        container.instance(_ChainDestinationRecord, self._record)
+
+
+@dataclass
+class _FirstDestinationJob(Job):
+    """Select one per-job queue within a configured chain.
+    """  # fmt: skip
+
+    label: str
+    queue: ClassVar[str | None] = "first-job"
+
+    def handle(
+        self,
+        record: _ChainDestinationRecord,
+        context: JobContext,
+    ) -> None:
+        """Record the resolved connection and queue.
+
+        Args:
+            record: Application-owned destination observer.
+            context: Current job's resolved dispatch metadata.
+        """
+        record.destinations.append(
+            (self.label, context.connection, context.queue)
+        )
+
+
+@dataclass
+class _DefaultDestinationJob(Job):
+    """Use chain-wide destination defaults when no job override exists.
+    """  # fmt: skip
+
+    label: str
+
+    def handle(
+        self,
+        record: _ChainDestinationRecord,
+        context: JobContext,
+    ) -> None:
+        """Record the resolved connection and queue.
+
+        Args:
+            record: Application-owned destination observer.
+            context: Current job's resolved dispatch metadata.
+        """
+        record.destinations.append(
+            (self.label, context.connection, context.queue)
+        )
+
+
+@dataclass
+class _LastDestinationJob(Job):
+    """Select both per-job connection and queue inside a chain.
+    """  # fmt: skip
+
+    label: str
+    connection: ClassVar[str | None] = "secondary"
+    queue: ClassVar[str | None] = "last-job"
+
+    def handle(
+        self,
+        record: _ChainDestinationRecord,
+        context: JobContext,
+    ) -> None:
+        """Record the resolved connection and queue.
+
+        Args:
+            record: Application-owned destination observer.
+            context: Current job's resolved dispatch metadata.
+        """
+        record.destinations.append(
+            (self.label, context.connection, context.queue)
+        )
 
 
 class _JobDependency:
@@ -148,17 +249,20 @@ class _RecordJob(Job):
 
 @dataclass
 class _FailingJob(Job):
-    """Raise one deterministic application error for batch accounting."""
+    """Raise one deterministic application error for batch accounting.
+    """  # fmt: skip
 
     def handle(self) -> None:
-        """Raise a known failure without external input."""
+        """Raise a known failure without external input.
+        """  # fmt: skip
         message = "expected batch test failure"
         raise RuntimeError(message)
 
 
 @dataclass
 class _SyncRecordingMiddleware:
-    """Record synchronous middleware around an inline job handler."""
+    """Record synchronous middleware around an inline job handler.
+    """  # fmt: skip
 
     def __init__(self, record: _JobRecord) -> None:
         """Retain the application-owned observation service.
@@ -213,7 +317,8 @@ class _SyncRecordJob(Job):
 
 
 class _RecordingJobMiddleware:
-    """Record middleware order through a dependency-injected service."""
+    """Record middleware order through a dependency-injected service.
+    """  # fmt: skip
 
     def __init__(self, record: _JobRecord) -> None:
         """Retain the application-owned observation service.
@@ -247,7 +352,8 @@ class _RecordingJobMiddleware:
 
 @dataclass
 class _MiddlewareJob(Job):
-    """Verify job middleware wraps a handler inside its execution scope."""
+    """Verify job middleware wraps a handler inside its execution scope.
+    """  # fmt: skip
 
     value: str
     middleware = (_RecordingJobMiddleware,)
@@ -353,17 +459,20 @@ class _GateProvider:
 
 
 class _JobLifecycle:
-    """Coordinate one cancelled job and record resource finalization."""
+    """Coordinate one cancelled job and record resource finalization.
+    """  # fmt: skip
 
     def __init__(self) -> None:
-        """Create synchronization events and an empty cleanup counter."""
+        """Create synchronization events and an empty cleanup counter.
+        """  # fmt: skip
         self.entered = anyio.Event()
         self.release = anyio.Event()
         self.finalizations = 0
 
 
 class _OwnedJobResource:
-    """Represent a resource owned by one job execution scope."""
+    """Represent a resource owned by one job execution scope.
+    """  # fmt: skip
 
     def __init__(self, lifecycle: _JobLifecycle) -> None:
         """Retain the application-owned lifecycle observer.
@@ -375,7 +484,8 @@ class _OwnedJobResource:
 
 
 class _JobResourceProvider:
-    """Register a generator-owned resource in the native JOB scope."""
+    """Register a generator-owned resource in the native JOB scope.
+    """  # fmt: skip
 
     def __init__(self, lifecycle: _JobLifecycle) -> None:
         """Retain state used to verify scope teardown.
@@ -412,7 +522,8 @@ class _JobResourceProvider:
 
 @dataclass
 class _WaitForCancellationJob(Job):
-    """Hold a job resource until the owning task is cancelled."""
+    """Hold a job resource until the owning task is cancelled.
+    """  # fmt: skip
 
     async def handle(self, resource: _OwnedJobResource) -> None:
         """Wait while retaining the scoped resource.
@@ -431,7 +542,8 @@ class _RedisRecord:
     """
 
     def __init__(self) -> None:
-        """Create one worker-owned completion signal and result list."""
+        """Create one worker-owned completion signal and result list.
+        """  # fmt: skip
         self.done = anyio.Event()
         self.values: list[str] = []
         self.attempts = 0
@@ -463,7 +575,8 @@ class _RedisJob(Job):
 
 
 class _RedisProvider:
-    """Register the observer injected into Redis-delivered jobs."""
+    """Register the observer injected into Redis-delivered jobs.
+    """  # fmt: skip
 
     def __init__(self, record: _RedisRecord) -> None:
         """Retain the test-owned observer instance.
@@ -483,26 +596,31 @@ class _RedisProvider:
 
 
 class _ChainRecord:
-    """Track continuation order in a real Redis worker."""
+    """Track continuation order in a real Redis worker.
+    """  # fmt: skip
 
     def __init__(self) -> None:
-        """Create a worker-owned result list and completion event."""
+        """Create a worker-owned result list and completion event.
+        """  # fmt: skip
         self.done = anyio.Event()
         self.values: list[str] = []
 
 
 class _ConnectionRecord:
-    """Observe delivery to a selected named connection."""
+    """Observe delivery to a selected named connection.
+    """  # fmt: skip
 
     def __init__(self) -> None:
-        """Create one completion signal for connection isolation."""
+        """Create one completion signal for connection isolation.
+        """  # fmt: skip
         self.done = anyio.Event()
         self.values: list[str] = []
 
 
 @dataclass
 class _ConnectionJob(Job):
-    """Record the selected logical connection in the injected test service."""
+    """Record the selected logical connection in the injected test service.
+    """  # fmt: skip
 
     value: str
 
@@ -517,7 +635,8 @@ class _ConnectionJob(Job):
 
 
 class _ConnectionProvider:
-    """Bind the connection-isolation observation service."""
+    """Bind the connection-isolation observation service.
+    """  # fmt: skip
 
     def __init__(self, record: _ConnectionRecord) -> None:
         """Retain the service shared by the application and test.
@@ -537,7 +656,8 @@ class _ConnectionProvider:
 
 
 class _ChainProvider:
-    """Register the observer for Redis chain integration jobs."""
+    """Register the observer for Redis chain integration jobs.
+    """  # fmt: skip
 
     def __init__(self, record: _ChainRecord) -> None:
         """Retain the test-owned chain observer.
@@ -558,7 +678,8 @@ class _ChainProvider:
 
 @dataclass
 class _RedisChainJob(Job):
-    """Record one continuation delivered through Redis Streams."""
+    """Record one continuation delivered through Redis Streams.
+    """  # fmt: skip
 
     value: str
 
@@ -756,7 +877,8 @@ async def test_queue_fake_intercepts_manager_and_facade_before_execution() -> (
 
 @pytest.mark.anyio
 async def test_queue_fake_asserts_delayed_job_delivery_metadata() -> None:
-    """Preserve delay metadata for assertions without contacting a broker."""
+    """Preserve delay metadata for assertions without contacting a broker.
+    """  # fmt: skip
     record = _JobRecord()
     application = Application(
         config={"app": {"name": "queue-fake-delay"}},
@@ -930,7 +1052,8 @@ async def test_fake_rejects_dispatch_from_child_task_after_scope_exit() -> None:
         failures: list[BaseException] = []
 
         async def dispatch_after_close() -> None:
-            """Try inherited fake dispatch after its owner restores context."""
+            """Try inherited fake dispatch after its owner restores context.
+            """  # fmt: skip
             await release.wait()
             try:
                 await manager.dispatch_async(_RecordJob("late"))
@@ -989,7 +1112,8 @@ async def test_real_redis_stream_worker_executes_registered_job(
         receipts: list[DispatchReceipt] = []
 
         async def run_worker() -> None:
-            """Run the real Redis consumer until the test cancels it."""
+            """Run the real Redis consumer until the test cancels it.
+            """  # fmt: skip
             await manager.work_async(
                 connection="redis",
                 queue="integration",
@@ -1031,13 +1155,70 @@ async def test_bus_chain_executes_in_order() -> None:
         manager = application.container.make(QueueManager)
         assert application.container.make(BusDispatcher) is manager
         assert Bus.resolve_service() is manager
-        receipt = await Bus.chain(
-            [_RecordJob("first"), _RecordJob("second")],
-        ).dispatch_async()
+        chain = Bus.chain([_RecordJob("second")])
+        chain.prepend(_RecordJob("first")).append(_RecordJob("third"))
+        receipt = await chain.dispatch_async()
+        with pytest.raises(QueueError):
+            await chain.dispatch_async()
 
     assert receipt.state == "executed"
     assert receipt.chain_id is not None
-    assert [value[0] for value in record.values] == ["first", "second"]
+    assert [value[0] for value in record.values] == [
+        "first",
+        "second",
+        "third",
+    ]
+
+
+@pytest.mark.anyio
+async def test_chain_destination_defaults_allow_per_job_overrides() -> None:
+    """Preserve each job's destination inside shared chain configuration.
+    """  # fmt: skip
+    record = _ChainDestinationRecord()
+    application = Application(
+        config={
+            "app": {"name": "queue-chain-destinations"},
+            "queue": {
+                "default_connection": "sync",
+                "connections": {
+                    "sync": {"driver": "sync"},
+                    "secondary": {"driver": "sync"},
+                },
+            },
+        },
+        service_providers=(
+            _ChainDestinationProvider(record),
+            QueueServiceProvider(
+                jobs=(
+                    _FirstDestinationJob,
+                    _DefaultDestinationJob,
+                    _LastDestinationJob,
+                )
+            ),
+        ),
+    )
+
+    async with application:
+        receipt = (
+            await Bus.chain(
+                [
+                    _FirstDestinationJob("first"),
+                    _DefaultDestinationJob("middle"),
+                    _LastDestinationJob("last"),
+                ]
+            )
+            .on_connection("sync")
+            .on_queue("chain-default")
+            .dispatch_async()
+        )
+
+    assert receipt.connection == "sync"
+    assert receipt.queue == "first-job"
+    assert record.destinations == [
+        ("first", "sync", "first-job"),
+        ("middle", "sync", "chain-default"),
+        ("last", "secondary", "last-job"),
+    ]
 
 
 @pytest.mark.anyio
@@ -1139,7 +1320,8 @@ async def test_redis_worker_continues_chain_after_successful_job(
         manager = application.container.make(QueueManager)
 
         async def run_worker() -> None:
-            """Consume the chain until cancellation."""
+            """Consume the chain until cancellation.
+            """  # fmt: skip
             await manager.work_async(
                 connection="redis",
                 queue="chains",
@@ -1232,7 +1414,8 @@ async def test_redis_named_connections_do_not_consume_each_others_jobs(
         events.listen(JobProcessing, observe_processing)
 
         async def run_consumer() -> None:
-            """Consume the named connection until the test ends."""
+            """Consume the named connection until the test ends.
+            """  # fmt: skip
             await manager.work_async(
                 connection="consumer",
                 queue="shared-name",
@@ -1255,7 +1438,8 @@ async def test_redis_named_connections_do_not_consume_each_others_jobs(
             assert record.values == []
 
             async def run_publisher() -> None:
-                """Consume the publisher connection's physical stream."""
+                """Consume the publisher connection's physical stream.
+                """  # fmt: skip
                 await manager.work_async(
                     connection="publisher",
                     queue="shared-name",

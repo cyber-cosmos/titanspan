@@ -31,6 +31,7 @@ async def test_runtime_smoke_uses_native_routing_and_injected_services() -> (
     assert result["documents"] == {"resource": "Document"}
     assert result["json_metadata"] == {"category": "guides"}
     assert result["conventional_route_verified"] is True
+    assert result["queue_dispatch_verified"] is True
     assert result["uploaded_document"] == {
         "path": "guides/reference.txt",
         "bytes": 26,
@@ -99,6 +100,7 @@ def test_installed_smoke_rejects_a_failed_integration_check() -> None:
         "concurrent_request_scope_verified": False,
         "custom_exception_verified": True,
         "safe_failure_verified": True,
+        "queue_dispatch_verified": True,
     }
 
     with pytest.raises(RuntimeError, match="request scope isolation"):

@@ -1,4 +1,5 @@
-"""Define typed continuation behavior for native Queue middleware."""
+"""Define typed continuation behavior for native Queue middleware.
+"""  # fmt: skip
 
 from __future__ import annotations
 

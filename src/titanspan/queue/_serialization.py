@@ -42,7 +42,8 @@ _JSON_VALUE_ADAPTER = TypeAdapter(JsonValue)
 
 
 class ChainedJobPayload(BaseModel):
-    """Store one trusted continuation as validated JSON job data."""
+    """Store one trusted continuation as validated JSON job data.
+    """  # fmt: skip
 
     model_config = ConfigDict(extra="forbid", strict=True, frozen=True)
 
@@ -53,6 +54,18 @@ class ChainedJobPayload(BaseModel):
         pattern=r"^[A-Za-z0-9_.:-]+$",
     )
     payload_version: int = Field(ge=1)
+    connection: str | None = Field(
+        default=None,
+        min_length=1,
+        max_length=128,
+        pattern=_SAFE_QUEUE_LABEL_PATTERN,
+    )
+    queue: str | None = Field(
+        default=None,
+        min_length=1,
+        max_length=128,
+        pattern=_SAFE_QUEUE_LABEL_PATTERN,
+    )
     payload: JsonValue
 
 
@@ -110,7 +123,8 @@ class DecodedJob:
 
 @dataclass(frozen=True, slots=True)
 class DecodedChainedJob:
-    """Pair trusted continuation metadata with its typed job instance."""
+    """Pair trusted continuation metadata with its typed job instance.
+    """  # fmt: skip
 
     payload: ChainedJobPayload
     job: Job
@@ -292,6 +306,8 @@ class JobCodec:
         jobs: Sequence[Job],
         *,
         chain_id: str,
+        connection: str,
+        queue: str,
         first_index: int = 1,
     ) -> tuple[ChainedJobPayload, ...]:
         """Encode trusted continuation jobs without executable objects.
@@ -299,6 +315,8 @@ class JobCodec:
         Args:
             jobs: Remaining registered jobs in execution order.
             chain_id: UUID assigned to the containing chain.
+            connection: Chain-wide connection default.
+            queue: Chain-wide queue default.
             first_index: Zero-based index of the first supplied job.
 
         Returns:
@@ -333,6 +351,8 @@ class JobCodec:
                         job_id=uuid5(chain_uuid, str(first_index + offset)),
                         job_type=name,
                         payload_version=job_type.schema_version,
+                        connection=job_type.connection or connection,
+                        queue=job_type.queue or queue,
                         payload=payload,
                     )
                 )

@@ -1,4 +1,5 @@
-"""Verify Queue configuration validation and safe diagnostics."""
+"""Verify Queue configuration validation and safe diagnostics.
+"""  # fmt: skip
 
 import pytest
 
@@ -32,7 +33,8 @@ def test_repository_selects_explicit_namespace_and_default_connection() -> None:
 
 
 def test_repository_reads_payload_nesting_limit() -> None:
-    """Load the configured bound before accepting Queue messages."""
+    """Load the configured bound before accepting Queue messages.
+    """  # fmt: skip
     repository = Repository(
         {"queue": {"max_payload_depth": _PAYLOAD_DEPTH_LIMIT}}
     )
@@ -43,7 +45,8 @@ def test_repository_reads_payload_nesting_limit() -> None:
 
 
 def test_connection_configuration_redacts_secret_options() -> None:
-    """Keep connection credentials out of representations and errors."""
+    """Keep connection credentials out of representations and errors.
+    """  # fmt: skip
     configuration = QueueConfiguration(
         connections={
             "redis": {
@@ -67,7 +70,8 @@ def test_connection_configuration_redacts_secret_options() -> None:
     ["", "bad:namespace", "../unsafe", "space value"],
 )
 def test_repository_rejects_unsafe_namespace(value: str) -> None:
-    """Reject malformed namespaces before broker construction."""
+    """Reject malformed namespaces before broker construction.
+    """  # fmt: skip
     repository = Repository(
         {
             "app": {"name": "document-service"},
@@ -86,7 +90,8 @@ def test_repository_rejects_unsafe_namespace(value: str) -> None:
 def test_configuration_rejects_invalid_payload_nesting_limit(
     value: object,
 ) -> None:
-    """Reject invalid depth limits instead of silently coercing them."""
+    """Reject invalid depth limits instead of silently coercing them.
+    """  # fmt: skip
     repository = Repository({"queue": {"max_payload_depth": value}})
 
     with pytest.raises(QueueConfigurationError):

@@ -3,13 +3,17 @@
 Tests compile generated source and exercise the production path contract.
 """
 
+from importlib.util import module_from_spec, spec_from_file_location
 from pathlib import Path
+from sys import modules
+from uuid import uuid4
 
 import pytest
 
 from titanspan.console.exceptions import CommandGenerationError
 from titanspan.console.generators import ArtifactKind, generate_artifact
 from titanspan.foundation import Application
+from titanspan.queue import Job, QueueManager, QueueServiceProvider
 
 pytestmark = pytest.mark.unit
 
@@ -117,6 +121,41 @@ def test_generated_templates_compile_under_application_root(
     assert target == tmp_path / relative_path
     assert source_marker in source
     compile(source, target, "exec")
+
+
+@pytest.mark.anyio
+async def test_generated_job_imports_and_runs_through_native_queue(
+    tmp_path: Path,
+) -> None:
+    """Import and execute a generated job through a real Application.
+
+    Args:
+        tmp_path: Isolated application root supplied by pytest.
+    """
+    paths = Application(base_path=tmp_path)
+    target = generate_artifact(paths, "job", "ProcessDocument")
+    module_name = f"_generated_queue_job_{uuid4().hex}"
+    spec = spec_from_file_location(module_name, target)
+    assert spec is not None
+    assert spec.loader is not None
+    module = module_from_spec(spec)
+    modules[module_name] = module
+    try:
+        spec.loader.exec_module(module)
+        candidate = vars(module).get("ProcessDocumentJob")
+        assert isinstance(candidate, type)
+        assert issubclass(candidate, Job)
+        application = Application(
+            config={"app": {"name": "generated-queue-job"}},
+            service_providers=(QueueServiceProvider(jobs=(candidate,)),),
+        )
+        async with application:
+            manager = application.container.make(QueueManager)
+            receipt = await manager.dispatch_async(candidate())
+    finally:
+        modules.pop(module_name, None)
+
+    assert receipt.state == "executed"
 
 
 def test_generator_rejects_path_traversal_without_writing_outside_root(

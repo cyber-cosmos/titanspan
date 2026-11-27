@@ -40,12 +40,14 @@ class _NumberJob(Job):
 
 @dataclass
 class _NestedJob(Job):
-    """Carry JSON data for nesting-boundary tests."""
+    """Carry JSON data for nesting-boundary tests.
+    """  # fmt: skip
 
     value: dict[str, object]
 
     def handle(self) -> None:
-        """Satisfy the job convention without executing side effects."""
+        """Satisfy the job convention without executing side effects.
+        """  # fmt: skip
 
 
 def test_registered_job_round_trip_preserves_typed_payload() -> None:
@@ -134,7 +136,8 @@ def test_codec_rejects_payloads_that_exceed_the_configured_limit() -> None:
 
 
 def test_codec_rejects_nested_payload_before_publication() -> None:
-    """Reject trusted job data beyond the configured nesting bound."""
+    """Reject trusted job data beyond the configured nesting bound.
+    """  # fmt: skip
     codec = JobCodec(max_payload_bytes=1024, max_payload_depth=2)
     codec.register(_NestedJob, "nested")
 
@@ -146,7 +149,8 @@ def test_codec_rejects_nested_payload_before_publication() -> None:
 
 
 def test_codec_rejects_untrusted_nested_payload_before_validation() -> None:
-    """Reject excessive broker JSON nesting before model construction."""
+    """Reject excessive broker JSON nesting before model construction.
+    """  # fmt: skip
     writer = JobCodec(max_payload_bytes=1024, max_payload_depth=8)
     writer.register(_NestedJob, "nested")
     encoded = writer.encode(
@@ -161,7 +165,8 @@ def test_codec_rejects_untrusted_nested_payload_before_validation() -> None:
 
 
 def test_codec_ignores_delimiters_inside_json_strings() -> None:
-    """Count JSON containers without treating string content as syntax."""
+    """Count JSON containers without treating string content as syntax.
+    """  # fmt: skip
     codec = JobCodec(max_payload_bytes=1024, max_payload_depth=2)
     codec.register(_NestedJob, "nested")
     encoded = codec.encode(
@@ -173,7 +178,8 @@ def test_codec_ignores_delimiters_inside_json_strings() -> None:
 
 
 def test_codec_rejects_deep_untrusted_json_before_backend_validation() -> None:
-    """Reject extreme nesting before invoking recursive schema parsing."""
+    """Reject extreme nesting before invoking recursive schema parsing.
+    """  # fmt: skip
     codec = JobCodec(max_payload_bytes=10_000, max_payload_depth=2)
     codec.register(_NestedJob, "nested")
     encoded = '{"payload":' + "[" * 1000 + "0" + "]" * 1000 + "}"

@@ -270,7 +270,8 @@ class QueueFake:
             self._records.append(QueueDispatchRecord(job, job_name, receipt))
 
     def close_scope(self) -> None:
-        """Reject inherited child-context writes after scope restoration."""
+        """Reject inherited child-context writes after scope restoration.
+        """  # fmt: skip
         with self._lock:
             self._closed = True
 
@@ -882,26 +883,38 @@ class QueueManager(BusDispatcher):
         Raises:
             QueueConfigurationError: If the chain or a job is invalid.
         """
+        job_values = self.validate_chain_members(jobs)
+        return PendingChain(self, job_values)
+
+    def validate_chain_members(
+        self,
+        jobs: Sequence[object],
+    ) -> tuple[Job, ...]:
+        """Validate registered jobs before adding them to a chain.
+
+        Args:
+            jobs: Candidate ordered chain members.
+
+        Returns:
+            Immutable registered job instances.
+
+        Raises:
+            QueueConfigurationError: If a job, destination, or limit is bad.
+        """
         if not jobs or len(jobs) > _MAX_CHAIN_JOBS:
             msg = "A job chain must contain between 1 and 256 jobs."
             raise QueueConfigurationError(msg)
         job_values: list[Job] = []
         for job in jobs:
-            self._job_type(job)
+            job_type = self._job_type(job)
+            connection = (
+                job_type.connection or self._configuration.default_connection
+            )
+            queue = job_type.queue or self._configuration.default_queue
+            self.connection_configuration(connection)
+            self.validate_queue_name(queue)
             job_values.append(cast("Job", job))
-        first_type = type(job_values[0])
-        connection = (
-            first_type.connection or self._configuration.default_connection
-        )
-        queue = first_type.queue or self._configuration.default_queue
-        self.connection_configuration(connection)
-        self.validate_queue_name(queue)
-        return PendingChain(
-            self,
-            job_values,
-            connection=connection,
-            queue=queue,
-        )
+        return tuple(job_values)
 
     def batch(self, jobs: Sequence[object]) -> BatchBuilder:
         """Create a bounded batch from jobs registered in this application.
@@ -1144,18 +1157,33 @@ class QueueManager(BusDispatcher):
         if not jobs or len(jobs) > _MAX_CHAIN_JOBS:
             msg = "A job chain must contain between 1 and 256 jobs."
             raise QueueConfigurationError(msg)
+        first_type = type(jobs[0])
         selected_connection = (
-            connection or self._configuration.default_connection
+            first_type.connection
+            or connection
+            or self._configuration.default_connection
         )
-        selected_queue = queue or self._configuration.default_queue
+        selected_queue = (
+            first_type.queue or queue or self._configuration.default_queue
+        )
         self.connection_configuration(selected_connection)
         self.validate_queue_name(selected_queue)
+        continuation_connection = (
+            connection or self._configuration.default_connection
+        )
+        continuation_queue = queue or self._configuration.default_queue
         for job in jobs:
-            self._job_type(job)
+            job_type = self._job_type(job)
+            self.connection_configuration(
+                job_type.connection or continuation_connection
+            )
+            self.validate_queue_name(job_type.queue or continuation_queue)
         chain_id = str(uuid4())
         continuation = self._codec.encode_chain(
             jobs[1:],
             chain_id=chain_id,
+            connection=continuation_connection,
+            queue=continuation_queue,
             first_index=1,
         )
         job_id = str(uuid5(UUID(chain_id), "0"))
@@ -1470,8 +1498,8 @@ class QueueManager(BusDispatcher):
                 JobDispatching(
                     job_id=str(current.envelope.job_id),
                     job_name=current.envelope.job_type,
-                    connection=connection,
-                    queue=queue,
+                    connection=current.envelope.connection,
+                    queue=current.envelope.queue,
                     occurred_at=datetime.now(UTC),
                     chain_id=chain_id,
                 )
@@ -1736,6 +1764,10 @@ class QueueManager(BusDispatcher):
                 "job_id": selected.payload.job_id,
                 "job_type": selected.payload.job_type,
                 "payload_version": selected.payload.payload_version,
+                "connection": (
+                    selected.payload.connection or current.envelope.connection
+                ),
+                "queue": selected.payload.queue or current.envelope.queue,
                 "payload": selected.payload.payload,
                 "continuation": tuple(item.payload for item in remaining),
                 "dispatched_at": datetime.now(UTC),
@@ -1849,7 +1881,8 @@ class QueueManager(BusDispatcher):
         """
 
         async def invoke_handler(_: JobContext) -> object:
-            """Invoke the job through the native Container."""
+            """Invoke the job through the native Container.
+            """  # fmt: skip
             if inspect.iscoroutinefunction(handler):
                 timeout = type(decoded.job).timeout
                 if timeout is None:
@@ -1932,7 +1965,8 @@ class QueueManager(BusDispatcher):
         """
 
         def invoke_handler(_: JobContext) -> object:
-            """Resolve handler dependencies through the canonical Container."""
+            """Resolve handler dependencies through the canonical Container.
+            """  # fmt: skip
             result = self._container.call(handler)
             if inspect.isawaitable(result):
                 _raise_async_handler_error()
@@ -1947,7 +1981,8 @@ class QueueManager(BusDispatcher):
                 *,
                 selected_type: JobMiddlewareType = middleware_type,
             ) -> object:
-                """Resolve and execute one synchronous middleware stage."""
+                """Resolve and execute one synchronous middleware stage.
+                """  # fmt: skip
                 instance = self._container.make(selected_type)
                 callback = getattr(instance, "handle", None)
                 if not callable(callback):
@@ -2625,7 +2660,8 @@ def _normalize_delay(
 
 
 def _raise_async_handler_error() -> NoReturn:
-    """Reject a synchronous handler that returned an awaitable."""
+    """Reject a synchronous handler that returned an awaitable.
+    """  # fmt: skip
     raise QueueCapabilityError(_ASYNC_HANDLER_ERROR)
 
 

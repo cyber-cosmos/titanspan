@@ -1,4 +1,5 @@
-"""Define immutable metadata available during one Queue job attempt."""
+"""Define immutable metadata available during one Queue job attempt.
+"""  # fmt: skip
 
 from __future__ import annotations
 
@@ -40,7 +41,8 @@ class JobContext:
     metadata: Mapping[str, str | int | float | bool] | None = None
 
     def __post_init__(self) -> None:
-        """Freeze caller metadata before a handler can observe it."""
+        """Freeze caller metadata before a handler can observe it.
+        """  # fmt: skip
         if self.metadata is not None:
             object.__setattr__(
                 self,

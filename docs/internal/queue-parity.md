@@ -83,7 +83,8 @@ or prose.
 | Reference capability | Titanspan status | Evidence and difference |
 | --- | --- | --- |
 | Ordered job chain | Backend-dependent | Inline and Redis continuation tested; publication after success is non-atomic. |
-| Chain-wide queue/connection | Equivalent with Python-native syntax | Chain builder selects shared defaults. Per-job overrides are not implemented. |
+| Chain-wide queue/connection and per-job overrides | Equivalent with Python-native syntax | Builder values provide defaults; job declarations override them. Inline and Redis tests verify selected destinations. |
+| Prepending and appending pending jobs | Equivalent with Python-native syntax | Chain builders validate registered jobs before dispatch. |
 | Chain callbacks and dynamic edits | Unsupported with a technical justification | Durable callback registration and edit coordination are absent. |
 | Batch identifier and counters | Equivalent with Python-native syntax | In-process `BatchSnapshot` for sync execution and fake recording. |
 | Batch failure tolerance | Equivalent with Python-native syntax | Local inline batch can continue after failure. |

@@ -23,7 +23,8 @@ if TYPE_CHECKING:
 
 
 class Queue(Facade[QueueDispatcher]):
-    """Resolve the canonical Queue dispatcher for the active application."""
+    """Resolve the canonical Queue dispatcher for the active application.
+    """  # fmt: skip
 
     service_contract = QueueDispatcher
 
