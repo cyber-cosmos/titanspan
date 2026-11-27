@@ -56,6 +56,9 @@ public release.
   PostgreSQL integration fails closed when its mandatory CI service
   configuration is missing. See the Database guide for the verified scope
   and current limitations.
+- Add explicit asynchronous route model binding through the native Routing
+  callback boundary. Models can select a mapped route-key column, and missing
+  rows use the framework's not-found response handling.
 - Declare Pydantic as a direct runtime dependency for native schema APIs.
 - Add native application Cache services with memory and optional Redis
   backends, explicit backend capabilities, safe JSON serialization, atomic

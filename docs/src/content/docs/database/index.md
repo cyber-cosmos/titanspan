@@ -388,6 +388,25 @@ Current integration tests use temporary SQLite databases and a disposable
 PostgreSQL database. PostgreSQL integration is mandatory in CI; it fails if
 the job's required URL is missing.
 
+## Explicit route model binding
+
+Register a model against an existing Router path parameter with
+`titanspan.database.routing.bind_model`. The callback uses the active async
+Database service and the model's `route_key_name`, which defaults to `id`.
+Missing rows follow Routing's not-found response path.
+
+```python
+from titanspan.database.routing import bind_model
+
+bind_model(app.router, User, parameter="user")
+
+async def show_user(user: User) -> dict[str, object]:
+    return {"id": user.id, "name": user.name}
+```
+
+Scoped child binding, automatic annotation discovery, and model-based URL
+generation are not implemented yet.
+
 MySQL and MariaDB drivers can be installed through optional extras, but this
 repository does not yet run real integration tests for those dialects. Other
 SQLAlchemy dialects may interoperate through documented SQLAlchemy APIs, but
@@ -402,9 +421,10 @@ boundary. Use SQLAlchemy and Alembic APIs directly for capabilities not yet
 exposed by the native layer.
 
 The Database component does not yet provide database-backed Validation rules,
-Routing model binding, model lifecycle events through the Events component,
-database-specific Testing assertions, read replicas, query caching, or
-distributed migration coordination. See
+scoped or automatic Routing model binding, model-based URL generation, model
+lifecycle events through the Events component, database-specific Testing
+assertions, read replicas, query caching, or distributed migration
+coordination. See
 [ADR 0006](/titanspan/architecture/decisions/0006-sqlalchemy-persistence/) for
 the accepted persistence boundary and
 [the backend boundary specification](/titanspan/specifications/backend-boundaries/)

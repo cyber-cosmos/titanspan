@@ -155,6 +155,7 @@ class Model(DeclarativeBase):
     timestamps: ClassVar[bool] = True
     created_at_name: ClassVar[str] = "created_at"
     updated_at_name: ClassVar[str] = "updated_at"
+    route_key_name: ClassVar[str] = "id"
 
     @declared_attr.directive
     def __tablename__(self: Model) -> str:

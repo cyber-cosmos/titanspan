@@ -33,11 +33,17 @@ batches, results, unique jobs, queued event listeners, and
 transaction-aware dispatch remain planned. Console provides native command
 registration and application-aware execution.
 
-Database provides optional SQLAlchemy and Alembic persistence with
-application-owned connections and sessions, sync and async query and model
-APIs, migrations, factories, seeders, and SQLite and PostgreSQL integration
-coverage. Advanced relationship persistence, broader migration commands,
-additional ORM features, and complete Console generation remain planned.
+Database now provides an optional SQLAlchemy and Alembic-backed persistence
+component with application-owned connections and sessions, sync and async
+query and model APIs, schema operations, migrations, and SQLite and PostgreSQL
+integration coverage. Basic model factories support in-memory construction,
+states, sequences, and sync and async persistence. Explicit route model
+binding resolves configured keys through the active Database service.
+Relationship factories, recycling, advanced relationships, database-backed
+Validation, scoped or automatic binding, and model URL generation remain in
+progress. Seeders support sync and async execution through Container-owned
+instances and Database transactions, with native `db:seed` and
+`make:seeder` commands.
 
 ## Phase 0 — Engineering foundation
 
