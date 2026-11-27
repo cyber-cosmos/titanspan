@@ -29,7 +29,7 @@ The route validates `category` through the application Validation service.
 Invalid values receive a safe HTTP 422 response. The request owns the parsed
 upload and closes its temporary file after response transmission.
 
-The injected `DocumentProcessor` uses the native Container, Pipeline,
+The request-scoped `DocumentProcessor` uses the native Container, Pipeline,
 Filesystem, Events, Config, and Logging components. Foundation starts these
 services through one application lifecycle and closes them during shutdown.
 
@@ -40,3 +40,7 @@ the process working directory.
 The [installed-package runtime check](/titanspan/specifications/foundation/)
 runs this workflow against the built wheel. It also runs the installed
 controller generator and dispatches the generated action through Routing.
+The check also substitutes Storage, Events, Logging, and outgoing HTTP in a
+scoped application context. It verifies that fake storage does not write to
+the configured local disk and checks a password hash through the application
+Hasher.

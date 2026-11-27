@@ -19,6 +19,7 @@ import anyio
 
 from titanspan.contracts.filesystem import StorageManager
 from titanspan.contracts.routing import ControllerAction, UriUrlGenerator
+from titanspan.facades import Event, Hash, Http, Log, Storage
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Sequence
@@ -39,6 +40,10 @@ _MULTIPART_BOUNDARY = "titanspan-installed-reference-boundary"
 _INVALID_CATEGORY = "runtime-smoke-secret/../"
 _DOCUMENT_CONTENT = b"native reference workflow"
 _EXPECTED_STORED_CONTENT = b"native reference workflow\n"
+_FAKE_DOCUMENT_PATH = "guides/fake-reference.txt"
+_FAKE_DOCUMENT_CONTENT = b"isolated fake workflow\n"
+_FAKE_HTTP_URL = "https://service.example.test/status"
+_HASH_SAMPLE_TEXT = "local reference password sample"
 _EXPECTED_HEALTH = {
     "status": "ok",
     "application": "Document Processor",
@@ -73,12 +78,32 @@ class _SmokeResult(TypedDict):
         documents: Generated controller endpoint payload.
         uploaded_document: Successful document workflow receipt.
         invalid_upload: Status and payload for rejected input.
+        component_fakes: Results from application-scoped fake services.
+        password_hash_verified: Whether native hashing verifies its result.
     """
 
     health: object
     documents: object
     uploaded_document: object
     invalid_upload: _ValidationRejection
+    component_fakes: _ComponentFakeResults
+    password_hash_verified: bool
+
+
+class _ComponentFakeResults(TypedDict):
+    """Summarize fake-backed application service observations.
+
+    Attributes:
+        storage_isolated: Whether the fake write stayed out of local storage.
+        event_count: Number of document events captured by the event fake.
+        log_captured: Whether the active fake logger captured the request.
+        http_status: Status returned by the fake outgoing HTTP transport.
+    """
+
+    storage_isolated: bool
+    event_count: int
+    log_captured: bool
+    http_status: int
 
 
 @dataclass(frozen=True, slots=True)
@@ -105,7 +130,7 @@ async def run_smoke() -> _SmokeResult:
             fails.
 
     Returns:
-        Health, generated-route, document-upload, and rejection results.
+        Application, fake-service, hashing, and rejection results.
     """
     with TemporaryDirectory(prefix="titanspan-reference-") as directory:
         base_path = Path(directory)
@@ -199,6 +224,14 @@ async def run_smoke() -> _SmokeResult:
                 message = "Invalid document input reached application storage."
                 raise RuntimeError(message)
 
+            fake_results = await _exercise_application_fakes(
+                application,
+                upload_url,
+            )
+            password_hash_verified = await _verify_application_hasher(
+                application,
+            )
+
     return {
         "health": health.body,
         "documents": generated.body,
@@ -207,7 +240,114 @@ async def run_smoke() -> _SmokeResult:
             "status": invalid_upload.status,
             "body": invalid_upload.body,
         },
+        "component_fakes": fake_results,
+        "password_hash_verified": password_hash_verified,
     }
+
+
+async def _exercise_application_fakes(
+    application: Application,
+    upload_url: str,
+) -> _ComponentFakeResults:
+    """Substitute application services around real endpoint execution.
+
+    Args:
+        application: Started document application using installed services.
+        upload_url: Relative URL generated from the application's route table.
+
+    Returns:
+        Results that prove fakes intercepted the normal service paths.
+
+    Raises:
+        RuntimeError: If a fake leaks into production storage or requests.
+    """
+    with (
+        application.context(),
+        Storage.fake() as storage_fake,
+        Event.fake() as event_fake,
+        Log.fake() as log_fake,
+    ):
+        fake_body = _multipart_body(
+            category="guides",
+            filename="fake-reference.txt",
+            content=b"isolated fake workflow",
+        )
+        fake_upload = await _send_request(
+            application.asgi,
+            upload_url,
+            method="POST",
+            headers=_multipart_headers(fake_body),
+            body=fake_body,
+        )
+        _expect_response(
+            fake_upload,
+            status=_HTTP_OK_STATUS,
+            body={
+                "path": _FAKE_DOCUMENT_PATH,
+                "bytes": len(_FAKE_DOCUMENT_CONTENT),
+                "event_count": 1,
+            },
+        )
+        storage_fake.assert_stored(
+            _FAKE_DOCUMENT_PATH,
+            _FAKE_DOCUMENT_CONTENT,
+        )
+        event_fake.assert_dispatched(object, times=1)
+        event_count = len(event_fake.dispatched())
+        log_record = log_fake.assert_logged(
+            message="Document stored",
+            context={"path": _FAKE_DOCUMENT_PATH},
+        )
+        log_captured = log_record.message == "Document stored"
+
+    production_disk = application.make(StorageManager).disk()
+    storage_isolated = not await production_disk.exists_async(
+        _FAKE_DOCUMENT_PATH,
+    )
+    if not storage_isolated:
+        message = "The storage fake wrote to the local disk."
+        raise RuntimeError(message)
+
+    with application.context():
+        async with Http.fake(
+            {
+                _FAKE_HTTP_URL: Http.fake_response(
+                    {"status": "available"},
+                ),
+            },
+        ) as http_fake:
+            http_response = await Http.get_async(_FAKE_HTTP_URL)
+            http_status = http_response.status_code
+            if not http_response.successful():
+                message = "The application HTTP fake returned an error."
+                raise RuntimeError(message)
+            http_fake.assert_sent(
+                Http.request_pattern(
+                    url=_FAKE_HTTP_URL,
+                    method="GET",
+                ),
+            )
+
+    return {
+        "storage_isolated": storage_isolated,
+        "event_count": event_count,
+        "log_captured": log_captured,
+        "http_status": http_status,
+    }
+
+
+async def _verify_application_hasher(application: Application) -> bool:
+    """Verify generated password data through the application Hasher.
+
+    Args:
+        application: Started application with its default hashing provider.
+
+    Returns:
+        Whether the hasher accepts the exact text used to create the hash.
+    """
+    with application.context():
+        password_hash = await Hash.make_async(_HASH_SAMPLE_TEXT)
+        return await Hash.check_async(_HASH_SAMPLE_TEXT, password_hash)
 
 
 def _generate_document_controller(base_path: Path) -> Path:

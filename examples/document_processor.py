@@ -215,13 +215,14 @@ class _DocumentProvider(ServiceProvider):
     """
 
     def register(self, container: ServiceRegistry) -> None:
-        """Bind one processor and audit recorder to the application graph.
+        """Bind a request processor and app audit recorder.
 
         Args:
             container: Canonical service registry owned by Foundation.
         """
         container.singleton(DocumentAudit, DocumentAudit)
-        container.singleton(DocumentProcessor, DocumentProcessor)
+        # Request scope lets each execution resolve its active log service.
+        container.scoped(DocumentProcessor, DocumentProcessor)
 
 
 def _record_document(

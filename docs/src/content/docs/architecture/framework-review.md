@@ -687,11 +687,11 @@ checks both redaction and explicit field access.
 | C-015 | Resolved | Replacement hashes are omitted from ordinary representations. |
 | C-016 | Resolved | Safe Console and Foundation diagnostics have regression coverage. |
 | C-017 | Resolved for async programmatic execution | `Console.execute_async()` reuses an active app or owns a standalone lifecycle. Sync handlers use AnyIO worker threads. |
-| C-018 | Partially resolved | Installed-package smoke now runs `make:controller`, imports the generated controller, and dispatches it through the native route. A complete application scaffold remains deferred. |
+| C-018 | Resolved for supported generators | Installed-package smoke runs `make:controller`, imports its output, and dispatches the action through the native route. Full application scaffolding remains deferred. |
 | C-019 | Resolved with C-009 | Built-in providers follow one deterministic Foundation registration policy. |
 | C-020 | Resolved as a dependency decision | Hashing keeps direct `argon2-cffi` and `bcrypt` adapters; `pwdlib` was not added. |
 | C-021 | Resolved | Framework-generated request and exception logs resolve active service substitutions. |
-| C-022 | Partial | The installed-package smoke runs the document example through multipart validation, Pipeline, local storage, Events, logging, URL generation, generated-controller dispatch, and application shutdown. Broader installed-package tests and component fake coverage remain open. |
+| C-022 | Partial | The installed-package smoke verifies multipart validation, Pipeline, local storage, Events, Logging, named URLs, generated-controller dispatch, scoped Storage/Event/Logging/HTTP fakes, Hashing, and shutdown. Broader installed-package application tests remain open. |
 
 ### C-010 — Typed route inputs did not apply application rules
 
@@ -780,7 +780,7 @@ provide typed Python values for declared command arguments and options.
 
 ### C-018 — Installed artifact generation lacked runtime evidence
 
-**Severity:** P2 — confirmed verification gap, partially resolved.
+**Severity:** P2 — confirmed verification gap, resolved for supported generators.
 
 **Affected components:** Console, Foundation, Routing, HTTP.
 
@@ -797,9 +797,9 @@ native Router, reverses its named route, and sends an ASGI request.
 checks both the configured health route and generated controller response.
 The CI installed-package job runs the same script outside the source tree.
 
-**Boundary:** This verifies one generated artifact and its runtime path. A
-complete application scaffold remains deferred because no maintained
-application template exists.
+**Boundary:** This verifies one generated artifact and its runtime path. Full
+application scaffolding remains deferred because no maintained template
+exists.
 
 ## Open findings
 

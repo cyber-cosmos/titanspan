@@ -34,7 +34,7 @@ async def test_runtime_smoke_uses_native_routing_and_injected_services() -> (
 
 @pytest.mark.anyio
 async def test_runtime_smoke_processes_a_validated_document_upload() -> None:
-    """Exercise native validation, pipelines, storage, and events together.
+    """Exercise fakes, hashing, validation, and document processing together.
 
     The smoke runs against the installed distribution in the mandatory
     clean-environment runtime job.
@@ -49,3 +49,10 @@ async def test_runtime_smoke_processes_a_validated_document_upload() -> None:
     invalid_upload = result["invalid_upload"]
     assert invalid_upload["status"] == _HTTP_UNPROCESSABLE_STATUS
     assert "runtime-smoke-secret" not in repr(invalid_upload["body"])
+    assert result["component_fakes"] == {
+        "storage_isolated": True,
+        "event_count": 1,
+        "log_captured": True,
+        "http_status": 200,
+    }
+    assert result["password_hash_verified"] is True
