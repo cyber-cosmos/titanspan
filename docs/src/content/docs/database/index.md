@@ -208,7 +208,9 @@ uses a left outer join on PostgreSQL, MySQL, MariaDB, and SQLite.
 and MariaDB do not support full outer joins. MySQL joins are not real
 integration-tested here. `select_sub()` and `add_select_sub()` add named scalar
 projections, and `where_in()` / `where_not_in()` accept a fluent single-column
-subquery as well as bound sequences. The current pagination API offers
+subquery as well as bound sequences. `in_random_order()` uses SQLAlchemy's
+backend-native random function on SQLite, PostgreSQL, and MySQL. Randomly
+ordered queries cannot use cursor pagination. The current pagination API offers
 length-aware and simple page results. Equivalent asynchronous terminal methods
 use an `_async` suffix. Use a stream context when a result must remain bounded
 in memory:

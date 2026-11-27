@@ -1467,6 +1467,27 @@ class QueryBuilder(DatabaseQueryBuilder):
             self.order_by(column_name)
         return self
 
+    def in_random_order(self) -> QueryBuilder:
+        """Append backend-native random ordering to the query.
+
+        Returns:
+            This builder for further query composition.
+
+        Raises:
+            DatabaseQueryError: If the dialect has no supported random
+                ordering expression.
+        """
+        dialect = self._connection.dialect_name
+        if dialect == "mysql":
+            expression = func.rand()
+        elif dialect in {"sqlite", "postgresql"}:
+            expression = func.random()
+        else:
+            msg = "Random ordering is unsupported by this dialect."
+            raise DatabaseQueryError(msg)
+        self._orders.append(cast("ColumnElement[object]", expression))
+        return self
+
     def group_by(self, *columns: str) -> QueryBuilder:
         """Group rows by validated columns.
 
@@ -1859,6 +1880,9 @@ class QueryBuilder(DatabaseQueryBuilder):
             msg = (
                 "Cursor pagination requires a non-grouped, non-distinct query."
             )
+            raise DatabaseQueryError(msg)
+        if len(self._orders) != len(self._order_specs):
+            msg = "Cursor pagination requires stable ordering by columns."
             raise DatabaseQueryError(msg)
         specs = list(self._order_specs)
         if key_column not in {name for name, _ in specs}:

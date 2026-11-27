@@ -87,6 +87,8 @@ public release.
   PostgreSQL and SQLite behavior has real integration coverage.
 - Add scalar subquery projections and subquery operands for `where_in()` and
   `where_not_in()`, including their OR variants, through SQLAlchemy Core.
+- Add backend-native random ordering for SQLite, PostgreSQL, and MySQL. Reject
+  cursor pagination when query ordering is not stable by columns.
 - Declare Pydantic as a direct runtime dependency for native schema APIs.
 - Add native application Cache services with memory and optional Redis
   backends, explicit backend capabilities, safe JSON serialization, atomic

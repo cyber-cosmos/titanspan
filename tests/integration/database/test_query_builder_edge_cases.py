@@ -303,6 +303,32 @@ async def test_scalar_projection_and_membership_subqueries(
             DB.table("query_people").select_sub(score, "unsafe alias")
 
 
+async def test_random_ordering_rejects_unstable_cursor_pages(
+    application: Application,
+) -> None:
+    """Execute randomized ordering and reject incompatible cursor paging.
+
+    Args:
+        application: Application configured by this test.
+    """
+    async with application:
+        await DB.statement_async(
+            "CREATE TABLE random_rows (id INTEGER PRIMARY KEY)"
+        )
+        await DB.table("random_rows").insert_many_async(
+            [{"id": 1}, {"id": 2}, {"id": 3}],
+        )
+        query = DB.table("random_rows").in_random_order()
+
+        statement = str(query.to_statement()).casefold()
+        rows = await query.get_async()
+
+        assert "random()" in statement
+        assert {row["id"] for row in rows} == {1, 2, 3}
+        with pytest.raises(DatabaseQueryError, match="stable ordering"):
+            await query.cursor_paginate_async(per_page=2)
+
+
 async def test_date_and_time_predicates_use_database_expressions(
     application: Application,
 ) -> None:

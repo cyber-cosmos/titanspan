@@ -685,6 +685,14 @@ class DatabaseQueryBuilder(Protocol):
         """
         ...
 
+    def in_random_order(self) -> Self:
+        """Append backend-native random ordering to the query.
+
+        Returns:
+            This builder for further query composition.
+        """
+        ...
+
     def join(
         self,
         table_name: str,
