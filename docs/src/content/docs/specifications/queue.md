@@ -46,6 +46,7 @@ Console registration.
 | Job retry and backoff | Implemented; backend-dependent | Taskiq retry middleware; non-zero delay needs a schedule source. |
 | Dispatch receipts | Implemented and verified | Receipts distinguish queued, executed, and discarded state. |
 | Queue and Bus fakes | Implemented and verified | Fakes intercept facades and direct manager access without broker creation. |
+| Ordered fake chain and batch assertions | Implemented and verified | Async chains record every continuation member; fake assertions compare declared order. |
 | Ordered job chains | Implemented and verified | Sync and async inline order and Redis continuation integration are tested. Durable atomic continuation is unavailable. |
 | Chain-wide destinations and per-job overrides | Implemented and verified | Inline and real Redis workers verify each job's declared queue. |
 | Redis job results | Implemented and verified | Taskiq Redis results are bounded JSON, sanitized, and retained for a configurable finite period. |

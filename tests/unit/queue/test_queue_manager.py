@@ -30,6 +30,7 @@ from titanspan.queue.configuration import QueueConnectionConfiguration
 
 pytestmark = pytest.mark.unit
 _FAKED_DISPATCH_COUNT = 2
+_FAKE_CHAIN_JOB_COUNT = 2
 
 
 @dataclass
@@ -307,6 +308,20 @@ async def test_conditional_dispatch_skips_or_uses_the_shared_dispatcher() -> (
                 is None
             )
             assert (
+                Bus.dispatch_if(
+                    False,
+                    _UnregisteredValueJob("ignored"),
+                )
+                is None
+            )
+            assert (
+                Queue.dispatch_unless(
+                    True,
+                    _UnregisteredValueJob("ignored"),
+                )
+                is None
+            )
+            assert (
                 await dispatcher.dispatch_unless_async(
                     True,
                     _UnregisteredValueJob("ignored"),
@@ -320,16 +335,47 @@ async def test_conditional_dispatch_skips_or_uses_the_shared_dispatcher() -> (
                 )
                 is None
             )
+            assert (
+                await Bus.dispatch_if_async(
+                    False,
+                    _UnregisteredValueJob("ignored"),
+                )
+                is None
+            )
+            assert (
+                await Queue.dispatch_unless_async(
+                    True,
+                    _UnregisteredValueJob("ignored"),
+                )
+                is None
+            )
 
             pending = Queue.dispatch_if(True, _ValueJob("pending"))
             assert pending is not None
             pending_receipt = await pending.dispatch_async()
+            bus_if_pending = Bus.dispatch_if(True, _ValueJob("bus-if"))
+            assert bus_if_pending is not None
+            bus_if_receipt = await bus_if_pending.dispatch_async()
             bus_pending = Bus.dispatch_unless(False, _ValueJob("bus-pending"))
             assert bus_pending is not None
             bus_pending_receipt = await bus_pending.dispatch_async()
+            queue_unless_pending = Queue.dispatch_unless(
+                False,
+                _ValueJob("queue-unless"),
+            )
+            assert queue_unless_pending is not None
+            queue_unless_receipt = await queue_unless_pending.dispatch_async()
             queue_receipt = await Queue.dispatch_if_async(
                 True,
                 _ValueJob("manager"),
+            )
+            queue_unless_receipt_async = await Queue.dispatch_unless_async(
+                False,
+                _ValueJob("queue-unless-async"),
+            )
+            bus_if_receipt_async = await Bus.dispatch_if_async(
+                True,
+                _ValueJob("bus-if-async"),
             )
             bus_receipt = await Bus.dispatch_unless_async(
                 False,
@@ -337,12 +383,18 @@ async def test_conditional_dispatch_skips_or_uses_the_shared_dispatcher() -> (
             )
 
     assert pending_receipt.state == "queued"
+    assert bus_if_receipt.state == "queued"
     assert bus_pending_receipt.state == "queued"
+    assert queue_unless_receipt.state == "queued"
     assert queue_receipt is not None
     assert queue_receipt.state == "queued"
+    assert queue_unless_receipt_async is not None
+    assert queue_unless_receipt_async.state == "queued"
+    assert bus_if_receipt_async is not None
+    assert bus_if_receipt_async.state == "queued"
     assert bus_receipt is not None
     assert bus_receipt.state == "queued"
-    fake.assert_pushed_count(_ValueJob, 4)
+    fake.assert_pushed_count(_ValueJob, 8)
 
 
 @pytest.mark.anyio
@@ -402,6 +454,30 @@ async def test_pending_chain_and_batch_reject_reuse() -> None:
     assert batch_handle.failed_jobs == 0
     assert batch_handle.id
     assert batch_handle.state == "completed"
+
+
+@pytest.mark.anyio
+async def test_fake_records_every_async_chain_member() -> None:
+    """Record all trusted async chain members in declaration order.
+
+    A fake must expose later members for chain assertions without running jobs.
+    """
+    application = _application()
+
+    async with application, Bus.fake() as fake:
+        receipt = await Bus.chain(
+            [_ValueJob("first"), _ValueJob("second")],
+        ).dispatch_async()
+
+    assert receipt.chain_id is not None
+    assert len(fake.records) == _FAKE_CHAIN_JOB_COUNT
+    assert [record.job for record in fake.records] == [
+        _ValueJob("first"),
+        _ValueJob("second"),
+    ]
+    fake.assert_pushed_chain((_ValueJob, _ValueJob))
+    with pytest.raises(AssertionError):
+        fake.assert_pushed_chain((_ValueJob,))
 
 
 @pytest.mark.anyio

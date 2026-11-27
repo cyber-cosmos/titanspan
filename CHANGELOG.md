@@ -19,6 +19,7 @@ public release.
 - Add bounded ordered Queue and Bus bulk dispatch through the canonical
   single-job pipeline.
 - Add conditional Queue and Bus dispatch helpers with explicit async methods.
+- Record every fake chain member and add ordered chain and batch assertions.
 - Bound process-local batch history and reject admission when active batches
   fill the configured capacity.
 - Defer durable failed-job records, unique jobs, distributed batches, queued

@@ -50,8 +50,10 @@ worker behavior.
 
 ## Assertions
 
-`QueueFake` provides `assert_pushed`, `assert_pushed_count`,
-`assert_nothing_pushed`, `assert_pushed_on`,
-`assert_pushed_on_connection`, `assert_pushed_with`, and
-`assert_pushed_delayed`. Selective faking, job execution helpers, failure
-assertions, and fluent chain matchers are not implemented.
+`QueueFake` provides type, count, payload, destination, and delay assertions.
+Use `assert_pushed_chain()` and `assert_pushed_batch()` to check ordered
+members. These assertions use the same records produced by Queue and Bus
+facades and the injected dispatcher.
+
+Selective faking, job execution helpers, failure assertions, and fluent
+assertion matchers are not implemented.

@@ -1739,6 +1739,12 @@ async def test_bus_fake_records_batch_members_without_backend_access() -> None:
         assert {record.receipt.batch_id for record in fake.records} == {
             batch.id
         }
+        fake.assert_pushed_batch(
+            batch.id,
+            (_RecordJob, _RecordJob),
+        )
+        with pytest.raises(AssertionError):
+            fake.assert_pushed_batch(batch.id, (_RecordJob,))
         assert batch.state == "queued"
         assert batch.pending_jobs == _EXPECTED_CHAIN_JOBS
 

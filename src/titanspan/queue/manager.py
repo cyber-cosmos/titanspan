@@ -388,6 +388,49 @@ class QueueFake:
         ):
             raise AssertionError(_QUEUE_FAKE_ERROR)
 
+    def assert_pushed_chain(
+        self,
+        job_types: Sequence[type[object]],
+    ) -> None:
+        """Require one fake chain with the exact declared job order.
+
+        Args:
+            job_types: Expected job classes in chain order.
+
+        Raises:
+            AssertionError: If no recorded chain matches the sequence.
+        """
+        chains: dict[str, list[type[object]]] = {}
+        for record in self.records:
+            chain_id = record.receipt.chain_id
+            if chain_id is not None:
+                chains.setdefault(chain_id, []).append(type(record.job))
+        expected = tuple(job_types)
+        if not any(tuple(types) == expected for types in chains.values()):
+            raise AssertionError(_QUEUE_FAKE_ERROR)
+
+    def assert_pushed_batch(
+        self,
+        batch_id: str,
+        job_types: Sequence[type[object]],
+    ) -> None:
+        """Require a batch with the exact recorded job order.
+
+        Args:
+            batch_id: Identifier returned by the batch handle.
+            job_types: Expected job classes in batch order.
+
+        Raises:
+            AssertionError: If the batch records do not match the sequence.
+        """
+        actual = tuple(
+            type(record.job)
+            for record in self.records
+            if record.receipt.batch_id == batch_id
+        )
+        if actual != tuple(job_types):
+            raise AssertionError(_QUEUE_FAKE_ERROR)
+
     def pushed(self, job_type: type[object]) -> bool:
         """Check whether a job class was recorded.
 
@@ -1274,7 +1317,7 @@ class QueueManager(BusDispatcher):
             first_index=1,
         )
         job_id = str(uuid5(UUID(chain_id), "0"))
-        return await self.dispatch_effect_async(
+        receipt = await self.dispatch_effect_async(
             jobs[0],
             JobMessageMetadata(
                 connection=selected_connection,
@@ -1284,6 +1327,23 @@ class QueueManager(BusDispatcher):
                 continuation=continuation,
             ),
         )
+        fake = self._fake.get()
+        if fake is not None:
+            for job, payload in zip(jobs[1:], continuation, strict=True):
+                fake.record(
+                    job,
+                    payload.job_type,
+                    DispatchReceipt(
+                        job_id=str(payload.job_id),
+                        connection=(
+                            payload.connection or continuation_connection
+                        ),
+                        queue=payload.queue or continuation_queue,
+                        state="queued",
+                        chain_id=chain_id,
+                    ),
+                )
+        return receipt
 
     def dispatch_chain_sync(
         self,
