@@ -42,6 +42,12 @@ from titanspan.contracts.container import (
     ServiceOverride,
     ServiceRegistry,
 )
+from titanspan.contracts.database import (
+    DatabaseConnectionService,
+    DatabaseQueryBuilder,
+    DatabaseResult,
+    DatabaseService,
+)
 from titanspan.contracts.events import EventDispatcher
 from titanspan.contracts.filesystem import (
     FileMetadata,
@@ -166,6 +172,10 @@ __all__ = [
     "ConsoleCommand",
     "ConsoleOutput",
     "ControllerAction",
+    "DatabaseConnectionService",
+    "DatabaseQueryBuilder",
+    "DatabaseResult",
+    "DatabaseService",
     "DeferredDisplayValue",
     "DeliveryStatus",
     "DispatchReceipt",

@@ -8,6 +8,7 @@ from titanspan.facades.base import Facade
 from titanspan.facades.bus import Bus
 from titanspan.facades.cache import Cache
 from titanspan.facades.config import Config
+from titanspan.facades.database import DB
 from titanspan.facades.event import Event
 from titanspan.facades.hash import Hash
 from titanspan.facades.http import Http
@@ -21,6 +22,7 @@ __all__ = [
     "Bus",
     "Cache",
     "Config",
+    "DB",
     "Event",
     "Facade",
     "Hash",
