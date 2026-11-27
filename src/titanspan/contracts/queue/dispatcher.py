@@ -123,6 +123,30 @@ class QueueDispatcher(Protocol):
         """
         ...
 
+    async def dispatch_many_async(
+        self,
+        jobs: Sequence[object],
+        *,
+        connection: str | None = None,
+        queue: str | None = None,
+        delay: float | timedelta | datetime | None = None,
+    ) -> tuple[DispatchReceipt, ...]:
+        """Dispatch a bounded sequence in order through the shared pipeline.
+
+        Args:
+            jobs: Registered job instances in publication order.
+            connection: Optional connection override for every job.
+            queue: Optional queue override for every job.
+            delay: Optional delivery time shared by every job.
+
+        Returns:
+            Receipts in the same order as ``jobs``.
+
+        Raises:
+            QueueConfigurationError: If a job or selection is invalid.
+        """
+        ...
+
     def dispatch_sync(
         self,
         job: object,

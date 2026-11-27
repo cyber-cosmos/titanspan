@@ -88,10 +88,25 @@ retry. Failed results expose status and execution time, not exception text.
 The `sync`, `null`, RabbitMQ, and custom connections do not provide result
 handles through this API.
 
-## Unsupported dispatch policies
+## Bulk and deferred dispatch
+
+`dispatch_many_async()` accepts up to 1,000 jobs and returns receipts in input
+order. It validates registrations and destinations before publication. It then
+publishes each job through the same single-job dispatch path.
+
+```python
+receipts = await Queue.dispatch_many_async(
+    [ProcessDocument(42), ProcessDocument(43)],
+    connection="redis",
+    queue="documents",
+)
+```
+
+Taskiq's public broker API has no atomic bulk operation. A payload, handler,
+broker failure, or cancellation can leave earlier jobs accepted. A broker
+failure can also leave the current job's outcome uncertain. Use idempotent
+jobs when retrying after an incomplete bulk dispatch.
 
 After-commit dispatch requires the canonical Database transaction lifecycle.
-After-response dispatch is not implemented. Bulk publication and conditional
-dispatch helpers are not implemented. Use explicit application logic until
-their owning contracts are available; do not infer transaction or publication
-atomicity from a pending builder.
+After-response and conditional dispatch helpers are not implemented. Do not
+infer transaction or publication atomicity from a pending builder.

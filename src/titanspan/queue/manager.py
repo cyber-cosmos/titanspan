@@ -146,6 +146,7 @@ _EXECUTION_MODE_ERROR = "Taskiq workers require the asyncio execution backend."
 _QUEUE_FAKE_ERROR = "Queue fake assertions failed."
 _MISSING_ATTRIBUTE = object()
 _MAX_CHAIN_JOBS = 256
+_MAX_BULK_JOBS = 1000
 _TASKIQ_CONTEXT_DEPENDENCY = cast(
     "TaskiqContext",
     TaskiqDepends(),
@@ -1343,6 +1344,50 @@ class QueueManager(BusDispatcher):
             delay=delay,
         )
         return await pending.dispatch_async()
+
+    async def dispatch_many_async(
+        self,
+        jobs: Sequence[object],
+        *,
+        connection: str | None = None,
+        queue: str | None = None,
+        delay: float | timedelta | datetime | None = None,
+    ) -> tuple[DispatchReceipt, ...]:
+        """Dispatch a bounded sequence in order through native operations.
+
+        Taskiq exposes single-message publication, so this method composes
+        those operations without claiming broker-level atomicity.
+
+        Args:
+            jobs: Registered job instances in publication order.
+            connection: Optional connection override for every job.
+            queue: Optional queue override for every job.
+            delay: Optional delivery time shared by every job.
+
+        Returns:
+            Receipts in the same order as ``jobs``.
+
+        Raises:
+            QueueConfigurationError: If the sequence is too large or any
+                job or selection is invalid.
+        """
+        job_values = tuple(jobs)
+        if len(job_values) > _MAX_BULK_JOBS:
+            msg = "A bulk dispatch can contain at most 1000 jobs."
+            raise QueueConfigurationError(msg)
+
+        # Build every single-use operation before the first side effect.
+        pending = tuple(
+            self.dispatch(
+                job,
+                connection=connection,
+                queue=queue,
+                delay=delay,
+            )
+            for job in job_values
+        )
+        receipts = [await dispatch.dispatch_async() for dispatch in pending]
+        return tuple(receipts)
 
     def dispatch_sync(
         self,

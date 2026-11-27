@@ -85,6 +85,33 @@ class Bus(Facade[BusDispatcher]):
         )
 
     @classmethod
+    async def dispatch_many_async(
+        cls,
+        jobs: Sequence[Job],
+        *,
+        connection: str | None = None,
+        queue: str | None = None,
+        delay: float | timedelta | datetime | None = None,
+    ) -> tuple[DispatchReceipt, ...]:
+        """Dispatch registered jobs in order through the active Bus.
+
+        Args:
+            jobs: Registered job instances in publication order.
+            connection: Optional connection override for every job.
+            queue: Optional queue override for every job.
+            delay: Optional delivery time shared by every job.
+
+        Returns:
+            Dispatch receipts in input order.
+        """
+        return await cls.resolve_service().dispatch_many_async(
+            jobs,
+            connection=connection,
+            queue=queue,
+            delay=delay,
+        )
+
+    @classmethod
     def dispatch_sync(
         cls,
         job: Job,

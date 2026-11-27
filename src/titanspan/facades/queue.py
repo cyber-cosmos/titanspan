@@ -18,6 +18,7 @@ from titanspan.facades.base import Facade
 from titanspan.queue.manager import QueueFakeScope, QueueManager
 
 if TYPE_CHECKING:
+    from collections.abc import Sequence
     from datetime import datetime, timedelta
 
     from titanspan.queue.job import Job
@@ -84,6 +85,33 @@ class Queue(Facade[QueueDispatcher]):
         """
         return await cls.resolve_service().dispatch_async(
             job,
+            connection=connection,
+            queue=queue,
+            delay=delay,
+        )
+
+    @classmethod
+    async def dispatch_many_async(
+        cls,
+        jobs: Sequence[Job],
+        *,
+        connection: str | None = None,
+        queue: str | None = None,
+        delay: float | timedelta | datetime | None = None,
+    ) -> tuple[DispatchReceipt, ...]:
+        """Dispatch registered jobs in order through the active application.
+
+        Args:
+            jobs: Registered job instances in publication order.
+            connection: Optional connection override for every job.
+            queue: Optional queue override for every job.
+            delay: Optional delivery time shared by every job.
+
+        Returns:
+            Dispatch receipts in input order.
+        """
+        return await cls.resolve_service().dispatch_many_async(
+            jobs,
             connection=connection,
             queue=queue,
             delay=delay,

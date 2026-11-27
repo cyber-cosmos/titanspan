@@ -187,6 +187,84 @@ async def test_pending_dispatch_rejects_second_publication() -> None:
 
 
 @pytest.mark.anyio
+async def test_dispatch_many_executes_jobs_in_order() -> None:
+    """Return ordered receipts from one native bulk dispatch operation.
+
+    The sync connection still uses the manager's async execution path.
+    """
+    application = _application()
+
+    async with application:
+        dispatcher = application.container.make(QueueDispatcher)
+        assert dispatcher is application.container.make(QueueManager)
+        queue_receipts = await Queue.dispatch_many_async(
+            [_ValueJob("queue")],
+            connection="sync",
+            queue="bulk",
+        )
+        bus_receipts = await Bus.dispatch_many_async(
+            [_ValueJob("bus")],
+            connection="sync",
+            queue="bulk",
+        )
+        contract_receipts = await dispatcher.dispatch_many_async(
+            [_ValueJob("contract")],
+            connection="sync",
+            queue="bulk",
+        )
+
+    receipts = queue_receipts + bus_receipts + contract_receipts
+    assert [receipt.result for receipt in receipts] == [
+        "queue",
+        "bus",
+        "contract",
+    ]
+    assert all(receipt.queue == "bulk" for receipt in receipts)
+
+
+@pytest.mark.anyio
+async def test_dispatch_many_prevalidates_fake_recording() -> None:
+    """Reject an invalid later job before recording any earlier job.
+
+    Preflight validation prevents avoidable partial publication when a job
+    registration is invalid.
+    """
+    application = _application()
+
+    async with application:
+        manager = application.container.make(QueueManager)
+        with (
+            manager.fake() as fake,
+            pytest.raises(QueueConfigurationError),
+        ):
+            await manager.dispatch_many_async(
+                [_ValueJob("valid"), object()],
+            )
+
+    fake.assert_nothing_pushed()
+
+
+@pytest.mark.anyio
+async def test_dispatch_many_is_empty_safe_and_bounded() -> None:
+    """Treat empty input as a no-op and reject oversized input early.
+
+    The limit prevents one call from retaining unbounded dispatch builders.
+    """
+    application = _application()
+
+    async with application:
+        manager = application.container.make(QueueManager)
+        with manager.fake() as fake:
+            assert await manager.dispatch_many_async([]) == ()
+            with pytest.raises(QueueConfigurationError):
+                await manager.dispatch_many_async(
+                    [_ValueJob("bounded")] * 1001,
+                )
+
+    fake.assert_nothing_pushed()
+
+
+@pytest.mark.anyio
 async def test_pending_chain_and_batch_reject_reuse() -> None:
     """Keep chain and batch builders single-use after dispatch.
 

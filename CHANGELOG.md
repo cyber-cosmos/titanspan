@@ -16,6 +16,8 @@ public release.
 - Keep RabbitMQ optional; live broker behavior is not verified.
 - Add explicit synchronous Bus chain execution with member preflight and
   isolated job scopes.
+- Add bounded ordered Queue and Bus bulk dispatch through the canonical
+  single-job pipeline.
 - Bound process-local batch history and reject admission when active batches
   fill the configured capacity.
 - Defer durable failed-job records, unique jobs, distributed batches, queued

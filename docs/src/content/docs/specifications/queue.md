@@ -41,6 +41,7 @@ Console registration.
 | RabbitMQ transport | Implemented; live integration pending | Taskiq adapter is optional; no live service evidence. |
 | Custom Taskiq driver factory | Implemented | Application-supplied trusted factory. Custom backend guarantees remain application-owned. |
 | Single-use pending dispatch | Implemented and verified | Dispatch requires explicit call; reuse fails. |
+| Bounded ordered bulk dispatch | Implemented and verified | Up to 1,000 job registrations and destinations are prevalidated; publication uses single-job operations. |
 | Job retry and backoff | Implemented; backend-dependent | Taskiq retry middleware; non-zero delay needs a schedule source. |
 | Dispatch receipts | Implemented and verified | Receipts distinguish queued, executed, and discarded state. |
 | Queue and Bus fakes | Implemented and verified | Fakes intercept facades and direct manager access without broker creation. |
@@ -64,6 +65,12 @@ Console registration.
 must call `dispatch_async()` or `dispatch_sync()`. Builders do not publish on
 destruction. Direct `dispatch_async()` publishes through an async backend or
 runs an inline job using the async Container path.
+
+`dispatch_many_async()` snapshots the input and validates all registrations
+and destinations before its first side effect. It delegates each publication
+to the single-job path. Taskiq has no public atomic bulk operation. A payload,
+handler, broker failure, or cancellation can leave a published prefix. A
+broker error can also leave the current outcome uncertain.
 
 `dispatch_sync()` only accepts the `sync` connection. It rejects active
 asyncio task execution and incompatible scoped execution. Synchronous job
