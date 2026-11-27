@@ -36,6 +36,7 @@ from sqlalchemy import (
     Integer,
     MetaData,
     Numeric,
+    String,
     select,
     update,
 )
@@ -95,6 +96,7 @@ from titanspan.database.model_state import (
 from titanspan.database.orm_builder import ModelQueryBuilder
 from titanspan.facades.database import DB
 from titanspan.facades.event import Event
+from titanspan.facades.hash import Hash
 
 if TYPE_CHECKING:
     from sqlalchemy.orm import InstanceState, Mapper
@@ -102,6 +104,7 @@ if TYPE_CHECKING:
     from sqlalchemy.sql.schema import Column, Table
 
     from titanspan.contracts.database import DatabaseService
+    from titanspan.contracts.hashing import Hasher
     from titanspan.events.dispatcher import ListenerRegistration
 
 
@@ -312,6 +315,7 @@ class Model(DeclarativeBase):
     hidden: ClassVar[tuple[str, ...]] = ()
     visible: ClassVar[tuple[str, ...]] = ()
     appends: ClassVar[tuple[str, ...]] = ()
+    casts: ClassVar[Mapping[str, str]] = MappingProxyType({})
     global_scopes: ClassVar[Mapping[str, Callable[[], ColumnElement[bool]]]] = (
         MappingProxyType({})
     )
@@ -1008,6 +1012,7 @@ class Model(DeclarativeBase):
         )
         if not values:
             return 0
+        _hash_upsert_values(cls, values)
         table = cast("Table", sa_inspect(cls).local_table)
         return DB.table(table.fullname, connection=cls.connection).upsert(
             values,
@@ -1047,6 +1052,7 @@ class Model(DeclarativeBase):
         )
         if not values:
             return 0
+        await _hash_upsert_values_async(cls, values)
         table = cast("Table", sa_inspect(cls).local_table)
         return await DB.table(
             table.fullname,
@@ -1199,6 +1205,7 @@ class Model(DeclarativeBase):
             if not _dispatch_cancellable_events(before_events):
                 _discard_cancelled_save(self, session)
                 return False
+            _hash_model_attributes(self)
             changes = self._changed_attributes()
             self._set_timestamps(created=created)
             changes.update(self._changed_attributes())
@@ -1252,6 +1259,7 @@ class Model(DeclarativeBase):
             if not await _dispatch_cancellable_events_async(before_events):
                 await _discard_cancelled_save_async(self, session)
                 return False
+            await _hash_model_attributes_async(self)
             changes = self._changed_attributes()
             self._set_timestamps(created=created)
             changes.update(self._changed_attributes())
@@ -2180,6 +2188,179 @@ def _current_task_id() -> int | None:
         return anyio.get_current_task().id
     except anyio.NoEventLoopError:
         return None
+
+
+def _hashed_cast_columns(
+    model_type: type[Model],
+) -> tuple[tuple[str, str], ...]:
+    """Validate hashed cast declarations against mapped string columns.
+
+    Args:
+        model_type: Model class declaring attribute casts.
+
+    Returns:
+        Attribute and physical column names for supported hashed casts.
+
+    Raises:
+        DatabaseQueryError: If a cast name, kind, or mapped type is invalid.
+    """
+    mapper = sa_inspect(model_type)
+    hashed: list[tuple[str, str]] = []
+    for name, cast_name in model_type.casts.items():
+        if cast_name != "hashed":
+            message = f"The model cast '{cast_name}' is not supported."
+            raise DatabaseQueryError(message)
+        attribute = mapper.column_attrs.get(name)
+        if attribute is None or len(attribute.columns) != 1:
+            message = f"Hashed cast '{name}' must map one string column."
+            raise DatabaseQueryError(message)
+        column = cast("Column[object]", attribute.columns[0])
+        if not isinstance(column.type, String):
+            message = f"Hashed cast '{name}' must map one string column."
+            raise DatabaseQueryError(message)
+        hashed.append((name, column.key))
+    return tuple(hashed)
+
+
+def _hash_model_attributes(model: Model) -> None:
+    """Hash loaded plaintext attributes through the active Hashing service.
+
+    Args:
+        model: Model whose values are about to enter the Unit of Work.
+    """
+    candidates = _model_hash_candidates(model)
+    if not candidates:
+        return
+    hasher = Hash.resolve_service()
+    for name, value in candidates:
+        setattr(model, name, _hash_value(value, hasher))
+
+
+async def _hash_model_attributes_async(model: Model) -> None:
+    """Hash loaded plaintext attributes without blocking async persistence.
+
+    Args:
+        model: Model whose values are about to enter the Unit of Work.
+    """
+    candidates = _model_hash_candidates(model)
+    if not candidates:
+        return
+    hasher = Hash.resolve_service()
+    for name, value in candidates:
+        setattr(model, name, await _hash_value_async(value, hasher))
+
+
+def _model_hash_candidates(
+    model: Model,
+) -> tuple[tuple[str, str], ...]:
+    """Read already-loaded values for declared hashed attributes.
+
+    Args:
+        model: Model whose declared cast attributes are inspected.
+
+    Returns:
+        Loaded string candidates without triggering deferred attribute I/O.
+
+    Raises:
+        DatabaseQueryError: If a loaded hashed value is not a string.
+    """
+    state = sa_inspect(model)
+    candidates: list[tuple[str, str]] = []
+    for name, _ in _hashed_cast_columns(type(model)):
+        value = state.attrs[name].loaded_value
+        if value is NO_VALUE or value is None:
+            continue
+        if not isinstance(value, str):
+            message = f"Hashed cast values for '{name}' must be strings."
+            raise DatabaseQueryError(message)
+        candidates.append((name, value))
+    return tuple(candidates)
+
+
+def _hash_value(value: str, hasher: Hasher) -> str:
+    """Preserve recognized hashes and encode plaintext exactly once.
+
+    Args:
+        value: Current string attribute value.
+        hasher: Application-owned password hashing service.
+
+    Returns:
+        A recognized encoded hash or a newly generated hash.
+    """
+    # Preserve imported hashes and repeated saves instead of hashing them
+    # again with a new random salt.
+    if hasher.inspect(value) is not None:
+        return value
+    return hasher.make(value)
+
+
+async def _hash_value_async(value: str, hasher: Hasher) -> str:
+    """Hash one plaintext value through the bounded async service method.
+
+    Args:
+        value: Current string attribute value.
+        hasher: Application-owned password hashing service.
+
+    Returns:
+        A recognized encoded hash or a newly generated hash.
+    """
+    if hasher.inspect(value) is not None:
+        return value
+    return await hasher.make_async(value)
+
+
+def _hash_upsert_values(
+    model_type: type[Model],
+    rows: list[dict[str, object]],
+) -> None:
+    """Hash cast values in model upsert rows before Core execution.
+
+    Args:
+        model_type: Model class declaring the hashed columns.
+        rows: Validated rows keyed by physical database column names.
+    """
+    cast_columns = _hashed_cast_columns(model_type)
+    candidates = [
+        (row, column, row[column])
+        for row in rows
+        for _, column in cast_columns
+        if column in row and row[column] is not None
+    ]
+    if not candidates:
+        return
+    hasher = Hash.resolve_service()
+    for row, column, value in candidates:
+        if not isinstance(value, str):
+            message = f"Hashed cast values for '{column}' must be strings."
+            raise DatabaseQueryError(message)
+        row[column] = _hash_value(value, hasher)
+
+
+async def _hash_upsert_values_async(
+    model_type: type[Model],
+    rows: list[dict[str, object]],
+) -> None:
+    """Hash model upsert values with the async application Hashing service.
+
+    Args:
+        model_type: Model class declaring the hashed columns.
+        rows: Validated rows keyed by physical database column names.
+    """
+    cast_columns = _hashed_cast_columns(model_type)
+    candidates = [
+        (row, column, row[column])
+        for row in rows
+        for _, column in cast_columns
+        if column in row and row[column] is not None
+    ]
+    if not candidates:
+        return
+    hasher = Hash.resolve_service()
+    for row, column, value in candidates:
+        if not isinstance(value, str):
+            message = f"Hashed cast values for '{column}' must be strings."
+            raise DatabaseQueryError(message)
+        row[column] = await _hash_value_async(value, hasher)
 
 
 def _prepare_model_upsert(

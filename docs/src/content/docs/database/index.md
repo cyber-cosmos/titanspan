@@ -359,6 +359,33 @@ async def create_user() -> User:
     return user
 ```
 
+Declare password fields as hashed casts to use the application-owned Hashing
+service:
+
+```python
+from collections.abc import Mapping
+from typing import ClassVar
+
+from sqlalchemy import String
+from sqlalchemy.orm import Mapped, mapped_column
+
+from titanspan.database import Model
+
+
+class Account(Model):
+    """Store account passwords using the configured Hashing component."""
+
+    table = "accounts"
+    casts: ClassVar[Mapping[str, str]] = {"password": "hashed"}
+    password: Mapped[str] = mapped_column(String(255))
+```
+
+The cast runs immediately before model persistence and on model upserts. Async
+operations call the bounded asynchronous Hasher API. Recognized encoded hashes
+are preserved to avoid double hashing. Direct Query Builder writes bypass model
+casts. Declare other database conversions with SQLAlchemy types or
+`TypeDecorator`, and use ordinary Python properties for model accessors.
+
 Mass assignment accepts only declared `fillable` columns by default. Use
 `force_fill()` only with trusted application values. Mass-assignment rules do
 not replace authorization. `User.query()` supports typed retrieval,
@@ -669,6 +696,10 @@ Async model results are detached after the operation. Accessing an unloaded
 relationship does not initiate hidden async I/O. Serialization includes only
 already-loaded relationships and omits attributes listed in `hidden`; it does
 not lazy-load related records.
+
+The built-in cast declaration currently supports `"hashed"`. SQLAlchemy types
+own other value conversion, while Python properties provide native accessors
+and mutators. A separate dynamic cast registry is not provided.
 
 `ModelCollection` extends the native Collections component for identity-aware
 model operations, safe conversion, and batch relationship loading. Ordinary
