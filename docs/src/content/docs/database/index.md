@@ -282,6 +282,9 @@ function. PostgreSQL containment requires JSONB columns. SQLite containment is
 rejected because SQLite has no equivalent JSON containment operator. SQLite
 and PostgreSQL behavior is integration-tested; MySQL and MariaDB expressions
 have no live-server verification. Arbitrary array indexing is not provided.
+`update_json()` and `update_json_async()` set one nested value through native
+JSON functions. PostgreSQL updates require JSONB columns. Missing intermediate
+objects are not synthesized consistently across database engines.
 
 For long-running processing that may update rows as it proceeds, use keyset
 pages over a unique, non-null, orderable column:

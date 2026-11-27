@@ -2325,6 +2325,37 @@ class DatabaseQueryBuilder(Protocol):
         """
         ...
 
+    def update_json(self, column_name: str, path: str, value: object) -> int:
+        """Set one nested JSON value on rows matching this query.
+
+        Args:
+            column_name: Safe JSON column reference.
+            path: Dot-separated object path using identifier characters.
+            value: JSON-compatible value assigned to the path.
+
+        Returns:
+            Driver-reported row count, or ``-1`` when unavailable.
+        """
+        ...
+
+    async def update_json_async(
+        self,
+        column_name: str,
+        path: str,
+        value: object,
+    ) -> int:
+        """Set one nested JSON value asynchronously.
+
+        Args:
+            column_name: Safe JSON column reference.
+            path: Dot-separated object path using identifier characters.
+            value: JSON-compatible value assigned to the path.
+
+        Returns:
+            Driver-reported row count, or ``-1`` when unavailable.
+        """
+        ...
+
     def update_returning(
         self,
         values: Mapping[str, object],

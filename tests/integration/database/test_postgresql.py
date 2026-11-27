@@ -551,6 +551,18 @@ async def test_postgresql_json_containment_key_and_array_length(
         assert without_key == [{"id": 2}, {"id": 3}]
         assert [row["id"] for row in long_arrays] == [1]
         assert or_long_arrays == [{"id": 1}, {"id": 3}]
+        assert (
+            await DB.table("postgres_json_advanced_rows")
+            .where("id", 1)
+            .update_json_async("payload", "metadata.reviewed", False)
+        ) == 1
+        updated = await (
+            DB.table("postgres_json_advanced_rows")
+            .where_json_value("payload", "metadata.reviewed", False)
+            .first_async()
+        )
+        assert updated is not None
+        assert updated["id"] == 1
         await DB.statement_async("DROP TABLE postgres_json_advanced_rows")
 
 

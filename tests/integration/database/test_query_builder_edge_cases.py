@@ -25,6 +25,7 @@ _MAXIMUM_SCORE = 9
 _TOTAL_ROWS = 4
 _UPDATED_ROWS = 2
 _CROSS_JOIN_ROWS = 4
+_JSON_SYNC_UPDATED_ID = 2
 
 
 @pytest.fixture
@@ -826,12 +827,55 @@ async def test_json_key_and_array_length_predicates(
         assert long_arrays == [{"id": 1}]
         assert or_missing_key == [{"id": 1}, {"id": 3}]
         assert or_long_arrays == [{"id": 1}, {"id": 3}]
+        updated = await (
+            DB.table("json_advanced_rows")
+            .where("id", 1)
+            .update_json_async("payload", "metadata.reviewed", False)
+        )
+        updated_row = await (
+            DB.table("json_advanced_rows")
+            .where_json_value("payload", "metadata.reviewed", False)
+            .first_async()
+        )
+        assert updated == 1
+        assert updated_row is not None
+        assert updated_row["id"] == 1
+        sync_updated = await anyio.to_thread.run_sync(
+            _update_json_with_sync_connection,
+        )
+        sync_updated_row = await (
+            DB.table("json_advanced_rows")
+            .where_json_value("payload", "metadata.reviewed", True)
+            .first_async()
+        )
+        assert sync_updated == 1
+        assert sync_updated_row is not None
+        assert sync_updated_row["id"] == _JSON_SYNC_UPDATED_ID
         with pytest.raises(DatabaseQueryError, match="supported dialects"):
             DB.table("json_advanced_rows").where_json_contains(
                 "payload",
                 "labels",
                 ["python"],
             )
+        with pytest.raises(DatabaseQueryError, match="JSON path"):
+            DB.table("json_advanced_rows").update_json(
+                "payload",
+                "metadata.reviewed; DROP TABLE users",
+                True,
+            )
+
+
+def _update_json_with_sync_connection() -> int:
+    """Update a JSON value through the supported synchronous worker path.
+
+    Returns:
+        The driver-reported number of changed rows.
+    """
+    return (
+        DB.table("json_advanced_rows")
+        .where("id", 2)
+        .update_json("payload", "metadata.reviewed", True)
+    )
 
 
 async def test_cursor_pagination_stabilizes_order_and_supports_reverse_pages(

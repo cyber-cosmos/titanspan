@@ -4317,6 +4317,50 @@ class QueryBuilder(DatabaseQueryBuilder):
         )
         return result.rowcount
 
+    def update_json(
+        self,
+        column_name: str,
+        path: str,
+        value: object,
+    ) -> int:
+        """Set one nested JSON value for rows matching this query.
+
+        Args:
+            column_name: Safe JSON column reference.
+            path: Dot-separated object path using identifier characters.
+            value: JSON-compatible value assigned to the path.
+
+        Returns:
+            Driver-reported affected rows, or ``-1`` when unknown.
+
+        Raises:
+            DatabaseQueryError: If the dialect lacks JSON mutation support.
+        """
+        expression = self._json_set_expression(column_name, path, value)
+        return self.update({column_name: expression})
+
+    async def update_json_async(
+        self,
+        column_name: str,
+        path: str,
+        value: object,
+    ) -> int:
+        """Set one nested JSON value asynchronously for matching rows.
+
+        Args:
+            column_name: Safe JSON column reference.
+            path: Dot-separated object path using identifier characters.
+            value: JSON-compatible value assigned to the path.
+
+        Returns:
+            Driver-reported affected rows, or ``-1`` when unknown.
+
+        Raises:
+            DatabaseQueryError: If the dialect lacks JSON mutation support.
+        """
+        expression = self._json_set_expression(column_name, path, value)
+        return await self.update_async({column_name: expression})
+
     def delete(self) -> int:
         """Delete rows matching this query's conditions.
 
@@ -5211,6 +5255,54 @@ class QueryBuilder(DatabaseQueryBuilder):
             self._compare(expression, operator, expected),
             boolean,
         )
+
+    def _json_set_expression(
+        self,
+        column_name: str,
+        path: str,
+        value: object,
+    ) -> ColumnElement[object]:
+        """Build a dialect-native, parameterized nested JSON assignment.
+
+        Args:
+            column_name: Safe JSON column reference.
+            path: Validated nested object path.
+            value: JSON-compatible value bound by SQLAlchemy.
+
+        Returns:
+            A SQLAlchemy expression assigning the nested JSON value.
+
+        Raises:
+            DatabaseQueryError: If the dialect lacks JSON mutation support.
+        """
+        parts = _json_path_parts(path)
+        source = self._column(column_name)
+        dialect = self._connection.dialect_name
+        if dialect == "postgresql":
+            return cast(
+                "ColumnElement[object]",
+                func.jsonb_set(
+                    source,
+                    postgresql_array(list(parts)),
+                    literal(value, type_=JSONB),
+                    True,
+                ),
+            )
+        json_path = "$" + "".join(f".{part}" for part in parts)
+        encoded = literal(value, type_=JSON)
+        if dialect in {"mysql", "mariadb"}:
+            json_value = func.json_extract(encoded, "$")
+            return cast(
+                "ColumnElement[object]",
+                func.json_set(source, json_path, json_value),
+            )
+        if dialect == "sqlite":
+            return cast(
+                "ColumnElement[object]",
+                func.json_set(source, json_path, func.json(encoded)),
+            )
+        msg = f"JSON updates are unsupported by the {dialect} dialect."
+        raise DatabaseQueryError(msg)
 
     def _json_value_expression(
         self,
