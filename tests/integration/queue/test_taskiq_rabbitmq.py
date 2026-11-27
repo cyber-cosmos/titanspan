@@ -1,22 +1,30 @@
 """Verify Queue delivery through the optional Taskiq RabbitMQ adapter.
 """  # fmt: skip
 
+from __future__ import annotations
+
 from dataclasses import dataclass
 from multiprocessing import get_context
-from multiprocessing.connection import Connection
-from multiprocessing.process import BaseProcess
+from typing import TYPE_CHECKING
 from uuid import uuid4
 
 import anyio
 import pytest
 
-from titanspan.contracts.container import ServiceRegistry
 from titanspan.contracts.events import EventDispatcher
-from titanspan.contracts.foundation import ServiceProvider
-from titanspan.contracts.queue import JobContext
+
+# Container injection resolves this contract from handler annotations.
+from titanspan.contracts.queue import JobContext  # noqa: TC001
 from titanspan.foundation import Application
 from titanspan.queue import Job, QueueManager, QueueServiceProvider
 from titanspan.queue.events import QueueEvent
+
+if TYPE_CHECKING:
+    from multiprocessing.connection import Connection
+    from multiprocessing.process import BaseProcess
+
+    from titanspan.contracts.container import ServiceRegistry
+    from titanspan.contracts.foundation import ServiceProvider
 
 pytestmark = pytest.mark.integration
 _QUEUE_NAME = "rabbitmq-delivery-integration"
