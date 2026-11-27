@@ -691,7 +691,7 @@ checks both redaction and explicit field access.
 | C-019 | Resolved with C-009 | Built-in providers follow one deterministic Foundation registration policy. |
 | C-020 | Resolved as a dependency decision | Hashing keeps direct `argon2-cffi` and `bcrypt` adapters; `pwdlib` was not added. |
 | C-021 | Resolved | Framework-generated request and exception logs resolve active service substitutions. |
-| C-022 | Partial | The installed-package smoke verifies multipart validation, Pipeline, local storage, Events, Logging, named URLs, generated-controller dispatch, scoped Storage/Event/Logging/HTTP fakes, Hashing, and shutdown. Broader installed-package application tests remain open. |
+| C-022 | Partial | The installed-package smoke verifies multipart and JSON validation, global and parameterized route middleware, response cookies, Pipeline, local storage, Events, Logging, named URLs, generated-controller dispatch, scoped Storage/Event/Logging/HTTP fakes, Hashing, an injected Console command, Testing, and shutdown. Broader installed-package test coverage remains open. |
 
 ### C-010 — Typed route inputs did not apply application rules
 

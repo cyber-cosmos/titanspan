@@ -17,7 +17,8 @@ distinguishes supported behavior from work that needs another component.
 | Full, API, nested, shallow, and singleton resources | `ResourceRegistrar` | `tests/unit/routing/test_groups_and_resources.py` |
 | Typed dispatch and explicit sync or async binding | FastAPI adapter and `Router` | `tests/integration/routing/test_advanced_routing.py` |
 | Controller and callable dependency injection | Canonical Container | `tests/integration/routing/test_dispatch.py` |
-| Middleware aliases, groups, inheritance, and exclusions | `Router`, HTTP middleware contract | `tests/integration/routing/test_dispatch.py` and group unit tests |
+| Middleware aliases, groups, inheritance, and exclusions | `Router`, HTTP middleware contract | `tests/integration/routing/test_dispatch.py`, group unit tests, and installed reference app |
+| Parameterized middleware | `MiddlewareDeclaration`, `ParameterizedHttpMiddleware` | `tests/integration/routing/test_parameterized_middleware.py`; installed reference app verifies route-specific headers |
 | Ordered conventional and configured route discovery | `RouteDiscovery` provider boot | `tests/integration/routing/test_route_discovery.py` |
 | Stable inspection and safe route metadata cache | `RouteCollection`, `RouteCache` | `tests/unit/routing/test_route_cache.py` and inspection tests |
 | WebSocket acceptance, messaging, and connection cleanup | FastAPI, Starlette, Container `CONNECTION` scope | `tests/integration/routing/test_advanced_routing.py` |

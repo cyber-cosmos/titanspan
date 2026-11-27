@@ -18,7 +18,7 @@ application composition and resource cleanup.
 | Typed arguments and options | Implemented | `Annotated` metadata and default-value tests |
 | Function and class handlers | Implemented | Sync function and async class command tests |
 | Callable object handlers | Implemented | Bound `__call__` signature and injection test |
-| Container injection | Implemented | Unit and Foundation integration tests |
+| Container injection | Implemented | Unit and Foundation integration tests; installed-wheel smoke invokes an injected command and captures its application logger |
 | Application startup and shutdown | Implemented | Lifecycle callbacks run around each command |
 | Trusted installed command discovery | Implemented | Deterministic entry-point loading tests |
 | Installed application provider discovery | Implemented | Default factory uses Foundation provider discovery |

@@ -25,6 +25,7 @@ async def test_runtime_smoke_uses_native_routing_and_injected_services() -> (
         "application": "Document Processor",
     }
     assert result["documents"] == {"resource": "Document"}
+    assert result["json_metadata"] == {"category": "guides"}
     assert result["uploaded_document"] == {
         "path": "guides/reference.txt",
         "bytes": 26,
@@ -56,3 +57,8 @@ async def test_runtime_smoke_processes_a_validated_document_upload() -> None:
         "http_status": 200,
     }
     assert result["password_hash_verified"] is True
+    assert result["json_validation_safe"] is True
+    assert result["response_cookie_verified"] is True
+    assert result["middleware_verified"] is True
+    assert result["console_document_count"] == 1
+    assert result["testing_context_verified"] is True

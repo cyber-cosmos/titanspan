@@ -25,7 +25,7 @@ application-rule sequencing, request integration, and safe native errors.
 | Default Container and Config integration | Foundation's `ValidationServiceProvider` | `tests/integration/validation/test_validation_application.py`, `tests/integration/test_framework_cohesion.py` |
 | Safe HTTP 422 rendering | Foundation's default `ValidationException` handler | `tests/integration/test_validation_exception_rendering.py` |
 | HTTP request input | `validate_request`, `validate_request_async` | Real ASGI application integration test |
-| Typed route application rules | `RouteDefinition.validate_input` | `tests/integration/validation/test_validation_application.py` |
+| Typed route application rules | `RouteDefinition.validate_input` | `tests/integration/validation/test_validation_application.py`; installed reference app exercises accepted JSON and safe 422 handling |
 | Safe 422 OpenAPI schema | Routing's typed route adapter | `test_native_typed_route_documents_the_safe_validation_response` |
 
 ## Schemas and errors

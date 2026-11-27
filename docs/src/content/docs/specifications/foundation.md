@@ -98,6 +98,10 @@ Unit and integration evidence is maintained in:
 - `tests/integration/test_container_lifecycle.py`
 - `tests/integration/http/test_request_lifecycle.py`
 
+The installed-package reference smoke also starts the application, verifies
+typed JSON and multipart requests, exercises middleware and response cookies,
+uses injected Console commands and `AsyncApplicationTest`, then shuts down.
+
 This specification does not claim persistent route caching, arbitrary module
 scanning, filesystem containment, or a second web dependency graph for native
 services.

@@ -21,7 +21,9 @@ public release.
   production Foundation lifecycle, Container, and ASGI application.
 - Extend the clean-install smoke with a multipart document workflow. The
   installed-wheel run verifies Validation, Pipeline, local storage, Events,
-  Logging, named URLs, generated routes, service fakes, Hashing, and shutdown.
+  Logging, global and route middleware, named URLs, JSON validation, response
+  cookies, generated routes, service fakes, Hashing, Console injection,
+  Testing, and shutdown.
 - Anchor relative event manifest paths to the effective application root.
 - Render malformed native request input as a safe HTTP 400 response.
 - Added Pydantic-backed Validation with typed schemas, coercion policy, safe

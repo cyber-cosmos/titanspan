@@ -17,9 +17,11 @@ from typing import TYPE_CHECKING, TypedDict, cast
 
 import anyio
 
+from titanspan.console import Console
 from titanspan.contracts.filesystem import StorageManager
 from titanspan.contracts.routing import ControllerAction, UriUrlGenerator
 from titanspan.facades import Event, Hash, Http, Log, Storage
+from titanspan.testing import AsyncApplicationTest
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Sequence
@@ -38,6 +40,7 @@ _REFERENCE_APPLICATION_PATH = (
 )
 _MULTIPART_BOUNDARY = "titanspan-installed-reference-boundary"
 _INVALID_CATEGORY = "runtime-smoke-secret/../"
+_UNSUPPORTED_JSON_CATEGORY = "private-report-token"
 _DOCUMENT_CONTENT = b"native reference workflow"
 _EXPECTED_STORED_CONTENT = b"native reference workflow\n"
 _FAKE_DOCUMENT_PATH = "guides/fake-reference.txt"
@@ -49,6 +52,10 @@ _EXPECTED_HEALTH = {
     "application": "Document Processor",
 }
 _EXPECTED_GENERATED_DOCUMENT = {"resource": "Document"}
+_EXPECTED_JSON_METADATA = {"category": "guides"}
+_EXPECTED_COOKIE_RESPONSE = {"status": "issued"}
+_EXPECTED_COOKIE_COUNT = 2
+_HEADER_PAIR_LENGTH = 2
 _EXPECTED_UPLOADED_DOCUMENT = {
     "path": "guides/reference.txt",
     "bytes": len(_EXPECTED_STORED_CONTENT),
@@ -78,16 +85,28 @@ class _SmokeResult(TypedDict):
         documents: Generated controller endpoint payload.
         uploaded_document: Successful document workflow receipt.
         invalid_upload: Status and payload for rejected input.
+        json_metadata: Validated typed JSON metadata response.
+        json_validation_safe: Whether invalid JSON receives a safe 422.
+        response_cookie_verified: Whether native cookies retain attributes.
+        middleware_verified: Whether global and route middleware ran.
         component_fakes: Results from application-scoped fake services.
         password_hash_verified: Whether native hashing verifies its result.
+        console_document_count: Count returned through an injected command.
+        testing_context_verified: Whether native app testing served a route.
     """
 
     health: object
     documents: object
     uploaded_document: object
     invalid_upload: _ValidationRejection
+    json_metadata: object
+    json_validation_safe: bool
+    response_cookie_verified: bool
+    middleware_verified: bool
     component_fakes: _ComponentFakeResults
     password_hash_verified: bool
+    console_document_count: int
+    testing_context_verified: bool
 
 
 class _ComponentFakeResults(TypedDict):
@@ -114,20 +133,74 @@ class _AsgiResponse:
         status: HTTP status code from the ASGI response start event.
         body: Decoded JSON response value.
         raw_body: Response bytes used for safe-data assertions.
+        headers: All response headers, preserving repeated values.
     """
 
     status: int
     body: object
     raw_body: bytes
+    headers: tuple[tuple[bytes, bytes], ...]
+
+
+class _SmokeRoutes(TypedDict):
+    """Store named paths resolved from the reference route catalog.
+
+    Attributes:
+        health: Health endpoint path.
+        generated: Path for the generated controller action.
+        upload: Multipart upload path.
+        metadata: Typed JSON metadata path.
+        cookie: Response-cookie path.
+    """
+
+    health: str
+    generated: str
+    upload: str
+    metadata: str
+    cookie: str
+
+
+class _PrimaryHttpResults(TypedDict):
+    """Retain core application request results from real ASGI calls.
+
+    Attributes:
+        health: Health endpoint response.
+        generated: Generated controller response.
+        upload: Successful multipart workflow response.
+        invalid_upload: Safe rejection for invalid multipart input.
+        middleware_verified: Whether global and upload middleware ran.
+    """
+
+    health: _AsgiResponse
+    generated: _AsgiResponse
+    upload: _AsgiResponse
+    invalid_upload: _AsgiResponse
+    middleware_verified: bool
+
+
+class _NativeHttpResults(TypedDict):
+    """Retain JSON, cookie, and middleware integration observations.
+
+    Attributes:
+        json_metadata: Typed JSON metadata response body.
+        json_validation_safe: Whether JSON rejection omits user input.
+        response_cookie_verified: Whether cookie headers preserve attributes.
+        middleware_verified: Whether metadata route middleware ran.
+    """
+
+    json_metadata: object
+    json_validation_safe: bool
+    response_cookie_verified: bool
+    middleware_verified: bool
 
 
 async def run_smoke() -> _SmokeResult:
     """Run CLI generation and a local document workflow through ASGI.
 
     Raises:
-        RuntimeError: If installed command generation, route reversal,
-            response behavior, validation safety, or storage verification
-            fails.
+        RuntimeError: If route reversal, response behavior, validation
+            safety, or storage verification fails.
+        TypeError: If dynamic CLI registration or ASGI output is malformed.
 
     Returns:
         Application, fake-service, hashing, and rejection results.
@@ -146,103 +219,264 @@ async def run_smoke() -> _SmokeResult:
             _load_document_action(generated_path),
         ).name("generated.documents.index")
 
-        health_url = application.make(UriUrlGenerator).route(
-            "runtime.health",
-            {},
-            absolute=False,
-        )
-        generated_url = application.make(UriUrlGenerator).route(
-            "generated.documents.index",
-            {},
-            absolute=False,
-        )
-        upload_url = application.make(UriUrlGenerator).route(
-            "documents.store",
-            {},
-            absolute=False,
-        )
-        if (
-            health_url != "/health"
-            or generated_url != "/generated-documents"
-            or upload_url != "/documents"
-        ):
-            message = "The reference application's named routes are invalid."
-            raise RuntimeError(message)
+        routes = _resolve_smoke_routes(application)
 
         async with application.asgi.router.lifespan_context(application.asgi):
-            health = await _send_request(application.asgi, health_url)
-            _expect_response(
-                health,
-                status=_HTTP_OK_STATUS,
-                body=_EXPECTED_HEALTH,
-            )
-            generated = await _send_request(application.asgi, generated_url)
-            _expect_response(
-                generated,
-                status=_HTTP_OK_STATUS,
-                body=_EXPECTED_GENERATED_DOCUMENT,
-            )
-            upload_body = _multipart_body(
-                category="guides",
-                filename="../../reference.txt",
-                content=_DOCUMENT_CONTENT,
-            )
-            upload = await _send_request(
-                application.asgi,
-                upload_url,
-                method="POST",
-                headers=_multipart_headers(upload_body),
-                body=upload_body,
-            )
-            _expect_response(
-                upload,
-                status=_HTTP_OK_STATUS,
-                body=_EXPECTED_UPLOADED_DOCUMENT,
-            )
-            invalid_upload_body = _multipart_body(
-                category=_INVALID_CATEGORY,
-                filename="rejected.txt",
-                content=b"must not be stored",
-            )
-            invalid_upload = await _send_request(
-                application.asgi,
-                upload_url,
-                method="POST",
-                headers=_multipart_headers(invalid_upload_body),
-                body=invalid_upload_body,
-            )
-            _expect_validation_rejection(invalid_upload)
-
-            disk = application.make(StorageManager).disk()
-            stored_content = await disk.get_bytes_async(
-                "guides/reference.txt",
-            )
-            if stored_content != _EXPECTED_STORED_CONTENT:
-                message = "The document was not stored with processed bytes."
-                raise RuntimeError(message)
-            if await disk.exists_async("guides/rejected.txt"):
-                message = "Invalid document input reached application storage."
-                raise RuntimeError(message)
+            primary_http = await _exercise_primary_http(application, routes)
+            native_http = await _exercise_native_http(application, routes)
 
             fake_results = await _exercise_application_fakes(
                 application,
-                upload_url,
+                routes["upload"],
             )
             password_hash_verified = await _verify_application_hasher(
                 application,
             )
+            console_document_count = await _run_document_count_command(
+                application,
+            )
+            testing_context_verified = await _verify_application_testing()
 
     return {
-        "health": health.body,
-        "documents": generated.body,
-        "uploaded_document": upload.body,
+        "health": primary_http["health"].body,
+        "documents": primary_http["generated"].body,
+        "uploaded_document": primary_http["upload"].body,
         "invalid_upload": {
-            "status": invalid_upload.status,
-            "body": invalid_upload.body,
+            "status": primary_http["invalid_upload"].status,
+            "body": primary_http["invalid_upload"].body,
         },
+        "json_metadata": native_http["json_metadata"],
+        "json_validation_safe": native_http["json_validation_safe"],
+        "response_cookie_verified": native_http["response_cookie_verified"],
+        "middleware_verified": (
+            primary_http["middleware_verified"]
+            and native_http["middleware_verified"]
+        ),
         "component_fakes": fake_results,
         "password_hash_verified": password_hash_verified,
+        "console_document_count": console_document_count,
+        "testing_context_verified": testing_context_verified,
     }
+
+
+def _resolve_smoke_routes(application: Application) -> _SmokeRoutes:
+    """Resolve the reference routes through the canonical URI contract.
+
+    Args:
+        application: Reference application with its routes registered.
+
+    Returns:
+        Relative paths from the application's authoritative route catalog.
+
+    Raises:
+        RuntimeError: If a named route produces an unexpected path.
+    """
+    generator = application.make(UriUrlGenerator)
+    routes: _SmokeRoutes = {
+        "health": generator.route("runtime.health", {}, absolute=False),
+        "generated": generator.route(
+            "generated.documents.index",
+            {},
+            absolute=False,
+        ),
+        "upload": generator.route("documents.store", {}, absolute=False),
+        "metadata": generator.route(
+            "documents.metadata",
+            {},
+            absolute=False,
+        ),
+        "cookie": generator.route(
+            "documents.session-cookie",
+            {},
+            absolute=False,
+        ),
+    }
+    expected = {
+        "health": "/health",
+        "generated": "/generated-documents",
+        "upload": "/documents",
+        "metadata": "/documents/metadata",
+        "cookie": "/documents/session-cookie",
+    }
+    if routes != expected:
+        message = "The reference application's named routes are invalid."
+        raise RuntimeError(message)
+    return routes
+
+
+async def _exercise_primary_http(
+    application: Application,
+    routes: _SmokeRoutes,
+) -> _PrimaryHttpResults:
+    """Exercise health, generated, and multipart routes through ASGI.
+
+    Args:
+        application: Started application using production HTTP services.
+        routes: Named paths from the canonical route catalog.
+
+    Returns:
+        Core successful and rejected request responses.
+
+    Raises:
+        RuntimeError: If routing, middleware, validation, or storage fails.
+    """
+    health = await _send_request(application.asgi, routes["health"])
+    _expect_response(
+        health,
+        status=_HTTP_OK_STATUS,
+        body=_EXPECTED_HEALTH,
+    )
+    request_ids = _header_values(health, "x-request-id")
+    if len(request_ids) != 1 or not request_ids[0]:
+        message = "Global middleware omitted the request identifier."
+        raise RuntimeError(message)
+
+    generated = await _send_request(application.asgi, routes["generated"])
+    _expect_response(
+        generated,
+        status=_HTTP_OK_STATUS,
+        body=_EXPECTED_GENERATED_DOCUMENT,
+    )
+
+    upload_body = _multipart_body(
+        category="guides",
+        filename="../../reference.txt",
+        content=_DOCUMENT_CONTENT,
+    )
+    upload = await _send_request(
+        application.asgi,
+        routes["upload"],
+        method="POST",
+        headers=_multipart_headers(upload_body),
+        body=upload_body,
+    )
+    _expect_response(
+        upload,
+        status=_HTTP_OK_STATUS,
+        body=_EXPECTED_UPLOADED_DOCUMENT,
+    )
+    _expect_header(upload, "x-operation", "document-upload")
+
+    invalid_upload_body = _multipart_body(
+        category=_INVALID_CATEGORY,
+        filename="rejected.txt",
+        content=b"must not be stored",
+    )
+    invalid_upload = await _send_request(
+        application.asgi,
+        routes["upload"],
+        method="POST",
+        headers=_multipart_headers(invalid_upload_body),
+        body=invalid_upload_body,
+    )
+    _expect_validation_rejection(invalid_upload)
+
+    disk = application.make(StorageManager).disk()
+    stored_content = await disk.get_bytes_async("guides/reference.txt")
+    if stored_content != _EXPECTED_STORED_CONTENT:
+        message = "The document was not stored with processed bytes."
+        raise RuntimeError(message)
+    if await disk.exists_async("guides/rejected.txt"):
+        message = "Invalid document input reached application storage."
+        raise RuntimeError(message)
+
+    return {
+        "health": health,
+        "generated": generated,
+        "upload": upload,
+        "invalid_upload": invalid_upload,
+        "middleware_verified": True,
+    }
+
+
+async def _exercise_native_http(
+    application: Application,
+    routes: _SmokeRoutes,
+) -> _NativeHttpResults:
+    """Exercise typed JSON, safe failures, and native response cookies.
+
+    Args:
+        application: Started application using production HTTP services.
+        routes: Named paths from the canonical route catalog.
+
+    Returns:
+        Typed JSON and cookie integration observations.
+
+    Raises:
+        RuntimeError: If validation, middleware, or cookie behavior differs.
+    """
+    metadata_body = json.dumps({"category": "guides"}).encode("utf-8")
+    metadata = await _send_request(
+        application.asgi,
+        routes["metadata"],
+        method="POST",
+        headers=_json_headers(metadata_body),
+        body=metadata_body,
+    )
+    _expect_response(
+        metadata,
+        status=_HTTP_OK_STATUS,
+        body=_EXPECTED_JSON_METADATA,
+    )
+    _expect_header(metadata, "x-operation", "metadata-json")
+
+    invalid_body = json.dumps(
+        {"category": _UNSUPPORTED_JSON_CATEGORY},
+    ).encode("utf-8")
+    invalid = await _send_request(
+        application.asgi,
+        routes["metadata"],
+        method="POST",
+        headers=_json_headers(invalid_body),
+        body=invalid_body,
+    )
+    json_validation_safe = (
+        invalid.status == _HTTP_UNPROCESSABLE_STATUS
+        and _UNSUPPORTED_JSON_CATEGORY.encode("utf-8") not in invalid.raw_body
+    )
+    if not json_validation_safe:
+        message = "JSON validation exposed rejected input."
+        raise RuntimeError(message)
+
+    cookie_response = await _send_request(
+        application.asgi,
+        routes["cookie"],
+    )
+    _expect_response(
+        cookie_response,
+        status=_HTTP_OK_STATUS,
+        body=_EXPECTED_COOKIE_RESPONSE,
+    )
+    cookie_values = _header_values(cookie_response, "set-cookie")
+    response_cookie_verified = _secure_cookies_are_preserved(cookie_values)
+    if not response_cookie_verified:
+        message = "Native response cookies lost values or attributes."
+        raise RuntimeError(message)
+
+    return {
+        "json_metadata": metadata.body,
+        "json_validation_safe": json_validation_safe,
+        "response_cookie_verified": response_cookie_verified,
+        "middleware_verified": True,
+    }
+
+
+def _secure_cookies_are_preserved(values: Sequence[str]) -> bool:
+    """Check duplicate cookie values and default security attributes.
+
+    Args:
+        values: Set-Cookie field values from the ASGI response.
+
+    Returns:
+        Whether both distinct cookies preserve secure defaults.
+    """
+    return (
+        len(values) == _EXPECTED_COOKIE_COUNT
+        and all("secure" in value.lower() for value in values)
+        and all("httponly" in value.lower() for value in values)
+        and any("document_session=opaque" in value for value in values)
+        and any("document_preference=compact" in value for value in values)
+    )
 
 
 async def _exercise_application_fakes(
@@ -348,6 +582,115 @@ async def _verify_application_hasher(application: Application) -> bool:
     with application.context():
         password_hash = await Hash.make_async(_HASH_SAMPLE_TEXT)
         return await Hash.check_async(_HASH_SAMPLE_TEXT, password_hash)
+
+
+async def _run_document_count_command(
+    application: Application,
+) -> int:
+    """Run the example command with the active application's audit service.
+
+    Args:
+        application: Started application containing document audit records.
+
+    Returns:
+        Count read by the Console handler through native injection.
+
+    Raises:
+        RuntimeError: If command execution fails.
+        TypeError: If the example does not expose its command registration.
+    """
+    module = sys.modules.get(_REFERENCE_APPLICATION_MODULE)
+    register = (
+        None
+        if module is None
+        else getattr(
+            module,
+            "register_console_commands",
+            None,
+        )
+    )
+    if not callable(register):
+        message = "The reference application has no Console registration."
+        raise TypeError(message)
+
+    console = Console()
+    register_console = cast(
+        "Callable[[Console], None]",
+        register,
+    )
+    register_console(console)
+    with application.context(), Log.fake() as log_fake:
+        status = await console.execute_async("documents count")
+        log_fake.assert_logged_times(
+            1,
+            level="info",
+            message="Document count inspected",
+            context={"document_count": 1},
+        )
+        record = log_fake.assert_logged(
+            level="info",
+            message="Document count inspected",
+            context={"document_count": 1},
+        )
+    if status != 0:
+        message = "The injected document count command did not complete."
+        raise RuntimeError(message)
+    document_count = record.context["document_count"]
+    if isinstance(document_count, bool) or not isinstance(document_count, int):
+        message = "The injected command did not log an integer document count."
+        raise TypeError(message)
+    return document_count
+
+
+async def _verify_application_testing() -> bool:
+    """Exercise the public async testing context and production ASGI route.
+
+    Returns:
+        Whether the test context served the route with an injected service.
+
+    Raises:
+        RuntimeError: If application startup, injection, or request fails.
+    """
+    testing = AsyncApplicationTest()
+    testing.application.router.get("/test-probe", _test_probe)
+    async with testing as active:
+        response = await active.client.get("/test-probe")
+        if response.status_code != _HTTP_OK_STATUS:
+            message = "The native application test route failed."
+            raise RuntimeError(message)
+        if response.json() != {"status": "ready"}:
+            message = "The native test route returned an unexpected payload."
+            raise RuntimeError(message)
+    return True
+
+
+class _RuntimeProbe:
+    """Provide a zero-argument service for native test-client injection.
+
+    Attributes:
+        status: Safe test value returned through the actual application.
+    """
+
+    def __init__(self) -> None:
+        """Create a deterministic value for the installed test context.
+
+        The value makes dependency resolution observable in the test route.
+        """
+        self.status = "ready"
+
+    status: str
+
+
+async def _test_probe(probe: _RuntimeProbe) -> dict[str, str]:
+    """Return a value from a Container-injected test service.
+
+    Args:
+        probe: Application service resolved for the test request.
+
+    Returns:
+        Small response proving native injection and ASGI execution.
+    """
+    return {"status": probe.status}
 
 
 def _generate_document_controller(base_path: Path) -> Path:
@@ -474,6 +817,21 @@ def _multipart_headers(body: bytes) -> tuple[tuple[bytes, bytes], ...]:
     )
 
 
+def _json_headers(body: bytes) -> tuple[tuple[bytes, bytes], ...]:
+    """Return content type and length for one local JSON request.
+
+    Args:
+        body: Complete JSON request body sent to the local ASGI application.
+
+    Returns:
+        Headers declaring the JSON media type and exact body length.
+    """
+    return (
+        (b"content-type", b"application/json"),
+        (b"content-length", str(len(body)).encode("ascii")),
+    )
+
+
 def _multipart_body(
     *,
     category: str,
@@ -585,6 +943,7 @@ def _decode_response(messages: Sequence[Message]) -> _AsgiResponse:
 
     Raises:
         RuntimeError: If ASGI emits an invalid HTTP response.
+        TypeError: If ASGI response fields have invalid types.
     """
     start_events = [
         message
@@ -609,12 +968,68 @@ def _decode_response(messages: Sequence[Message]) -> _AsgiResponse:
         message = "ASGI response body chunks must be bytes."
         raise RuntimeError(message)
     raw_body = b"".join(chunk for chunk in chunks if isinstance(chunk, bytes))
+    header_value = start_events[0].get("headers", [])
+    if not isinstance(header_value, list):
+        message = "ASGI response start has invalid headers."
+        raise TypeError(message)
+    headers: list[tuple[bytes, bytes]] = []
+    for header in cast("list[object]", header_value):
+        if not isinstance(header, tuple):
+            message = "ASGI response header entries must be tuples."
+            raise TypeError(message)
+        header_pair = cast("tuple[object, ...]", header)
+        if (
+            len(header_pair) != _HEADER_PAIR_LENGTH
+            or not isinstance(header_pair[0], bytes)
+            or not isinstance(header_pair[1], bytes)
+        ):
+            message = "ASGI response header entries must contain bytes."
+            raise TypeError(message)
+        headers.append((header_pair[0], header_pair[1]))
     try:
         body = json.loads(raw_body)
     except (UnicodeDecodeError, json.JSONDecodeError) as error:
         message = "ASGI response body is not valid JSON."
         raise RuntimeError(message) from error
-    return _AsgiResponse(status, body, raw_body)
+    return _AsgiResponse(status, body, raw_body, tuple(headers))
+
+
+def _header_values(response: _AsgiResponse, name: str) -> tuple[str, ...]:
+    """Return every response value for one case-insensitive header name.
+
+    Args:
+        response: ASGI response captured by the reference smoke.
+        name: Header name to select.
+
+    Returns:
+        Decoded values in the order emitted by the ASGI application.
+    """
+    encoded_name = name.encode("ascii").lower()
+    return tuple(
+        value.decode("latin-1")
+        for header_name, value in response.headers
+        if header_name.lower() == encoded_name
+    )
+
+
+def _expect_header(
+    response: _AsgiResponse,
+    name: str,
+    expected: str,
+) -> None:
+    """Require one exact value for a response header.
+
+    Args:
+        response: ASGI response captured by the reference smoke.
+        name: Header name to select.
+        expected: Exact value required by the smoke.
+
+    Raises:
+        RuntimeError: If the selected header differs from its expectation.
+    """
+    if _header_values(response, name) != (expected,):
+        message = f"The reference response omitted the {name} header."
+        raise RuntimeError(message)
 
 
 def _expect_response(

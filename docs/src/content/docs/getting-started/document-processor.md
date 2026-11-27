@@ -32,6 +32,9 @@ upload and closes its temporary file after response transmission.
 The request-scoped `DocumentProcessor` uses the native Container, Pipeline,
 Filesystem, Events, Config, and Logging components. Foundation starts these
 services through one application lifecycle and closes them during shutdown.
+The application also adds a request ID through global middleware, applies
+parameterized route middleware, validates typed JSON metadata, and returns
+secure response cookies through the native contracts.
 
 For another root, call `create_application(Path("/path/to/project"))` and
 serve its `.asgi` host with an ASGI server. The application does not change
@@ -43,4 +46,5 @@ controller generator and dispatches the generated action through Routing.
 The check also substitutes Storage, Events, Logging, and outgoing HTTP in a
 scoped application context. It verifies that fake storage does not write to
 the configured local disk and checks a password hash through the application
-Hasher.
+Hasher. It invokes an injected `documents count` Console command and uses
+`AsyncApplicationTest` to start, request, and close a native test application.

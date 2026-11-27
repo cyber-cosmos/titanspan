@@ -18,15 +18,25 @@ from titanspan.contracts.config import ConfigRepository  # noqa: TC001
 from titanspan.contracts.events import EventDispatcher
 from titanspan.contracts.filesystem import StorageManager  # noqa: TC001
 from titanspan.contracts.foundation import ServiceProvider
-from titanspan.contracts.http import HttpRequest  # noqa: TC001
+from titanspan.contracts.http import (
+    HttpMiddleware,
+    HttpRequest,
+    HttpResponse,
+    MiddlewareDeclaration,
+    ParameterizedHttpMiddleware,
+    RequestHandler,
+    ResponseFactory,
+)
 from titanspan.contracts.logging import LogWriter  # noqa: TC001
 from titanspan.contracts.validation import ValidationService  # noqa: TC001
 from titanspan.http import RequestBodyTooLargeError, RequestInputError
 from titanspan.pipeline import Pipeline
+from titanspan.validation import ValidationRule
 
 if TYPE_CHECKING:
     from starlette.types import ASGIApp
 
+    from titanspan.console import Console
     from titanspan.contracts.container import ServiceRegistry
 
 _APPLICATION_NAME = "Document Processor"
@@ -76,6 +86,79 @@ class DocumentAudit:
         Each registered application receives its own audit service.
         """
         self.records: list[DocumentStored] = []
+
+
+class _RequestIdMiddleware:
+    """Expose the native request identifier on every response.
+
+    The request identifier comes from Foundation's active HTTP scope.
+    """
+
+    async def handle(
+        self,
+        request: HttpRequest,
+        next_handler: RequestHandler,
+    ) -> HttpResponse:
+        """Add the active request identifier after downstream handling.
+
+        Args:
+            request: Native request owned by the active ASGI scope.
+            next_handler: Continuation for the next middleware or route.
+
+        Returns:
+            The downstream response with one correlation header.
+        """
+        response = await next_handler(request)
+        return response.with_header("X-Request-ID", request.request_id)
+
+
+class _OperationMiddleware:
+    """Add route-declared operation metadata to a response.
+
+    The immutable route declaration carries each operation name.
+    """
+
+    async def handle(
+        self,
+        request: HttpRequest,
+        next_handler: RequestHandler,
+    ) -> HttpResponse:
+        """Continue routes without operation-specific parameters.
+
+        Args:
+            request: Native request for the current execution.
+            next_handler: Continuation for downstream request handling.
+
+        Returns:
+            The downstream response without additional metadata.
+        """
+        return await next_handler(request)
+
+    async def handle_with_parameters(
+        self,
+        request: HttpRequest,
+        next_handler: RequestHandler,
+        parameters: tuple[str, ...],
+    ) -> HttpResponse:
+        """Attach one route-declared operation name to the response.
+
+        Args:
+            request: Native request for the current execution.
+            next_handler: Continuation for downstream request handling.
+            parameters: Immutable operation metadata from this route.
+
+        Returns:
+            The downstream response with its operation name.
+        """
+        if len(parameters) != 1:
+            message = "Operation middleware requires one route parameter."
+            raise ValueError(message)
+        response = await next_handler(request)
+        return response.with_header("X-Operation", parameters[0])
+
+
+_REQUEST_ID_MIDDLEWARE: type[HttpMiddleware] = _RequestIdMiddleware
+_OPERATION_MIDDLEWARE: type[ParameterizedHttpMiddleware] = _OperationMiddleware
 
 
 class DocumentReceipt(BaseModel):
@@ -209,7 +292,7 @@ class DocumentProcessor:
 
 
 class _DocumentProvider(ServiceProvider):
-    """Register document services in the native Container.
+    """Register document services and middleware in the native Container.
 
     Foundation composes these bindings into the application's service graph.
     """
@@ -221,6 +304,7 @@ class _DocumentProvider(ServiceProvider):
             container: Canonical service registry owned by Foundation.
         """
         container.singleton(DocumentAudit, DocumentAudit)
+        container.singleton(_OperationMiddleware, _OperationMiddleware)
         # Request scope lets each execution resolve its active log service.
         container.scoped(DocumentProcessor, DocumentProcessor)
 
@@ -236,6 +320,48 @@ def _record_document(
         audit: Application-owned event recorder resolved by the Container.
     """
     audit.records.append(event)
+
+
+def _is_supported_document_category(value: object) -> bool:
+    """Allow only the category configured by this small reference app.
+
+    Args:
+        value: Schema-validated category passed to the application rule.
+
+    Returns:
+        Whether the value matches the supported reference category.
+    """
+    return isinstance(value, DocumentMetadata) and value.category == "guides"
+
+
+def register_console_commands(
+    console: Console,
+) -> None:
+    """Register one native, injected document-count command.
+
+    Args:
+        console: Titanspan Console receiving the application command.
+    """
+    document_commands = console.add_group("documents")
+
+    @document_commands.command(
+        "count",
+        description="Count documents stored by this application.",
+    )
+    def count_documents(
+        audit: DocumentAudit,
+        logger: LogWriter,
+    ) -> None:
+        """Log the count from the application-owned audit service.
+
+        Args:
+            audit: Canonical service resolved by the active Container.
+            logger: Canonical application logger resolved by the Container.
+        """
+        logger.info(
+            "Document count inspected",
+            document_count=len(audit.records),
+        )
 
 
 def _trim_document(content: bytes) -> bytes:
@@ -290,6 +416,7 @@ def create_application(base_path: Path) -> Application:
             },
         },
         service_providers=(_DocumentProvider(),),
+        http_middleware=(_REQUEST_ID_MIDDLEWARE,),
     )
 
     async def health(request: HttpRequest) -> dict[str, str]:
@@ -329,6 +456,41 @@ def create_application(base_path: Path) -> Application:
             "event_count": receipt.event_count,
         }
 
+    async def accept_metadata(
+        metadata: DocumentMetadata,
+    ) -> dict[str, str]:
+        """Accept typed JSON metadata after application rule checks.
+
+        Args:
+            metadata: Pydantic-validated document metadata.
+
+        Returns:
+            The accepted document category.
+        """
+        return {"category": metadata.category}
+
+    async def issue_document_cookie(
+        response_factory: ResponseFactory,
+    ) -> HttpResponse:
+        """Return a JSON response with a securely configured cookie.
+
+        Args:
+            response_factory: Canonical native HTTP response factory.
+
+        Returns:
+            A JSON response carrying two HTTP-only secure cookies.
+        """
+        return (
+            response_factory.json(
+                {"status": "issued"},
+            )
+            .with_cookie("document_session", "opaque")
+            .with_cookie(
+                "document_preference",
+                "compact",
+            )
+        )
+
     def register_document_listener() -> None:
         """Register the document listener after provider boot.
 
@@ -342,7 +504,34 @@ def create_application(base_path: Path) -> Application:
     application.router.post(
         "/documents",
         store_document,
-    ).name("documents.store")
+    ).name("documents.store").middleware(
+        MiddlewareDeclaration(
+            _OPERATION_MIDDLEWARE,
+            ("document-upload",),
+        ),
+    )
+    application.router.post(
+        "/documents/metadata",
+        accept_metadata,
+    ).name("documents.metadata").validate_input(
+        "metadata",
+        rules=(
+            ValidationRule(
+                field="category",
+                check=_is_supported_document_category,
+                message="The document category is not supported.",
+            ),
+        ),
+    ).middleware(
+        MiddlewareDeclaration(
+            _OPERATION_MIDDLEWARE,
+            ("metadata-json",),
+        ),
+    )
+    application.router.get(
+        "/documents/session-cookie",
+        issue_document_cookie,
+    ).name("documents.session-cookie")
     return application
 
 
@@ -363,4 +552,5 @@ __all__ = [
     "DocumentStored",
     "create_application",
     "create_asgi_app",
+    "register_console_commands",
 ]

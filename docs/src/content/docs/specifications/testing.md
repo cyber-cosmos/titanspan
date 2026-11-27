@@ -13,7 +13,7 @@ Application, Container, providers, HTTP middleware, and ASGI application.
 | Capability | Status | Evidence |
 | --- | --- | --- |
 | Synchronous application test lifecycle | Implemented | `ApplicationTest` starts and shuts down through the real ASGI lifespan |
-| Asynchronous application test lifecycle | Implemented | `AsyncApplicationTest` uses Foundation startup and shutdown with HTTPX2 ASGI transport |
+| Asynchronous application test lifecycle | Implemented | `AsyncApplicationTest` uses Foundation startup and shutdown with HTTPX2 ASGI transport; the installed-wheel smoke verifies injected request handling |
 | Temporary or explicit application root | Implemented | Roots are created per test; temporary roots are removed on context exit |
 | Configuration and typed settings | Implemented | Values pass to the production Application constructor |
 | Provider and middleware registration | Implemented | The ordinary Foundation composition path receives them |
