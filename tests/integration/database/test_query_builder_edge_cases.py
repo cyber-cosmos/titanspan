@@ -195,6 +195,114 @@ async def test_right_and_full_outer_joins_preserve_unmatched_rows(
         }
 
 
+async def test_scalar_projection_and_membership_subqueries(
+    application: Application,
+) -> None:
+    """Compose scalar projections and value membership with builders.
+
+    Args:
+        application: Application configured by this test.
+    """
+    async with application:
+        await DB.statement_async(
+            "CREATE TABLE query_people ("
+            "id INTEGER PRIMARY KEY, name TEXT NOT NULL)"
+        )
+        await DB.statement_async(
+            "CREATE TABLE eligible_people (id INTEGER PRIMARY KEY)"
+        )
+        await DB.statement_async(
+            "CREATE TABLE query_scores ("
+            "id INTEGER PRIMARY KEY, person_id INTEGER, score INTEGER)"
+        )
+        await DB.table("query_people").insert_many_async(
+            [
+                {"id": 1, "name": "Ada"},
+                {"id": 2, "name": "Grace"},
+                {"id": 3, "name": "Linus"},
+            ],
+        )
+        await DB.table("eligible_people").insert_many_async(
+            [{"id": 2}, {"id": 3}],
+        )
+        await DB.table("query_scores").insert_async(
+            {"id": 1, "person_id": 1, "score": 10},
+        )
+        eligible = DB.table("eligible_people").select("id")
+        score = (
+            DB.table("query_scores")
+            .select("score")
+            .where("person_id", 1)
+            .limit(1)
+        )
+
+        selected = await (
+            DB.table("query_people")
+            .select_sub(score, "score")
+            .add_select("id", "name")
+            .where_in("id", eligible)
+            .order_by("id")
+            .get_async()
+        )
+        sync_selected = await anyio.to_thread.run_sync(
+            lambda: (
+                DB.table("query_people")
+                .select_sub(
+                    DB.table("query_scores")
+                    .select("score")
+                    .where("person_id", 1)
+                    .limit(1),
+                    "score",
+                )
+                .add_select("id", "name")
+                .where_in(
+                    "id",
+                    DB.table("eligible_people").select("id"),
+                )
+                .order_by("id")
+                .get()
+            ),
+        )
+        appended = await (
+            DB.table("query_people")
+            .select("id")
+            .add_select_sub(score, "score")
+            .where("id", 2)
+            .first_async()
+        )
+        excluded = await (
+            DB.table("query_people")
+            .where_not_in("id", eligible)
+            .pluck_async("name")
+        )
+        either = await (
+            DB.table("query_people")
+            .where("id", 3)
+            .or_where_in("id", eligible)
+            .order_by("id")
+            .pluck_async("id")
+        )
+        outside_or_selected = await (
+            DB.table("query_people")
+            .where("id", 3)
+            .or_where_not_in("id", eligible)
+            .order_by("id")
+            .pluck_async("id")
+        )
+
+        assert selected == [
+            {"score": 10, "id": 2, "name": "Grace"},
+            {"score": 10, "id": 3, "name": "Linus"},
+        ]
+        assert sync_selected == selected
+        assert appended == {"id": 2, "score": 10}
+        assert excluded == ["Ada"]
+        assert either == [2, 3]
+        assert outside_or_selected == [1, 3]
+        with pytest.raises(DatabaseQueryError):
+            DB.table("query_people").select_sub(score, "unsafe alias")
+
+
 async def test_date_and_time_predicates_use_database_expressions(
     application: Application,
 ) -> None:

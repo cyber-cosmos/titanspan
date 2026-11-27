@@ -85,6 +85,8 @@ public release.
   Right joins use SQLAlchemy left-join expressions with the sides reversed.
   Full outer joins use backend support on PostgreSQL and SQLite 3.39 or later.
   PostgreSQL and SQLite behavior has real integration coverage.
+- Add scalar subquery projections and subquery operands for `where_in()` and
+  `where_not_in()`, including their OR variants, through SQLAlchemy Core.
 - Declare Pydantic as a direct runtime dependency for native schema APIs.
 - Add native application Cache services with memory and optional Redis
   backends, explicit backend capabilities, safe JSON serialization, atomic

@@ -206,7 +206,9 @@ Retrieval methods include `get`, `first`, `first_or_fail`, `sole`, `find`,
 uses a left outer join on PostgreSQL, MySQL, MariaDB, and SQLite.
 `full_outer_join()` is available on PostgreSQL and SQLite 3.39 or later; MySQL
 and MariaDB do not support full outer joins. MySQL joins are not real
-integration-tested here. The current pagination API offers
+integration-tested here. `select_sub()` and `add_select_sub()` add named scalar
+projections, and `where_in()` / `where_not_in()` accept a fluent single-column
+subquery as well as bound sequences. The current pagination API offers
 length-aware and simple page results. Equivalent asynchronous terminal methods
 use an `_async` suffix. Use a stream context when a result must remain bounded
 in memory:

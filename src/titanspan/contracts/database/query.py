@@ -51,6 +51,38 @@ class DatabaseQueryBuilder(Protocol):
         """
         ...
 
+    def select_sub(
+        self,
+        query: DatabaseQueryBuilder,
+        alias: str,
+    ) -> Self:
+        """Replace the projection with a named scalar subquery.
+
+        Args:
+            query: Query selecting one column and at most one row.
+            alias: Safe output column name.
+
+        Returns:
+            This builder for further query composition.
+        """
+        ...
+
+    def add_select_sub(
+        self,
+        query: DatabaseQueryBuilder,
+        alias: str,
+    ) -> Self:
+        """Append a named scalar subquery to the current projection.
+
+        Args:
+            query: Query selecting one column and at most one row.
+            alias: Safe output column name.
+
+        Returns:
+            This builder for further query composition.
+        """
+        ...
+
     def select_raw(
         self,
         expression: str,
@@ -124,13 +156,29 @@ class DatabaseQueryBuilder(Protocol):
     def where_in(
         self,
         column_name: str,
-        values: Sequence[object],
+        values: Sequence[object] | DatabaseQueryBuilder,
     ) -> Self:
-        """Match a column against a bound sequence of values.
+        """Match a column against values or a single-column subquery.
 
         Args:
             column_name: Safe column name or qualified name.
-            values: Values bound by SQLAlchemy.
+            values: Values bound by SQLAlchemy or one query projection.
+
+        Returns:
+            This builder for further query composition.
+        """
+        ...
+
+    def or_where_in(
+        self,
+        column_name: str,
+        values: Sequence[object] | DatabaseQueryBuilder,
+    ) -> Self:
+        """Match values or a subquery as an SQL OR condition.
+
+        Args:
+            column_name: Safe column name or qualified name.
+            values: Bound values or a single-column query projection.
 
         Returns:
             This builder for further query composition.
@@ -140,13 +188,29 @@ class DatabaseQueryBuilder(Protocol):
     def where_not_in(
         self,
         column_name: str,
-        values: Sequence[object],
+        values: Sequence[object] | DatabaseQueryBuilder,
     ) -> Self:
-        """Exclude values using a bound sequence.
+        """Exclude values using a bound sequence or subquery.
 
         Args:
             column_name: Safe column name or qualified name.
-            values: Values bound by SQLAlchemy.
+            values: Values bound by SQLAlchemy or one query projection.
+
+        Returns:
+            This builder for further query composition.
+        """
+        ...
+
+    def or_where_not_in(
+        self,
+        column_name: str,
+        values: Sequence[object] | DatabaseQueryBuilder,
+    ) -> Self:
+        """Exclude values or a subquery through SQL OR.
+
+        Args:
+            column_name: Safe column name or qualified name.
+            values: Bound values or a single-column query projection.
 
         Returns:
             This builder for further query composition.

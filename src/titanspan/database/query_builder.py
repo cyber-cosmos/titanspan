@@ -94,6 +94,7 @@ if TYPE_CHECKING:
         CTE,
         FromClause,
         Select,
+        SelectBase,
     )
 
     from titanspan.contracts.database.connection import (
@@ -237,6 +238,48 @@ class QueryBuilder(DatabaseQueryBuilder):
         self._selection.extend(
             self._projection(column_name) for column_name in columns
         )
+        return self
+
+    def select_sub(
+        self,
+        query: DatabaseQueryBuilder,
+        alias: str,
+    ) -> QueryBuilder:
+        """Replace the projection with one scalar query expression.
+
+        Args:
+            query: Query that returns exactly one column and at most one row.
+            alias: Safe output column name for the scalar result.
+
+        Returns:
+            This builder for further query composition.
+
+        Raises:
+            DatabaseQueryError: If the alias is not a single identifier.
+        """
+        self._selection = [self._subquery_projection(query, alias)]
+        return self
+
+    def add_select_sub(
+        self,
+        query: DatabaseQueryBuilder,
+        alias: str,
+    ) -> QueryBuilder:
+        """Append a scalar query expression to the current projection.
+
+        Args:
+            query: Query that returns exactly one column and at most one row.
+            alias: Safe output column name for the scalar result.
+
+        Returns:
+            This builder for further query composition.
+
+        Raises:
+            DatabaseQueryError: If the alias is not a single identifier.
+        """
+        if self._selection is None:
+            self._selection = []
+        self._selection.append(self._subquery_projection(query, alias))
         return self
 
     def select_raw(
@@ -764,20 +807,39 @@ class QueryBuilder(DatabaseQueryBuilder):
     def where_in(
         self,
         column_name: str,
-        values: Sequence[object],
+        values: Sequence[object] | DatabaseQueryBuilder,
     ) -> QueryBuilder:
         """Match a column against a bound sequence of values.
 
         Args:
             column_name: Safe column name or qualified name.
-            values: Values passed through SQLAlchemy's expanding bind.
+            values: Bound values or a single-column subquery.
 
         Returns:
             This builder for further query composition.
         """
         return self._add_where(
-            self._column(column_name).in_(values),
+            self._column(column_name).in_(self._membership_values(values)),
             "and",
+        )
+
+    def or_where_in(
+        self,
+        column_name: str,
+        values: Sequence[object] | DatabaseQueryBuilder,
+    ) -> QueryBuilder:
+        """Match a bound sequence or subquery through SQL OR.
+
+        Args:
+            column_name: Safe column name or qualified name.
+            values: Bound values or a single-column subquery.
+
+        Returns:
+            This builder for further query composition.
+        """
+        return self._add_where(
+            self._column(column_name).in_(self._membership_values(values)),
+            "or",
         )
 
     def or_where_null(self, column_name: str) -> QueryBuilder:
@@ -805,20 +867,43 @@ class QueryBuilder(DatabaseQueryBuilder):
     def where_not_in(
         self,
         column_name: str,
-        values: Sequence[object],
+        values: Sequence[object] | DatabaseQueryBuilder,
     ) -> QueryBuilder:
         """Exclude values using a bound sequence.
 
         Args:
             column_name: Safe column name or qualified name.
-            values: Values passed through SQLAlchemy's expanding bind.
+            values: Bound values or a single-column subquery.
 
         Returns:
             This builder for further query composition.
         """
         return self._add_where(
-            self._column(column_name).not_in(values),
+            self._column(column_name).not_in(
+                self._membership_values(values),
+            ),
             "and",
+        )
+
+    def or_where_not_in(
+        self,
+        column_name: str,
+        values: Sequence[object] | DatabaseQueryBuilder,
+    ) -> QueryBuilder:
+        """Exclude values through SQL OR using values or a subquery.
+
+        Args:
+            column_name: Safe column name or qualified name.
+            values: Bound values or a single-column subquery.
+
+        Returns:
+            This builder for further query composition.
+        """
+        return self._add_where(
+            self._column(column_name).not_in(
+                self._membership_values(values),
+            ),
+            "or",
         )
 
     def where_between(
@@ -3990,6 +4075,41 @@ class QueryBuilder(DatabaseQueryBuilder):
             return self._column(expression)
         source, label = match.groups()
         return self._column(source.strip()).label(label)
+
+    def _subquery_projection(
+        self,
+        query: DatabaseQueryBuilder,
+        alias: str,
+    ) -> _Projection:
+        """Create a safely labeled scalar projection from another builder.
+
+        Args:
+            query: Subquery expected to select one column.
+            alias: Output column identifier.
+
+        Returns:
+            A SQLAlchemy scalar subquery labeled with the validated alias.
+        """
+        if len(_identifier_parts(alias)) != 1:
+            _raise_invalid_identifier()
+        expression = query.to_statement().scalar_subquery().label(alias)
+        return cast("_Projection", expression)
+
+    def _membership_values(
+        self,
+        values: Sequence[object] | DatabaseQueryBuilder,
+    ) -> Sequence[object] | SelectBase:
+        """Resolve one bound sequence or native fluent subquery operand.
+
+        Args:
+            values: Query Builder projection or sequence of bound values.
+
+        Returns:
+            A SQLAlchemy-selectable subquery or the supplied value sequence.
+        """
+        if isinstance(values, DatabaseQueryBuilder):
+            return values.to_statement()
+        return values
 
     def _column(self, reference: str) -> ColumnElement[object]:
         """Resolve a safe column reference against known query tables.
