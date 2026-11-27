@@ -43,7 +43,7 @@ Component-private protocols remain in their owning component.
 | `LogDriver`, `AsyncLogDriver` | Synchronous and asynchronous record delivery | `titanspan.logging`; logging tests |
 | `LogFormatter`, `LogProcessor`, `LogCustomizer` | Format, transform, and customize component records | `titanspan.logging`; logging tests |
 | `DeliveryStatus` | Report the outcome known at the logging call boundary | `titanspan.logging`; delivery tests |
-| `HttpRequest`, `HttpResponse`, `ResponseFactory`, `HttpMiddleware` | Share request, response, and middleware behavior | `titanspan.http`; ASGI and lifecycle tests |
+| `HttpRequest`, `HttpResponse`, `ResponseFactory`, `HttpMiddleware`, `ParameterizedHttpMiddleware`, `MiddlewareDeclaration` | Share request, response, and immutable middleware parameters | `titanspan.http`; ASGI routing integration tests |
 | `HttpClient`, `HttpClientResponse` | Share pooled outgoing request behavior | HTTPX adapter; loopback integration tests |
 | `EventDispatcher` | Register, inspect, defer, fake, and dispatch application events | `NativeEventDispatcher`; service-provider and application integration tests |
 | `FileMetadata`, `StorageDisk`, `StorageManager` | Describe named disks and backend-independent file metadata | `titanspan.filesystem`; real fsspec and application integration tests |

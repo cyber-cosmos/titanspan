@@ -89,8 +89,11 @@ Middleware uses the existing HTTP middleware contract. Register aliases with
 Groups, route declarations, and a controller's `route_middleware` class
 attribute contribute middleware in order. `without_middleware` removes
 selected aliases or classes for a route. Current-route helpers are available
-while route middleware and the action execute. Parameterized middleware is
-not supported by the current HTTP contract.
+while route middleware and the action execute. Use
+`MiddlewareDeclaration(alias_or_class, parameters)` for immutable string
+parameters. Exact duplicate declarations run once; the same target with
+different parameters runs once per distinct declaration. Exclusions by alias
+or class remove every matching parameterized declaration.
 
 ## Discovery and inspection
 
@@ -126,9 +129,9 @@ FastAPI generates OpenAPI for HTTP routes. Route names supply operation IDs;
 route metadata supports tags, summaries, descriptions, deprecation, status
 codes, response models, and response declarations. FastAPI and Pydantic
 provide supported path, query, and request-body schemas. Container-injected
-services are excluded from client input schemas. A future Validation
-integration needs a narrow supported schema contract; Routing does not
-implement another validation engine.
+services are excluded from client input schemas. Typed routes document the
+stable safe 422 response body. Explicit `Validation.validate_request` calls
+do not add request schemas to OpenAPI.
 
 ## Lifecycle and pending integrations
 
@@ -138,9 +141,8 @@ Request context remains active through complete ASGI response transmission,
 including streaming cleanup.
 
 Signed URLs remain unsupported until framework key management can generate,
-verify, and rotate application signatures. Database-backed model binding,
-View routes, parameterized middleware, and Console route listing also need the
-owning components described above. See the
+verify, and rotate application signatures. Database-backed model binding and
+View routes need the owning components described above. See the
 [routing specification](/titanspan/specifications/routing/) for evidence and
 integration requirements, and [URL generation](./url-generation) for helper
 semantics.

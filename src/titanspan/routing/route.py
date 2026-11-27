@@ -10,12 +10,13 @@ from dataclasses import dataclass, field
 from types import MappingProxyType
 from typing import TYPE_CHECKING, Self
 
+from titanspan.contracts.http import MiddlewareDeclaration
 from titanspan.routing.exceptions import InvalidRouteError
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Mapping, Sequence
 
-    from titanspan.contracts.http import HttpMiddleware
+    from titanspan.contracts.http import HttpMiddleware, MiddlewareItem
     from titanspan.contracts.routing import RouteAction
 
 _PARAMETER_PATTERN = re.compile(
@@ -52,7 +53,7 @@ class RouteMetadata:
     """
 
     name_prefix: str = ""
-    middleware: tuple[str | type[HttpMiddleware], ...] = ()
+    middleware: tuple[MiddlewareItem, ...] = ()
     constraints: Mapping[str, str] = field(
         default_factory=lambda: dict[str, str]()
     )
@@ -182,7 +183,7 @@ class RouteDefinition:
         return self._route_name
 
     @property
-    def middleware_types(self) -> tuple[str | type[HttpMiddleware], ...]:
+    def middleware_types(self) -> tuple[MiddlewareItem, ...]:
         """Return route middleware declarations in execution order.
 
         Returns:
@@ -311,9 +312,7 @@ class RouteDefinition:
 
     def middleware(
         self,
-        values: (
-            str | type[HttpMiddleware] | Sequence[str | type[HttpMiddleware]]
-        ),
+        values: (MiddlewareItem | Sequence[MiddlewareItem]),
     ) -> Self:
         """Append route middleware while preserving declared order.
 
@@ -324,7 +323,11 @@ class RouteDefinition:
             This definition for further fluent configuration.
         """
         self._ensure_mutable()
-        additions = (values,) if isinstance(values, (str, type)) else values
+        additions = (
+            (values,)
+            if isinstance(values, (str, type, MiddlewareDeclaration))
+            else values
+        )
         for item in additions:
             if item not in self._middleware:
                 self._middleware.append(item)

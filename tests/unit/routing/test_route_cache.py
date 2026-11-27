@@ -13,6 +13,7 @@ from titanspan.config import Repository
 from titanspan.contracts.http import (
     HttpRequest,
     HttpResponse,
+    MiddlewareDeclaration,
     RequestHandler,
 )
 from titanspan.routing import RouteCacheError, Router
@@ -173,7 +174,13 @@ def test_route_cache_freezes_nested_json_metadata(tmp_path: Path) -> None:
     router = Router()
     router.get("/items/{item}", cache_endpoint).defaults(
         {"item": {"keys": [1, "two"]}},
-    ).middleware(("auth", CacheMiddleware)).domain("api.example.test")
+    ).middleware(
+        (
+            "auth",
+            CacheMiddleware,
+            MiddlewareDeclaration("policy", ("staff", "download")),
+        ),
+    ).domain("api.example.test")
     cache = RouteCache(tmp_path / "routes.json")
 
     cache.write(router)
@@ -182,7 +189,11 @@ def test_route_cache_freezes_nested_json_metadata(tmp_path: Path) -> None:
     assert entry.middleware == (
         "alias:auth",
         f"middleware:{CacheMiddleware.__module__}.CacheMiddleware",
+        "alias:policy;parameter_count=2",
     )
+    cached_text = (tmp_path / "routes.json").read_text(encoding="utf-8")
+    assert "staff" not in cached_text
+    assert "download" not in cached_text
     assert entry.domain == "api.example.test"
     item_default = entry.defaults["item"]
     assert isinstance(item_default, Mapping)

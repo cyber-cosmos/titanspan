@@ -53,6 +53,10 @@ public release.
 - Completed native route registration, resource APIs, controller and
   parameter binding, middleware conventions, discovery, inspection, safe JSON
   route metadata caching, WebSocket dispatch, and FastAPI OpenAPI integration.
+- Added immutable route middleware parameters through
+  `MiddlewareDeclaration` and `ParameterizedHttpMiddleware` for aliases,
+  groups, resources, and controllers. The Container applies each middleware
+  lifetime, and inspection omits parameter values.
 - Unified URI factories, route helpers, dependency injection, and named
   redirects through the application-owned `UriUrlGenerator`. Named route
   helpers default to relative URLs; `Uri.to()` remains absolute. Support's

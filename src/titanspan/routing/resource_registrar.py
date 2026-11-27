@@ -10,12 +10,13 @@ import re
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
+from titanspan.contracts.http import MiddlewareDeclaration
 from titanspan.routing.exceptions import InvalidRouteError
 
 if TYPE_CHECKING:
     from collections.abc import Iterable, Mapping, Sequence
 
-    from titanspan.contracts.http import HttpMiddleware
+    from titanspan.contracts.http import MiddlewareItem
     from titanspan.routing.route import RouteDefinition
     from titanspan.routing.route_group import RouteGroup
     from titanspan.routing.router import Router
@@ -139,7 +140,7 @@ class ResourceRegistrar:
                 options.parameter,
             )
         self._names: dict[str, str] = {}
-        self._middleware: list[str | type[HttpMiddleware]] = []
+        self._middleware: list[MiddlewareItem] = []
         self._routes: dict[str, list[RouteDefinition]] = {
             action: [] for action in _RESOURCE_ACTIONS
         }
@@ -264,9 +265,7 @@ class ResourceRegistrar:
 
     def middleware(
         self,
-        values: str
-        | type[HttpMiddleware]
-        | Sequence[str | type[HttpMiddleware]],
+        values: MiddlewareItem | Sequence[MiddlewareItem],
     ) -> ResourceRegistrar:
         """Add ordered middleware declarations to each resource route.
 
@@ -276,7 +275,11 @@ class ResourceRegistrar:
         Returns:
             This registrar for further configuration.
         """
-        additions = (values,) if isinstance(values, (str, type)) else values
+        additions = (
+            (values,)
+            if isinstance(values, (str, type, MiddlewareDeclaration))
+            else values
+        )
         for declaration in additions:
             if declaration not in self._middleware:
                 self._middleware.append(declaration)

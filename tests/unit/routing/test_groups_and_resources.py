@@ -8,6 +8,7 @@ import pytest
 from titanspan.contracts.http import (
     HttpRequest,
     HttpResponse,
+    MiddlewareDeclaration,
     RequestHandler,
 )
 from titanspan.routing import (
@@ -72,6 +73,35 @@ class SecondMiddleware:
         return await next_handler(request)
 
 
+class ParameterizedFirstMiddleware(FirstMiddleware):
+    """Provide one policy-aware extension of ordinary test middleware.
+
+    The method receives immutable values for each route declaration.
+    """
+
+    async def handle_with_parameters(
+        self,
+        request: HttpRequest,
+        next_handler: RequestHandler,
+        parameters: tuple[str, ...],
+    ) -> HttpResponse:
+        """Continue one request with its declared parameter values.
+
+        Args:
+            request: Current native request.
+            next_handler: Remaining route middleware chain.
+            parameters: Immutable values declared on the route.
+
+        Returns:
+            The downstream response.
+        """
+        response = await next_handler(request)
+        return response.with_header(
+            "X-Policy",
+            ",".join(parameters),
+        )
+
+
 class ResourceController:
     """Declare the actions expanded by a resource registrar.
 
@@ -128,6 +158,18 @@ class ControllerWithMiddleware(ResourceController):
     """
 
     route_middleware = ("auth", SecondMiddleware)
+
+
+class ControllerWithParameterizedMiddleware(ResourceController):
+    """Declare immutable controller middleware parameters.
+
+    The router combines these values with inherited group declarations.
+    """
+
+    route_middleware = MiddlewareDeclaration(
+        ParameterizedFirstMiddleware,
+        ("staff", "read"),
+    )
 
 
 class SingleMiddlewareController(ResourceController):
@@ -329,6 +371,135 @@ def test_route_middleware_aliases_are_deduplicated_and_excludable() -> None:
     )
 
     assert router.resolve_middleware(route) == (SecondMiddleware,)
+
+
+def test_parameterized_middleware_keeps_distinct_declarations() -> None:
+    """Deduplicate identical parameters and retain distinct route policies.
+
+    Inspection uses the declaration target while dispatch retains parameters.
+    """
+    router = Router()
+    router.alias_middleware("policy", ParameterizedFirstMiddleware)
+    route = router.get("/policy", endpoint).middleware(
+        (
+            MiddlewareDeclaration("policy", ("staff",)),
+            MiddlewareDeclaration("policy", ("visitor",)),
+            MiddlewareDeclaration("policy", ("staff",)),
+        ),
+    )
+
+    assert router.resolve_middleware_declarations(route) == (
+        MiddlewareDeclaration(ParameterizedFirstMiddleware, ("staff",)),
+        MiddlewareDeclaration(ParameterizedFirstMiddleware, ("visitor",)),
+    )
+    assert router.resolve_middleware(route) == (ParameterizedFirstMiddleware,)
+    assert router.inspect(RouteFilter(middleware="policy")) == (route,)
+
+
+def test_middleware_declaration_rejects_empty_alias_and_parameters() -> None:
+    """Reject empty declaration values before route registration.
+
+    Empty values cannot represent useful middleware policy arguments.
+    """
+    with pytest.raises(ValueError, match="aliases must not be empty"):
+        MiddlewareDeclaration("", ())
+    with pytest.raises(ValueError, match="parameters must be non-empty"):
+        MiddlewareDeclaration("policy", ("",))
+    with pytest.raises(ValueError, match="parameters must be non-empty"):
+        MiddlewareDeclaration("policy", ("   ",))
+
+
+def test_parameterized_middleware_requires_a_registered_alias() -> None:
+    """Reject parameterized middleware aliases absent from the Router.
+
+    Alias validation runs before route compilation.
+    """
+    router = Router()
+    route = router.get("/missing", endpoint).middleware(
+        MiddlewareDeclaration("missing", ("read",)),
+    )
+
+    with pytest.raises(InvalidRouteError, match="middleware alias"):
+        router.resolve_middleware_declarations(route)
+
+
+def test_parameterized_middleware_exclusions_match_alias_and_class() -> None:
+    """Exclude all parameter variants by their declared target.
+
+    The Router accepts both native aliases and middleware classes as selectors.
+    """
+    router = Router()
+    router.alias_middleware("policy", ParameterizedFirstMiddleware)
+    alias_route = (
+        router.get("/alias", endpoint)
+        .middleware(MiddlewareDeclaration("policy", ("staff",)))
+        .without_middleware("policy")
+    )
+    class_route = (
+        router.get("/class", endpoint)
+        .middleware(
+            MiddlewareDeclaration(
+                ParameterizedFirstMiddleware,
+                ("visitor",),
+            ),
+        )
+        .without_middleware(ParameterizedFirstMiddleware)
+    )
+    aliased_class_route = (
+        router.get("/aliased-class", endpoint)
+        .middleware(MiddlewareDeclaration("policy", ("staff",)))
+        .without_middleware(ParameterizedFirstMiddleware)
+    )
+
+    assert router.resolve_middleware_declarations(alias_route) == ()
+    assert router.resolve_middleware_declarations(class_route) == ()
+    assert router.resolve_middleware_declarations(aliased_class_route) == ()
+
+
+def test_controller_middleware_accepts_parameterized_declarations() -> None:
+    """Retain controller-level parameters in native route metadata.
+
+    Dispatch resolves the same declaration as route and group middleware.
+    """
+    router = Router()
+    route = router.get(
+        "/controller",
+        (ControllerWithParameterizedMiddleware, "index"),
+    )
+
+    assert route.middleware_types == (
+        MiddlewareDeclaration(
+            ParameterizedFirstMiddleware,
+            ("staff", "read"),
+        ),
+    )
+    assert router.resolve_middleware_declarations(route) == (
+        MiddlewareDeclaration(
+            ParameterizedFirstMiddleware,
+            ("staff", "read"),
+        ),
+    )
+
+
+def test_resource_routes_preserve_parameterized_middleware() -> None:
+    """Apply one immutable declaration to each generated resource route.
+
+    Resource registration delegates to the ordinary route definitions.
+    """
+    router = Router()
+    declaration = MiddlewareDeclaration(
+        ParameterizedFirstMiddleware,
+        ("staff", "read"),
+    )
+
+    router.api_resource("documents", ResourceController).middleware(
+        declaration,
+    )
+
+    assert all(
+        route.middleware_types == (declaration,)
+        for route in router.routes.all()
+    )
 
 
 def test_resource_action_filters_update_the_shared_route_collection() -> None:

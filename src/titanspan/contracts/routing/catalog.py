@@ -6,6 +6,7 @@ The contract deliberately omits matcher and ASGI implementation details.
 from collections.abc import Mapping
 from typing import Protocol, runtime_checkable
 
+from titanspan.contracts.http import MiddlewareItem
 from titanspan.contracts.routing.types import RouteAction
 
 
@@ -65,7 +66,7 @@ class RouteInfo(Protocol):
         ...
 
     @property
-    def middleware_types(self) -> tuple[str | type[object], ...]:
+    def middleware_types(self) -> tuple[MiddlewareItem, ...]:
         """Return route middleware declarations in registration order.
 
         Alias names remain unresolved until the Router compiles the route.

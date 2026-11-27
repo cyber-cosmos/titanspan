@@ -10,6 +10,7 @@ import pytest
 from titanspan.console.cli import list_routes
 from titanspan.console.output import TerminalOutput
 from titanspan.contracts import HttpRequest, HttpResponse, RequestHandler
+from titanspan.contracts.http import MiddlewareDeclaration
 from titanspan.routing import Router
 
 pytestmark = pytest.mark.unit
@@ -103,7 +104,13 @@ def test_route_list_formats_controller_metadata(
     )
     definition.name("documents.show")
     definition.domain("api.example.test")
-    definition.middleware(["auth", _RouteMiddleware])
+    definition.middleware(
+        [
+            "auth",
+            _RouteMiddleware,
+            MiddlewareDeclaration("policy", ("synthetic-secret",)),
+        ],
+    )
 
     list_routes(router.routes, TerminalOutput())
 
@@ -117,7 +124,7 @@ def test_route_list_formats_controller_metadata(
                     "/documents/{document_id}",
                     "documents.show",
                     "_DocumentController.show",
-                    "auth, _RouteMiddleware",
+                    "auth, _RouteMiddleware, policy [parameterized]",
                 ),
             ),
         )

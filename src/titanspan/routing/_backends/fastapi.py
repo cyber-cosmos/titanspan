@@ -38,7 +38,12 @@ from starlette.routing import Match, NoMatchFound
 from starlette.websockets import WebSocket
 
 from titanspan.contracts.container import Scope
-from titanspan.contracts.http import HttpRequest, ResponseFactory
+from titanspan.contracts.http import (
+    HttpMiddleware,
+    HttpRequest,
+    ParameterizedHttpMiddleware,
+    ResponseFactory,
+)
 from titanspan.http.request import Request
 from titanspan.routing.exceptions import (
     EndpointResponseError,
@@ -58,7 +63,6 @@ if TYPE_CHECKING:
 
     from titanspan.contracts.container import ServiceContainer
     from titanspan.contracts.http import (
-        HttpMiddleware,
         HttpResponse,
         JsonValue,
     )
@@ -88,7 +92,14 @@ _INVALID_ROUTE_DEFAULT_ERROR = (
 )
 _VALIDATION_RESPONSE_STATUS = 422
 _VALIDATION_RESPONSE_DESCRIPTION = "Request data failed validation."
+_INVALID_PARAMETERIZED_MIDDLEWARE_ERROR = (
+    "Resolved middleware does not support its declared parameters."
+)
 _NO_CONTENT_STATUSES = frozenset({204, 205, 304})
+type _ResolvedMiddleware = tuple[
+    type[HttpMiddleware],
+    tuple[str, ...],
+]
 
 
 class _ScopedServiceContainer(Protocol):
@@ -127,7 +138,7 @@ class _EndpointConfiguration:
     defaults: Mapping[str, object]
     omitted_path_parameters: frozenset[str]
     asgi_parameter_name: str
-    middleware_types: tuple[type[HttpMiddleware], ...]
+    middleware_types: tuple[_ResolvedMiddleware, ...]
     signature: Signature
 
 
@@ -510,17 +521,21 @@ async def _invoke_with_middleware(
         )
 
     handler = invoke
-    for middleware_type in reversed(configuration.middleware_types):
+    for middleware_type, middleware_parameters in reversed(
+        configuration.middleware_types,
+    ):
         downstream = handler
 
         async def apply_middleware(
             middleware_class: type[HttpMiddleware] = middleware_type,
+            parameters: tuple[str, ...] = middleware_parameters,
             next_handler: Callable[[], Awaitable[HttpResponse]] = downstream,
         ) -> HttpResponse:
             """Run one resolved middleware around the remaining handler.
 
             Args:
                 middleware_class: Class resolved by the native container.
+                parameters: Immutable values from the route declaration.
                 next_handler: Remaining endpoint or middleware chain.
 
             Returns:
@@ -541,6 +556,19 @@ async def _invoke_with_middleware(
                 """
                 return await next_handler()
 
+            if parameters:
+                if not isinstance(
+                    middleware,
+                    ParameterizedHttpMiddleware,
+                ):
+                    raise InvalidRouteError(
+                        _INVALID_PARAMETERIZED_MIDDLEWARE_ERROR,
+                    )
+                return await middleware.handle_with_parameters(
+                    execution.native_request,
+                    next_request,
+                    parameters,
+                )
             return await middleware.handle(
                 execution.native_request,
                 next_request,
@@ -975,7 +1003,7 @@ def _call_parameters(
 def _resolved_middleware(
     definition: RouteDefinition,
     container: ServiceContainer,
-) -> tuple[type[HttpMiddleware], ...]:
+) -> tuple[_ResolvedMiddleware, ...]:
     """Resolve route middleware metadata once while startup freezes routes.
 
     Args:
@@ -983,13 +1011,20 @@ def _resolved_middleware(
         container: Native container used to verify middleware contracts.
 
     Returns:
-        Middleware classes in outer-to-inner order.
+        Middleware classes and parameters in outer-to-inner order.
 
     Notes:
-        The router owns alias expansion; instances remain request scoped.
+        The Router expands aliases; the Container applies each service lifetime.
     """
     active_router = container.make(Router)
-    return active_router.resolve_middleware(definition)
+    declarations = active_router.resolve_middleware_declarations(definition)
+    resolved: list[_ResolvedMiddleware] = []
+    for declaration in declarations:
+        target = declaration.target
+        if not isinstance(target, type):
+            raise InvalidRouteError(_INVALID_PARAMETERIZED_MIDDLEWARE_ERROR)
+        resolved.append((target, declaration.parameters))
+    return tuple(resolved)
 
 
 def _normalize_response(

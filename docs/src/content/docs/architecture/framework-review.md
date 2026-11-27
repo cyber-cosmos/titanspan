@@ -680,7 +680,7 @@ checks both redaction and explicit field access.
 | C-008 | Partially verified | Native parse errors now return safe 400 responses; validation returns 422 and internal failures return generic 500. Startup, post-header streaming, and WebSocket exception cases need more coverage. |
 | C-009 | Resolved | Default Validation, Filesystem, and Hashing providers with explicit replacement tests. |
 | C-010 | Partially corrected | Native schema validation, request validation, safe 422 rendering, and a stable OpenAPI 422 body schema are verified. Explicit `validate_request` calls do not generate request schemas or automatically apply application rules to route inputs. |
-| C-011 | Pending | Middleware declarations do not carry immutable route-specific parameters. |
+| C-011 | Resolved for route middleware | `MiddlewareDeclaration` carries parameters through aliases, groups, resources, and controllers. The Container resolves middleware. Startup rejects unsupported classes. Global middleware remains unparameterized. |
 | C-012 | Resolved | Filesystem provider shutdown closes existing manager-owned backend instances and skips unused disks; `tests/integration/test_filesystem.py` covers partial startup and lazy shutdown. |
 | C-013 | Resolved | Cost metadata is bounded before backend verification. |
 | C-014 | Resolved | Built-in synchronous and asynchronous hashing share a bounded application-owned semaphore; `test_sync_and_async_hashing_share_application_work_budget` verifies contention. |

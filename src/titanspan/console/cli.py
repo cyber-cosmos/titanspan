@@ -27,6 +27,7 @@ from titanspan.contracts import (  # noqa: TC001
     RouteCatalog,
 )
 from titanspan.contracts.config import ConfigRepository  # noqa: TC001
+from titanspan.contracts.http import MiddlewareDeclaration
 from titanspan.events import (
     DiscoveryEntry,
     EventDiscoveryError,
@@ -41,6 +42,7 @@ from titanspan.support.arr import Arr
 
 if TYPE_CHECKING:
     from titanspan.contracts.config import ConfigDiagnostics
+    from titanspan.contracts.http import MiddlewareItem
     from titanspan.contracts.routing import (
         ControllerAction,
         RouteInfo,
@@ -679,7 +681,7 @@ def _route_row(route: RouteInfo) -> tuple[str, ...]:
         action_name = name if isinstance(name, str) else type(action).__name__
 
     middleware_names = tuple(
-        middleware if isinstance(middleware, str) else middleware.__qualname__
+        _route_middleware_name(middleware)
         for middleware in route.middleware_types
     )
     return (
@@ -689,6 +691,24 @@ def _route_row(route: RouteInfo) -> tuple[str, ...]:
         route.route_name or "-",
         action_name,
         ", ".join(middleware_names) or "-",
+    )
+
+
+def _route_middleware_name(middleware: MiddlewareItem) -> str:
+    """Format middleware identity without exposing parameter values.
+
+    Args:
+        middleware: Alias, class, or immutable middleware declaration.
+
+    Returns:
+        A stable route inspection label with no configured values.
+    """
+    if isinstance(middleware, MiddlewareDeclaration):
+        target = middleware.target
+        name = target if isinstance(target, str) else target.__qualname__
+        return f"{name} [parameterized]" if middleware.parameters else name
+    return (
+        middleware if isinstance(middleware, str) else middleware.__qualname__
     )
 
 

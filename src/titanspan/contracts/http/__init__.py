@@ -16,6 +16,9 @@ from titanspan.contracts.http.cookies import (
 from titanspan.contracts.http.events import ServerSentEvent
 from titanspan.contracts.http.middleware import (
     HttpMiddleware,
+    MiddlewareDeclaration,
+    MiddlewareItem,
+    ParameterizedHttpMiddleware,
     RequestHandler,
 )
 from titanspan.contracts.http.request import HttpRequest
@@ -41,8 +44,11 @@ __all__ = [
     "HttpResponse",
     "HttpUploadedFile",
     "JsonValue",
+    "MiddlewareDeclaration",
+    "MiddlewareItem",
     "MultipartFile",
     "OutgoingRequest",
+    "ParameterizedHttpMiddleware",
     "QueryParameterValue",
     "QueryParameters",
     "RequestHandler",

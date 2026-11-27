@@ -10,10 +10,12 @@ from dataclasses import dataclass, field, replace
 from types import MappingProxyType
 from typing import TYPE_CHECKING
 
+from titanspan.contracts.http import MiddlewareDeclaration
+
 if TYPE_CHECKING:
     from collections.abc import Generator, Mapping, Sequence
 
-    from titanspan.contracts.http import HttpMiddleware
+    from titanspan.contracts.http import MiddlewareItem
     from titanspan.routing.router import Router
 
 _INVALID_PREFIX_ERROR = (
@@ -30,7 +32,7 @@ class RouteGroup:
 
     prefix: str = ""
     name_prefix: str = ""
-    middleware: tuple[str | type[HttpMiddleware], ...] = ()
+    middleware: tuple[MiddlewareItem, ...] = ()
     constraints: Mapping[str, str] = field(
         default_factory=lambda: MappingProxyType(dict[str, str]())
     )
@@ -114,9 +116,7 @@ class RouteGroupBuilder:
 
     def middleware(
         self,
-        values: (
-            str | type[HttpMiddleware] | Sequence[str | type[HttpMiddleware]]
-        ),
+        values: (MiddlewareItem | Sequence[MiddlewareItem]),
     ) -> RouteGroupBuilder:
         """Append inherited middleware without duplicating declarations.
 
@@ -126,7 +126,11 @@ class RouteGroupBuilder:
         Returns:
             This builder for further fluent configuration.
         """
-        additions = (values,) if isinstance(values, (str, type)) else values
+        additions = (
+            (values,)
+            if isinstance(values, (str, type, MiddlewareDeclaration))
+            else values
+        )
         self._attributes = replace(
             self._attributes,
             middleware=tuple(

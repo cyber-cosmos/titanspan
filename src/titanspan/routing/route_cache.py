@@ -16,6 +16,7 @@ from tempfile import NamedTemporaryFile
 from types import MappingProxyType
 from typing import TYPE_CHECKING, cast
 
+from titanspan.contracts.http import MiddlewareDeclaration
 from titanspan.routing.exceptions import (
     RouteCacheError,
     StaleRouteCacheError,
@@ -25,6 +26,7 @@ from titanspan.routing.exceptions import (
 if TYPE_CHECKING:
     from types import FunctionType
 
+    from titanspan.contracts.http import MiddlewareItem
     from titanspan.contracts.routing.types import RouteAction
     from titanspan.routing.router import Router
 
@@ -322,15 +324,18 @@ def _type_identity(value: type[object]) -> str:
     return f"{value.__module__}.{qualified_name}"
 
 
-def _middleware_identity(value: str | type[object]) -> str:
-    """Describe a middleware alias or class without serializing the object.
+def _middleware_identity(value: MiddlewareItem) -> str:
+    """Describe middleware without writing configured values to the cache.
 
     Args:
-        value: Route middleware alias or implementation type.
+        value: Route middleware declaration and optional parameters.
 
     Returns:
         Stable text identity for the route inspection snapshot.
     """
+    if isinstance(value, MiddlewareDeclaration):
+        target = _middleware_identity(value.target)
+        return f"{target};parameter_count={len(value.parameters)}"
     if isinstance(value, str):
         return f"alias:{value}"
     return f"middleware:{_type_identity(value)}"

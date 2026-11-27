@@ -12,7 +12,11 @@ from contextvars import ContextVar, Token
 from typing import TYPE_CHECKING, cast, overload
 
 # Runtime resolution inspects this callback's annotation during DI.
-from titanspan.contracts.http import ResponseFactory  # noqa: TC001
+from titanspan.contracts.http import (
+    MiddlewareDeclaration,
+    ParameterizedHttpMiddleware,
+    ResponseFactory,
+)
 from titanspan.routing.exceptions import (
     DuplicateRouteError,
     InvalidRouteError,
@@ -29,7 +33,7 @@ from titanspan.routing.route_group import RouteGroup, RouteGroupBuilder
 if TYPE_CHECKING:
     from collections.abc import Callable, Generator
 
-    from titanspan.contracts.http import HttpMiddleware
+    from titanspan.contracts.http import HttpMiddleware, MiddlewareItem
     from titanspan.contracts.routing import (
         ControllerAction,
         RouteAction,
@@ -54,7 +58,10 @@ _FROZEN_ROUTER_ERROR = "Routes are frozen after application startup."
 _INVALID_BINDING_NAME_ERROR = "Route binding names must be identifiers."
 _DUPLICATE_BINDING_ERROR = "A route parameter binding is already registered."
 _INVALID_CONTROLLER_MIDDLEWARE_ERROR = (
-    "Controller route_middleware must contain aliases or middleware classes."
+    "Controller route_middleware contains an invalid declaration."
+)
+_UNSUPPORTED_MIDDLEWARE_PARAMETERS_ERROR = (
+    "Parameterized middleware must implement handle_with_parameters()."
 )
 
 
@@ -79,7 +86,7 @@ class Router:
         self._middleware_aliases: dict[str, type[HttpMiddleware]] = {}
         self._middleware_groups: dict[
             str,
-            tuple[str | type[HttpMiddleware], ...],
+            tuple[MiddlewareItem, ...],
         ] = {}
         self._bindings: dict[str, RouteBindingCallback] = {}
         self._frozen = False
@@ -869,7 +876,7 @@ class Router:
     def middleware_group(
         self,
         name: str,
-        middleware: Sequence[str | type[HttpMiddleware]],
+        middleware: Sequence[MiddlewareItem],
     ) -> None:
         """Register an ordered reusable route middleware group.
 
@@ -940,7 +947,31 @@ class Router:
         Raises:
             InvalidRouteError: If an alias or group is unknown or recursive.
         """
-        expanded: list[type[HttpMiddleware]] = []
+        middleware_types: list[type[HttpMiddleware]] = []
+        for declaration in self.resolve_middleware_declarations(route):
+            target = declaration.target
+            if not isinstance(target, type):
+                raise InvalidRouteError(_MISSING_MIDDLEWARE_ALIAS_ERROR)
+            if target not in middleware_types:
+                middleware_types.append(target)
+        return tuple(middleware_types)
+
+    def resolve_middleware_declarations(
+        self,
+        route: RouteDefinition,
+    ) -> tuple[MiddlewareDeclaration, ...]:
+        """Resolve route middleware aliases and retain immutable parameters.
+
+        Args:
+            route: Route whose middleware will be prepared for dispatch.
+
+        Returns:
+            Resolved classes and their ordered declaration parameters.
+
+        Raises:
+            InvalidRouteError: If an alias, group, or capability is invalid.
+        """
+        expanded: list[MiddlewareDeclaration] = []
         excluded = set(route.excluded_middleware)
         for declaration in route.middleware_types:
             self._expand_middleware(
@@ -953,15 +984,15 @@ class Router:
 
     def _expand_middleware(
         self,
-        item: str | type[HttpMiddleware],
-        expanded: list[type[HttpMiddleware]],
+        item: MiddlewareItem,
+        expanded: list[MiddlewareDeclaration],
         excluded: set[str | type[HttpMiddleware]],
         active_groups: frozenset[str],
     ) -> None:
         """Expand aliases and groups with deduplication and cycle checks.
 
         Args:
-            item: Middleware alias, class, or group name.
+            item: Alias, class, or parameterized declaration.
             expanded: Output list shared by one route resolution.
             excluded: Explicit route-local exclusions.
             active_groups: Middleware groups on this recursion path.
@@ -969,11 +1000,66 @@ class Router:
         Raises:
             InvalidRouteError: If an alias is unknown or a group is recursive.
         """
-        if item in excluded:
+        if isinstance(item, MiddlewareDeclaration):
+            self._expand_declaration(item, expanded, excluded)
             return
         if isinstance(item, type):
-            if item not in expanded:
-                expanded.append(item)
+            if item not in excluded:
+                self._append_middleware(item, (), expanded)
+            return
+        self._expand_named_middleware(
+            item,
+            expanded,
+            excluded,
+            active_groups,
+        )
+
+    def _expand_declaration(
+        self,
+        declaration: MiddlewareDeclaration,
+        expanded: list[MiddlewareDeclaration],
+        excluded: set[str | type[HttpMiddleware]],
+    ) -> None:
+        """Resolve one parameterized alias or class declaration.
+
+        Args:
+            declaration: Alias or class with immutable parameter values.
+            expanded: Ordered declarations for the current route.
+            excluded: Explicit route-local exclusions.
+
+        Raises:
+            InvalidRouteError: If the alias or parameter support is invalid.
+        """
+        target = declaration.target
+        if target in excluded:
+            return
+        if isinstance(target, str):
+            target = self._middleware_aliases.get(target)
+        if target is None:
+            raise InvalidRouteError(_MISSING_MIDDLEWARE_ALIAS_ERROR)
+        if target in excluded:
+            return
+        self._append_middleware(target, declaration.parameters, expanded)
+
+    def _expand_named_middleware(
+        self,
+        item: str,
+        expanded: list[MiddlewareDeclaration],
+        excluded: set[str | type[HttpMiddleware]],
+        active_groups: frozenset[str],
+    ) -> None:
+        """Expand one unparameterized group or alias.
+
+        Args:
+            item: Group name or middleware alias.
+            expanded: Ordered declarations for the current route.
+            excluded: Explicit route-local exclusions.
+            active_groups: Middleware groups on this recursion path.
+
+        Raises:
+            InvalidRouteError: If a group or alias is invalid.
+        """
+        if item in excluded:
             return
         group = self._middleware_groups.get(item)
         if group is not None:
@@ -991,8 +1077,35 @@ class Router:
         middleware_type = self._middleware_aliases.get(item)
         if middleware_type is None:
             raise InvalidRouteError(_MISSING_MIDDLEWARE_ALIAS_ERROR)
-        if middleware_type not in excluded and middleware_type not in expanded:
-            expanded.append(middleware_type)
+        if middleware_type not in excluded:
+            self._append_middleware(middleware_type, (), expanded)
+
+    @staticmethod
+    def _append_middleware(
+        middleware_type: type[HttpMiddleware],
+        parameters: tuple[str, ...],
+        expanded: list[MiddlewareDeclaration],
+    ) -> None:
+        """Append one resolved declaration after validating its capability.
+
+        Args:
+            middleware_type: Middleware class or alias from one declaration.
+            parameters: Immutable arguments for this declaration.
+            expanded: Ordered declarations for the current route.
+
+        Raises:
+            InvalidRouteError: If the parameter capability is invalid.
+        """
+        if parameters and not issubclass(
+            middleware_type,
+            ParameterizedHttpMiddleware,
+        ):
+            raise InvalidRouteError(
+                _UNSUPPORTED_MIDDLEWARE_PARAMETERS_ERROR,
+            )
+        declaration = MiddlewareDeclaration(middleware_type, parameters)
+        if declaration not in expanded:
+            expanded.append(declaration)
 
     def freeze(self) -> tuple[RouteDefinition, ...]:
         """Freeze route registration and return a specificity-sorted snapshot.
@@ -1077,7 +1190,7 @@ class Router:
 
 def _controller_middleware(
     action: RouteAction | None,
-) -> tuple[str | type[HttpMiddleware], ...]:
+) -> tuple[MiddlewareItem, ...]:
     """Read optional class-level middleware from a controller declaration.
 
     Args:
@@ -1098,19 +1211,19 @@ def _controller_middleware(
         return ()
     declarations = getattr(controller, "route_middleware", ())
     values: tuple[object, ...]
-    if isinstance(declarations, (str, type)):
+    if isinstance(declarations, (str, type, MiddlewareDeclaration)):
         values = (declarations,)
     elif isinstance(declarations, Sequence):
         values = tuple(cast("Sequence[object]", declarations))
     else:
         raise InvalidRouteError(_INVALID_CONTROLLER_MIDDLEWARE_ERROR)
     if any(
-        not isinstance(value, str) and not isinstance(value, type)
+        not isinstance(value, (str, type, MiddlewareDeclaration))
         for value in values
     ):
         raise InvalidRouteError(_INVALID_CONTROLLER_MIDDLEWARE_ERROR)
     return cast(
-        "tuple[str | type[HttpMiddleware], ...]",
+        "tuple[MiddlewareItem, ...]",
         values,
     )
 

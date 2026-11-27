@@ -79,15 +79,21 @@ them. Singleton creation and deletion actions are opt-in.
 Middleware runs in declaration order through the existing HTTP middleware
 contract. Nested groups inherit outer middleware first. Route-local and
 controller `route_middleware` declarations follow group middleware. Alias
-and group expansion is deterministic and deduplicated. Route exclusions
-remove selected aliases or classes after expansion. `current_route()` is
+and group expansion is deterministic. `MiddlewareDeclaration` stores one
+alias or class with an immutable tuple of string parameters. Exact duplicate
+declarations run once; distinct parameter tuples remain separate even when
+they target the same middleware class. Route exclusions remove every
+declaration that matches the selected alias or class. `current_route()` is
 available during route middleware and action execution.
 
-The HTTP middleware contract does not yet carry route-specific parameter
-configuration. Parameterized middleware remains pending until HTTP provides
-an immutable declaration and supported execution mechanism. Authentication,
-authorization, rate limiting, and session policies remain owned by their
-components.
+Parameterized middleware implements `ParameterizedHttpMiddleware` in
+addition to `HttpMiddleware`. The Container resolves middleware instances.
+Routing passes parameters to `handle_with_parameters` for each request and
+does not mutate middleware instances. Startup rejects declarations whose
+middleware class lacks the required capability. Application-wide middleware
+uses ordinary `HttpMiddleware` declarations without route parameters.
+Authentication, authorization, rate limiting, and session policies remain
+owned by their components.
 
 ## Discovery, inspection, and cache
 
@@ -111,6 +117,8 @@ pickle or serializes actions, containers, or live services. A read validates
 the file against the already discovered live catalog. Applications must
 still run route discovery and registration; this cache is not a startup
 shortcut. Local or stateful handlers without stable identities are rejected.
+Parameterized middleware entries record only their parameter count. The
+cache does not expose parameter values.
 
 Console provides native command registration, application lifecycle handling,
 and typed terminal output. Its `route:list` command receives the active
@@ -177,7 +185,5 @@ application context-local service bindings.
   unsupported behavior until that service exists.
 - View routes need the View component's rendering contract and response
   integration.
-- Parameterized middleware needs the HTTP contract change described above.
-
 Security policies remain with authentication, authorization, rate limiting,
 and session components. No Routing-specific security engine is introduced.

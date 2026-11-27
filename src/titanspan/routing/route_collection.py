@@ -5,6 +5,7 @@ Definitions remain mutable only until route compilation at application startup.
 
 from dataclasses import dataclass
 
+from titanspan.contracts.http import MiddlewareDeclaration
 from titanspan.contracts.routing import RouteCatalog
 from titanspan.routing.exceptions import (
     DuplicateRouteError,
@@ -192,7 +193,14 @@ class RouteCollection(RouteCatalog):
             and (domain is None or domain == route.domain_name)
             and (
                 selected.middleware is None
-                or selected.middleware in route.middleware_types
+                or any(
+                    selected.middleware == item
+                    or (
+                        isinstance(item, MiddlewareDeclaration)
+                        and selected.middleware == item.target
+                    )
+                    for item in route.middleware_types
+                )
             )
         )
 

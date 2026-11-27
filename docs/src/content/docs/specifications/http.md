@@ -23,6 +23,7 @@ Filesystem, Concurrency, or Telemetry components.
 | Single and multiple upload access through injected contract | `HttpRequest`, `HttpUploadedFile` | `tests/integration/http/test_contract_capabilities.py` |
 | Streaming and SSE response encoding | `StreamResponse`, `ServerSentEvent` | Response unit and ASGI lifecycle tests |
 | Ordered dependency-injected middleware | `HttpMiddleware` | `tests/integration/http/test_middleware.py` |
+| Parameter-aware route middleware capability | `ParameterizedHttpMiddleware`, `MiddlewareDeclaration` | `tests/integration/routing/test_parameterized_middleware.py` |
 | CORS, trusted hosts, and HTTPS redirects | Native ASGI middleware | `tests/integration/http/test_middleware.py` |
 | Sync/async pooled outgoing requests | `HttpClient`, `Http` | Loopback client integration tests |
 | Multipart uploads and response cookies | `PendingRequest`, `ClientResponse` | `tests/integration/http/test_client.py` |
@@ -54,6 +55,9 @@ The Foundation global middleware stack wraps the HTTP application. Router
 middleware wraps only the selected endpoint. This ordering is intentional:
 global middleware enters first and exits last. Registering the same middleware
 at both levels invokes it twice; neither layer silently deduplicates the other.
+Application-wide middleware uses `HttpMiddleware`. Routing may pass immutable
+string tuples to `ParameterizedHttpMiddleware`; request values stay on route
+declarations and never mutate a shared middleware instance.
 
 ## Input and output semantics
 
