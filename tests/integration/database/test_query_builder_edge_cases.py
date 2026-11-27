@@ -3,19 +3,25 @@
 
 from __future__ import annotations
 
+from decimal import Decimal
 from typing import TYPE_CHECKING, cast
 
 import anyio
 import pytest
 from sqlalchemy import select, text
 
-from titanspan.database import DatabaseQueryError, DatabaseServiceProvider
+from titanspan.database import (
+    DatabaseQueryError,
+    DatabaseServiceProvider,
+    ModelNotFoundError,
+)
 from titanspan.facades.database import DB
 from titanspan.foundation import Application
 
 if TYPE_CHECKING:
     from collections.abc import Mapping
     from pathlib import Path
+    from typing import Literal
 
     from titanspan.database.query_builder import QueryBuilder
 
@@ -27,6 +33,10 @@ _TOTAL_ROWS = 4
 _UPDATED_ROWS = 2
 _CROSS_JOIN_ROWS = 4
 _JSON_SYNC_UPDATED_ID = 2
+_MUTATION_ROWS = 2
+_ONE_ROW = 1
+_NO_ROWS = 0
+_GROUPED_ENTRY_COUNT = 5
 
 
 @pytest.fixture
@@ -93,6 +103,12 @@ async def test_grouped_conditions_and_subquery_inputs(
                 lambda query: query.where("id", 0),
                 lambda query: query.where("id", "<", 5),
             )
+            .when(False, lambda query: query.where("id", 0))
+            .unless(
+                True,
+                lambda query: query.where("id", 0),
+                lambda query: query.where("id", "<", 5),
+            )
             .where_exists(
                 _query("entries").select("id").where("id", 1),
             )
@@ -111,6 +127,13 @@ async def test_grouped_conditions_and_subquery_inputs(
             {"entry_id": 2, "category": "A", "label": "category:A"},
             {"entry_id": 3, "category": "B", "label": "category:B"},
         ]
+        unchanged = _query("entries").unless(
+            True,
+            lambda query: query.where("id", 0),
+        )
+        assert await unchanged.count_async() == _GROUPED_ENTRY_COUNT
+        with pytest.raises(DatabaseQueryError, match="already visible"):
+            _query("entries").subquery("entries")
 
         raw_first = (
             await _query("entries")
@@ -118,6 +141,56 @@ async def test_grouped_conditions_and_subquery_inputs(
             .first_async()
         )
         assert raw_first == {"label": "!A"}
+
+
+async def test_sync_fail_fast_reads_and_unfiltered_mutations(
+    application: Application,
+) -> None:
+    """Exercise sync fail-fast reads and bounded unfiltered mutations.
+
+    Args:
+        application: Application configured by this test.
+    """
+    async with application:
+        await DB.statement_async(
+            "CREATE TABLE mutation_rows ("
+            "id INTEGER PRIMARY KEY, value TEXT NOT NULL)"
+        )
+        await DB.table("mutation_rows").insert_many_async(
+            [
+                {"id": 1, "value": "before"},
+                {"id": 2, "value": "before"},
+            ],
+        )
+
+        first, updated, deleted = await anyio.to_thread.run_sync(
+            _sync_fail_fast_and_mutations,
+        )
+        assert first["value"] == "before"
+        assert updated == _MUTATION_ROWS
+        assert deleted == _ONE_ROW
+
+        async_updated = await DB.table("mutation_rows").update_async(
+            {"value": "async"},
+        )
+        assert async_updated == _ONE_ROW
+        async_deleted = await DB.table("mutation_rows").delete_async()
+        assert async_deleted == _ONE_ROW
+        assert await DB.table("mutation_rows").count_async() == _NO_ROWS
+
+
+def _sync_fail_fast_and_mutations() -> tuple[Mapping[str, object], int, int]:
+    """Read one row and exercise sync update/delete execution paths.
+
+    Returns:
+        The first row, updated count, and deleted count.
+    """
+    first = DB.table("mutation_rows").where("id", 1).first_or_fail()
+    with pytest.raises(ModelNotFoundError):
+        DB.table("mutation_rows").where("id", 99).first_or_fail()
+    updated = DB.table("mutation_rows").update({"value": "sync"})
+    deleted = DB.table("mutation_rows").where("id", 2).delete()
+    return first, updated, deleted
 
 
 async def test_row_locks_reject_unsupported_sqlite(
@@ -185,12 +258,60 @@ async def test_right_and_full_outer_joins_preserve_unmatched_rows(
             .select("join_users.name", "join_posts.title")
             .get_async()
         )
+        clause_right_rows = await (
+            DB.table("join_users")
+            .join_with(
+                "join_posts",
+                lambda join: join.on(
+                    "join_users.id",
+                    "=",
+                    "join_posts.user_id",
+                ),
+                join_type="right",
+            )
+            .select("join_users.name", "join_posts.title")
+            .order_by("join_posts.id")
+            .get_async()
+        )
+        clause_full_rows = await (
+            DB.table("join_users")
+            .join_with(
+                "join_posts",
+                lambda join: join.on(
+                    "join_users.id",
+                    "=",
+                    "join_posts.user_id",
+                ),
+                join_type="full",
+            )
+            .select("join_users.name", "join_posts.title")
+            .get_async()
+        )
+        with pytest.raises(DatabaseQueryError, match="join type"):
+            DB.table("join_users").join_with(
+                "join_posts",
+                lambda join: join.on(
+                    "join_users.id",
+                    "=",
+                    "join_posts.user_id",
+                ),
+                join_type=cast(
+                    "Literal['inner', 'left', 'right', 'full']",
+                    "cross",
+                ),
+            )
 
         assert right_rows == [
             {"name": "Ada", "title": "matched"},
             {"name": None, "title": "orphan"},
         ]
         assert {(row["name"], row["title"]) for row in full_rows} == {
+            ("Ada", "matched"),
+            ("Grace", None),
+            (None, "orphan"),
+        }
+        assert clause_right_rows == right_rows
+        assert {(row["name"], row["title"]) for row in clause_full_rows} == {
             ("Ada", "matched"),
             ("Grace", None),
             (None, "orphan"),
@@ -620,6 +741,24 @@ async def test_date_and_time_predicates_use_database_expressions(
         )
         assert [row["id"] for row in time_rows] == [2]
 
+        or_time_rows = (
+            await DB.table("date_rows")
+            .where("id", 99)
+            .or_where_time("occurred_at", "08:30:00")
+            .order_by("id")
+            .get_async()
+        )
+        or_time_comparison_rows = (
+            await DB.table("date_rows")
+            .where("id", 99)
+            .or_where_time("occurred_at", ">=", "14:00:00")
+            .order_by("id")
+            .get_async()
+        )
+
+        assert [row["id"] for row in or_time_rows] == [1, 3]
+        assert [row["id"] for row in or_time_comparison_rows] == [2]
+
         component_rows = (
             await DB.table("date_rows")
             .where_year(
@@ -654,7 +793,8 @@ async def test_json_path_predicates_bind_values_and_validate_paths(
                 {
                     "id": 1,
                     "payload": '{"profile":{"name":"Ada",'
-                    '"active":true,"score":12}}',
+                    '"active":true,"score":12,"ratio":1.5,'
+                    '"amount":3.5,"optional":null}}',
                 },
                 {
                     "id": 2,
@@ -693,6 +833,28 @@ async def test_json_path_predicates_bind_values_and_validate_paths(
                 "payload",
                 "profile.name); DROP TABLE users; --",
                 "Ada",
+            )
+
+        typed_values = (
+            ("score", 12),
+            ("ratio", 1.5),
+            ("amount", Decimal("3.5")),
+            ("optional", None),
+        )
+        for path, value in typed_values:
+            row = await (
+                DB.table("json_rows")
+                .where_json_value("payload", f"profile.{path}", value)
+                .first_async()
+            )
+            assert row is not None
+            assert row["id"] == 1
+
+        with pytest.raises(DatabaseQueryError, match="supported scalar"):
+            DB.table("json_rows").where_json_value(
+                "payload",
+                "profile.score",
+                object(),
             )
 
 
@@ -803,6 +965,13 @@ async def test_json_key_and_array_length_predicates(
             .where_json_length("payload", "labels", ">", 1)
             .get_async()
         )
+        exact_length_arrays = await (
+            DB.table("json_advanced_rows")
+            .select("id")
+            .where_json_length("payload", "labels", 2)
+            .order_by("id")
+            .get_async()
+        )
         or_missing_key = await (
             DB.table("json_advanced_rows")
             .select("id")
@@ -826,6 +995,7 @@ async def test_json_key_and_array_length_predicates(
         assert with_key == [{"id": 1}, {"id": 2}]
         assert missing_key == [{"id": 3}]
         assert long_arrays == [{"id": 1}]
+        assert exact_length_arrays == [{"id": 1}]
         assert or_missing_key == [{"id": 1}, {"id": 3}]
         assert or_long_arrays == [{"id": 1}, {"id": 3}]
         updated = await (

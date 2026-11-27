@@ -209,6 +209,20 @@ async def test_database_rules_support_nested_values_and_optional_fields(
             )
             == nested
         )
+        missing_nested_value = {"contact": None}
+        assert (
+            await validator.apply_rules_async(
+                missing_nested_value,
+                async_rules=(
+                    exists_rule(
+                        ValidationContact,
+                        "email",
+                        field="contact.email",
+                    ),
+                ),
+            )
+            == missing_nested_value
+        )
         assert await validator.apply_rules_async(
             SimpleNamespace(email=_EXISTING_EMAIL),
             async_rules=(
@@ -219,6 +233,23 @@ async def test_database_rules_support_nested_values_and_optional_fields(
                 ),
             ),
         ) == SimpleNamespace(email=_EXISTING_EMAIL)
+        nested_object = SimpleNamespace(
+            contact=SimpleNamespace(email=_EXISTING_EMAIL),
+        )
+        assert (
+            await validator.apply_rules_async(
+                nested_object,
+                async_rules=(
+                    exists_rule(
+                        "validation_contacts",
+                        "email",
+                        field="contact.email",
+                        connection="analytics",
+                    ),
+                ),
+            )
+            is nested_object
+        )
 
         optional_rule = exists_rule(
             "unavailable_table",
@@ -232,6 +263,32 @@ async def test_database_rules_support_nested_values_and_optional_fields(
                 async_rules=(optional_rule,),
             )
             == optional
+        )
+        optional_unique = unique_rule(
+            ValidationContact,
+            "email",
+            field="email",
+        )
+        assert (
+            await validator.apply_rules_async(
+                optional,
+                async_rules=(optional_unique,),
+            )
+            == optional
+        )
+        absent = SimpleNamespace()
+        assert (
+            await validator.apply_rules_async(
+                absent,
+                async_rules=(
+                    exists_rule(
+                        ValidationContact,
+                        "email",
+                        field="email",
+                    ),
+                ),
+            )
+            is absent
         )
 
 

@@ -8,12 +8,17 @@ import sqlite3
 import sys
 from pathlib import Path
 
+import anyio
 import pytest
 
 from titanspan.console import Console
 from titanspan.console.testing import ConsoleTester
 from titanspan.contracts.foundation import ServiceProvider
-from titanspan.database import DatabaseServiceProvider, Seeder
+from titanspan.database import (
+    DatabaseServiceProvider,
+    MigrationManager,
+    Seeder,
+)
 from titanspan.database.commands import register_database_commands
 from titanspan.foundation import Application
 from titanspan.testing import ApplicationTest
@@ -81,6 +86,132 @@ def test_migration_status_runs_through_application_lifecycle(
     assert result.exit_code == 0
     assert "No migrations found." in result.stdout
     assert (tmp_path / "database" / "test.sqlite").exists()
+
+
+def test_migration_status_lists_pending_revisions(
+    tmp_path: Path,
+) -> None:
+    """Show discovered Alembic revisions that remain unapplied.
+
+    Args:
+        tmp_path: Isolated application root and SQLite target.
+    """
+    config = {
+        "app": {"env": "testing"},
+        "database": {
+            "default": "sqlite",
+            "connections": {
+                "sqlite": {
+                    "driver": "sqlite",
+                    "database": "database/status.sqlite",
+                },
+            },
+        },
+    }
+    migration_app = (
+        Application.builder()
+        .with_base_path(tmp_path)
+        .with_config(config)
+        .with_service_provider(DatabaseServiceProvider())
+        .build()
+    )
+
+    async def create_pending_revision() -> None:
+        """Create the revision while its owning application is active.
+
+        The application exposes an asynchronous lifecycle context, so this
+        helper initializes and closes it without inventing sync semantics.
+        """
+        async with migration_app:
+            manager = migration_app.container.make(MigrationManager)
+            assert manager.create_revision("pending status").exists()
+
+    anyio.run(create_pending_revision)
+
+    def application_factory(provider: ServiceProvider) -> Application:
+        """Build the command app against the generated revision path.
+
+        Args:
+            provider: Console-owned provider for this invocation.
+
+        Returns:
+            An application configured with the same temporary database.
+        """
+        return (
+            Application.builder()
+            .with_base_path(tmp_path)
+            .with_config(config)
+            .with_service_provider(DatabaseServiceProvider())
+            .with_service_provider(provider)
+            .build()
+        )
+
+    console = Console(application_factory=application_factory)
+    register_database_commands(console)
+    result = ConsoleTester(console).invoke(["migrate:status"])
+
+    assert result.exit_code == 0
+    assert "Pending" in result.stdout
+
+
+@pytest.mark.parametrize(
+    ("command", "arguments"),
+    [
+        ("db:seed", ("--force",)),
+        ("migrate:reset", ()),
+    ],
+)
+def test_database_commands_reject_invalid_environment_values(
+    tmp_path: Path,
+    command: str,
+    arguments: tuple[str, ...],
+) -> None:
+    """Fail closed before database access on malformed env configuration.
+
+    Args:
+        tmp_path: Isolated app root and disposable SQLite target.
+        command: Seeder or migration command guarded by environment policy.
+        arguments: Explicit command options for the selected command.
+    """
+
+    def application_factory(provider: ServiceProvider) -> Application:
+        """Build an application with a non-string environment value.
+
+        Args:
+            provider: Console-owned provider for command execution.
+
+        Returns:
+            An application that must fail before opening its database.
+        """
+        return (
+            Application.builder()
+            .with_base_path(tmp_path)
+            .with_config(
+                {
+                    "app": {"env": 7},
+                    "database": {
+                        "default": "sqlite",
+                        "connections": {
+                            "sqlite": {
+                                "driver": "sqlite",
+                                "database": "database/invalid-env.sqlite",
+                            },
+                        },
+                    },
+                },
+            )
+            .with_service_provider(DatabaseServiceProvider())
+            .with_service_provider(provider)
+            .build()
+        )
+
+    console = Console(application_factory=application_factory)
+    register_database_commands(console)
+    result = ConsoleTester(console).invoke([command, *arguments])
+
+    assert result.exit_code == 1
+    assert "ConfigValueError" in result.stderr
+    assert not (tmp_path / "database" / "invalid-env.sqlite").exists()
 
 
 def test_destructive_migration_command_fails_closed_in_production(
@@ -187,6 +318,29 @@ def test_migrate_rollback_exposes_isolated_option(
         ).fetchone()
 
     assert version_table is None
+    for command in (
+        "migrate:rollback",
+        "migrate:reset",
+        "migrate:refresh",
+    ):
+        declined = ConsoleTester(console).invoke([command], stdin="n\n")
+        assert declined.exit_code == 1
+
+    with sqlite3.connect(tmp_path / "database" / "isolated.sqlite") as db:
+        version_table = db.execute(
+            "SELECT name FROM sqlite_master WHERE type = ? AND name = ?",
+            ("table", "alembic_version"),
+        ).fetchone()
+    assert version_table is None
+
+    reset = ConsoleTester(console).invoke(["migrate:reset", "--force"])
+    refreshed = ConsoleTester(console).invoke(
+        ["migrate:refresh", "--force"],
+    )
+    assert reset.exit_code == 0
+    assert "Migration reset completed." in reset.stdout
+    assert refreshed.exit_code == 0
+    assert "Migration refresh completed." in refreshed.stdout
 
 
 def test_migrate_requires_force_in_production_and_force_runs(

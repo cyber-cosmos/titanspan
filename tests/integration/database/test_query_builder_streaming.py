@@ -274,6 +274,53 @@ async def test_keyset_chunks_preserve_filters_and_hide_cursor_column(
         assert all("id" not in row for chunk in chunks for row in chunk)
 
 
+async def test_keyset_chunks_stop_at_limits_and_handle_empty_results(
+    application: Application,
+) -> None:
+    """Apply offsets and limits across pages in both execution modes.
+
+    Args:
+        application: Application configured with an isolated SQLite database.
+    """
+    async with application:
+        await _prepare_rows()
+        chunks = [
+            chunk
+            async for chunk in (
+                DB.table("stream_rows")
+                .select("value")
+                .offset(1)
+                .limit(3)
+                .chunks_by_id_async(_STREAM_BATCH_SIZE)
+            )
+        ]
+        assert [row["value"] for chunk in chunks for row in chunk] == [
+            "row-2",
+            "row-3",
+            "row-4",
+        ]
+
+        empty = [
+            chunk
+            async for chunk in (
+                DB.table("stream_rows")
+                .where("id", ">", _ROW_COUNT)
+                .chunks_by_id_async(_STREAM_BATCH_SIZE)
+            )
+        ]
+        assert empty == []
+
+        sync_chunks, sync_empty = await anyio.to_thread.run_sync(
+            _sync_keyset_boundaries,
+        )
+        assert [row["value"] for chunk in sync_chunks for row in chunk] == [
+            "row-3",
+            "row-4",
+            "row-5",
+        ]
+        assert sync_empty == []
+
+
 async def _prepare_rows() -> None:
     """Create and populate the SQLite table consumed by stream tests.
     """  # fmt: skip
@@ -286,6 +333,30 @@ async def _prepare_rows() -> None:
             for identifier in range(1, _ROW_COUNT + 1)
         ],
     )
+
+
+def _sync_keyset_boundaries() -> tuple[
+    list[list[Mapping[str, object]]],
+    list[list[Mapping[str, object]]],
+]:
+    """Read limited and empty keyset pages through a worker-owned session.
+
+    Returns:
+        The bounded result pages and empty result pages.
+    """
+    limited = list(
+        DB.table("stream_rows")
+        .select("value")
+        .offset(2)
+        .limit(3)
+        .chunks_by_id(_STREAM_BATCH_SIZE),
+    )
+    empty = list(
+        DB.table("stream_rows")
+        .where("id", ">", _ROW_COUNT)
+        .chunks_by_id(_STREAM_BATCH_SIZE),
+    )
+    return limited, empty
 
 
 def _checked_out(pool: object) -> int:

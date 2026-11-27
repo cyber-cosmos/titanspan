@@ -422,6 +422,7 @@ async def test_model_queries_return_collection_with_database_identity(
         assert isinstance(users, ModelCollection)
         assert users.model_keys() == (ada.id, grace.id)
         assert users.find(ada.id) is users[0]
+        assert users.find(ada_copy) is users[0]
         assert ada_copy in users
         assert remaining.model_keys() == (grace.id,)
         assert intersection.model_keys() == (ada.id,)
@@ -465,6 +466,29 @@ async def test_model_collection_loads_missing_relationships_in_batches(
         await Post.create_async({"user_id": ada.id, "title": "First"})
         await Post.create_async({"user_id": ada.id, "title": "Second"})
 
+        constrained = await (
+            User.query()
+            .with_where(
+                "posts",
+                lambda query: query.where("title", "First"),
+            )
+            .get_async()
+        )
+        combined = User.query().with_where(
+            "posts",
+            lambda query: query.where("title", "First"),
+        )
+        combined.with_where(
+            "posts",
+            lambda query: query.where("title", "Second"),
+        )
+        combined_users = await combined.get_async()
+
+        assert [post.title for user in constrained for post in user.posts] == [
+            "First",
+        ]
+        assert all(not user.posts for user in combined_users)
+
         users = await User.query().order_by("id").get_async()
         returned = await users.load_missing_async("posts")
 
@@ -474,6 +498,30 @@ async def test_model_collection_loads_missing_relationships_in_batches(
             _EXPECTED_EAGER_POST_COUNT,
             0,
         ]
+        await users.load_async("posts.user")
+        await users.load_missing_async("posts.user")
+
+        assert [post.user.id for user in users for post in user.posts] == [
+            ada.id,
+            ada.id,
+        ]
+        sync_related_ids = await anyio.to_thread.run_sync(
+            _load_sync_nested_collection_relationships,
+        )
+        assert sync_related_ids == (ada.id, ada.id)
+
+
+def _load_sync_nested_collection_relationships() -> tuple[int, ...]:
+    """Load nested relations and refresh keys through the sync API.
+
+    Returns:
+        User identifiers reached through each loaded post.
+    """
+    users = User.query().order_by("id").get()
+    users.load("posts.user")
+    users.load_missing("posts.user")
+    assert users.fresh().model_keys() == users.model_keys()
+    return tuple(post.user.id for user in users for post in user.posts)
 
 
 async def test_model_first_sole_and_find_many_contracts(

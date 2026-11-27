@@ -3,7 +3,7 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, cast
 
 import anyio
 import pytest
@@ -19,6 +19,7 @@ if TYPE_CHECKING:
     from pathlib import Path
 
 pytestmark = [pytest.mark.integration, pytest.mark.anyio]
+_SYNC_SCHEMA_BODY_FAILURE = "sync schema body failed"
 
 
 @pytest.fixture
@@ -178,6 +179,90 @@ async def test_conditional_schema_operations_and_validation(
         with pytest.raises(DatabaseSchemaError, match="between schemas"):
             async with Schema.rename("parents", "archive.parents"):
                 pass
+
+
+async def test_schema_accepts_valid_types_and_rejects_invalid_blueprints(
+    application: Application,
+) -> None:
+    """Verify valid types and reject unsafe DDL declarations.
+
+    Args:
+        application: Isolated application fixture.
+    """
+    async with application:
+        async with Schema.create("typed_values") as table:
+            table.id()
+            table.char("code", length=4)
+            table.string("label", length=48)
+            table.decimal("amount", precision=8, scale=2)
+            table.enum("state", "open", "closed")
+
+        assert await Schema.has_columns_async(
+            "typed_values",
+            ("code", "label", "amount", "state"),
+        )
+
+        with pytest.raises(DatabaseSchemaError, match="positive"):
+            Schema.create("invalid_string").string("label", length=0)
+
+        with pytest.raises(DatabaseSchemaError, match="precision or scale"):
+            Schema.create("invalid_precision").decimal(
+                "amount",
+                precision=0,
+                scale=0,
+            )
+
+        with pytest.raises(DatabaseSchemaError, match="unique and nonempty"):
+            Schema.create("empty_enum").enum("state")
+
+        with pytest.raises(DatabaseSchemaError, match="counts must match"):
+            Schema.create("invalid_foreign").foreign(
+                "left_id",
+                "right_id",
+                references="typed_values",
+            )
+
+        with pytest.raises(
+            DatabaseSchemaError,
+            match="column name is required",
+        ):
+            Schema.create("invalid_unique").unique()
+
+        with pytest.raises(DatabaseSchemaError, match="does not accept"):
+            Schema.drop("typed_values").string("unused")
+
+        with pytest.raises(DatabaseSchemaError, match="one schema qualifier"):
+            Schema.create("one.two.three")
+
+        with pytest.raises(DatabaseSchemaError, match="identifier is invalid"):
+            Schema.create("unsafe table")
+
+        with pytest.raises(DatabaseSchemaError, match="create blueprint"):
+            Schema.alter("typed_values").foreign(
+                "code",
+                references="typed_values",
+            )
+
+        with pytest.raises(DatabaseSchemaError, match="requires a target"):
+            async with Schema.rename(
+                "typed_values",
+                cast("str", None),
+            ):
+                pass
+
+        with pytest.raises(RuntimeError, match=_SYNC_SCHEMA_BODY_FAILURE):
+            await anyio.to_thread.run_sync(_raise_sync_schema_context)
+        assert not await Schema.has_table_async("discarded_sync_schema")
+
+
+def _raise_sync_schema_context() -> None:
+    """Raise before the sync schema context can apply declared DDL.
+
+    The worker owns the synchronous database boundary for this test.
+    """
+    with Schema.create("discarded_sync_schema") as table:
+        table.id()
+        raise RuntimeError(_SYNC_SCHEMA_BODY_FAILURE)
 
 
 def _inspect_children() -> tuple[

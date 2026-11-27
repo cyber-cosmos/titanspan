@@ -243,6 +243,55 @@ def test_default_drivers_are_selected_by_operation_mode(
     assert connection.async_url.drivername == expected_async
 
 
+def test_mariadb_alias_and_string_query_values_are_preserved(
+    tmp_path: Path,
+) -> None:
+    """Normalize MariaDB to MySQL and keep scalar URL options intact.
+
+    Args:
+        tmp_path: Temporary application root for URL validation.
+    """
+    paths: ApplicationPaths = _TestPaths(tmp_path)
+    connection = ConnectionConfiguration.from_mapping(
+        "maria",
+        {
+            "driver": "mariadb",
+            "database": "application",
+            "query": {"application_name": "titanspan"},
+        },
+        paths,
+    )
+
+    assert connection.sync_url.drivername == "mysql+pymysql"
+    assert connection.async_url.drivername == "mysql+asyncmy"
+    assert connection.sync_url.query["application_name"] == "titanspan"
+
+
+def test_unknown_driver_is_preserved_and_nonstring_urls_are_rejected(
+    tmp_path: Path,
+) -> None:
+    """Keep custom dialect URLs intact and validate explicit URL types.
+
+    Args:
+        tmp_path: Temporary application root for URL parsing.
+    """
+    paths: ApplicationPaths = _TestPaths(tmp_path)
+    custom = ConnectionConfiguration.from_mapping(
+        "custom",
+        {"url": "customdb://db.internal/catalog"},
+        paths,
+    )
+
+    assert custom.sync_url.drivername == "customdb"
+    assert custom.async_url.drivername == "customdb"
+    with pytest.raises(DatabaseConfigurationError, match="must be a string"):
+        ConnectionConfiguration.from_mapping(
+            "invalid",
+            {"sync_url": 42},
+            paths,
+        )
+
+
 @pytest.mark.parametrize(
     "value",
     [

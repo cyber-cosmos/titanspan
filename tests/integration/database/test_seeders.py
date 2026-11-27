@@ -33,6 +33,7 @@ _SYNC_ROW = "sync seed"
 _ASYNC_ROW = "async seed"
 _CLI_SYNC_ROW = "console sync seed"
 _CLI_ASYNC_ROW = "console async seed"
+_SYNC_COMMITTED_ROWS = 2
 
 
 class SeedRecord(Model):
@@ -73,6 +74,38 @@ class AddAsyncRecordSeeder(Seeder):
         The write uses the active task-owned Unit of Work.
         """
         await SeedRecord.create_async({"name": _ASYNC_ROW})
+
+
+class NonTransactionalSyncSeeder(Seeder):
+    """Persist a record without wrapping the seeder in a transaction.
+
+    The test verifies the explicit non-transactional policy.
+    """
+
+    transactional = False
+
+    def run(self) -> None:
+        """Create a record through the native sync model API.
+
+        The record remains committed when the seeder returns.
+        """
+        SeedRecord.create({"name": "sync non-transactional seed"})
+
+
+class NonTransactionalAsyncSeeder(Seeder):
+    """Persist an asynchronous record without an outer transaction.
+
+    The test verifies task-owned non-transactional execution.
+    """
+
+    transactional = False
+
+    async def run_async(self) -> None:
+        """Create a record through the native async model API.
+
+        The record remains committed when the seeder returns.
+        """
+        await SeedRecord.create_async({"name": "async non-transactional seed"})
 
 
 class CompositeSeeder(Seeder):
@@ -180,11 +213,12 @@ def test_sync_seeders_compose_inside_one_transaction() -> None:
             table.timestamps()
 
         CompositeSeeder().execute()
+        NonTransactionalSyncSeeder().execute()
 
-        assert DB.table("seed_records").count() == 1
+        assert DB.table("seed_records").count() == _SYNC_COMMITTED_ROWS
         with pytest.raises(RuntimeError, match=_FAILURE_MESSAGE):
             FailingSeeder().execute()
-        assert DB.table("seed_records").count() == 1
+        assert DB.table("seed_records").count() == _SYNC_COMMITTED_ROWS
 
 
 @pytest.mark.anyio
@@ -205,11 +239,15 @@ async def test_async_seeders_compose_inside_one_task_transaction() -> None:
                 table.timestamps()
 
             await AsyncCompositeSeeder().execute_async()
+            await NonTransactionalAsyncSeeder().execute_async()
 
             names = await (
                 DB.table("seed_records").order_by("name").pluck_async("name")
             )
-            assert names == [_ASYNC_ROW]
+            assert names == [
+                "async non-transactional seed",
+                _ASYNC_ROW,
+            ]
 
 
 @pytest.mark.parametrize(
@@ -361,3 +399,109 @@ def test_seed_command_discovers_default_seeder_from_application_root(
 
     assert result.exit_code == 0
     assert "Database seeding completed." in result.stdout
+
+
+@pytest.mark.parametrize(
+    ("target", "message"),
+    [
+        ("bad/name", "Select a Seeder class"),
+        ("../unsafe:ConsoleSyncSeeder", "Select a Seeder class"),
+        ("builtins:object", "inherit from Seeder"),
+        (
+            "titanspan.database.seeder:Seeder",
+            "inherit from Seeder",
+        ),
+        ("missing_seed_module:Seeder", "could not be imported"),
+    ],
+)
+def test_seed_command_rejects_unsafe_or_unavailable_targets(
+    tmp_path: Path,
+    target: str,
+    message: str,
+) -> None:
+    """Fail closed when seeder names are unsafe or cannot be trusted.
+
+    Args:
+        tmp_path: Isolated application root and disposable database target.
+        target: Seeder import syntax supplied to the Console command.
+        message: Safe diagnostic expected from the native command.
+    """
+
+    def application_factory(provider: ServiceProvider) -> Application:
+        """Build an isolated testing app for a failed seeder lookup.
+
+        Args:
+            provider: Console-owned provider for this command invocation.
+
+        Returns:
+            An application with no pre-opened Database connection.
+        """
+        return (
+            Application.builder()
+            .with_base_path(tmp_path)
+            .with_config({"app": {"env": "testing"}, **_test_config()})
+            .with_service_provider(DatabaseServiceProvider())
+            .with_service_provider(provider)
+            .build()
+        )
+
+    console = Console(application_factory=application_factory)
+    register_database_commands(console)
+    result = ConsoleTester(console).invoke(
+        ["db:seed", "--class", target, "--force"],
+    )
+
+    assert result.exit_code == 1
+    assert message in result.stderr
+    assert not (tmp_path / "database" / "seeders.sqlite").exists()
+
+
+def test_seed_command_accepts_testing_confirmation_without_force(
+    tmp_path: Path,
+) -> None:
+    """Run a trusted seeder after an explicit non-production confirmation.
+
+    Args:
+        tmp_path: Isolated application root and disposable SQLite target.
+    """
+    database_path = tmp_path / "database" / "seeders.sqlite"
+    database_path.parent.mkdir(parents=True)
+    with closing(sqlite3.connect(database_path)) as database, database:
+        database.execute(
+            "CREATE TABLE seed_records ("
+            "id INTEGER PRIMARY KEY, name VARCHAR(120) NOT NULL, "
+            "created_at DATETIME NOT NULL, updated_at DATETIME NOT NULL)"
+        )
+
+    def application_factory(provider: ServiceProvider) -> Application:
+        """Build the testing app that owns the disposable target.
+
+        Args:
+            provider: Console-owned provider for this command invocation.
+
+        Returns:
+            An application configured for explicit confirmation.
+        """
+        return (
+            Application.builder()
+            .with_base_path(tmp_path)
+            .with_config({"app": {"env": "testing"}, **_test_config()})
+            .with_service_provider(DatabaseServiceProvider())
+            .with_service_provider(provider)
+            .build()
+        )
+
+    console = Console(application_factory=application_factory)
+    register_database_commands(console)
+    result = ConsoleTester(console).invoke(
+        ["db:seed", "--class", f"{__name__}:ConsoleSyncSeeder"],
+        stdin="y\n",
+    )
+
+    assert result.exit_code == 0
+    assert "Confirm database seeding" in result.stdout
+    with closing(sqlite3.connect(database_path)) as database:
+        rows = database.execute(
+            "SELECT name FROM seed_records",
+        ).fetchall()
+    assert rows == [(_CLI_SYNC_ROW,)]

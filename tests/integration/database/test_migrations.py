@@ -132,6 +132,25 @@ async def test_generated_native_migration_upgrades_and_rolls_back(
         assert not (await manager.status_async())[0].applied
 
 
+async def test_revision_names_handle_empty_and_numeric_messages(
+    application: Application,
+) -> None:
+    """Generate valid class names for unusual migration descriptions.
+
+    Args:
+        application: Isolated application with its migration paths configured.
+    """
+    async with application:
+        manager = await application.container.make_async(MigrationManager)
+        empty_name_path = manager.create_revision("!!!")
+        numeric_name_path = manager.create_revision("123 initial users")
+
+    empty_source = empty_name_path.read_text(encoding="utf-8")
+    numeric_source = numeric_name_path.read_text(encoding="utf-8")
+    assert "class DatabaseMigration" in empty_source
+    assert "class Revision123InitialUsersMigration" in numeric_source
+
+
 async def test_sync_migration_runs_in_a_worker_thread(
     application: Application,
 ) -> None:

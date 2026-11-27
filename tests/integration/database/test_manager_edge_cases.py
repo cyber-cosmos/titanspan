@@ -7,6 +7,7 @@ from typing import TYPE_CHECKING, cast
 
 import anyio
 import pytest
+from sqlalchemy import text
 
 from titanspan.contracts.database import TransactionOutcome, TransactionReceipt
 from titanspan.database import (
@@ -247,6 +248,142 @@ async def test_sync_io_is_rejected_inside_an_async_operation(
 
     with pytest.raises(AsyncOperationRequiredError, match="explicit async"):
         manager.connection().select("SELECT 1")
+
+
+def test_sync_engine_disconnect_and_purge_lifecycle(
+    sync_manager: DatabaseManager,
+) -> None:
+    """Reconnect a disposed pool and replace a purged Engine.
+
+    Args:
+        sync_manager: Test-owned manager with named SQLite connections.
+    """
+    manager = sync_manager
+    manager.disconnect("analytics")
+    original = manager.engine("sqlite")
+    manager.disconnect("sqlite")
+
+    assert manager.engine("sqlite") is original
+    assert manager.connection("sqlite").select("SELECT 1 AS value") == [
+        {"value": 1},
+    ]
+
+    manager.purge("sqlite")
+    replacement = manager.engine("sqlite")
+    manager.purge("sqlite")
+
+    assert replacement is not original
+    assert manager.connection("sqlite").select("SELECT 1 AS value") == [
+        {"value": 1},
+    ]
+
+
+async def test_async_engine_disconnect_and_purge_lifecycle(
+    async_manager: DatabaseManager,
+) -> None:
+    """Dispose and recreate async pools without losing manager ownership.
+
+    Args:
+        async_manager: Test-owned manager with named SQLite connections.
+    """
+    manager = async_manager
+    await manager.disconnect_async("analytics")
+    original = manager.async_engine("sqlite")
+    await manager.disconnect_async("sqlite")
+
+    assert manager.async_engine("sqlite") is original
+    assert await manager.connection("sqlite").select_async(
+        "SELECT 1 AS value",
+    ) == [{"value": 1}]
+
+    await manager.purge_async("sqlite")
+    replacement = manager.async_engine("sqlite")
+    await manager.purge_async("sqlite")
+
+    assert replacement is not original
+    assert await manager.connection("sqlite").select_async(
+        "SELECT 1 AS value",
+    ) == [{"value": 1}]
+
+
+def test_sync_statement_stream_closes_after_partial_consumption(
+    sync_manager: DatabaseManager,
+) -> None:
+    """Stream a bounded result and release its session on early exit.
+
+    Args:
+        sync_manager: Test-owned manager with one synchronous SQLite engine.
+    """
+    statement = text(
+        "SELECT 1 AS value UNION ALL SELECT 2 AS value UNION ALL SELECT 3"
+    )
+
+    with sync_manager.stream_statement_sync(
+        "sqlite",
+        statement,
+        batch_size=1,
+    ) as rows:
+        assert next(rows) == {"value": 1}
+
+    assert sync_manager.transaction_level == 0
+
+
+async def test_async_statement_stream_closes_after_partial_consumption(
+    async_manager: DatabaseManager,
+) -> None:
+    """Stream one async row and close its cursor with the context.
+
+    Args:
+        async_manager: Test-owned manager with one async SQLite engine.
+    """
+    statement = text(
+        "SELECT 1 AS value UNION ALL SELECT 2 AS value UNION ALL SELECT 3"
+    )
+
+    async with async_manager.stream_statement_async(
+        "sqlite",
+        statement,
+        batch_size=1,
+    ) as rows:
+        assert await anext(rows) == {"value": 1}
+
+    assert async_manager.transaction_level == 0
+
+
+def test_sync_statement_stream_rejects_an_empty_batch(
+    sync_manager: DatabaseManager,
+) -> None:
+    """Reject sync streaming configuration that cannot make progress.
+
+    Args:
+        sync_manager: Test-owned manager with a local SQLite database.
+    """
+    with (
+        pytest.raises(ValueError, match="positive integer"),
+        sync_manager.stream_statement_sync(
+            "sqlite",
+            text("SELECT 1"),
+            batch_size=0,
+        ),
+    ):
+        pass
+
+
+async def test_async_statement_stream_rejects_an_empty_batch(
+    async_manager: DatabaseManager,
+) -> None:
+    """Reject invalid async stream batch sizes before acquiring a cursor.
+
+    Args:
+        async_manager: Test-owned manager with a local SQLite database.
+    """
+    with pytest.raises(ValueError, match="positive integer"):
+        async with async_manager.stream_statement_async(
+            "sqlite",
+            text("SELECT 1"),
+            batch_size=0,
+        ):
+            pass
 
 
 def test_sync_manager_closure_rejects_later_engine_access(

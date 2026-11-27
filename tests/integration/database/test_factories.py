@@ -7,6 +7,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, ClassVar
 
+import anyio
 import pytest
 from sqlalchemy import String
 from sqlalchemy.orm import Mapped, mapped_column
@@ -114,6 +115,13 @@ async def test_factory_make_state_sequence_and_create(
             table.string("name", length=120)
             table.string("email", length=320).unique()
             table.timestamps()
+
+        assert not await FactoryUser.factory().create_many_async(0)
+        empty_sync = await anyio.to_thread.run_sync(
+            FactoryUser.factory().create_many,
+            0,
+        )
+        assert not empty_sync
 
         made = FactoryUser.factory().make()
 

@@ -12,6 +12,7 @@ import pytest
 from sqlalchemy.orm import Mapped, mapped_column
 
 from titanspan.database import (
+    DatabaseQueryError,
     DatabaseServiceProvider,
     Model,
     ModelCollection,
@@ -159,13 +160,174 @@ async def test_transient_and_empty_model_collections_are_safe(
         models = ModelCollection([transient, transient])
 
         assert not await empty.fresh_async()
+        assert not empty.fresh()
         assert not await models.fresh_async()
+        assert not models.fresh()
         assert models.contains(transient)
         assert not models.contains(
             ModelEdgeRecord(name="Transient", email="transient@test"),
         )
         assert models.find(transient) is None
         assert models.intersection().model_keys() == (None,)
+        assert empty.load() is empty
+        assert await empty.load_async("posts") is empty
+        assert models.load_missing() is models
+
+
+async def test_model_original_fresh_refresh_and_delete_transitions(
+    application: Application,
+) -> None:
+    """Preserve prior values and reload rows only while they still exist.
+
+    Args:
+        application: Application configured by the SQLite fixture.
+    """
+    async with application:
+        await _create_edge_record_table()
+        record = await ModelEdgeRecord.create_async(
+            {"name": "Ada", "email": "ada@example.test"},
+        )
+        record.name = "Grace"
+        assert record.original()["name"] == "Ada"
+
+        fresh = await record.fresh_async()
+        assert fresh is not None
+        assert fresh is not record
+        assert fresh.name == "Ada"
+
+        await record.save_async()
+        await record.refresh_async()
+        assert record.name == "Grace"
+        assert await record.delete_async()
+        assert await record.fresh_async() is None
+        with pytest.raises(ModelNotFoundError):
+            await record.refresh_async()
+        with pytest.raises(ModelNotFoundError):
+            await anyio.to_thread.run_sync(record.refresh)
+        with pytest.raises(ModelNotFoundError):
+            await ModelEdgeRecord.find_or_fail_async(_MISSING_IDENTIFIER)
+
+
+async def test_async_soft_delete_and_transient_delete_outcomes(
+    application: Application,
+) -> None:
+    """Return accurate outcomes for repeated and transient deletions.
+
+    Args:
+        application: Application configured by the SQLite fixture.
+    """
+    async with application:
+        await _create_edge_record_table()
+        await DB.statement_async(
+            "CREATE TABLE model_edge_soft_records ("
+            "id INTEGER PRIMARY KEY, name TEXT NOT NULL, "
+            "deleted_at TIMESTAMP, created_at TIMESTAMP, "
+            "updated_at TIMESTAMP)"
+        )
+        transient = ModelEdgeRecord(name="Transient", email="unused@test")
+        assert not await transient.delete_async()
+        assert not await anyio.to_thread.run_sync(transient.delete)
+
+        soft = await ModelEdgeSoftRecord.create_async({"name": "Soft"})
+        assert not await soft.restore_async()
+        assert await soft.delete_async()
+        assert not await soft.delete_async()
+        assert await soft.restore_async()
+        assert not await soft.restore_async()
+        assert await soft.force_delete_async()
+
+
+async def test_increment_rejects_non_numeric_and_boolean_attributes(
+    application: Application,
+) -> None:
+    """Reject invalid increment fields before assigning transient values.
+
+    Args:
+        application: Application configured by the SQLite fixture.
+    """
+    async with application:
+        await _create_edge_record_table()
+        record = ModelEdgeRecord(
+            name="Counter",
+            email="counter@example.test",
+            counter=1,
+        )
+        await _assert_invalid_async_increments(record)
+        await anyio.to_thread.run_sync(_assert_invalid_sync_increments, record)
+
+
+async def _assert_invalid_async_increments(
+    record: ModelEdgeRecord,
+) -> None:
+    """Reject string and boolean attributes through async increment APIs.
+
+    Args:
+        record: Transient model with invalid increment candidates.
+    """
+    with pytest.raises(DatabaseQueryError, match="numeric column"):
+        await record.increment_async("name")
+    with pytest.raises(DatabaseQueryError, match="numeric column"):
+        await record.increment_async("is_admin")
+
+
+def _assert_invalid_sync_increments(record: ModelEdgeRecord) -> None:
+    """Reject string and boolean attributes through sync increment APIs.
+
+    Args:
+        record: Transient model with invalid increment candidates.
+    """
+    with pytest.raises(DatabaseQueryError, match="numeric column"):
+        record.increment("name")
+    with pytest.raises(DatabaseQueryError, match="numeric column"):
+        record.increment("is_admin")
+
+
+async def test_empty_upserts_and_destroy_batches_are_noops(
+    application: Application,
+) -> None:
+    """Return zero for empty sync and async bulk model operations.
+
+    Args:
+        application: Application configured by the SQLite fixture.
+    """
+    async with application:
+        await _create_edge_record_table()
+        assert (
+            await ModelEdgeRecord.upsert_async(
+                [],
+                unique_by=("email",),
+            )
+            == 0
+        )
+        assert await ModelEdgeRecord.destroy_async([]) == 0
+        assert await anyio.to_thread.run_sync(_empty_sync_bulk_operations) == (
+            0,
+            0,
+        )
+
+
+async def _create_edge_record_table() -> None:
+    """Create the typed table used by model edge-case tests.
+    """  # fmt: skip
+    await DB.statement_async(
+        "CREATE TABLE model_edge_records ("
+        "id INTEGER PRIMARY KEY, name TEXT NOT NULL, "
+        "email TEXT NOT NULL UNIQUE, counter INTEGER NOT NULL DEFAULT 0, "
+        "is_admin BOOLEAN NOT NULL DEFAULT 0, "
+        "created_at TIMESTAMP, updated_at TIMESTAMP)"
+    )
+
+
+def _empty_sync_bulk_operations() -> tuple[int, int]:
+    """Return results from empty synchronous upsert and destroy calls.
+
+    Returns:
+        A zero count for each operation.
+    """
+    return (
+        ModelEdgeRecord.upsert([], unique_by=("email",)),
+        ModelEdgeRecord.destroy([]),
+    )
 
 
 def _exercise_sync_retrieval_and_creation() -> tuple[str, ...]:
