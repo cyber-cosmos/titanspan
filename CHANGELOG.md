@@ -81,6 +81,10 @@ public release.
   operations using SQLAlchemy's supported SQLite, PostgreSQL, and MySQL
   dialect constructs. SQLite and PostgreSQL behavior has real integration
   coverage; MySQL and MariaDB have not been integration-tested.
+- Add dialect-aware right and full outer joins to the native Query Builder.
+  Right joins use SQLAlchemy left-join expressions with the sides reversed.
+  Full outer joins use backend support on PostgreSQL and SQLite 3.39 or later.
+  PostgreSQL and SQLite behavior has real integration coverage.
 - Declare Pydantic as a direct runtime dependency for native schema APIs.
 - Add native application Cache services with memory and optional Redis
   backends, explicit backend capabilities, safe JSON serialization, atomic

@@ -520,6 +520,77 @@ async def test_postgresql_mutations_return_rows(
         await DB.statement_async("DROP TABLE postgres_returning_rows")
 
 
+async def test_postgresql_right_and_full_outer_joins(
+    application: Application,
+) -> None:
+    """Preserve unmatched rows through native right and full outer joins.
+
+    Args:
+        application: Isolated PostgreSQL integration application.
+    """
+    async with application:
+        await DB.statement_async(
+            "DROP TABLE IF EXISTS postgres_join_posts",
+        )
+        await DB.statement_async(
+            "DROP TABLE IF EXISTS postgres_join_users",
+        )
+        await DB.statement_async(
+            "CREATE TABLE postgres_join_users ("
+            "id INTEGER PRIMARY KEY, name TEXT NOT NULL)"
+        )
+        await DB.statement_async(
+            "CREATE TABLE postgres_join_posts ("
+            "id INTEGER PRIMARY KEY, user_id INTEGER NOT NULL, "
+            "title TEXT NOT NULL)"
+        )
+        await DB.table("postgres_join_users").insert_many_async(
+            [
+                {"id": 1, "name": "Ada"},
+                {"id": 2, "name": "Grace"},
+            ],
+        )
+        await DB.table("postgres_join_posts").insert_many_async(
+            [
+                {"id": 1, "user_id": 1, "title": "matched"},
+                {"id": 2, "user_id": 3, "title": "orphan"},
+            ],
+        )
+
+        right_rows = await (
+            DB.table("postgres_join_users")
+            .right_join(
+                "postgres_join_posts",
+                "postgres_join_users.id",
+                "postgres_join_posts.user_id",
+            )
+            .select("postgres_join_users.name", "postgres_join_posts.title")
+            .get_async()
+        )
+        full_rows = await (
+            DB.table("postgres_join_users")
+            .full_outer_join(
+                "postgres_join_posts",
+                "postgres_join_users.id",
+                "postgres_join_posts.user_id",
+            )
+            .select("postgres_join_users.name", "postgres_join_posts.title")
+            .order_by("postgres_join_users.id")
+            .get_async()
+        )
+        assert right_rows == [
+            {"name": "Ada", "title": "matched"},
+            {"name": None, "title": "orphan"},
+        ]
+        assert {(row["name"], row["title"]) for row in full_rows} == {
+            ("Ada", "matched"),
+            ("Grace", None),
+            (None, "orphan"),
+        }
+        await DB.statement_async("DROP TABLE postgres_join_posts")
+        await DB.statement_async("DROP TABLE postgres_join_users")
+
+
 async def _insert_then_raise() -> None:
     """Roll a PostgreSQL insert back through the application transaction.
 

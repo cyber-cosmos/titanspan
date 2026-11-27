@@ -131,6 +131,70 @@ async def test_row_locks_reject_unsupported_sqlite(
             DB.table("entries").lock_for_update()
 
 
+async def test_right_and_full_outer_joins_preserve_unmatched_rows(
+    application: Application,
+) -> None:
+    """Preserve unmatched rows on the appropriate SQLite join sides.
+
+    Args:
+        application: Application configured by this test.
+    """
+    async with application:
+        await DB.statement_async(
+            "CREATE TABLE join_users ("
+            "id INTEGER PRIMARY KEY, name TEXT NOT NULL)"
+        )
+        await DB.statement_async(
+            "CREATE TABLE join_posts ("
+            "id INTEGER PRIMARY KEY, user_id INTEGER NOT NULL, "
+            "title TEXT NOT NULL)"
+        )
+        await DB.table("join_users").insert_many_async(
+            [
+                {"id": 1, "name": "Ada"},
+                {"id": 2, "name": "Grace"},
+            ],
+        )
+        await DB.table("join_posts").insert_many_async(
+            [
+                {"id": 1, "user_id": 1, "title": "matched"},
+                {"id": 2, "user_id": 3, "title": "orphan"},
+            ],
+        )
+
+        right_rows = await (
+            DB.table("join_users")
+            .right_join(
+                "join_posts",
+                "join_users.id",
+                "join_posts.user_id",
+            )
+            .select("join_users.name", "join_posts.title")
+            .order_by("join_posts.id")
+            .get_async()
+        )
+        full_rows = await (
+            DB.table("join_users")
+            .full_outer_join(
+                "join_posts",
+                "join_users.id",
+                "join_posts.user_id",
+            )
+            .select("join_users.name", "join_posts.title")
+            .get_async()
+        )
+
+        assert right_rows == [
+            {"name": "Ada", "title": "matched"},
+            {"name": None, "title": "orphan"},
+        ]
+        assert {(row["name"], row["title"]) for row in full_rows} == {
+            ("Ada", "matched"),
+            ("Grace", None),
+            (None, "orphan"),
+        }
+
+
 async def test_date_and_time_predicates_use_database_expressions(
     application: Application,
 ) -> None:

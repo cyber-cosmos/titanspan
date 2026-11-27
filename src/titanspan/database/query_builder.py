@@ -104,6 +104,7 @@ type _Condition = ColumnElement[bool]
 type _Projection = ColumnElement[object] | TextClause
 type _Boolean = Literal["and", "or"]
 type _LockMode = Literal["update", "share"]
+type _JoinType = Literal["inner", "left", "right", "full"]
 type _CursorDirection = Literal["after", "before"]
 type _CursorOrder = tuple[str, bool]
 type _CursorScalar = (
@@ -1068,7 +1069,7 @@ class QueryBuilder(DatabaseQueryBuilder):
             left,
             operator_or_right,
             right,
-            outer=False,
+            join_type="inner",
         )
 
     def left_join(
@@ -1094,7 +1095,81 @@ class QueryBuilder(DatabaseQueryBuilder):
             left,
             operator_or_right,
             right,
-            outer=True,
+            join_type="left",
+        )
+
+    def right_join(
+        self,
+        table_name: str,
+        left: str,
+        operator_or_right: str,
+        right: str | object = _MISSING,
+    ) -> QueryBuilder:
+        """Right-join another table while preserving its unmatched rows.
+
+        SQLAlchemy Core expresses a right join by reversing the FROM sides of
+        a left outer join, so it does not depend on native right-join syntax.
+
+        Args:
+            table_name: Safe table identifier to retain on the right side.
+            left: Safe left column reference.
+            operator_or_right: Right column or comparison operator.
+            right: Right column when an operator is supplied.
+
+        Returns:
+            This builder for further query composition.
+
+        Raises:
+            DatabaseQueryError: If the dialect does not support this join.
+        """
+        if self._connection.dialect_name not in {
+            "mysql",
+            "postgresql",
+            "sqlite",
+        }:
+            msg = "Right outer joins are unsupported by this dialect."
+            raise DatabaseQueryError(msg)
+        return self._join(
+            table_name,
+            left,
+            operator_or_right,
+            right,
+            join_type="right",
+        )
+
+    def full_outer_join(
+        self,
+        table_name: str,
+        left: str,
+        operator_or_right: str,
+        right: str | object = _MISSING,
+    ) -> QueryBuilder:
+        """Join both sides while preserving unmatched rows from each table.
+
+        PostgreSQL supports full outer joins. SQLite requires version 3.39 or
+        later. MySQL and MariaDB do not provide this join form.
+
+        Args:
+            table_name: Safe table identifier joined to the current source.
+            left: Safe left column reference.
+            operator_or_right: Right column or comparison operator.
+            right: Right column when an operator is supplied.
+
+        Returns:
+            This builder for further query composition.
+
+        Raises:
+            DatabaseQueryError: If the configured dialect is unsupported.
+        """
+        if self._connection.dialect_name not in {"postgresql", "sqlite"}:
+            msg = "Full outer joins are unsupported by this dialect."
+            raise DatabaseQueryError(msg)
+        return self._join(
+            table_name,
+            left,
+            operator_or_right,
+            right,
+            join_type="full",
         )
 
     def join_sub(
@@ -3797,16 +3872,16 @@ class QueryBuilder(DatabaseQueryBuilder):
         operator_or_right: str,
         right: str | object,
         *,
-        outer: bool,
+        join_type: _JoinType,
     ) -> QueryBuilder:
-        """Add one inner or left join after validating its identifiers.
+        """Add one supported join after validating its identifiers.
 
         Args:
             table_name: Safe table to join.
             left: Left column reference.
             operator_or_right: Right column or explicit operator.
             right: Optional right column when an operator is supplied.
-            outer: Whether to keep unmatched rows from the existing query.
+            join_type: Supported inner, left, right, or full join behavior.
 
         Returns:
             This builder for further query composition.
@@ -3818,7 +3893,21 @@ class QueryBuilder(DatabaseQueryBuilder):
             operator,
             self._column(right_name),
         )
-        self._from = self._from.join(target, condition, isouter=outer)
+        if join_type == "right":
+            self._from = target.join(self._from, condition, isouter=True)
+        elif join_type == "full":
+            self._from = self._from.join(
+                target,
+                condition,
+                isouter=True,
+                full=True,
+            )
+        else:
+            self._from = self._from.join(
+                target,
+                condition,
+                isouter=join_type == "left",
+            )
         return self
 
     def _join_sub(

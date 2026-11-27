@@ -661,6 +661,50 @@ class DatabaseQueryBuilder(Protocol):
         """
         ...
 
+    def right_join(
+        self,
+        table_name: str,
+        left: str,
+        operator_or_right: str,
+        right: str | object = ...,
+    ) -> Self:
+        """Right-join a table where the configured dialect supports it.
+
+        SQLAlchemy reverses the join sides and uses a left outer join.
+
+        Args:
+            table_name: Safe joined table name.
+            left: Left column reference.
+            operator_or_right: Right column or comparison operator.
+            right: Right column when an operator is supplied.
+
+        Returns:
+            This builder for further query composition.
+        """
+        ...
+
+    def full_outer_join(
+        self,
+        table_name: str,
+        left: str,
+        operator_or_right: str,
+        right: str | object = ...,
+    ) -> Self:
+        """Join both sides where the configured dialect supports it.
+
+        PostgreSQL and SQLite 3.39 or later support full outer joins.
+
+        Args:
+            table_name: Safe joined table name.
+            left: Left column reference.
+            operator_or_right: Right column or comparison operator.
+            right: Right column when an operator is supplied.
+
+        Returns:
+            This builder for further query composition.
+        """
+        ...
+
     def join_sub(
         self,
         query: DatabaseQueryBuilder,
