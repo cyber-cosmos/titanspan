@@ -102,7 +102,10 @@ class _RequestScopeProbe:
     __slots__ = ("token",)
 
     def __init__(self) -> None:
-        """Create an identity that cannot collide across live requests."""
+        """Create an identity that cannot collide across live requests.
+
+        UUID tokens make scope identities stable across overlapping requests.
+        """
         self.token = uuid4().hex
 
 

@@ -696,7 +696,10 @@ async def _verify_concurrent_request_scopes(
     ready_count = 0
 
     async def send_request() -> None:
-        """Wait for the batch, then send one overlapping ASGI request."""
+        """Wait for the batch, then send one overlapping ASGI request.
+
+        The shared start event releases every task before ASGI dispatch.
+        """
         nonlocal ready_count
         async with lock:
             ready_count += 1
