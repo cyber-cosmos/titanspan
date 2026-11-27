@@ -978,10 +978,12 @@ concurrent synchronous, asynchronous, and worker-thread resolution. The
 current scope map cannot overlap request and workflow lifetimes or nest node
 and agent lifetimes. Resolve F-002 before implementing overlapping request and
 workflow execution. Resolve F-007 before implementing nested agent and node
-lifecycles. Treat F-003 as a public API design decision before stabilization.
-Review F-006 before stabilizing Events. The Hello World example composes
-configuration, logging, providers, dependency injection, and routing. It does
-not yet exercise the full reference-application acceptance scenario or prove
-execution from an installed wheel. Add that vertical slice before claiming
-full framework cohesion. HTTP and Routing benchmarks are also absent, so no
-performance advantage is established.
+lifecycles.
+
+The installed-wheel document-processor smoke now exercises route discovery,
+request isolation, validation, service fakes, Console, Testing, exception
+handling, generated controllers, and shutdown. It is a deterministic vertical
+slice, not exhaustive installed-package API coverage. Local HTTP and Routing
+benchmarks now record representative measurements. Their results do not
+establish cross-platform capacity. F-003 remains a public Settings API design
+limit. F-006 remains a dependency-value question for a future Events review.
