@@ -5,6 +5,7 @@ public release.
 
 ## Unreleased
 
+- Declare Pydantic as a direct runtime dependency for native schema APIs.
 - Add native application Cache services with memory and optional Redis
   backends, explicit backend capabilities, safe JSON serialization, atomic
   operations where supported, owner-token locks, tagged and failover stores,
@@ -18,10 +19,9 @@ public release.
   providers, commands, events, listeners, and application tests.
 - Add synchronous and asynchronous application test contexts over the
   production Foundation lifecycle, Container, and ASGI application.
-- Extend the clean-install application smoke through native provider
-  registration, contract injection, logging, URL generation, and route
-  dispatch. The smoke runs the installed controller generator, imports its
-  output, and dispatches the generated route.
+- Extend the clean-install smoke with a multipart document workflow. The
+  installed-wheel run verifies Validation, Pipeline, local storage, Events,
+  Logging, named URLs, generated routes, and shutdown.
 - Anchor relative event manifest paths to the effective application root.
 - Render malformed native request input as a safe HTTP 400 response.
 - Added Pydantic-backed Validation with typed schemas, coercion policy, safe

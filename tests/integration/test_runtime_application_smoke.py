@@ -4,9 +4,10 @@ The test runs the same Application path used by the clean-install CI job.
 """
 
 import pytest
-from scripts.ci.runtime_smoke import EXPECTED_RESPONSE, run_smoke
+from scripts.ci.runtime_smoke import run_smoke
 
 pytestmark = pytest.mark.integration
+_HTTP_UNPROCESSABLE_STATUS = 422
 
 
 @pytest.mark.anyio
@@ -19,7 +20,32 @@ async def test_runtime_smoke_uses_native_routing_and_injected_services() -> (
     """
     result = await run_smoke()
 
-    assert result == {
-        "health": EXPECTED_RESPONSE,
-        "documents": {"resource": "Document"},
+    assert result["health"] == {
+        "status": "ok",
+        "application": "Document Processor",
     }
+    assert result["documents"] == {"resource": "Document"}
+    assert result["uploaded_document"] == {
+        "path": "guides/reference.txt",
+        "bytes": 26,
+        "event_count": 1,
+    }
+
+
+@pytest.mark.anyio
+async def test_runtime_smoke_processes_a_validated_document_upload() -> None:
+    """Exercise native validation, pipelines, storage, and events together.
+
+    The smoke runs against the installed distribution in the mandatory
+    clean-environment runtime job.
+    """
+    result = await run_smoke()
+
+    assert result["uploaded_document"] == {
+        "path": "guides/reference.txt",
+        "bytes": 26,
+        "event_count": 1,
+    }
+    invalid_upload = result["invalid_upload"]
+    assert invalid_upload["status"] == _HTTP_UNPROCESSABLE_STATUS
+    assert "runtime-smoke-secret" not in repr(invalid_upload["body"])

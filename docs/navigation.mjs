@@ -9,6 +9,7 @@ export const documentationSidebar = [
     items: [
       "getting-started/installation",
       "getting-started/hello-world",
+      "getting-started/document-processor",
     ],
   },
   {

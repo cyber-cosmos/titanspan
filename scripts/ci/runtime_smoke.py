@@ -1,135 +1,111 @@
-"""Exercise installed Titanspan commands and routes through ASGI.
+"""Exercise the installed Titanspan package through a reference application.
 
-The script runs outside the source tree and uses declared runtime
-dependencies. It invokes the installed artifact generator and ASGI lifespan.
+The script runs outside the repository import path. It invokes the installed
+CLI generator and sends native ASGI requests through the installed wheel.
 """
 
 from __future__ import annotations
 
 import json
 import sys
+from dataclasses import dataclass
 from importlib.util import module_from_spec, spec_from_file_location
 from pathlib import Path
 from subprocess import run
 from tempfile import TemporaryDirectory
-from typing import TYPE_CHECKING, Protocol, cast
+from typing import TYPE_CHECKING, TypedDict, cast
 
 import anyio
 
-from titanspan import Application
-
-# Container evaluates these injected annotations during route dispatch.
-from titanspan.contracts.config import ConfigRepository  # noqa: TC001
-from titanspan.contracts.foundation import ServiceProvider
-from titanspan.contracts.logging import LogWriter  # noqa: TC001
+from titanspan.contracts.filesystem import StorageManager
 from titanspan.contracts.routing import ControllerAction, UriUrlGenerator
-from titanspan.http import Request  # noqa: TC001
 
 if TYPE_CHECKING:
-    from collections.abc import Sequence
+    from collections.abc import Callable, Sequence
 
     from starlette.types import ASGIApp, Message, Scope
 
-    from titanspan.contracts.container import ServiceRegistry
+    from titanspan import Application
 
-_APPLICATION_NAME = "Installed Titanspan"
 _DOCUMENT_CONTROLLER_NAME = "DocumentController"
 _DOCUMENT_CONTROLLER_ACTION = "index"
-_DOCUMENT_ROUTE_NAME = "documents.index"
 _GENERATOR_TIMEOUT_SECONDS = 30
 _GENERATED_CONTROLLER_MODULE = "_titanspan_installed_document_controller"
-EXPECTED_RESPONSE = {
+_REFERENCE_APPLICATION_MODULE = "_titanspan_document_processor_example"
+_REFERENCE_APPLICATION_PATH = (
+    Path(__file__).resolve().parents[2] / "examples" / "document_processor.py"
+)
+_MULTIPART_BOUNDARY = "titanspan-installed-reference-boundary"
+_INVALID_CATEGORY = "runtime-smoke-secret/../"
+_DOCUMENT_CONTENT = b"native reference workflow"
+_EXPECTED_STORED_CONTENT = b"native reference workflow\n"
+_EXPECTED_HEALTH = {
     "status": "ok",
-    "greeting": f"Hello from {_APPLICATION_NAME}.",
+    "application": "Document Processor",
 }
-EXPECTED_DOCUMENT_RESPONSE = {"resource": "Document"}
-HTTP_OK_STATUS = 200
-_REQUEST_ID_ERROR = "The request identifier was not registered."
+_EXPECTED_GENERATED_DOCUMENT = {"resource": "Document"}
+_EXPECTED_UPLOADED_DOCUMENT = {
+    "path": "guides/reference.txt",
+    "bytes": len(_EXPECTED_STORED_CONTENT),
+    "event_count": 1,
+}
+_HTTP_OK_STATUS = 200
+_HTTP_UNPROCESSABLE_STATUS = 422
 
 
-class _GreetingService(Protocol):
-    """Describe the application service used by the smoke endpoint.
+class _ValidationRejection(TypedDict):
+    """Describe one safe validation error observed by the smoke.
 
-    The provider binds this interface in Foundation's canonical Container.
+    Attributes:
+        status: HTTP response status for invalid metadata.
+        body: Safe framework validation response.
     """
 
-    def message(self) -> str:
-        """Return the configured application greeting.
-
-        Returns:
-            One greeting generated from application configuration.
-        """
-        ...
+    status: int
+    body: object
 
 
-class _ConfiguredGreeting:
-    """Build a greeting through injected configuration and logging.
+class _SmokeResult(TypedDict):
+    """Describe the observable results from the reference application.
 
-    The example resolves both services from the native application graph.
+    Attributes:
+        health: Readiness endpoint payload.
+        documents: Generated controller endpoint payload.
+        uploaded_document: Successful document workflow receipt.
+        invalid_upload: Status and payload for rejected input.
     """
 
-    def __init__(
-        self,
-        configuration: ConfigRepository,
-        logger: LogWriter,
-    ) -> None:
-        """Retain application-owned services for the smoke request.
-
-        Args:
-            configuration: Canonical application configuration repository.
-            logger: Application logger resolved through its contract.
-        """
-        self._configuration = configuration
-        self._logger = logger
-
-    def message(self) -> str:
-        """Create and log one configured greeting.
-
-        Returns:
-            A greeting containing the configured application name.
-
-        Raises:
-            TypeError: If the configured application name is not text.
-        """
-        application_name = self._configuration.get(
-            "app.name",
-            _APPLICATION_NAME,
-        )
-        if not isinstance(application_name, str):
-            message = "The configured application name must be text."
-            raise TypeError(message)
-        self._logger.info(
-            "Installed application smoke request handled",
-            application=application_name,
-        )
-        return f"Hello from {application_name}."
+    health: object
+    documents: object
+    uploaded_document: object
+    invalid_upload: _ValidationRejection
 
 
-class _RuntimeSmokeProvider(ServiceProvider):
-    """Register the smoke service through the native provider contract.
+@dataclass(frozen=True, slots=True)
+class _AsgiResponse:
+    """Retain one JSON response emitted by the reference application.
 
-    Foundation owns provider order and Container composition.
+    Attributes:
+        status: HTTP status code from the ASGI response start event.
+        body: Decoded JSON response value.
+        raw_body: Response bytes used for safe-data assertions.
     """
 
-    def register(self, container: ServiceRegistry) -> None:
-        """Bind the greeting implementation under its service contract.
-
-        Args:
-            container: Canonical service registry owned by Foundation.
-        """
-        container.singleton(_GreetingService, _ConfiguredGreeting)
+    status: int
+    body: object
+    raw_body: bytes
 
 
-async def run_smoke() -> dict[str, dict[str, str]]:
-    """Generate, start, exercise, and shut down a reference application.
+async def run_smoke() -> _SmokeResult:
+    """Run CLI generation and a local document workflow through ASGI.
 
     Raises:
-        RuntimeError: If the ASGI application does not return the expected
-            status or response payload, or the installed CLI cannot generate
-            an executable controller.
+        RuntimeError: If installed command generation, route reversal,
+            response behavior, validation safety, or storage verification
+            fails.
 
     Returns:
-        Health and generated-controller responses from native route dispatch.
+        Health, generated-route, document-upload, and rejection results.
     """
     with TemporaryDirectory(prefix="titanspan-reference-") as directory:
         base_path = Path(directory)
@@ -139,35 +115,99 @@ async def run_smoke() -> dict[str, dict[str, str]]:
             base_path,
             abandon_on_cancel=False,
         )
-        controller_action = _load_document_action(generated_path)
-        application = _create_application(base_path, controller_action)
+        application = _load_reference_application(base_path)
+        application.router.get(
+            "/generated-documents",
+            _load_document_action(generated_path),
+        ).name("generated.documents.index")
+
         health_url = application.make(UriUrlGenerator).route(
             "runtime.health",
             {},
             absolute=False,
         )
-        document_url = application.make(UriUrlGenerator).route(
-            _DOCUMENT_ROUTE_NAME,
+        generated_url = application.make(UriUrlGenerator).route(
+            "generated.documents.index",
             {},
             absolute=False,
         )
-        if health_url != "/health" or document_url != "/documents":
+        upload_url = application.make(UriUrlGenerator).route(
+            "documents.store",
+            {},
+            absolute=False,
+        )
+        if (
+            health_url != "/health"
+            or generated_url != "/generated-documents"
+            or upload_url != "/documents"
+        ):
             message = "The reference application's named routes are invalid."
             raise RuntimeError(message)
 
         async with application.asgi.router.lifespan_context(application.asgi):
-            health = await _send_request(
-                application.asgi,
-                health_url,
-                EXPECTED_RESPONSE,
+            health = await _send_request(application.asgi, health_url)
+            _expect_response(
+                health,
+                status=_HTTP_OK_STATUS,
+                body=_EXPECTED_HEALTH,
             )
-            documents = await _send_request(
-                application.asgi,
-                document_url,
-                EXPECTED_DOCUMENT_RESPONSE,
+            generated = await _send_request(application.asgi, generated_url)
+            _expect_response(
+                generated,
+                status=_HTTP_OK_STATUS,
+                body=_EXPECTED_GENERATED_DOCUMENT,
             )
+            upload_body = _multipart_body(
+                category="guides",
+                filename="../../reference.txt",
+                content=_DOCUMENT_CONTENT,
+            )
+            upload = await _send_request(
+                application.asgi,
+                upload_url,
+                method="POST",
+                headers=_multipart_headers(upload_body),
+                body=upload_body,
+            )
+            _expect_response(
+                upload,
+                status=_HTTP_OK_STATUS,
+                body=_EXPECTED_UPLOADED_DOCUMENT,
+            )
+            invalid_upload_body = _multipart_body(
+                category=_INVALID_CATEGORY,
+                filename="rejected.txt",
+                content=b"must not be stored",
+            )
+            invalid_upload = await _send_request(
+                application.asgi,
+                upload_url,
+                method="POST",
+                headers=_multipart_headers(invalid_upload_body),
+                body=invalid_upload_body,
+            )
+            _expect_validation_rejection(invalid_upload)
 
-    return {"health": health, "documents": documents}
+            disk = application.make(StorageManager).disk()
+            stored_content = await disk.get_bytes_async(
+                "guides/reference.txt",
+            )
+            if stored_content != _EXPECTED_STORED_CONTENT:
+                message = "The document was not stored with processed bytes."
+                raise RuntimeError(message)
+            if await disk.exists_async("guides/rejected.txt"):
+                message = "Invalid document input reached application storage."
+                raise RuntimeError(message)
+
+    return {
+        "health": health.body,
+        "documents": generated.body,
+        "uploaded_document": upload.body,
+        "invalid_upload": {
+            "status": invalid_upload.status,
+            "body": invalid_upload.body,
+        },
+    }
 
 
 def _generate_document_controller(base_path: Path) -> Path:
@@ -182,7 +222,7 @@ def _generate_document_controller(base_path: Path) -> Path:
     Raises:
         RuntimeError: If CLI execution or artifact creation fails.
     """
-    # A fixed argv keeps this installed CLI check shell-free and trusted.
+    # Fixed argv keeps this installed CLI check shell-free and trusted.
     result = run(  # noqa: S603
         [
             sys.executable,
@@ -238,94 +278,135 @@ def _load_document_action(generated_path: Path) -> ControllerAction:
     if not isinstance(controller, type):
         message = "The generated controller class is missing."
         raise TypeError(message)
-    # Dynamic module attributes are the only untyped boundary in this smoke.
+    # This narrow cast marks the generated module as the dynamic boundary.
     return cast("ControllerAction", (controller, _DOCUMENT_CONTROLLER_ACTION))
 
 
-def _create_application(
-    base_path: Path,
-    document_action: ControllerAction,
-) -> Application:
-    """Compose the reference app through native Foundation and Routing.
+def _load_reference_application(base_path: Path) -> Application:
+    """Import the example and create an application at the selected root.
 
     Args:
-        base_path: Isolated project root shared with the CLI generator.
-        document_action: Imported controller action generated by the CLI.
+        base_path: Isolated project root shared with the installed CLI.
 
     Returns:
-        An application with provider-backed and generated routes.
+        The example's native Foundation application.
+
+    Raises:
+        RuntimeError: If the example does not expose its factory.
     """
-    application = Application(
-        base_path=base_path,
-        config={
-            "app": {
-                "name": _APPLICATION_NAME,
-                "debug": False,
-            },
-        },
-        service_providers=(_RuntimeSmokeProvider(),),
+    spec = spec_from_file_location(
+        _REFERENCE_APPLICATION_MODULE,
+        _REFERENCE_APPLICATION_PATH,
+    )
+    if spec is None or spec.loader is None:
+        message = "The document processor example could not be imported."
+        raise RuntimeError(message)
+    module = module_from_spec(spec)
+    sys.modules[_REFERENCE_APPLICATION_MODULE] = module
+    try:
+        spec.loader.exec_module(module)
+    except BaseException:
+        del sys.modules[_REFERENCE_APPLICATION_MODULE]
+        raise
+    factory = getattr(module, "create_application", None)
+    if not callable(factory):
+        message = "The document processor example has no application factory."
+        raise TypeError(message)
+    typed_factory = cast("Callable[[Path], Application]", factory)
+    return typed_factory(base_path)
+
+
+def _multipart_headers(body: bytes) -> tuple[tuple[bytes, bytes], ...]:
+    """Return headers for the fixed local multipart request boundary.
+
+    Args:
+        body: Complete multipart payload sent by the smoke client.
+
+    Returns:
+        Content type and byte length headers for the selected boundary.
+    """
+    return (
+        (
+            b"content-type",
+            f"multipart/form-data; boundary={_MULTIPART_BOUNDARY}".encode(),
+        ),
+        (b"content-length", str(len(body)).encode()),
     )
 
-    async def health(
-        greeting: _GreetingService,
-        request: Request,
-    ) -> dict[str, str]:
-        """Return configured data through native dependency injection.
 
-        Args:
-            greeting: Application service selected by the native Container.
-            request: Request scoped to this ASGI execution.
+def _multipart_body(
+    *,
+    category: str,
+    filename: str,
+    content: bytes,
+) -> bytes:
+    """Encode one fixed multipart upload without an external client.
 
-        Returns:
-            A small response proving route and service integration.
-        """
-        if not request.request_id:
-            raise RuntimeError(_REQUEST_ID_ERROR)
-        return {"status": "ok", "greeting": greeting.message()}
+    Args:
+        category: Form value validated by the native Validation service.
+        filename: Client filename used to verify path sanitization.
+        content: Upload content passed through the real ASGI parser.
 
-    application.router.get("/health", health).name("runtime.health")
-    application.router.get("/documents", document_action).name(
-        _DOCUMENT_ROUTE_NAME,
+    Returns:
+        One complete multipart request body.
+    """
+    boundary = _MULTIPART_BOUNDARY.encode()
+    return b"".join(
+        (
+            b"--",
+            boundary,
+            b'\r\nContent-Disposition: form-data; name="category"\r\n\r\n',
+            category.encode(),
+            b"\r\n--",
+            boundary,
+            b'\r\nContent-Disposition: form-data; name="document"; filename="',
+            filename.encode(),
+            b'"\r\nContent-Type: text/plain\r\n\r\n',
+            content,
+            b"\r\n--",
+            boundary,
+            b"--\r\n",
+        ),
     )
-    return application
 
 
 async def _send_request(
     application: ASGIApp,
     path: str,
-    expected_response: dict[str, str],
-) -> dict[str, str]:
-    """Send and verify one request through the ASGI application.
+    *,
+    method: str = "GET",
+    headers: Sequence[tuple[bytes, bytes]] = (),
+    body: bytes = b"",
+) -> _AsgiResponse:
+    """Send one request through the real ASGI host and capture its response.
 
     Args:
         application: Native host assembled by Foundation.
         path: Local path selected from the application's URL generator.
-        expected_response: JSON object expected from the selected route.
+        method: HTTP method used for this request.
+        headers: Request headers in ASGI byte form.
+        body: Complete request body for bounded local smoke payloads.
 
     Returns:
-        The verified JSON object from the ASGI response.
+        Status and decoded JSON body emitted by the ASGI application.
 
     Raises:
-        RuntimeError: If ASGI emits a malformed response.
+        RuntimeError: If ASGI emits a malformed or non-JSON response.
     """
     messages: list[Message] = []
     request_sent = False
 
     async def receive() -> Message:
-        """Provide one empty HTTP request body to the ASGI application.
+        """Provide the request body once, then report disconnection.
 
         Returns:
-            The request event consumed by the route handler.
+            One ASGI request or disconnect message.
         """
         nonlocal request_sent
         if request_sent:
             return {"type": "http.disconnect"}
         request_sent = True
-        return {
-            "type": "http.request",
-            "body": b"",
-            "more_body": False,
-        }
+        return {"type": "http.request", "body": body, "more_body": False}
 
     async def send(message: Message) -> None:
         """Capture response events for deterministic smoke assertions.
@@ -339,36 +420,31 @@ async def _send_request(
         "type": "http",
         "asgi": {"version": "3.0", "spec_version": "2.3"},
         "http_version": "1.1",
-        "method": "GET",
+        "method": method,
         "scheme": "http",
         "path": path,
         "raw_path": path.encode("utf-8"),
         "query_string": b"",
         "root_path": "",
-        "headers": [],
+        "headers": list(headers),
         "client": ("127.0.0.1", 12345),
         "server": ("127.0.0.1", 80),
     }
-
     await application(scope, receive, send)
-    return _decode_response(messages, expected_response)
+    return _decode_response(messages)
 
 
-def _decode_response(
-    messages: Sequence[Message],
-    expected_response: dict[str, str],
-) -> dict[str, str]:
-    """Validate one ASGI response and return its JSON object.
+def _decode_response(messages: Sequence[Message]) -> _AsgiResponse:
+    """Decode the captured ASGI message sequence as a JSON response.
 
     Args:
-        messages: ASGI response events emitted by the native application.
-        expected_response: JSON object expected from the selected route.
+        messages: Response events emitted by the native application.
 
     Returns:
-        Response object with string keys and values.
+        One status and JSON body from the completed response.
 
     Raises:
-        RuntimeError: If the application emits an invalid HTTP response.
+        RuntimeError: If ASGI emits an invalid HTTP response.
     """
     start_events = [
         message
@@ -382,38 +458,74 @@ def _decode_response(
     ]
     if len(start_events) != 1 or not body_events:
         observed = [message.get("type") for message in messages]
-        reason = (
-            "ASGI response did not contain one start and body event: "
-            f"{observed}"
+        reason = f"Malformed ASGI response events: {observed}"
+        raise RuntimeError(reason)
+    status = start_events[0].get("status")
+    if not isinstance(status, int):
+        message = "ASGI response start has an invalid status."
+        raise TypeError(message)
+    chunks = [event.get("body", b"") for event in body_events]
+    if not all(isinstance(chunk, bytes) for chunk in chunks):
+        message = "ASGI response body chunks must be bytes."
+        raise RuntimeError(message)
+    raw_body = b"".join(chunk for chunk in chunks if isinstance(chunk, bytes))
+    try:
+        body = json.loads(raw_body)
+    except (UnicodeDecodeError, json.JSONDecodeError) as error:
+        message = "ASGI response body is not valid JSON."
+        raise RuntimeError(message) from error
+    return _AsgiResponse(status, body, raw_body)
+
+
+def _expect_response(
+    response: _AsgiResponse,
+    *,
+    status: int,
+    body: object,
+) -> None:
+    """Fail the installed-package smoke when a response differs.
+
+    Args:
+        response: Actual response emitted by the reference application.
+        status: Expected HTTP status code.
+        body: Expected decoded JSON body.
+
+    Raises:
+        RuntimeError: If the status or body does not match.
+    """
+    if response.status != status or response.body != body:
+        message = (
+            "The reference application returned an unexpected response "
+            f"(status {response.status})."
         )
-        raise RuntimeError(reason)
-    if start_events[0].get("status") != HTTP_OK_STATUS:
-        reason = f"unexpected HTTP status: {start_events[0].get('status')}"
-        raise RuntimeError(reason)
-    body_chunks = [event.get("body", b"") for event in body_events]
-    if not all(isinstance(chunk, bytes) for chunk in body_chunks):
-        reason = "ASGI response body must be bytes"
-        raise RuntimeError(reason)
-    body = b"".join(chunk for chunk in body_chunks if isinstance(chunk, bytes))
-    expected_body = json.dumps(
-        expected_response,
-        ensure_ascii=False,
-        separators=(",", ":"),
-    ).encode("utf-8")
-    if body != expected_body:
-        reason = "ASGI response body did not match the health payload"
-        raise RuntimeError(reason)
-    return expected_response.copy()
+        raise RuntimeError(message)
+
+
+def _expect_validation_rejection(response: _AsgiResponse) -> None:
+    """Verify safe validation output for a rejected secret-shaped value.
+
+    Args:
+        response: Response emitted for invalid multipart metadata.
+
+    Raises:
+        RuntimeError: If invalid input is accepted or echoed to the client.
+    """
+    if response.status != _HTTP_UNPROCESSABLE_STATUS:
+        message = "Invalid document metadata did not return HTTP 422."
+        raise RuntimeError(message)
+    if _INVALID_CATEGORY.encode() in response.raw_body:
+        message = "The validation response exposed submitted field content."
+        raise RuntimeError(message)
 
 
 def main() -> int:
-    """Run the application smoke and report its process status.
+    """Run the installed-package smoke and report its process status.
 
-    Let application failures propagate so the runtime verification job fails
-    rather than recording a false success.
+    Returns:
+        Zero after the real application and installed CLI pass.
     """
     anyio.run(run_smoke)
-    sys.stdout.write("Installed Titanspan application smoke passed.\n")
+    sys.stdout.write("Installed Titanspan reference application passed.\n")
     return 0
 
 
