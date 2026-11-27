@@ -634,6 +634,19 @@ async def users_with_titled_posts() -> ModelCollection[User]:
 The callback mutates and returns its related query builder. Nested relationship
 paths may be constrained with the same method.
 
+Stream large model results through a context that owns the Session and cursor:
+
+```python
+user_ids: list[int] = []
+async with User.query().order_by("id").stream_async(batch_size=500) as users:
+    async for user in users:
+        user_ids.append(user.id)
+```
+
+Use `stream()` for synchronous consumers. The iterator is valid only inside
+its context; early exit, errors, and cancellation close the result before the
+Session is released.
+
 Async model results are detached after the operation. Accessing an unloaded
 relationship does not initiate hidden async I/O. Serialization includes only
 already-loaded relationships and omits attributes listed in `hidden`; it does

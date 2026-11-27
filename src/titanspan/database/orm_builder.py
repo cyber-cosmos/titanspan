@@ -6,11 +6,19 @@ the source of identifiers, predicates, joins, ordering, and SQL statements.
 
 from __future__ import annotations
 
-from collections.abc import Mapping
+from collections.abc import (
+    AsyncGenerator,
+    AsyncIterator,
+    Generator,
+    Iterator,
+    Mapping,
+)
+from contextlib import asynccontextmanager, contextmanager
 from copy import copy
 from datetime import UTC, datetime
 from typing import TYPE_CHECKING, NoReturn, Self, cast
 
+import anyio
 from sqlalchemy import and_, not_
 from sqlalchemy import inspect as sa_inspect
 from sqlalchemy.orm import (
@@ -35,6 +43,7 @@ if TYPE_CHECKING:
     from collections.abc import Callable, Sequence
 
     from sqlalchemy.engine import ScalarResult
+    from sqlalchemy.ext.asyncio import AsyncScalarResult
     from sqlalchemy.orm import Mapper, QueryableAttribute, RelationshipProperty
     from sqlalchemy.orm.strategy_options import Load
     from sqlalchemy.sql.base import ExecutableOption
@@ -48,11 +57,15 @@ _NO_MODELS_FOUND = "The query did not match a model."
 _MULTIPLE_MODELS_FOUND = "The query matched more than one model."
 _FIRST_PAGE = 1
 _MINIMUM_PAGE_SIZE = 1
+_DEFAULT_STREAM_BATCH_SIZE = 1000
 _INVALID_GLOBAL_SCOPES_ERROR = (
     "Global model scopes must be named SQLAlchemy predicate factories."
 )
 _INVALID_EAGER_CONSTRAINT_ERROR = (
     "An eager-load constraint must return its related query builder."
+)
+_INVALID_STREAM_BATCH_SIZE_ERROR = (
+    "Model stream batch size must be a positive integer."
 )
 
 
@@ -957,6 +970,99 @@ class ModelQueryBuilder[ModelT]:
                 )
             return ModelCollection(models)
 
+    @contextmanager
+    def stream(
+        self,
+        *,
+        batch_size: int = _DEFAULT_STREAM_BATCH_SIZE,
+    ) -> Generator[Iterator[ModelT], None, None]:
+        """Stream mapped models while owning the sync Session and cursor.
+
+        Args:
+            batch_size: Maximum ORM fetch batch requested from SQLAlchemy.
+
+        Yields:
+            An iterator valid only inside this context manager.
+
+        Raises:
+            ValueError: If ``batch_size`` is not a positive integer.
+        """
+        _validate_stream_batch_size(batch_size)
+        statement = self.to_statement().execution_options(
+            yield_per=batch_size,
+        )
+        with self._service.session(self._connection_name) as session:
+            results = cast(
+                "ScalarResult[ModelT]",
+                session.scalars(statement),
+            )
+
+            def models() -> Iterator[ModelT]:
+                """Yield models and attach their service provenance.
+
+                SQLAlchemy retains identity tracking only for this scope.
+                """
+                for model in results:
+                    remember_service_graph(
+                        model,
+                        self._service,
+                        self._connection_name,
+                    )
+                    yield model
+
+            try:
+                yield models()
+            finally:
+                results.close()
+
+    @asynccontextmanager
+    async def stream_async(
+        self,
+        *,
+        batch_size: int = _DEFAULT_STREAM_BATCH_SIZE,
+    ) -> AsyncGenerator[AsyncIterator[ModelT], None]:
+        """Stream mapped models with task-owned async resources.
+
+        Args:
+            batch_size: Maximum ORM fetch batch requested from SQLAlchemy.
+
+        Yields:
+            An async iterator valid only inside this context manager.
+
+        Raises:
+            ValueError: If ``batch_size`` is not a positive integer.
+        """
+        _validate_stream_batch_size(batch_size)
+        statement = self.to_statement().execution_options(
+            yield_per=batch_size,
+        )
+        async with self._service.session_async(
+            self._connection_name,
+        ) as session:
+            results = cast(
+                "AsyncScalarResult[ModelT]",
+                await session.stream_scalars(statement),
+            )
+
+            async def models() -> AsyncIterator[ModelT]:
+                """Yield models and retain their application provenance.
+
+                SQLAlchemy retains identity tracking only for this scope.
+                """
+                async for model in results:
+                    remember_service_graph(
+                        model,
+                        self._service,
+                        self._connection_name,
+                    )
+                    yield model
+
+            try:
+                yield models()
+            finally:
+                with anyio.CancelScope(shield=True):
+                    await results.close()
+
     def first(self) -> ModelT | None:
         """Return the first matching model, if one exists.
 
@@ -1717,6 +1823,19 @@ def _validate_page(per_page: int, page: int) -> None:
     if type(page) is not int or page < _FIRST_PAGE:
         msg = "Page number must be a positive integer."
         raise ValueError(msg)
+
+
+def _validate_stream_batch_size(batch_size: int) -> None:
+    """Reject invalid result-stream batch sizes before acquiring a Session.
+
+    Args:
+        batch_size: Requested positive number of ORM rows per batch.
+
+    Raises:
+        ValueError: If ``batch_size`` is not a positive integer.
+    """
+    if type(batch_size) is not int or batch_size < _MINIMUM_PAGE_SIZE:
+        raise ValueError(_INVALID_STREAM_BATCH_SIZE_ERROR)
 
 
 __all__ = ["ModelQueryBuilder"]
