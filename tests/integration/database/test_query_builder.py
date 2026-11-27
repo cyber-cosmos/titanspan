@@ -9,6 +9,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 import pytest
+from sqlalchemy import text
 
 from titanspan.database import (
     DatabaseQueryError,
@@ -24,6 +25,12 @@ pytestmark = [pytest.mark.integration, pytest.mark.anyio]
 _EXPECTED_VIEW_SUM = 12
 _EXPECTED_REMAINING_POST_COUNT = 2
 _EXPECTED_FILTERED_SCORE = 10
+_PAGE_SIZE = 2
+_SECOND_PAGE = 2
+_THIRD_PAGE = 3
+_EXPECTED_PAGE_TOTAL = 5
+_EXPECTED_SECOND_PAGE_IDS = (3, 4)
+_EXPECTED_LAST_PAGE_IDS = (5,)
 
 
 @pytest.fixture
@@ -124,6 +131,76 @@ async def test_fluent_selection_conditions_order_and_pagination(
         ]
 
 
+async def test_raw_expressions_bind_values_explicitly(
+    application: Application,
+) -> None:
+    """Allow explicit SQL expressions while keeping values parameterized.
+
+    Args:
+        application: Application configured by this test.
+    """
+    async with application:
+        await DB.statement_async(
+            "CREATE TABLE users (id INTEGER PRIMARY KEY, name TEXT, "
+            "active BOOL)"
+        )
+        await DB.table("users").insert_async(
+            {"id": 1, "name": "Ada", "active": True},
+        )
+
+        rows = await (
+            DB.table("users")
+            .select_raw("name || :suffix AS label", {"suffix": "!"})
+            .where_raw("active = :enabled", {"enabled": True})
+            .get_async()
+        )
+
+        assert rows == [{"label": "Ada!"}]
+
+
+async def test_where_exists_and_not_exists_accept_trusted_sqlalchemy_text(
+    application: Application,
+) -> None:
+    """Filter using database-side correlated existence expressions.
+
+    Args:
+        application: Application configured by this test.
+    """
+    async with application:
+        await DB.statement_async(
+            "CREATE TABLE users (id INTEGER PRIMARY KEY, name TEXT NOT NULL)"
+        )
+        await DB.statement_async(
+            "CREATE TABLE posts (id INTEGER PRIMARY KEY, "
+            "user_id INTEGER NOT NULL)"
+        )
+        await DB.table("users").insert_many_async(
+            ({"id": 1, "name": "Ada"}, {"id": 2, "name": "Grace"}),
+        )
+        await DB.table("posts").insert_async({"user_id": 1})
+
+        authors = (
+            await DB.table("users")
+            .where_exists(
+                "SELECT 1 FROM posts WHERE posts.user_id = users.id",
+            )
+            .get_async()
+        )
+        non_authors = (
+            await DB.table("users")
+            .where_not_exists(
+                text(
+                    "SELECT 1 FROM posts WHERE posts.user_id = users.id "
+                    "AND posts.user_id = :user_id",
+                ).bindparams(user_id=1),
+            )
+            .get_async()
+        )
+
+        assert [row["name"] for row in authors] == ["Ada"]
+        assert [row["name"] for row in non_authors] == ["Grace"]
+
+
 async def test_query_builder_join_aggregates_and_mutations(
     application: Application,
 ) -> None:
@@ -210,6 +287,51 @@ async def test_empty_projection_and_condition_are_no_op(
         )
 
         assert rows == [{"id": 1, "name": "Ada"}]
+
+
+async def test_length_aware_and_simple_pagination(
+    application: Application,
+) -> None:
+    """Return exact totals or use a bounded lookahead without a count query.
+
+    Args:
+        application: Application configured by this test.
+    """
+    async with application:
+        await DB.statement_async(
+            "CREATE TABLE page_rows ("
+            "id INTEGER PRIMARY KEY, name TEXT NOT NULL)"
+        )
+        await DB.table("page_rows").insert_many_async(
+            [
+                {"id": item, "name": f"row-{item}"}
+                for item in range(1, _EXPECTED_PAGE_TOTAL + 1)
+            ],
+        )
+        query = DB.table("page_rows").order_by("id")
+
+        length_aware = await query.paginate_async(
+            _PAGE_SIZE,
+            page=_SECOND_PAGE,
+        )
+        last_page = await query.simple_paginate_async(
+            _PAGE_SIZE,
+            page=_THIRD_PAGE,
+        )
+
+        assert tuple(row["id"] for row in length_aware.items) == (
+            _EXPECTED_SECOND_PAGE_IDS
+        )
+        assert length_aware.total == _EXPECTED_PAGE_TOTAL
+        assert length_aware.last_page == _THIRD_PAGE
+        assert length_aware.previous_page == 1
+        assert length_aware.next_page == _THIRD_PAGE
+        assert tuple(row["id"] for row in last_page.items) == (
+            _EXPECTED_LAST_PAGE_IDS
+        )
+        assert last_page.has_more_pages is False
+        assert last_page.next_page is None
+        assert await query.limit(1).count_async() == _EXPECTED_PAGE_TOTAL
 
 
 async def test_query_builder_binds_values_and_rejects_identifiers(

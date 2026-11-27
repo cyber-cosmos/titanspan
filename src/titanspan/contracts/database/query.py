@@ -8,6 +8,11 @@ from typing import TYPE_CHECKING, Protocol, Self, overload, runtime_checkable
 if TYPE_CHECKING:
     from collections.abc import Callable, Mapping, Sequence
 
+    from titanspan.contracts.database.pagination import (
+        LengthAwarePage,
+        SimplePage,
+    )
+
 
 @runtime_checkable
 class DatabaseQueryBuilder(Protocol):
@@ -597,6 +602,74 @@ class DatabaseQueryBuilder(Protocol):
 
         Returns:
             The number of matching rows.
+        """
+        ...
+
+    def paginate(
+        self,
+        per_page: int = 15,
+        *,
+        page: int = 1,
+    ) -> LengthAwarePage[Mapping[str, object]]:
+        """Retrieve page rows and the exact total count.
+
+        Args:
+            per_page: Positive maximum page size.
+            page: Positive one-based page number.
+
+        Returns:
+            Page items and total-count navigation metadata.
+        """
+        ...
+
+    async def paginate_async(
+        self,
+        per_page: int = 15,
+        *,
+        page: int = 1,
+    ) -> LengthAwarePage[Mapping[str, object]]:
+        """Asynchronously retrieve page rows and the exact total count.
+
+        Args:
+            per_page: Positive maximum page size.
+            page: Positive one-based page number.
+
+        Returns:
+            Page items and total-count navigation metadata.
+        """
+        ...
+
+    def simple_paginate(
+        self,
+        per_page: int = 15,
+        *,
+        page: int = 1,
+    ) -> SimplePage[Mapping[str, object]]:
+        """Retrieve page rows without an exact total-count query.
+
+        Args:
+            per_page: Positive maximum page size.
+            page: Positive one-based page number.
+
+        Returns:
+            Page items and a bounded next-page indicator.
+        """
+        ...
+
+    async def simple_paginate_async(
+        self,
+        per_page: int = 15,
+        *,
+        page: int = 1,
+    ) -> SimplePage[Mapping[str, object]]:
+        """Asynchronously retrieve rows with a bounded lookahead.
+
+        Args:
+            per_page: Positive maximum page size.
+            page: Positive one-based page number.
+
+        Returns:
+            Page items and a bounded next-page indicator.
         """
         ...
 

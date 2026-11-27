@@ -9,7 +9,7 @@ from __future__ import annotations
 import re
 from collections.abc import Callable, Mapping, Sequence
 from copy import copy
-from typing import TYPE_CHECKING, cast
+from typing import TYPE_CHECKING, Literal, cast
 
 from sqlalchemy import (
     and_,
@@ -22,20 +22,29 @@ from sqlalchemy import (
     or_,
     select,
     table,
+    text,
     true,
     update,
+)
+from sqlalchemy import (
+    exists as sql_exists,
 )
 from sqlalchemy.sql import operators
 from sqlalchemy.sql.elements import ColumnElement, TextClause
 
 from titanspan.contracts.database import DatabaseQueryBuilder
 from titanspan.database.exceptions import DatabaseQueryError
+from titanspan.database.pagination import LengthAwarePaginator, Paginator
 
 if TYPE_CHECKING:
     from typing import NoReturn
 
     from sqlalchemy.sql.schema import Table
-    from sqlalchemy.sql.selectable import FromClause, Select, TableClause
+    from sqlalchemy.sql.selectable import (
+        FromClause,
+        Select,
+        TableClause,
+    )
 
     from titanspan.contracts.database.connection import (
         DatabaseConnectionService,
@@ -43,7 +52,7 @@ if TYPE_CHECKING:
 
 type _Condition = ColumnElement[bool]
 type _Projection = ColumnElement[object] | TextClause
-type _Boolean = str
+type _Boolean = Literal["and", "or"]
 
 _IDENTIFIER = re.compile(r"^[A-Za-z_][A-Za-z0-9_$]*$")
 _MISSING = object()
@@ -62,6 +71,8 @@ _COMPARISON_OPERATORS = {
     "not like": operators.not_like_op,
     "ilike": operators.ilike_op,
 }
+_FIRST_PAGE = 1
+_MINIMUM_PAGE_SIZE = 1
 
 
 class QueryBuilder(DatabaseQueryBuilder):
@@ -101,6 +112,7 @@ class QueryBuilder(DatabaseQueryBuilder):
         self._from: FromClause = self._table
         self._selection: list[_Projection] | None = None
         self._where_groups: list[list[_Condition]] = []
+        self._scope_condition: _Condition | None = None
         self._group_columns: list[ColumnElement[object]] = []
         self._having_groups: list[list[_Condition]] = []
         self._orders: list[ColumnElement[object]] = []
@@ -140,6 +152,26 @@ class QueryBuilder(DatabaseQueryBuilder):
         self._selection.extend(
             self._projection(column_name) for column_name in columns
         )
+        return self
+
+    def select_raw(
+        self,
+        expression: str,
+        bindings: Mapping[str, object] | None = None,
+    ) -> QueryBuilder:
+        """Append a trusted SQL projection with separately bound values.
+
+        Args:
+            expression: Application-authored SQL expression and aliases.
+            bindings: Values bound to named placeholders in the expression.
+
+        Returns:
+            This builder for further query composition.
+        """
+        projection = _raw_clause(expression, bindings)
+        if self._selection is None:
+            self._selection = []
+        self._selection.append(projection)
         return self
 
     def distinct(self, enabled: bool = True) -> QueryBuilder:
@@ -212,6 +244,123 @@ class QueryBuilder(DatabaseQueryBuilder):
             right,
         )
         return self._add_where(condition, "and")
+
+    def where_predicate(
+        self,
+        predicate: _Condition,
+        *,
+        boolean: _Boolean = "and",
+    ) -> QueryBuilder:
+        """Add a prebuilt SQLAlchemy condition to the fluent expression.
+
+        Args:
+            predicate: SQLAlchemy boolean expression authored by trusted code.
+            boolean: Whether to join this condition with AND or OR.
+
+        Returns:
+            This builder for further query composition.
+        """
+        return self._add_where(predicate, boolean)
+
+    def where_raw(
+        self,
+        expression: str,
+        bindings: Mapping[str, object] | None = None,
+    ) -> QueryBuilder:
+        """Add an application-authored SQL predicate with bound values.
+
+        Args:
+            expression: Trusted SQL predicate containing named placeholders.
+            bindings: Values bound independently by SQLAlchemy.
+
+        Returns:
+            This builder for further query composition.
+        """
+        predicate = cast("_Condition", _raw_clause(expression, bindings))
+        return self.where_predicate(predicate)
+
+    def or_where_raw(
+        self,
+        expression: str,
+        bindings: Mapping[str, object] | None = None,
+    ) -> QueryBuilder:
+        """Add a raw predicate joined by SQL OR with bound values.
+
+        Args:
+            expression: Trusted SQL predicate containing named placeholders.
+            bindings: Values bound independently by SQLAlchemy.
+
+        Returns:
+            This builder for further query composition.
+        """
+        predicate = cast("_Condition", _raw_clause(expression, bindings))
+        return self.where_predicate(predicate, boolean="or")
+
+    def where_exists(
+        self,
+        subquery: str | TextClause | QueryBuilder | Select[tuple[object, ...]],
+    ) -> QueryBuilder:
+        """Require an EXISTS subquery authored through a trusted SQL API.
+
+        Args:
+            subquery: Trusted SQL text, a Core Select, or another builder.
+
+        Returns:
+            This builder for further query composition.
+        """
+        return self.where_predicate(
+            _exists_predicate(subquery),
+        )
+
+    def where_not_exists(
+        self,
+        subquery: str | TextClause | QueryBuilder | Select[tuple[object, ...]],
+    ) -> QueryBuilder:
+        """Require an EXISTS subquery to return no rows.
+
+        Args:
+            subquery: Trusted SQL text, a Core Select, or another builder.
+
+        Returns:
+            This builder for further query composition.
+        """
+        return self.where_predicate(
+            not_(_exists_predicate(subquery)),
+        )
+
+    def or_where_exists(
+        self,
+        subquery: str | TextClause | QueryBuilder | Select[tuple[object, ...]],
+    ) -> QueryBuilder:
+        """Add an OR condition for a subquery that returns any rows.
+
+        Args:
+            subquery: Trusted SQL text, a Core Select, or another builder.
+
+        Returns:
+            This builder for further query composition.
+        """
+        return self.where_predicate(
+            _exists_predicate(subquery),
+            boolean="or",
+        )
+
+    def or_where_not_exists(
+        self,
+        subquery: str | TextClause | QueryBuilder | Select[tuple[object, ...]],
+    ) -> QueryBuilder:
+        """Add an OR condition for a subquery that returns no rows.
+
+        Args:
+            subquery: Trusted SQL text, a Core Select, or another builder.
+
+        Returns:
+            This builder for further query composition.
+        """
+        return self.where_predicate(
+            not_(_exists_predicate(subquery)),
+            boolean="or",
+        )
 
     def or_where(
         self,
@@ -782,6 +931,134 @@ class QueryBuilder(DatabaseQueryBuilder):
         """
         return self.offset(count)
 
+    def paginate(
+        self,
+        per_page: int = 15,
+        *,
+        page: int = _FIRST_PAGE,
+    ) -> LengthAwarePaginator[Mapping[str, object]]:
+        """Retrieve a page and the total number of matching rows.
+
+        Args:
+            per_page: Positive maximum page size.
+            page: Positive one-based page number.
+
+        Returns:
+            Page items and total-count navigation metadata.
+        """
+        _validate_page(per_page, page)
+        total = self.count()
+        rows = (
+            self.clone()
+            .limit(per_page)
+            .offset(
+                (page - _FIRST_PAGE) * per_page,
+            )
+            .get()
+        )
+        return LengthAwarePaginator(
+            tuple(rows),
+            total,
+            per_page,
+            page,
+        )
+
+    async def paginate_async(
+        self,
+        per_page: int = 15,
+        *,
+        page: int = _FIRST_PAGE,
+    ) -> LengthAwarePaginator[Mapping[str, object]]:
+        """Asynchronously retrieve a page and total row count.
+
+        Args:
+            per_page: Positive maximum page size.
+            page: Positive one-based page number.
+
+        Returns:
+            Page items and total-count navigation metadata.
+        """
+        _validate_page(per_page, page)
+        total = await self.count_async()
+        rows = (
+            await self.clone()
+            .limit(per_page)
+            .offset(
+                (page - _FIRST_PAGE) * per_page,
+            )
+            .get_async()
+        )
+        return LengthAwarePaginator(
+            tuple(rows),
+            total,
+            per_page,
+            page,
+        )
+
+    def simple_paginate(
+        self,
+        per_page: int = 15,
+        *,
+        page: int = _FIRST_PAGE,
+    ) -> Paginator[Mapping[str, object]]:
+        """Retrieve a page without a total-count query.
+
+        Args:
+            per_page: Positive maximum page size.
+            page: Positive one-based page number.
+
+        Returns:
+            Page items and a bounded next-page indicator.
+        """
+        _validate_page(per_page, page)
+        rows = (
+            self.clone()
+            .limit(per_page + 1)
+            .offset(
+                (page - _FIRST_PAGE) * per_page,
+            )
+            .get()
+        )
+        has_more = len(rows) > per_page
+        return Paginator(
+            tuple(rows[:per_page]),
+            per_page,
+            page,
+            has_more,
+        )
+
+    async def simple_paginate_async(
+        self,
+        per_page: int = 15,
+        *,
+        page: int = _FIRST_PAGE,
+    ) -> Paginator[Mapping[str, object]]:
+        """Asynchronously retrieve a count-free page with one-row lookahead.
+
+        Args:
+            per_page: Positive maximum page size.
+            page: Positive one-based page number.
+
+        Returns:
+            Page items and a bounded next-page indicator.
+        """
+        _validate_page(per_page, page)
+        rows = (
+            await self.clone()
+            .limit(per_page + 1)
+            .offset(
+                (page - _FIRST_PAGE) * per_page,
+            )
+            .get_async()
+        )
+        has_more = len(rows) > per_page
+        return Paginator(
+            tuple(rows[:per_page]),
+            per_page,
+            page,
+            has_more,
+        )
+
     def when(
         self,
         condition: object,
@@ -818,6 +1095,7 @@ class QueryBuilder(DatabaseQueryBuilder):
         cloned._where_groups = [  # noqa: SLF001  # Copy state.
             conditions.copy() for conditions in self._where_groups
         ]
+        cloned._scope_condition = self._scope_condition  # noqa: SLF001
         cloned._having_groups = [  # noqa: SLF001  # Copy state.
             conditions.copy() for conditions in self._having_groups
         ]
@@ -994,9 +1272,10 @@ class QueryBuilder(DatabaseQueryBuilder):
         Returns:
             The database count for the current filters.
         """
-        expression = cast("ColumnElement[object]", func.count())
-        value = self._aggregate(expression)
-        return _integer_count(value)
+        result = self._connection.execute_statement(
+            self._count_statement(),
+        )
+        return _integer_count(_first_value(result.rows))
 
     async def count_async(self) -> int:
         """Count matching rows asynchronously without hydrating them.
@@ -1004,9 +1283,10 @@ class QueryBuilder(DatabaseQueryBuilder):
         Returns:
             The database count for the current filters.
         """
-        expression = cast("ColumnElement[object]", func.count())
-        value = await self._aggregate_async(expression)
-        return _integer_count(value)
+        result = await self._connection.execute_statement_async(
+            self._count_statement(),
+        )
+        return _integer_count(_first_value(result.rows))
 
     def sum(self, column_name: str) -> object | None:
         """Sum one validated column in the database.
@@ -1401,6 +1681,22 @@ class QueryBuilder(DatabaseQueryBuilder):
             statement = statement.where(where)
         return cast("Select[tuple[object]]", statement)
 
+    def _count_statement(self) -> Select[tuple[object]]:
+        """Count rows from a pagination-free subquery.
+
+        Returns:
+            A scalar count statement that preserves joins, groups, and filters.
+        """
+        query = self.clone()
+        query._orders.clear()  # noqa: SLF001  # Remove irrelevant order.
+        query._limit = None  # noqa: SLF001  # Count matching rows.
+        query._offset = None  # noqa: SLF001  # Count matching rows.
+        subquery = query.to_statement().subquery()
+        return cast(
+            "Select[tuple[object]]",
+            select(func.count()).select_from(subquery),
+        )
+
     def _join(
         self,
         table_name: str,
@@ -1581,10 +1877,27 @@ class QueryBuilder(DatabaseQueryBuilder):
             The equivalent parenthesized boolean expression.
         """
         selected = self._where_groups if groups is None else groups
-        if not selected:
-            return None
-        conjunctions = [_conjunction(group) for group in selected]
-        return or_(*conjunctions)
+        user_condition = (
+            None
+            if not selected
+            else or_(*[_conjunction(group) for group in selected])
+        )
+        if groups is None and self._scope_condition is not None:
+            if user_condition is None:
+                return self._scope_condition
+            return and_(self._scope_condition, user_condition)
+        return user_condition
+
+    def set_scope_condition(
+        self,
+        condition: _Condition | None,
+    ) -> None:
+        """Set a global condition for reads and set-based mutations.
+
+        Args:
+            condition: SQLAlchemy predicate or ``None`` to remove the scope.
+        """
+        self._scope_condition = condition
 
 
 def _make_table(name: str) -> tuple[TableClause, str]:
@@ -1724,6 +2037,66 @@ def _integer_count(value: object | None) -> int:
         return value
     msg = "The database returned an invalid count value."
     raise DatabaseQueryError(msg)
+
+
+def _validate_page(per_page: int, page: int) -> None:
+    """Require positive page size and one-based page numbering.
+
+    Args:
+        per_page: Requested maximum number of items.
+        page: Requested one-based page number.
+
+    Raises:
+        ValueError: If either value is not a positive integer.
+    """
+    if type(per_page) is not int or per_page < _MINIMUM_PAGE_SIZE:
+        msg = "Page size must be a positive integer."
+        raise ValueError(msg)
+    if type(page) is not int or page < _FIRST_PAGE:
+        msg = "Page number must be a positive integer."
+        raise ValueError(msg)
+
+
+def _raw_clause(
+    expression: str,
+    bindings: Mapping[str, object] | None,
+) -> TextClause:
+    """Build a trusted SQL expression with explicit bound values.
+
+    Args:
+        expression: Application-authored SQL text.
+        bindings: Optional named values for SQLAlchemy placeholders.
+
+    Returns:
+        A SQLAlchemy text clause with values bound separately.
+    """
+    clause = text(expression)
+    return clause if not bindings else clause.bindparams(**dict(bindings))
+
+
+def _exists_predicate(
+    subquery: str | TextClause | QueryBuilder | Select[tuple[object, ...]],
+) -> _Condition:
+    """Build an EXISTS condition from a trusted SQLAlchemy query input.
+
+    Args:
+        subquery: Trusted SQL text, a QueryBuilder, or a Core Select.
+
+    Returns:
+        A SQLAlchemy boolean condition for the EXISTS expression.
+    """
+    if isinstance(subquery, QueryBuilder):
+        return cast("_Condition", sql_exists(subquery.to_statement()))
+    if isinstance(subquery, str):
+        text_subquery = text(subquery)
+    elif isinstance(subquery, TextClause):
+        text_subquery = subquery
+    else:
+        return cast("_Condition", sql_exists(subquery))
+
+    selectable = text_subquery.columns().subquery()
+    statement = select(1).select_from(selectable)
+    return cast("_Condition", sql_exists(statement))
 
 
 __all__ = ["QueryBuilder"]
