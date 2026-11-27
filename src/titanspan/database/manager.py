@@ -24,6 +24,7 @@ from typing import TYPE_CHECKING, Literal, NoReturn, Protocol, cast
 
 import anyio
 from sqlalchemy import create_engine, event, text
+from sqlalchemy.engine import CursorResult, Result
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import (
     AsyncSession,
@@ -60,11 +61,7 @@ if TYPE_CHECKING:
     )
     from contextvars import Token
 
-    from sqlalchemy.engine import (
-        URL,
-        CursorResult,
-        Engine,
-    )
+    from sqlalchemy.engine import URL, Engine
     from sqlalchemy.engine import (
         Connection as SQLAlchemyConnection,
     )
@@ -998,7 +995,7 @@ class DatabaseManager:
         try:
             with self._session_sync(name) as session:
                 result = cast(
-                    "CursorResult[object]",
+                    "Result[object]",
                     session.execute(text(sql), dict(parameters or {})),
                 )
                 return _detach_result(result)
@@ -1026,7 +1023,7 @@ class DatabaseManager:
         try:
             async with self._session_async(name) as session:
                 result = cast(
-                    "CursorResult[object]",
+                    "Result[object]",
                     await session.execute(
                         text(sql),
                         dict(parameters or {}),
@@ -1057,7 +1054,7 @@ class DatabaseManager:
         try:
             with self._session_sync(name) as session:
                 result = cast(
-                    "CursorResult[object]",
+                    "Result[object]",
                     session.execute(statement, dict(parameters or {})),
                 )
                 return _detach_result(result)
@@ -1085,7 +1082,7 @@ class DatabaseManager:
         try:
             async with self._session_async(name) as session:
                 result = cast(
-                    "CursorResult[object]",
+                    "Result[object]",
                     await session.execute(
                         statement,
                         dict(parameters or {}),
@@ -2082,7 +2079,7 @@ def _combine_failures(
     return BaseExceptionGroup(message, [previous, current])
 
 
-def _detach_result(result: CursorResult[object]) -> DatabaseResult:
+def _detach_result(result: Result[object]) -> DatabaseResult:
     """Copy result rows and metadata before the session scope closes.
 
     Args:
@@ -2092,14 +2089,25 @@ def _detach_result(result: CursorResult[object]) -> DatabaseResult:
         A backend-independent value with no live cursor references.
     """
     try:
-        rows = (
-            tuple(
+        # ORM execution returns ChunkedIteratorResult, which deliberately has
+        # no cursor-specific rowcount or returns_rows attributes. Only the
+        # CursorResult contract can authoritatively report those values.
+        if isinstance(result, CursorResult):
+            rows = (
+                tuple(
+                    MappingProxyType(dict(row))
+                    for row in result.mappings().all()
+                )
+                if result.returns_rows
+                else ()
+            )
+            rowcount = result.rowcount
+        else:
+            rows = tuple(
                 MappingProxyType(dict(row)) for row in result.mappings().all()
             )
-            if result.returns_rows
-            else ()
-        )
-        return DatabaseResult(rows=rows, rowcount=result.rowcount)
+            rowcount = -1
+        return DatabaseResult(rows=rows, rowcount=rowcount)
     finally:
         result.close()
 

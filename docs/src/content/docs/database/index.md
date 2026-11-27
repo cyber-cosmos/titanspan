@@ -366,6 +366,47 @@ conditions, ordering, eager loading, aggregates, pagination, and bulk
 mutations. Simple and length-aware pagination are implemented; cursor
 pagination is not.
 
+Apply a typed local transformation with `apply()`. Named global predicate
+factories are applied to root queries, relationship existence checks, and
+eager-loaded related models:
+
+```python
+from collections.abc import Callable, Mapping
+from typing import ClassVar
+
+from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy.sql.elements import ColumnElement
+
+from titanspan.database import Model, ModelQueryBuilder
+
+
+class PublishedPost(Model):
+    """Represent a post filtered to published rows by default."""
+
+    table = "posts"
+    title: Mapped[str] = mapped_column()
+    published: Mapped[bool] = mapped_column()
+    global_scopes: ClassVar[
+        Mapping[str, Callable[[], ColumnElement[bool]]]
+    ] = {"published": lambda: PublishedPost.published.is_(True)}
+
+
+def _named_posts(
+    query: ModelQueryBuilder[PublishedPost],
+) -> ModelQueryBuilder[PublishedPost]:
+    """Restrict posts to rows with a title."""
+    return query.where_not_null("title")
+
+
+posts = PublishedPost.query().apply(_named_posts).get()
+all_posts = PublishedPost.query().without_global_scope("published").get()
+```
+
+Call `without_global_scopes()` to remove all named predicates from one query.
+Each query owns its scope selection. Raw `DB.table()` queries intentionally
+bypass model scopes. Scope factories are trusted application code and must
+return SQLAlchemy boolean expressions.
+
 Use model-level `upsert()` for bulk conflict handling while preserving the
 model's assignment policy and timestamp conventions:
 
@@ -581,8 +622,8 @@ model operations, safe conversion, and batch relationship loading. Ordinary
 collection behavior remains owned by `titanspan.collections`.
 
 Through and polymorphic relationships, relationship persistence helpers,
-relationship aggregates, global and local scopes, broad custom cast and
-accessor APIs, and API resources are not implemented yet.
+relationship aggregates, broad custom cast and accessor APIs, and API
+resources are not implemented yet.
 
 ## Schema and migrations
 

@@ -92,6 +92,7 @@ from titanspan.facades.event import Event
 
 if TYPE_CHECKING:
     from sqlalchemy.orm import InstanceState, Mapper
+    from sqlalchemy.sql.elements import ColumnElement
     from sqlalchemy.sql.schema import Column, Table
 
     from titanspan.contracts.database import DatabaseService
@@ -266,6 +267,9 @@ class Model(DeclarativeBase):
     hidden: ClassVar[tuple[str, ...]] = ()
     visible: ClassVar[tuple[str, ...]] = ()
     appends: ClassVar[tuple[str, ...]] = ()
+    global_scopes: ClassVar[Mapping[str, Callable[[], ColumnElement[bool]]]] = (
+        MappingProxyType({})
+    )
     factory_attributes: ClassVar[Mapping[str, object]] = MappingProxyType({})
     strict_mass_assignment: ClassVar[bool] = False
     timestamps: ClassVar[bool] = True

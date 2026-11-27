@@ -87,6 +87,9 @@ public release.
 - Add model-scoped `without_events()` contexts for quiet sync and async
   persistence. Suppression is bound to its task or thread and application
   scope, and remains attached to after-commit callbacks.
+- Apply named model global predicates to root queries, relationship existence
+  checks, and eager-loaded related models. Add reusable typed query
+  transformations and per-query global-scope removal.
 - Add dialect-aware right and full outer joins to the native Query Builder.
   Right joins use SQLAlchemy left-join expressions with the sides reversed.
   Full outer joins use backend support on PostgreSQL and SQLite 3.39 or later.

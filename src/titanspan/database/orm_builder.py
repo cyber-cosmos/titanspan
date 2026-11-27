@@ -6,6 +6,7 @@ the source of identifiers, predicates, joins, ordering, and SQL statements.
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from copy import copy
 from datetime import UTC, datetime
 from typing import TYPE_CHECKING, NoReturn, Self, cast
@@ -18,6 +19,7 @@ from sqlalchemy.orm import (
     selectinload,
     with_loader_criteria,
 )
+from sqlalchemy.sql.elements import ColumnElement
 
 from titanspan.database.exceptions import (
     DatabaseQueryError,
@@ -30,13 +32,12 @@ from titanspan.database.pagination import LengthAwarePaginator, Paginator
 from titanspan.database.query_builder import QueryBuilder
 
 if TYPE_CHECKING:
-    from collections.abc import Callable, Mapping, Sequence
+    from collections.abc import Callable, Sequence
 
     from sqlalchemy.engine import ScalarResult
     from sqlalchemy.orm import Mapper, QueryableAttribute, RelationshipProperty
     from sqlalchemy.orm.strategy_options import Load
     from sqlalchemy.sql.base import ExecutableOption
-    from sqlalchemy.sql.elements import ColumnElement
     from sqlalchemy.sql.schema import Table
     from sqlalchemy.sql.selectable import Select, TableClause
 
@@ -47,6 +48,9 @@ _NO_MODELS_FOUND = "The query did not match a model."
 _MULTIPLE_MODELS_FOUND = "The query matched more than one model."
 _FIRST_PAGE = 1
 _MINIMUM_PAGE_SIZE = 1
+_INVALID_GLOBAL_SCOPES_ERROR = (
+    "Global model scopes must be named SQLAlchemy predicate factories."
+)
 
 
 class ModelQueryBuilder[ModelT]:
@@ -82,6 +86,7 @@ class ModelQueryBuilder[ModelT]:
             table_clause=cast("TableClause", table),
         )
         self._soft_delete_column: str | None = None
+        self._soft_delete_condition: ColumnElement[bool] | None = None
         if getattr(model, "__soft_delete_enabled__", False):
             column_name = getattr(model, "deleted_at_name", "deleted_at")
             if not isinstance(column_name, str) or not _is_mapped_column(
@@ -91,12 +96,26 @@ class ModelQueryBuilder[ModelT]:
                 msg = "The soft-delete field must be a mapped model column."
                 raise DatabaseQueryError(msg)
             self._soft_delete_column = column_name
-            self._query.set_scope_condition(
-                cast("ColumnElement[bool]", table.c[column_name].is_(None)),
+            self._soft_delete_condition = cast(
+                "ColumnElement[bool]",
+                table.c[column_name].is_(None),
             )
+        self._global_scope_conditions = _resolve_global_scopes(model)
+        self._apply_scope_conditions()
         self._eager_paths: list[str] = []
         self._prevent_lazy = False
         self._selected_columns: tuple[str, ...] = ()
+
+    def apply(self, scope: Callable[[Self], Self]) -> Self:
+        """Apply a reusable typed local query transformation.
+
+        Args:
+            scope: Function that mutates or returns a model query builder.
+
+        Returns:
+            The builder returned by the local scope function.
+        """
+        return scope(self)
 
     def where(
         self,
@@ -696,7 +715,8 @@ class ModelQueryBuilder[ModelT]:
             This builder with its default deletion condition removed.
         """
         if self._soft_delete_column is not None:
-            self._query.set_scope_condition(None)
+            self._soft_delete_condition = None
+            self._apply_scope_conditions()
         return self
 
     def without_trashed(self) -> Self:
@@ -706,12 +726,11 @@ class ModelQueryBuilder[ModelT]:
             This builder with the active-row condition applied.
         """
         if self._soft_delete_column is not None:
-            self._query.set_scope_condition(
-                cast(
-                    "ColumnElement[bool]",
-                    self._table.c[self._soft_delete_column].is_(None),
-                ),
+            self._soft_delete_condition = cast(
+                "ColumnElement[bool]",
+                self._table.c[self._soft_delete_column].is_(None),
             )
+            self._apply_scope_conditions()
         return self
 
     def only_trashed(self) -> Self:
@@ -721,12 +740,34 @@ class ModelQueryBuilder[ModelT]:
             This builder with the deleted-row condition applied.
         """
         if self._soft_delete_column is not None:
-            self._query.set_scope_condition(
-                cast(
-                    "ColumnElement[bool]",
-                    self._table.c[self._soft_delete_column].is_not(None),
-                ),
+            self._soft_delete_condition = cast(
+                "ColumnElement[bool]",
+                self._table.c[self._soft_delete_column].is_not(None),
             )
+            self._apply_scope_conditions()
+        return self
+
+    def without_global_scope(self, name: str) -> Self:
+        """Remove one named class-level predicate from this query.
+
+        Args:
+            name: Declared global scope key to remove.
+
+        Returns:
+            This builder with the selected global scope omitted.
+        """
+        self._global_scope_conditions.pop(name, None)
+        self._apply_scope_conditions()
+        return self
+
+    def without_global_scopes(self) -> Self:
+        """Remove every class-level predicate from this query.
+
+        Returns:
+            This builder with all global scopes omitted.
+        """
+        self._global_scope_conditions.clear()
+        self._apply_scope_conditions()
         return self
 
     def restore(self) -> int:
@@ -777,7 +818,26 @@ class ModelQueryBuilder[ModelT]:
         cloned._query = self._query.clone()  # noqa: SLF001  # Copy query.
         cloned._eager_paths = self._eager_paths.copy()  # noqa: SLF001
         cloned._selected_columns = self._selected_columns  # noqa: SLF001
+        cloned._global_scope_conditions = (  # noqa: SLF001
+            self._global_scope_conditions.copy()
+        )
         return cloned
+
+    def _apply_scope_conditions(self) -> None:
+        """Combine soft-delete and named global predicates on the Core query.
+
+        Keeping framework scopes in the Query Builder's separate scope slot
+        preserves user condition grouping and bulk mutation behavior.
+        """
+        conditions = list(self._global_scope_conditions.values())
+        if self._soft_delete_condition is not None:
+            conditions.insert(0, self._soft_delete_condition)
+        if not conditions:
+            self._query.set_scope_condition(None)
+        elif len(conditions) == 1:
+            self._query.set_scope_condition(conditions[0])
+        else:
+            self._query.set_scope_condition(and_(*conditions))
 
     def to_statement(self) -> Select[tuple[ModelT]]:
         """Build the ORM Select statement for the configured model query.
@@ -802,7 +862,7 @@ class ModelQueryBuilder[ModelT]:
         options.extend(self._loader_option(path) for path in self._eager_paths)
         if self._prevent_lazy:
             options.append(raiseload("*"))
-        options.extend(_soft_delete_loader_options(self._model))
+        options.extend(_relationship_loader_criteria(self._model))
         return statement.options(*options)
 
     def get(self) -> ModelCollection[ModelT]:
@@ -1328,6 +1388,12 @@ class ModelQueryBuilder[ModelT]:
                     predicate = (
                         scope if predicate is None else and_(scope, predicate)
                     )
+                for scope in _resolve_global_scopes(
+                    intermediate_type,
+                ).values():
+                    predicate = (
+                        scope if predicate is None else and_(scope, predicate)
+                    )
             attribute = cast(
                 "QueryableAttribute[object]",
                 getattr(parent, relationship.key),
@@ -1377,6 +1443,11 @@ class ModelQueryBuilder[ModelT]:
                         "QueryableAttribute[object]",
                         attribute.and_(scope),
                     )
+                for scope in _resolve_global_scopes(target).values():
+                    attribute = cast(
+                        "QueryableAttribute[object]",
+                        attribute.and_(scope),
+                    )
             option = (
                 selectinload(attribute)
                 if option is None
@@ -1388,10 +1459,10 @@ class ModelQueryBuilder[ModelT]:
         return option
 
 
-def _soft_delete_loader_options(
+def _relationship_loader_criteria(
     model: type[object],
 ) -> tuple[ExecutableOption, ...]:
-    """Build loader-only criteria for soft-deletable relation targets.
+    """Build loader-only criteria for scoped relationship targets.
 
     SQLAlchemy propagates these options into eager and subsequent lazy
     relationship loads. ``loader_only`` keeps root visibility controlled by
@@ -1401,7 +1472,7 @@ def _soft_delete_loader_options(
         model: Root model whose mapped relationship graph will be inspected.
 
     Returns:
-        Criteria options for each reachable soft-deletable mapped class.
+        Criteria options for reachable soft-delete and global scopes.
     """
     selected: list[ExecutableOption] = []
     visited: set[type[object]] = set()
@@ -1412,11 +1483,7 @@ def _soft_delete_loader_options(
             continue
         visited.add(current)
         mapper = _mapper(current)
-        if current is not model and getattr(
-            current,
-            "__soft_delete_enabled__",
-            False,
-        ):
+        if current is not model:
             condition = _soft_delete_condition(current)
             if condition is not None:
                 selected.append(
@@ -1427,10 +1494,49 @@ def _soft_delete_loader_options(
                         include_aliases=True,
                     ),
                 )
+            selected.extend(
+                with_loader_criteria(
+                    current,
+                    condition,
+                    loader_only=True,
+                    include_aliases=True,
+                )
+                for condition in _resolve_global_scopes(current).values()
+            )
         pending.extend(
             relationship.mapper.class_ for relationship in mapper.relationships
         )
     return tuple(selected)
+
+
+def _resolve_global_scopes[ModelT](
+    model: type[ModelT],
+) -> dict[str, ColumnElement[bool]]:
+    """Evaluate trusted model scope factories into SQLAlchemy predicates.
+
+    Args:
+        model: Mapped class whose global scopes are being evaluated.
+
+    Returns:
+        Named SQLAlchemy predicates used by root and relationship queries.
+
+    Raises:
+        DatabaseQueryError: If a declared scope is not a named predicate
+            factory or does not return a SQLAlchemy column expression.
+    """
+    declared = getattr(model, "global_scopes", {})
+    if not isinstance(declared, Mapping):
+        raise DatabaseQueryError(_INVALID_GLOBAL_SCOPES_ERROR)
+    scope_factories = cast("Mapping[object, object]", declared)
+    resolved: dict[str, ColumnElement[bool]] = {}
+    for name, factory in scope_factories.items():
+        if not isinstance(name, str) or not name or not callable(factory):
+            raise DatabaseQueryError(_INVALID_GLOBAL_SCOPES_ERROR)
+        condition = factory()
+        if not isinstance(condition, ColumnElement):
+            raise DatabaseQueryError(_INVALID_GLOBAL_SCOPES_ERROR)
+        resolved[name] = cast("ColumnElement[bool]", condition)
+    return resolved
 
 
 def _soft_delete_condition(
