@@ -95,6 +95,8 @@ public release.
   SQLAlchemy tuple expressions on SQLite, PostgreSQL, and MySQL dialects.
 - Add right, full outer, and cross joins for fluent subqueries through SQLAlchemy
   Core, with the same dialect limits as their table join counterparts.
+- Add typed join_with clauses for nested column and bound-value ON conditions
+  while preserving left, right, and full join semantics.
 - Declare Pydantic as a direct runtime dependency for native schema APIs.
 - Add native application Cache services with memory and optional Redis
   backends, explicit backend capabilities, safe JSON serialization, atomic

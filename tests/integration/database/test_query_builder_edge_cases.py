@@ -459,6 +459,73 @@ async def test_outer_and_cross_joins_accept_subqueries(
         assert cross_count == _CROSS_JOIN_ROWS
 
 
+async def test_join_clause_supports_bound_nested_on_conditions(
+    application: Application,
+) -> None:
+    """Keep value filters in ON so left joins retain unmatched parents.
+
+    Args:
+        application: Application configured by this test.
+    """
+    async with application:
+        await DB.statement_async(
+            "CREATE TABLE clause_users ("
+            "id INTEGER PRIMARY KEY, name TEXT NOT NULL)"
+        )
+        await DB.statement_async(
+            "CREATE TABLE clause_posts ("
+            "id INTEGER PRIMARY KEY, user_id INTEGER, title TEXT NOT NULL)"
+        )
+        await DB.table("clause_users").insert_many_async(
+            [
+                {"id": 1, "name": "Ada"},
+                {"id": 2, "name": "Grace"},
+                {"id": 3, "name": "Linus"},
+            ],
+        )
+        await DB.table("clause_posts").insert_many_async(
+            [
+                {"id": 1, "user_id": 1, "title": "public"},
+                {"id": 2, "user_id": 1, "title": "private"},
+                {"id": 3, "user_id": 2, "title": "private"},
+            ],
+        )
+
+        rows = await (
+            DB.table("clause_users")
+            .join_with(
+                "clause_posts",
+                lambda join: (
+                    join.on(
+                        "clause_users.id",
+                        "=",
+                        "clause_posts.user_id",
+                    ).where_group(
+                        lambda nested: nested.where(
+                            "clause_posts.title",
+                            "public",
+                        ).or_where("clause_posts.user_id", 2),
+                    )
+                ),
+                join_type="left",
+            )
+            .select("clause_users.name", "clause_posts.title")
+            .order_by("clause_users.id")
+            .get_async()
+        )
+
+        assert rows == [
+            {"name": "Ada", "title": "public"},
+            {"name": "Grace", "title": "private"},
+            {"name": "Linus", "title": None},
+        ]
+        with pytest.raises(DatabaseQueryError, match="at least one ON"):
+            DB.table("clause_users").join_with(
+                "clause_posts",
+                lambda _join: None,
+            )
+
+
 async def test_date_and_time_predicates_use_database_expressions(
     application: Application,
 ) -> None:

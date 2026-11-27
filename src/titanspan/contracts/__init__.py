@@ -44,6 +44,7 @@ from titanspan.contracts.container import (
 )
 from titanspan.contracts.database import (
     DatabaseConnectionService,
+    DatabaseJoinClause,
     DatabaseQueryBuilder,
     DatabaseResult,
     DatabaseService,
@@ -173,6 +174,7 @@ __all__ = [
     "ConsoleOutput",
     "ControllerAction",
     "DatabaseConnectionService",
+    "DatabaseJoinClause",
     "DatabaseQueryBuilder",
     "DatabaseResult",
     "DatabaseService",

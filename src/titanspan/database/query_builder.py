@@ -73,7 +73,10 @@ from sqlalchemy.sql import operators
 from sqlalchemy.sql.elements import ColumnElement, TextClause
 from sqlalchemy.sql.selectable import TableClause
 
-from titanspan.contracts.database import DatabaseQueryBuilder
+from titanspan.contracts.database import (
+    DatabaseJoinClause,
+    DatabaseQueryBuilder,
+)
 from titanspan.database.exceptions import (
     DatabaseQueryError,
     DatabaseTransactionError,
@@ -108,6 +111,11 @@ type _Projection = ColumnElement[object] | TextClause
 type _Boolean = Literal["and", "or"]
 type _LockMode = Literal["update", "share"]
 type _JoinType = Literal["inner", "left", "right", "full"]
+type _ColumnResolver = Callable[[str], ColumnElement[object]]
+type _ColumnComparator = Callable[
+    [ColumnElement[object], str, object],
+    _Condition,
+]
 type _CursorDirection = Literal["after", "before"]
 type _CursorOrder = tuple[str, bool]
 type _CursorScalar = (
@@ -1226,6 +1234,63 @@ class QueryBuilder(DatabaseQueryBuilder):
             right,
             join_type="left",
         )
+
+    def join_with(
+        self,
+        table_name: str,
+        callback: Callable[[DatabaseJoinClause], object],
+        *,
+        join_type: _JoinType = "inner",
+    ) -> QueryBuilder:
+        """Join a table with validated column and value ON conditions.
+
+        Args:
+            table_name: Safe joined table identifier.
+            callback: Synchronous function that defines join conditions.
+            join_type: Inner, left, right, or full join behavior.
+
+        Returns:
+            This builder for further query composition.
+
+        Raises:
+            DatabaseQueryError: If the condition, join type, or dialect is
+                unsupported.
+        """
+        if join_type not in {"inner", "left", "right", "full"}:
+            msg = "The requested join type is unsupported."
+            raise DatabaseQueryError(msg)
+        dialect = self._connection.dialect_name
+        if join_type == "right" and dialect not in {
+            "mysql",
+            "postgresql",
+            "sqlite",
+        }:
+            msg = "Right outer joins are unsupported by this dialect."
+            raise DatabaseQueryError(msg)
+        if join_type == "full" and dialect not in {"postgresql", "sqlite"}:
+            msg = "Full outer joins are unsupported by this dialect."
+            raise DatabaseQueryError(msg)
+
+        target = self._ensure_table(table_name)
+        clause = _JoinClause(self._column, self._compare)
+        callback(clause)
+        condition = clause.expression()
+        if join_type == "right":
+            self._from = target.join(self._from, condition, isouter=True)
+        elif join_type == "full":
+            self._from = self._from.join(
+                target,
+                condition,
+                isouter=True,
+                full=True,
+            )
+        else:
+            self._from = self._from.join(
+                target,
+                condition,
+                isouter=join_type == "left",
+            )
+        return self
 
     def right_join(
         self,
@@ -4697,10 +4762,7 @@ class QueryBuilder(DatabaseQueryBuilder):
             condition: SQLAlchemy boolean expression to add.
             boolean: Connector selected by the caller.
         """
-        if not groups or boolean == "or":
-            groups.append([condition])
-        else:
-            groups[-1].append(condition)
+        _append_boolean_group(groups, condition, boolean)
 
     def _where_expression(
         self,
@@ -4736,6 +4798,152 @@ class QueryBuilder(DatabaseQueryBuilder):
             condition: SQLAlchemy predicate or ``None`` to remove the scope.
         """
         self._scope_condition = condition
+
+
+class _JoinClause(DatabaseJoinClause):
+    """Build parameterized and parenthesized conditions for one join.
+    """  # fmt: skip
+
+    def __init__(
+        self,
+        column_resolver: _ColumnResolver,
+        compare: _ColumnComparator,
+    ) -> None:
+        """Bind condition construction to the query's validated identifiers.
+
+        Args:
+            column_resolver: Query-owned validated column lookup.
+            compare: Query-owned operator validation and expression builder.
+        """
+        self._column = column_resolver
+        self._compare = compare
+        self._groups: list[list[_Condition]] = []
+
+    def on(
+        self,
+        left: str,
+        operator: str,
+        right: str,
+        *,
+        boolean: _Boolean = "and",
+    ) -> _JoinClause:
+        """Add a column-to-column condition to the ON clause.
+
+        Args:
+            left: Safe left column reference.
+            operator: Supported comparison operator.
+            right: Safe right column reference.
+            boolean: Connector to the preceding condition.
+
+        Returns:
+            This clause for further condition composition.
+        """
+        condition = self._compare(
+            self._column(left),
+            operator,
+            self._column(right),
+        )
+        return self._append(condition, boolean)
+
+    def where(
+        self,
+        column_name: str,
+        operator_or_value: object,
+        value: object = _MISSING,
+        *,
+        boolean: _Boolean = "and",
+    ) -> _JoinClause:
+        """Add a column-to-value comparison inside the ON clause.
+
+        Args:
+            column_name: Safe column reference from the join.
+            operator_or_value: Equality value or explicit comparison operator.
+            value: Comparison value when an operator is supplied.
+            boolean: Connector to the preceding condition.
+
+        Returns:
+            This clause for further condition composition.
+        """
+        operator, right = _comparison_arguments(operator_or_value, value)
+        condition = self._compare(
+            self._column(column_name),
+            operator,
+            right,
+        )
+        return self._append(condition, boolean)
+
+    def or_where(
+        self,
+        column_name: str,
+        operator_or_value: object,
+        value: object = _MISSING,
+    ) -> _JoinClause:
+        """Add a column-to-value comparison joined through SQL OR.
+
+        Args:
+            column_name: Safe column reference from the join.
+            operator_or_value: Equality value or explicit comparison operator.
+            value: Comparison value when an operator is supplied.
+
+        Returns:
+            This clause for further condition composition.
+        """
+        return self.where(
+            column_name,
+            operator_or_value,
+            value,
+            boolean="or",
+        )
+
+    def where_group(
+        self,
+        callback: Callable[[DatabaseJoinClause], object],
+        *,
+        boolean: _Boolean = "and",
+    ) -> _JoinClause:
+        """Add a parenthesized group to the ON clause.
+
+        Args:
+            callback: Synchronous function that adds nested conditions.
+            boolean: Connector to the preceding condition.
+
+        Returns:
+            This clause for further condition composition.
+        """
+        nested = _JoinClause(self._column, self._compare)
+        callback(nested)
+        return self._append(nested.expression(), boolean)
+
+    def _append(
+        self,
+        condition: _Condition,
+        boolean: _Boolean,
+    ) -> _JoinClause:
+        """Append one condition with explicit boolean grouping.
+
+        Args:
+            condition: SQLAlchemy boolean condition.
+            boolean: Connector to the preceding condition.
+
+        Returns:
+            This clause for further condition composition.
+        """
+        _append_boolean_group(self._groups, condition, boolean)
+        return self
+
+    def expression(self) -> _Condition:
+        """Combine the join conditions while preserving AND precedence.
+
+        Returns:
+            One SQLAlchemy expression for the complete ON clause.
+
+        Raises:
+            DatabaseQueryError: If the join has no conditions.
+        """
+        if not self._groups:
+            msg = "A composed join requires at least one ON condition."
+            raise DatabaseQueryError(msg)
+        return or_(*[_conjunction(group) for group in self._groups])
 
 
 def _make_table(name: str) -> tuple[TableClause, str]:
@@ -4825,6 +5033,24 @@ def _conjunction(conditions: Sequence[_Condition]) -> _Condition:
     if len(conditions) == 1:
         return conditions[0]
     return and_(*conditions)
+
+
+def _append_boolean_group(
+    groups: list[list[_Condition]],
+    condition: _Condition,
+    boolean: _Boolean,
+) -> None:
+    """Append one AND term or begin a new OR group.
+
+    Args:
+        groups: Ordered boolean groups owned by a query or join clause.
+        condition: SQLAlchemy boolean expression to add.
+        boolean: Connector selected by the caller.
+    """
+    if not groups or boolean == "or":
+        groups.append([condition])
+    else:
+        groups[-1].append(condition)
 
 
 def _json_path_parts(path: str) -> tuple[str, ...]:

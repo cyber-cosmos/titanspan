@@ -14,12 +14,16 @@ from titanspan.contracts.database.pagination import (
     LengthAwarePage,
     SimplePage,
 )
-from titanspan.contracts.database.query import DatabaseQueryBuilder
+from titanspan.contracts.database.query import (
+    DatabaseJoinClause,
+    DatabaseQueryBuilder,
+)
 from titanspan.contracts.database.result import DatabaseResult
 
 __all__ = [
     "CursorPage",
     "DatabaseConnectionService",
+    "DatabaseJoinClause",
     "DatabaseQueryBuilder",
     "DatabaseResult",
     "DatabaseService",

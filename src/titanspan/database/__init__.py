@@ -8,6 +8,7 @@ configuration, connection selection, sessions, and transaction conventions.
 from titanspan.contracts.database import (
     CursorPage,
     DatabaseConnectionService,
+    DatabaseJoinClause,
     DatabaseQueryBuilder,
     DatabaseResult,
     DatabaseService,
@@ -113,6 +114,7 @@ __all__ = [
     "DatabaseConnectionService",
     "DatabaseError",
     "DatabaseFactoryError",
+    "DatabaseJoinClause",
     "DatabaseManager",
     "DatabaseMigrationError",
     "DatabaseQueryBuilder",

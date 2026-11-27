@@ -3,7 +3,14 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Protocol, Self, overload, runtime_checkable
+from typing import (
+    TYPE_CHECKING,
+    Literal,
+    Protocol,
+    Self,
+    overload,
+    runtime_checkable,
+)
 
 if TYPE_CHECKING:
     from collections.abc import (
@@ -22,6 +29,89 @@ if TYPE_CHECKING:
         LengthAwarePage,
         SimplePage,
     )
+
+
+@runtime_checkable
+class DatabaseJoinClause(Protocol):
+    """Describe safe ON-clause comparisons for fluent joins.
+    """  # fmt: skip
+
+    def on(
+        self,
+        left: str,
+        operator: str,
+        right: str,
+        *,
+        boolean: Literal["and", "or"] = "and",
+    ) -> Self:
+        """Compare two columns inside a join condition.
+
+        Args:
+            left: Safe left column reference.
+            operator: Supported comparison operator.
+            right: Safe right column reference.
+            boolean: Connector to the preceding clause condition.
+
+        Returns:
+            This clause for further condition composition.
+        """
+        ...
+
+    def where(
+        self,
+        column_name: str,
+        operator_or_value: object,
+        value: object = ...,
+        *,
+        boolean: Literal["and", "or"] = "and",
+    ) -> Self:
+        """Compare a join column with a bound value.
+
+        Args:
+            column_name: Safe column reference from the join.
+            operator_or_value: Equality value or comparison operator.
+            value: Comparison value when an operator is supplied.
+            boolean: Connector to the preceding clause condition.
+
+        Returns:
+            This clause for further condition composition.
+        """
+        ...
+
+    def or_where(
+        self,
+        column_name: str,
+        operator_or_value: object,
+        value: object = ...,
+    ) -> Self:
+        """Compare a join column with a value using SQL OR.
+
+        Args:
+            column_name: Safe column reference from the join.
+            operator_or_value: Equality value or comparison operator.
+            value: Comparison value when an operator is supplied.
+
+        Returns:
+            This clause for further condition composition.
+        """
+        ...
+
+    def where_group(
+        self,
+        callback: Callable[[DatabaseJoinClause], object],
+        *,
+        boolean: Literal["and", "or"] = "and",
+    ) -> Self:
+        """Add parenthesized join conditions built by a callback.
+
+        Args:
+            callback: Synchronous function that adds grouped conditions.
+            boolean: Connector to the preceding clause condition.
+
+        Returns:
+            This clause for further condition composition.
+        """
+        ...
 
 
 @runtime_checkable
@@ -743,6 +833,25 @@ class DatabaseQueryBuilder(Protocol):
             left: Left column reference.
             operator_or_right: Right column or comparison operator.
             right: Optional right column when an operator is supplied.
+
+        Returns:
+            This builder for further query composition.
+        """
+        ...
+
+    def join_with(
+        self,
+        table_name: str,
+        callback: Callable[[DatabaseJoinClause], object],
+        *,
+        join_type: Literal["inner", "left", "right", "full"] = "inner",
+    ) -> Self:
+        """Join a table using a composed ON condition.
+
+        Args:
+            table_name: Safe joined table name.
+            callback: Synchronous function that defines the ON conditions.
+            join_type: Supported join preservation behavior.
 
         Returns:
             This builder for further query composition.
