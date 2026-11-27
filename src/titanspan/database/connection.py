@@ -6,6 +6,7 @@ the current Unit of Work or opens a short-lived session through its manager.
 
 from __future__ import annotations
 
+from copy import copy
 from typing import TYPE_CHECKING, cast
 
 from titanspan.contracts.database import (
@@ -121,17 +122,26 @@ class Connection(DatabaseConnectionService):
     def compile_statement(
         self,
         statement: ClauseElement,
+        *,
+        named_parameters: bool = False,
     ) -> tuple[str, Mapping[str, object]]:
         """Compile a statement without opening a database connection.
 
         Args:
             statement: SQLAlchemy Core or ORM statement.
+            named_parameters: Use named placeholders for safe SQL wrappers.
 
         Returns:
             SQL placeholders and a separate copy of bound values.
         """
+        dialect = self._manager.engine(self._name).dialect
+        if named_parameters:
+            dialect = copy(dialect)
+            dialect.paramstyle = "named"
+            dialect.positional = False
         compiled = statement.compile(
-            dialect=self._manager.engine(self._name).dialect,
+            dialect=dialect,
+            compile_kwargs={"render_postcompile": True},
         )
         # SQLAlchemy's compiler overload types bind names as bytes here, while
         # runtime named parameter mappings use string keys.

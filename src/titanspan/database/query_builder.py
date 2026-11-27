@@ -166,6 +166,12 @@ _MAXIMUM_CURSOR_LENGTH = 4096
 _MAXIMUM_JSON_PATH_LENGTH = 512
 _REDACTED_QUERY_BINDING = "<redacted>"
 _CURSOR_PAIR_LENGTH = 2
+_EXPLAIN_PREFIXES = {
+    "mariadb": "EXPLAIN",
+    "mysql": "EXPLAIN",
+    "postgresql": "EXPLAIN",
+    "sqlite": "EXPLAIN QUERY PLAN",
+}
 
 
 class QueryBuilder(DatabaseQueryBuilder):
@@ -2833,6 +2839,59 @@ class QueryBuilder(DatabaseQueryBuilder):
         if redact:
             return dict.fromkeys(bindings, _REDACTED_QUERY_BINDING)
         return dict(bindings)
+
+    def explain(self) -> list[Mapping[str, object]]:
+        """Return this query's plan without executing the selected statement.
+
+        Returns:
+            Database-specific plan rows.
+
+        Raises:
+            DatabaseQueryError: If the dialect lacks a supported EXPLAIN form.
+        """
+        statement, bindings = self._explain_statement()
+        result = self._connection.execute_statement(statement, bindings)
+        return list(result.rows)
+
+    async def explain_async(self) -> list[Mapping[str, object]]:
+        """Asynchronously inspect the plan without executing the query.
+
+        Returns:
+            Database-specific plan rows.
+
+        Raises:
+            DatabaseQueryError: If the dialect lacks a supported EXPLAIN form.
+        """
+        statement, bindings = self._explain_statement()
+        result = await self._connection.execute_statement_async(
+            statement,
+            bindings,
+        )
+        return list(result.rows)
+
+    def _explain_statement(
+        self,
+    ) -> tuple[TextClause, Mapping[str, object]]:
+        """Wrap the compiled fluent query in a supported EXPLAIN prefix.
+
+        Returns:
+            Text statement and separately bound query values.
+
+        Raises:
+            DatabaseQueryError: If the dialect lacks a supported EXPLAIN form.
+        """
+        prefix = _EXPLAIN_PREFIXES.get(self._connection.dialect_name)
+        if prefix is None:
+            msg = "The selected database dialect does not support EXPLAIN."
+            raise DatabaseQueryError(msg)
+        sql, bindings = self._connection.compile_statement(
+            self.to_statement(),
+            named_parameters=True,
+        )
+        # TextClause treats PostgreSQL's ``::`` casts as escaped colons. Escape
+        # them explicitly so the preceding named bind remains recognized.
+        escaped_sql = sql.replace("::", r"\:\:")
+        return text(f"{prefix} {escaped_sql}"), bindings
 
     def _apply_lock(
         self,

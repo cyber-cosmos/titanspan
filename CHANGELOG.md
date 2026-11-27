@@ -106,6 +106,8 @@ public release.
   plus nested JSON updates through supported database JSON functions.
 - Add Query Builder SQL compilation and binding inspection with default value
   redaction.
+- Add bound EXPLAIN plan inspection through the SQLite, PostgreSQL, MySQL, and
+  MariaDB dialects.
 - Declare Pydantic as a direct runtime dependency for native schema APIs.
 - Add native application Cache services with memory and optional Redis
   backends, explicit backend capabilities, safe JSON serialization, atomic

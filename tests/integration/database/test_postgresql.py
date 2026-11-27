@@ -832,6 +832,38 @@ async def test_postgresql_full_text_queries(
         await DB.statement_async("DROP TABLE postgres_full_text_docs")
 
 
+async def test_postgresql_explain_returns_a_bound_query_plan(
+    application: Application,
+) -> None:
+    """Inspect a PostgreSQL plan while keeping query values parameterized.
+
+    Args:
+        application: Isolated PostgreSQL integration application.
+    """
+    async with application:
+        await DB.statement_async(
+            "CREATE TABLE postgres_explain_rows ("
+            "id INTEGER PRIMARY KEY, label TEXT NOT NULL)"
+        )
+        await DB.table("postgres_explain_rows").insert_many_async(
+            [
+                {"id": 1, "label": "private-one"},
+                {"id": 2, "label": "private-two"},
+            ],
+        )
+
+        plan = await (
+            DB.table("postgres_explain_rows")
+            .select("id")
+            .where_in("id", [1, 2])
+            .explain_async()
+        )
+
+        assert plan
+        assert "private-one" not in str(plan)
+        await DB.statement_async("DROP TABLE postgres_explain_rows")
+
+
 async def _insert_then_raise() -> None:
     """Roll a PostgreSQL insert back through the application transaction.
 

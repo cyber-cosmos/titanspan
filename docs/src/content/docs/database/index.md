@@ -165,6 +165,9 @@ explicit trusted application-authored strings and bound values.
 `get_bindings()` returns parameter names with values redacted by default.
 Set `redact=False` only in trusted diagnostics; returned values may contain
 sensitive application data and must not be written to ordinary logs.
+`explain()` and `explain_async()` return database-specific plans on SQLite,
+PostgreSQL, MySQL, and MariaDB without executing the selected query. Plan
+formats vary by database; SQLite and PostgreSQL have live integration tests.
 
 `insert_returning()`, `update_returning()`, and `delete_returning()` expose
 database-produced rows on SQLite and PostgreSQL. Other dialects reject these

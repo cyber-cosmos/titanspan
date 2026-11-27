@@ -1501,6 +1501,22 @@ class DatabaseQueryBuilder(Protocol):
         """
         ...
 
+    def explain(self) -> list[Mapping[str, object]]:
+        """Return a database query plan without running the query.
+
+        Returns:
+            Database-specific plan rows.
+        """
+        ...
+
+    async def explain_async(self) -> list[Mapping[str, object]]:
+        """Asynchronously return a database query plan without running it.
+
+        Returns:
+            Database-specific plan rows.
+        """
+        ...
+
     def with_cte(
         self,
         name: str,

@@ -14,6 +14,7 @@ from titanspan.facades.database import DB
 from titanspan.foundation import Application
 
 if TYPE_CHECKING:
+    from collections.abc import Mapping
     from pathlib import Path
 
     from titanspan.database.query_builder import QueryBuilder
@@ -905,6 +906,41 @@ async def test_query_diagnostics_redact_bound_values(
         assert "private@example.test" in visible.values()
 
 
+async def test_explain_returns_a_sqlite_query_plan(
+    application: Application,
+) -> None:
+    """Return SQLite's plan for a parameterized fluent query.
+
+    Args:
+        application: Application configured by this test.
+    """
+    async with application:
+        await DB.statement_async(
+            "CREATE TABLE explain_rows ("
+            "id INTEGER PRIMARY KEY, value TEXT NOT NULL)"
+        )
+        await DB.table("explain_rows").insert_many_async(
+            [
+                {"id": 1, "value": "one"},
+                {"id": 2, "value": "two"},
+            ],
+        )
+
+        plan = await (
+            DB.table("explain_rows")
+            .select("id")
+            .where_in("id", [1, 2])
+            .explain_async()
+        )
+
+        assert plan
+        assert any("explain_rows" in str(row.values()) for row in plan)
+        sync_plan = await anyio.to_thread.run_sync(
+            _explain_with_sync_connection,
+        )
+        assert sync_plan
+
+
 async def test_cursor_pagination_stabilizes_order_and_supports_reverse_pages(
     application: Application,
 ) -> None:
@@ -1329,6 +1365,17 @@ def _query(table_name: str) -> QueryBuilder:
         The concrete SQLAlchemy Core-backed query builder.
     """
     return cast("QueryBuilder", DB.table(table_name))
+
+
+def _explain_with_sync_connection() -> list[Mapping[str, object]]:
+    """Inspect a SQLite plan through the synchronous worker path.
+
+    Returns:
+        Detached plan rows copied from the database result.
+    """
+    return (
+        DB.table("explain_rows").select("id").where_in("id", [1, 2]).explain()
+    )
 
 
 def _category_group(group: QueryBuilder) -> QueryBuilder:

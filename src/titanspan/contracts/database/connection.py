@@ -125,11 +125,14 @@ class DatabaseConnectionService(Protocol):
     def compile_statement(
         self,
         statement: ClauseElement,
+        *,
+        named_parameters: bool = False,
     ) -> tuple[str, Mapping[str, object]]:
         """Compile a statement using this connection's SQLAlchemy dialect.
 
         Args:
             statement: SQLAlchemy Core or ORM statement.
+            named_parameters: Use named placeholders for safe SQL wrappers.
 
         Returns:
             SQL text with placeholders and its separately bound values.
