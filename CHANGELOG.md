@@ -5,6 +5,8 @@ public release.
 
 ## Unreleased
 
+- Honor configured timestamp column names during model saves, upserts,
+  replication, and atomic increments.
 - Make native Database and Number capabilities available in the standard
   installation. Declare SQLAlchemy, Alembic, aiosqlite, Babel, and num2words
   as runtime dependencies; keep external backend drivers optional.

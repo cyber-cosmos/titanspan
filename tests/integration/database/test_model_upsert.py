@@ -28,6 +28,7 @@ pytestmark = [pytest.mark.integration, pytest.mark.anyio]
 _EMAIL = "ada@example.test"
 _INITIAL_NAME = "Ada"
 _UPDATED_NAME = "Augusta"
+_STALE_TIMESTAMP_YEAR = 2000
 
 
 class UpsertRecord(Model):
@@ -43,6 +44,23 @@ class UpsertRecord(Model):
     email: Mapped[str] = mapped_column(unique=True)
     name: Mapped[str] = mapped_column("display_name")
     is_admin: Mapped[bool] = mapped_column(default=False)
+
+
+class CustomTimestampUpsertRecord(Model):
+    """Represent upsert rows with custom physical timestamp column names.
+
+    The ORM keeps its canonical timestamp attributes while the schema uses
+    the application's selected column names.
+    """
+
+    table = "custom_timestamp_upsert_records"
+    created_at_name = "created_on"
+    updated_at_name = "modified_on"
+    fillable = ("email", "name", "version")
+
+    email: Mapped[str] = mapped_column(unique=True)
+    name: Mapped[str]
+    version: Mapped[int] = mapped_column(default=0)
 
 
 @pytest.fixture
@@ -108,6 +126,70 @@ async def test_async_model_upsert_preserves_creation_timestamp(
         assert current.created_at == original_created_at
         assert current.updated_at is not None
         assert await UpsertRecord.query().count_async() == 1
+
+
+async def test_model_upsert_uses_custom_timestamp_column_names(
+    application: Application,
+) -> None:
+    """Apply automatic timestamps during saves and native model upserts.
+
+    Args:
+        application: Isolated Database application for this test.
+    """
+    async with application:
+        await DB.statement_async(
+            "CREATE TABLE custom_timestamp_upsert_records ("
+            "id INTEGER PRIMARY KEY, email TEXT NOT NULL UNIQUE, "
+            "name TEXT NOT NULL, version INTEGER NOT NULL, "
+            "created_on TIMESTAMP, "
+            "modified_on TIMESTAMP)"
+        )
+        created = await CustomTimestampUpsertRecord.create_async(
+            {"email": _EMAIL, "name": _INITIAL_NAME, "version": 0},
+        )
+        assert created.created_at is not None
+        assert created.updated_at is not None
+        stored_created = (
+            await CustomTimestampUpsertRecord.query()
+            .where("email", _EMAIL)
+            .first_async()
+        )
+        assert stored_created is not None
+        original_created_at = stored_created.created_at
+
+        affected = await CustomTimestampUpsertRecord.upsert_async(
+            [{"email": _EMAIL, "name": _UPDATED_NAME, "version": 0}],
+            unique_by=("email",),
+            update=("name", "updated_at"),
+        )
+        current = (
+            await CustomTimestampUpsertRecord.query()
+            .where("email", _EMAIL)
+            .first_async()
+        )
+
+        assert affected == 1
+        assert current is not None
+        assert current.name == _UPDATED_NAME
+        assert current.created_at == original_created_at
+        assert current.updated_at is not None
+
+        await DB.statement_async(
+            "UPDATE custom_timestamp_upsert_records "
+            "SET modified_on = '2000-01-01 00:00:00' WHERE id = 1"
+        )
+        await current.refresh_async()
+        assert current.updated_at is not None
+        assert current.updated_at.year == _STALE_TIMESTAMP_YEAR
+        assert await current.increment_async("version")
+        await current.refresh_async()
+        assert current.version == 1
+        assert current.updated_at is not None
+        assert current.updated_at.year > _STALE_TIMESTAMP_YEAR
+
+        replica = current.replicate()
+        assert replica.created_at is None
+        assert replica.updated_at is None
 
 
 async def test_sync_model_upsert_uses_mapped_columns(

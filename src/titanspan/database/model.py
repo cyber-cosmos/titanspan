@@ -1873,9 +1873,13 @@ class Model(DeclarativeBase):
         set_committed_value(self, column_name, value)
         changes[column_name] = value
         if updated_at is not None and now is not None:
-            updated_name = type(self).updated_at_name
-            set_committed_value(self, updated_name, now)
-            changes[updated_name] = now
+            updated_name = _timestamp_attribute_name(
+                type(self),
+                type(self).updated_at_name,
+            )
+            if updated_name is not None:
+                set_committed_value(self, updated_name, now)
+                changes[updated_name] = now
         remember_service(self, service)
 
         def after_commit() -> None:
@@ -1957,9 +1961,13 @@ class Model(DeclarativeBase):
         set_committed_value(self, column_name, value)
         changes[column_name] = value
         if updated_at is not None and now is not None:
-            updated_name = type(self).updated_at_name
-            set_committed_value(self, updated_name, now)
-            changes[updated_name] = now
+            updated_name = _timestamp_attribute_name(
+                type(self),
+                type(self).updated_at_name,
+            )
+            if updated_name is not None:
+                set_committed_value(self, updated_name, now)
+                changes[updated_name] = now
         remember_service(self, service)
 
         async def after_commit() -> None:
@@ -2189,9 +2197,17 @@ class Model(DeclarativeBase):
         mapper = sa_inspect(type(self))
         excluded = {
             type(self).primary_key_name(),
+        }
+        for timestamp_name in (
             type(self).created_at_name,
             type(self).updated_at_name,
-        }
+        ):
+            attribute_name = _timestamp_attribute_name(
+                type(self),
+                timestamp_name,
+            )
+            if attribute_name is not None:
+                excluded.add(attribute_name)
         values = {
             attribute.key: getattr(self, attribute.key)
             for attribute in mapper.column_attrs
@@ -2308,19 +2324,22 @@ class Model(DeclarativeBase):
         """
         if not type(self).timestamps:
             return
-        mapped_names = {
-            attribute.key for attribute in sa_inspect(type(self)).column_attrs
-        }
         now = datetime.now(UTC)
-        created_name = type(self).created_at_name
-        updated_name = type(self).updated_at_name
+        created_name = _timestamp_attribute_name(
+            type(self),
+            type(self).created_at_name,
+        )
+        updated_name = _timestamp_attribute_name(
+            type(self),
+            type(self).updated_at_name,
+        )
         if (
             created
-            and created_name in mapped_names
+            and created_name is not None
             and getattr(self, created_name) is None
         ):
             setattr(self, created_name, now)
-        if updated_name in mapped_names:
+        if updated_name is not None:
             setattr(self, updated_name, now)
 
     def _ensure_session_owner(
@@ -2747,6 +2766,17 @@ def _prepare_model_upsert_rows(
         for name in column_names
         if unguarded or _model_attribute_is_fillable(model_type, name)
     }
+    created_name = None
+    updated_name = None
+    if model_type.timestamps:
+        created_name = _timestamp_attribute_name(
+            model_type,
+            model_type.created_at_name,
+        )
+        updated_name = _timestamp_attribute_name(
+            model_type,
+            model_type.updated_at_name,
+        )
     for attributes in records:
         unknown = set(attributes).difference(column_names)
         if unknown:
@@ -2765,13 +2795,10 @@ def _prepare_model_upsert_rows(
             if name in fillable_names
         }
         if model_type.timestamps:
-            for name in (
-                model_type.created_at_name,
-                model_type.updated_at_name,
-            ):
-                column = column_names.get(name)
+            for name in (created_name, updated_name):
+                column = column_names.get(name) if name is not None else None
                 if column is not None and (
-                    column not in row or name == model_type.updated_at_name
+                    column not in row or name == updated_name
                 ):
                     row[column] = now
         prepared.append(row)
@@ -2802,7 +2829,13 @@ def _model_upsert_update_columns(
         MassAssignmentError: If an explicit update name is guarded.
     """
     if update is None:
-        created_column = column_names.get(model_type.created_at_name)
+        created_name = _timestamp_attribute_name(
+            model_type,
+            model_type.created_at_name,
+        )
+        created_column = (
+            column_names.get(created_name) if created_name is not None else None
+        )
         update_columns = tuple(
             name
             for name in records[0]
@@ -2814,8 +2847,12 @@ def _model_upsert_update_columns(
             column_names,
             description="update column",
         )
+        updated_name = _timestamp_attribute_name(
+            model_type,
+            model_type.updated_at_name,
+        )
         for name in update:
-            if name == model_type.updated_at_name:
+            if name == updated_name:
                 continue
             if (
                 not _unguarded_context_is_active()
@@ -2824,7 +2861,13 @@ def _model_upsert_update_columns(
                 message = f"Model upsert update column is guarded: {name}."
                 raise MassAssignmentError(message)
 
-    updated_column = column_names.get(model_type.updated_at_name)
+    updated_name = _timestamp_attribute_name(
+        model_type,
+        model_type.updated_at_name,
+    )
+    updated_column = (
+        column_names.get(updated_name) if updated_name is not None else None
+    )
     if (
         model_type.timestamps
         and updated_column is not None
@@ -2934,6 +2977,26 @@ def _identity_values(
     )
 
 
+def _timestamp_attribute_name(
+    model_type: type[Model],
+    column_name: str,
+) -> str | None:
+    """Resolve a configured physical timestamp name to its ORM attribute.
+
+    Args:
+        model_type: Declaratively mapped model class.
+        column_name: Configured database column name.
+
+    Returns:
+        The ORM attribute key mapped to that column, if present.
+    """
+    mapper = sa_inspect(model_type)
+    for attribute in mapper.column_attrs:
+        if any(column.name == column_name for column in attribute.columns):
+            return attribute.key
+    return None
+
+
 def _updated_at_column(
     model_type: type[Model],
 ) -> Column[object] | None:
@@ -2947,10 +3010,13 @@ def _updated_at_column(
     """
     if not model_type.timestamps:
         return None
-    name = model_type.updated_at_name
-    mapper = sa_inspect(model_type)
-    if name not in mapper.column_attrs:
+    name = _timestamp_attribute_name(
+        model_type,
+        model_type.updated_at_name,
+    )
+    if name is None:
         return None
+    mapper = sa_inspect(model_type)
     return cast("Column[object]", mapper.column_attrs[name].columns[0])
 
 

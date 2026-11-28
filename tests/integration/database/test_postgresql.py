@@ -39,6 +39,7 @@ from titanspan.foundation import Application
 
 pytestmark = [pytest.mark.integration, pytest.mark.anyio]
 _DATABASE_PREFIX = "titanspan_codex_test_"
+_STALE_TIMESTAMP_YEAR = 2000
 _CONCURRENT_TASK_COUNT = 2
 _EXPECTED_UPSERTED_SCORE = 2
 _EXPECTED_INCREMENT_VALUES = [1, 2]
@@ -99,6 +100,22 @@ class PostgreSQLUpsertRecord(Model):
     email: Mapped[str] = mapped_column(unique=True)
     name: Mapped[str] = mapped_column("display_name")
     is_admin: Mapped[bool] = mapped_column(default=False)
+
+
+class PostgreSQLCustomTimestampRecord(Model):
+    """Represent PostgreSQL rows with custom timestamp column names.
+
+    Automatic timestamps keep canonical model attributes while the table
+    stores them under application-selected column names.
+    """
+
+    table = "postgres_custom_timestamp_records"
+    created_at_name = "created_on"
+    updated_at_name = "modified_on"
+    fillable = ("email", "count")
+
+    email: Mapped[str] = mapped_column(unique=True)
+    count: Mapped[int] = mapped_column(default=0)
 
 
 class PostgreSQLOneOfManyChild(Model):
@@ -416,6 +433,75 @@ async def test_postgresql_one_of_many_relationships_use_ranked_rows(
             )
             await DB.statement_async(
                 "DROP TABLE IF EXISTS postgres_one_of_many_parents",
+            )
+
+
+async def test_postgresql_model_operations_use_custom_timestamp_columns(
+    application: Application,
+) -> None:
+    """Apply custom timestamps during saves, upserts, and atomic updates.
+
+    Args:
+        application: Isolated PostgreSQL integration application.
+    """
+    async with application:
+        await DB.statement_async(
+            "DROP TABLE IF EXISTS postgres_custom_timestamp_records",
+        )
+        try:
+            await DB.statement_async(
+                "CREATE TABLE postgres_custom_timestamp_records ("
+                "id SERIAL PRIMARY KEY, email TEXT NOT NULL UNIQUE, "
+                "count INTEGER NOT NULL, created_on TIMESTAMPTZ, "
+                "modified_on TIMESTAMPTZ)"
+            )
+            created = await PostgreSQLCustomTimestampRecord.create_async(
+                {"email": "timestamp@example.test", "count": 0},
+            )
+            assert created.created_at is not None
+            assert created.updated_at is not None
+            stored = (
+                await PostgreSQLCustomTimestampRecord.query()
+                .where("email", "timestamp@example.test")
+                .first_or_fail_async()
+            )
+            original_created_at = stored.created_at
+
+            upserted = await PostgreSQLCustomTimestampRecord.upsert_async(
+                [{"email": "timestamp@example.test", "count": 0}],
+                unique_by=("email",),
+            )
+            assert upserted in (1, _UNKNOWN_ROWCOUNT)
+            await (
+                DB.table("postgres_custom_timestamp_records")
+                .where(
+                    "id",
+                    stored.id,
+                )
+                .update_async(
+                    {
+                        "modified_on": datetime(
+                            _STALE_TIMESTAMP_YEAR,
+                            1,
+                            1,
+                            tzinfo=UTC,
+                        ),
+                    },
+                )
+            )
+            await stored.refresh_async()
+            assert stored.updated_at is not None
+            assert stored.updated_at.year == _STALE_TIMESTAMP_YEAR
+
+            assert await stored.increment_async("count")
+            await stored.refresh_async()
+            assert stored.created_at == original_created_at
+            assert stored.count == 1
+            assert stored.updated_at is not None
+            assert stored.updated_at.year > _STALE_TIMESTAMP_YEAR
+        finally:
+            await DB.statement_async(
+                "DROP TABLE IF EXISTS postgres_custom_timestamp_records",
             )
 
 
