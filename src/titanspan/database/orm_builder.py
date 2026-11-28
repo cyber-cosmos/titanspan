@@ -23,13 +23,18 @@ from sqlalchemy import and_, func, literal, not_, select
 from sqlalchemy import inspect as sa_inspect
 from sqlalchemy.orm import (
     MappedSQLExpression,
+    aliased,
     load_only,
     raiseload,
     selectinload,
     with_expression,
     with_loader_criteria,
 )
+from sqlalchemy.orm import (
+    join as orm_join,
+)
 from sqlalchemy.sql.elements import ColumnElement
+from sqlalchemy.sql.util import ClauseAdapter
 
 from titanspan.database.exceptions import (
     DatabaseQueryError,
@@ -52,9 +57,10 @@ if TYPE_CHECKING:
     from sqlalchemy.ext.asyncio import AsyncScalarResult
     from sqlalchemy.orm import Mapper, QueryableAttribute, RelationshipProperty
     from sqlalchemy.orm.strategy_options import Load
+    from sqlalchemy.orm.util import AliasedClass
     from sqlalchemy.sql.base import ExecutableOption
     from sqlalchemy.sql.schema import Table
-    from sqlalchemy.sql.selectable import FromClause, Select, TableClause
+    from sqlalchemy.sql.selectable import FromClause, Join, Select, TableClause
 
     from titanspan.contracts.database import DatabaseService
 
@@ -72,12 +78,6 @@ _INVALID_EAGER_CONSTRAINT_ERROR = (
 )
 _INVALID_STREAM_BATCH_SIZE_ERROR = (
     "Model stream batch size must be a positive integer."
-)
-_REPEATED_RELATIONSHIP_AGGREGATE_TABLE_ERROR = (
-    "Relationship aggregate paths cannot revisit a mapped table."
-)
-_RELATIONSHIP_SECONDARY_JOIN_ERROR = (
-    "The relationship has no secondary join expression."
 )
 
 
@@ -1334,6 +1334,7 @@ class ModelQueryBuilder[ModelT]:
             relationship_name,
         )
         related_model = chain[-1][1]
+        related_entity = chain[-1][2]
         selected: ColumnElement[object]
         if aggregate == "exists":
             selected = literal(1)
@@ -1348,7 +1349,7 @@ class ModelQueryBuilder[ModelT]:
                 raise DatabaseQueryError(msg)
             column = cast(
                 "ColumnElement[object]",
-                getattr(related_model, column_name),
+                getattr(related_entity, column_name),
             )
             selected = cast(
                 "ColumnElement[object]",
@@ -1358,6 +1359,7 @@ class ModelQueryBuilder[ModelT]:
             chain,
             selected,
             self._service,
+            cast("type[object]", self._model),
         )
         correlated = statement.correlate(parent_table)
         if aggregate == "exists":
@@ -2112,46 +2114,55 @@ def _relationship_loader_criteria(
 def _relationship_aggregate_chain(
     model: type[object],
     path: str,
-) -> tuple[tuple[RelationshipProperty[object], type[object]], ...]:
-    """Resolve relationship joins and reject repeated table paths.
+) -> tuple[
+    tuple[
+        RelationshipProperty[object],
+        type[object],
+        AliasedClass[object],
+    ],
+    ...,
+]:
+    """Resolve relationship joins and alias every target entity.
 
     Args:
         model: Root mapped model class.
         path: Validated dot-separated relationship path.
 
     Returns:
-        Relationship properties paired with their mapped target classes.
-
-    Raises:
-        DatabaseQueryError: If the path revisits a mapped table.
+        Relationship properties, target models, and SQLAlchemy aliases.
     """
-    seen_tables: list[FromClause] = [_mapper(model).local_table]
-    chain: list[tuple[RelationshipProperty[object], type[object]]] = []
+    chain: list[
+        tuple[
+            RelationshipProperty[object],
+            type[object],
+            AliasedClass[object],
+        ]
+    ] = []
     current_model = model
-    for name in path.split("."):
+    for index, name in enumerate(path.split(".")):
         relationship = _mapper(current_model).relationships[name]
         related_model = cast("type[object]", relationship.mapper.class_)
-        related_table = relationship.mapper.local_table
-        secondary = relationship.secondary
-        if any(table is related_table for table in seen_tables) or (
-            secondary is not None
-            and any(table is secondary for table in seen_tables)
-        ):
-            raise DatabaseQueryError(
-                _REPEATED_RELATIONSHIP_AGGREGATE_TABLE_ERROR,
-            )
-        if secondary is not None:
-            seen_tables.append(secondary)
-        chain.append((relationship, related_model))
-        seen_tables.append(related_table)
+        related_entity = cast(
+            "AliasedClass[object]",
+            aliased(related_model, name=f"relationship_aggregate_{index}"),
+        )
+        chain.append((relationship, related_model, related_entity))
         current_model = related_model
     return tuple(chain)
 
 
 def _relationship_aggregate_statement(
-    chain: tuple[tuple[RelationshipProperty[object], type[object]], ...],
+    chain: tuple[
+        tuple[
+            RelationshipProperty[object],
+            type[object],
+            AliasedClass[object],
+        ],
+        ...,
+    ],
     selected: ColumnElement[object],
     service: DatabaseService,
+    parent_model: type[object],
 ) -> Select[object]:
     """Build one scoped aggregate query across a relationship path.
 
@@ -2159,58 +2170,72 @@ def _relationship_aggregate_statement(
         chain: Relationship properties and their mapped targets.
         selected: Aggregate expression selected from the final model.
         service: Active Database service used to resolve model scopes.
+        parent_model: Correlated model selected by the outer query.
 
     Returns:
         Correlatable statement with every relationship join and visibility
         predicate applied.
     """
-    first_relationship = chain[0][0]
-    from_clause = _relationship_aggregate_join_target(first_relationship)
-    for relationship, _ in chain[1:]:
-        from_clause = from_clause.join(
-            _relationship_aggregate_join_target(relationship),
-            relationship.primaryjoin,
+    from_clause: FromClause | None = None
+    source_entity: object = parent_model
+    scope_filters: list[ColumnElement[bool]] = []
+    for relationship, related_model, related_entity in chain:
+        attribute = cast(
+            "QueryableAttribute[object]",
+            getattr(source_entity, relationship.key),
         )
-    statement = (
-        select(selected)
-        .select_from(from_clause)
-        .where(first_relationship.primaryjoin)
-    )
-    for _, intermediate_model in chain[:-1]:
-        intermediate_query = ModelQueryBuilder(intermediate_model, service)
-        intermediate_filter = intermediate_query.to_statement().whereclause
-        if intermediate_filter is not None:
-            statement = statement.where(intermediate_filter)
-    final_model = chain[-1][1]
-    final_query = ModelQueryBuilder(final_model, service)
-    final_filter = final_query.to_statement().whereclause
-    if final_filter is not None:
-        statement = statement.where(final_filter)
+        relationship_join = orm_join(
+            source_entity,
+            related_entity,
+            attribute.of_type(related_entity),
+        )
+        if relationship.secondary is None:
+            joined_target = relationship_join.right
+            relationship_condition = cast(
+                "ColumnElement[bool]",
+                relationship_join.onclause,
+            )
+        else:
+            source_join = cast("Join", relationship_join.left)
+            secondary = source_join.right
+            joined_target = secondary.join(
+                relationship_join.right,
+                relationship_join.onclause,
+            )
+            relationship_condition = cast(
+                "ColumnElement[bool]",
+                source_join.onclause,
+            )
+        if from_clause is None:
+            from_clause = cast("FromClause", joined_target)
+            scope_filters.append(relationship_condition)
+        else:
+            from_clause = from_clause.join(
+                cast("FromClause", joined_target),
+                relationship_condition,
+            )
+        related_filter = (
+            ModelQueryBuilder(
+                related_model,
+                service,
+            )
+            .to_statement()
+            .whereclause
+        )
+        if related_filter is not None:
+            selectable = sa_inspect(related_entity).selectable
+            adapted_filter = cast(
+                "ColumnElement[bool]",
+                ClauseAdapter(selectable).traverse(related_filter),
+            )
+            scope_filters.append(adapted_filter)
+        source_entity = related_entity
+    if from_clause is None:
+        _raise_invalid_relationship()
+    statement = select(selected).select_from(from_clause)
+    if scope_filters:
+        statement = statement.where(*scope_filters)
     return statement
-
-
-def _relationship_aggregate_join_target(
-    relationship: RelationshipProperty[object],
-) -> FromClause:
-    """Build one relationship target, including its mapped secondary table.
-
-    Args:
-        relationship: SQLAlchemy relationship whose target joins the path.
-
-    Returns:
-        Target table or secondary-table join for the relationship.
-
-    Raises:
-        DatabaseQueryError: If a secondary relationship lacks its join.
-    """
-    related_table = relationship.mapper.local_table
-    secondary = relationship.secondary
-    if secondary is None:
-        return related_table
-    secondary_join = relationship.secondaryjoin
-    if secondary_join is None:
-        raise DatabaseQueryError(_RELATIONSHIP_SECONDARY_JOIN_ERROR)
-    return secondary.join(related_table, secondary_join)
 
 
 def _resolve_global_scopes[ModelT](

@@ -23,8 +23,8 @@ public release.
 - Add sync and async bounded model pruning with pretend counts, soft-delete
   handling, optional event-free mass deletion, and an explicitly targeted
   Console command.
-- Add sync and async deferred collection aggregates using one SQLAlchemy ORM
-  query per aggregate and preserving each model's existing identity.
+- Support direct, nested, and self-referential relationship aggregates,
+  including deferred collection loading.
 - Add read-only `latest_of_many()`, `oldest_of_many()`, and `of_many()` model
   relationships using SQLAlchemy window functions and deterministic key ties.
 - Add immutable application-scoped morph maps and typed `morph_to()` access

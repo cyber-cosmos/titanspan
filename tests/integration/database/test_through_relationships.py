@@ -130,6 +130,33 @@ class ThroughUser(SoftDeletes, Model):
     posts: Mapped[list[ThroughPost]] = relationship(back_populates="user")
 
 
+class ThroughHierarchyNode(SoftDeletes, Model):
+    """Represent a soft-deletable node in a self-referential hierarchy.
+
+    Relationship query expressions exercise aliased aggregate paths.
+    """
+
+    table = "through_hierarchy_nodes"
+    fillable = ("parent_id", "name", "weight")
+
+    parent_id: Mapped[int | None] = mapped_column(
+        ForeignKey("through_hierarchy_nodes.id"),
+        nullable=True,
+    )
+    name: Mapped[str]
+    weight: Mapped[int] = mapped_column(default=0)
+    children_count: Mapped[int | None] = query_expression()
+    parent_children_count: Mapped[int | None] = query_expression()
+    parent_children_sum_weight: Mapped[int | None] = query_expression()
+    parent: Mapped[ThroughHierarchyNode | None] = relationship(
+        remote_side=lambda: ThroughHierarchyNode.id,
+        back_populates="children",
+    )
+    children: Mapped[list[ThroughHierarchyNode]] = relationship(
+        back_populates="parent",
+    )
+
+
 class ThroughPost(SoftDeletes, Model):
     """Represent a post related to a country through its author.
     """  # fmt: skip
@@ -1448,6 +1475,13 @@ async def _create_schema() -> None:
         "FOREIGN KEY(country_id) REFERENCES through_countries(id))"
     )
     await DB.statement_async(
+        "CREATE TABLE through_hierarchy_nodes ("
+        "id INTEGER PRIMARY KEY, parent_id INTEGER NULL, "
+        "name TEXT NOT NULL, weight INTEGER NOT NULL DEFAULT 0, "
+        "deleted_at TIMESTAMP, created_at TIMESTAMP, updated_at TIMESTAMP, "
+        "FOREIGN KEY(parent_id) REFERENCES through_hierarchy_nodes(id))"
+    )
+    await DB.statement_async(
         "CREATE TABLE through_posts ("
         "id INTEGER PRIMARY KEY, user_id INTEGER NOT NULL, "
         "title TEXT NOT NULL, amount INTEGER NOT NULL DEFAULT 0, "
@@ -1477,3 +1511,95 @@ def _read_country_counts() -> dict[str, int | None]:
     """
     countries = ThroughCountry.query().with_count("posts").get()
     return {country.name: country.posts_count for country in countries}
+
+
+async def test_self_referential_relationship_aggregates_support_sync_and_async(
+    application: Application,
+) -> None:
+    """Aggregate direct and nested self-relations through SQL aliases.
+
+    Args:
+        application: Isolated SQLite application for this test.
+    """
+    async with application:
+        await _create_schema()
+        root = await ThroughHierarchyNode.create_async(
+            {"name": "root", "weight": 1},
+        )
+        first = await ThroughHierarchyNode.create_async(
+            {"parent_id": root.id, "name": "first", "weight": 2},
+        )
+        await ThroughHierarchyNode.create_async(
+            {"parent_id": root.id, "name": "second", "weight": 3},
+        )
+        deleted = await ThroughHierarchyNode.create_async(
+            {"parent_id": root.id, "name": "deleted", "weight": 100},
+        )
+        await ThroughHierarchyNode.create_async(
+            {"parent_id": first.id, "name": "leaf", "weight": 5},
+        )
+        assert await deleted.delete_async()
+
+        async_models = await (
+            ThroughHierarchyNode.query()
+            .with_count("children")
+            .with_count(
+                "parent.children",
+                attribute="parent_children_count",
+            )
+            .with_sum(
+                "parent.children",
+                "weight",
+                attribute="parent_children_sum_weight",
+            )
+            .get_async()
+        )
+        expected = {
+            "root": (2, 0, None),
+            "first": (1, 2, 5),
+            "second": (0, 2, 5),
+            "leaf": (0, 1, 5),
+        }
+        assert {
+            model.name: (
+                model.children_count,
+                model.parent_children_count,
+                model.parent_children_sum_weight,
+            )
+            for model in async_models
+        } == expected
+
+        def read_sync_aggregates() -> dict[
+            str,
+            tuple[int | None, int | None, int | None],
+        ]:
+            """Read self-referential aggregates through the sync API.
+
+            Returns:
+                Aggregate values keyed by node name.
+            """
+            models = (
+                ThroughHierarchyNode.query()
+                .with_count("children")
+                .with_count(
+                    "parent.children",
+                    attribute="parent_children_count",
+                )
+                .with_sum(
+                    "parent.children",
+                    "weight",
+                    attribute="parent_children_sum_weight",
+                )
+                .get()
+            )
+            return {
+                model.name: (
+                    model.children_count,
+                    model.parent_children_count,
+                    model.parent_children_sum_weight,
+                )
+                for model in models
+            }
+
+        sync_results = await anyio.to_thread.run_sync(read_sync_aggregates)
+        assert sync_results == expected

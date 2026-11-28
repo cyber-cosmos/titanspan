@@ -1128,8 +1128,9 @@ different declared `query_expression()`. `with_exists()`, `with_sum()`,
 Declare each result using `query_expression()` and use the matching default
 attribute name shown by the method. Nested paths such as `users.posts` use
 `users_posts_count` as their default count attribute. Aggregates apply global
-and soft-delete scopes to every model along the path. Paths that revisit a
-mapped table, including self-referential paths, are not supported.
+and soft-delete scopes to every model along the path. SQLAlchemy aliases each
+relationship hop, so paths may revisit a mapped table, including through
+self-referential relations.
 
 Load an aggregate after retrieving a collection with
 `load_aggregate()` or `load_aggregate_async()`. This issues one query for the
