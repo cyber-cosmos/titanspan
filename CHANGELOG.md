@@ -41,6 +41,8 @@ public release.
   existing pivot identifiers from synchronization.
 - Stamp configured pivot timestamps during explicit relation-manager writes
   and refresh `updated_at` when updating existing pivot attributes.
+- Support sync and async relationship mutations through custom mapped pivot
+  models exposed by SQLAlchemy association proxies.
 - Recycle persisted models into writable many-to-many factory relations and
   build nested mapped association objects through factories.
 - Add `with_where_has()` to filter parent models and eager-load matching rows

@@ -379,10 +379,10 @@ class Model(DeclarativeBase):
         return ModelQueryBuilder(cls, DB.resolve_service())
 
     def relation(self, name: str) -> ManyToManyRelation[Self]:
-        """Start explicit operations for one mapped many-to-many relation.
+        """Start operations for a many-to-many relation or association proxy.
 
         Args:
-            name: Mapped many-to-many attribute on this model.
+            name: Writable relationship or association-proxy attribute.
 
         Returns:
             A manager with transactional relationship and pivot mutations.

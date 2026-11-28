@@ -993,9 +993,16 @@ attribute mappings. Pass `pivot_values` to apply common values across those
 rows. Synchronization updates values on requested existing rows, while attach
 keeps an existing row unchanged and toggle applies values only when it adds a
 row. `RelationshipChanges.updated` lists existing pivot rows whose updates
-matched persisted rows. These writes and `update_existing_pivot()` support
-direct SQLAlchemy association tables. A mapped association object is still
-required for custom pivot model behavior.
+matched persisted rows. These operations support direct SQLAlchemy association
+tables and mapped association objects exposed through an association proxy.
+
+For custom pivot models, map a Titanspan model as the parent's writable
+association collection and add a scalar relationship from that model to the
+related model. Expose the related collection through SQLAlchemy's
+`association_proxy()`. `relation()` then creates, updates, and removes mapped
+pivot instances through SQLAlchemy's Unit of Work. Pivot column values are
+validated against the model mapping, and the custom pivot model's timestamps
+are maintained on insert and update.
 
 `belongs_to_many()` maps a writable SQLAlchemy secondary relationship.
 Use `relation()` for transactional attachment changes by identifier or
@@ -1022,11 +1029,11 @@ one timezone-aware UTC value to both columns for new associations and updates
 collection changes use the table's own defaults.
 
 `update_existing_pivot()` and its async form update non-key columns on one
-existing association row and return the affected-row count. They support a
-direct SQLAlchemy `Table` with one unambiguous foreign key to each model's
-single primary key. Key columns and unknown column names are rejected. An
-identifier with no matching association returns zero. Attach and sync may use
-per-row values directly:
+existing association row and return the affected-row count. Direct table
+relations require one unambiguous foreign key to each model's single primary
+key. Custom pivot models use their mapped association collection. Key columns
+and unknown column names are rejected. An identifier with no matching
+association returns zero. Attach and sync may use per-row values directly:
 
 ```python
 await user.relation("tags").attach_async(
@@ -1044,9 +1051,9 @@ updated = await user.relation("tags").update_existing_pivot_async(
 )
 ```
 
-Pivot values must name non-key columns from the mapped association table.
-Endpoint keys, polymorphic type columns, primary keys, and automatically
-managed pivot timestamps cannot be supplied as values.
+Pivot values must name mapped, non-key association columns. Endpoint keys,
+polymorphic type columns, primary keys, and automatically managed pivot
+timestamps cannot be supplied as values.
 
 Use `with_()` to load relationships as part of the query:
 

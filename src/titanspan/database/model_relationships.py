@@ -6,19 +6,22 @@ sync and async operations for detached Titanspan models.
 
 from __future__ import annotations
 
-from collections.abc import Iterable, Mapping, Sequence
+from collections.abc import Callable, Iterable, Mapping, Sequence
 from dataclasses import dataclass
 from datetime import UTC, datetime
+from inspect import getattr_static
 from typing import (
     TYPE_CHECKING,
     ClassVar,
     Literal,
     Protocol,
+    Self,
     cast,
 )
 
 from sqlalchemy import Select, Table, and_, delete, insert, select, update
 from sqlalchemy import inspect as sa_inspect
+from sqlalchemy.ext.associationproxy import AssociationProxy
 from sqlalchemy.orm import Session, selectinload
 from sqlalchemy.orm.attributes import set_committed_value
 
@@ -26,6 +29,7 @@ from titanspan.database.exceptions import (
     DatabaseConfigurationError,
     DatabaseQueryError,
     ModelNotFoundError,
+    ModelPersistenceCancelledError,
 )
 from titanspan.database.model_state import (
     ensure_session_owner,
@@ -40,6 +44,7 @@ if TYPE_CHECKING:
     from sqlalchemy import Column
     from sqlalchemy.engine import CursorResult
     from sqlalchemy.ext.asyncio import AsyncSession
+    from sqlalchemy.orm import Mapper
     from sqlalchemy.sql.base import ReadOnlyColumnCollection
     from sqlalchemy.sql.dml import Delete, Insert, Update
 
@@ -81,8 +86,12 @@ _PIVOT_TIMESTAMP_COLUMNS_ERROR = (
     "Pivot timestamps must use non-key association columns."
 )
 _PIVOT_TIMESTAMP_COLUMN_COUNT = 2
+_PIVOT_MODEL_SAVE_CANCELLED_ERROR = (
+    "Saving the custom pivot model was cancelled."
+)
 _RELATIONSHIP_QUERY_CHUNK_SIZE = 500
 _MORPH_RELATION_INFO_ITEM_COUNT = 2
+_NO_ASSOCIATION_PROXY = object()
 _RelationOperation = Literal["attach", "detach", "sync", "toggle"]
 
 
@@ -123,10 +132,12 @@ class _AppliedRelationshipChanges:
     Attributes:
         related_models: Relationship collection after applying the mutation.
         updated: Existing pivot keys whose update matched a stored row.
+        association_models: Mapped association objects after the mutation.
     """
 
     related_models: tuple[_ModelHost, ...]
     updated: tuple[object, ...]
+    association_models: tuple[_AssociationPivot, ...] = ()
 
 
 @dataclass(frozen=True, slots=True)
@@ -188,6 +199,64 @@ class _ModelHost(Protocol):
         ...
 
 
+class _AssociationPivot(_ModelHost, Protocol):
+    """Describe Model behavior needed to mutate mapped pivot instances.
+
+    Association rows remain SQLAlchemy models and use their normal timestamp
+    and mapped-column assignment behavior.
+    """
+
+    timestamps: ClassVar[bool]
+    created_at_name: ClassVar[str]
+    updated_at_name: ClassVar[str]
+
+    def force_fill(self, attributes: Mapping[str, object]) -> Self:
+        """Assign validated pivot columns without mass-assignment filtering.
+
+        Args:
+            attributes: Values already validated against mapped pivot columns.
+
+        Returns:
+            This association model.
+        """
+        ...
+
+    def save(self) -> bool:
+        """Persist the pivot through its active synchronous Unit of Work.
+
+        Returns:
+            Whether model lifecycle events permitted the write.
+        """
+        ...
+
+    async def save_async(self) -> bool:
+        """Persist the pivot through its active asynchronous Unit of Work.
+
+        Returns:
+            Whether model lifecycle events permitted the write.
+        """
+        ...
+
+
+@dataclass(frozen=True, slots=True)
+class _AssociationObjectInfo:
+    """Describe a mapped association object exposed through a proxy.
+
+    Attributes:
+        collection_attribute: Parent relationship containing pivot models.
+        parent_attribute: Optional association relationship back to parent.
+        related_attribute: Pivot relationship referencing the related model.
+        association_type: Mapped Titanspan model used for pivot rows.
+        related_type: Mapped model exposed by the association proxy.
+    """
+
+    collection_attribute: str
+    parent_attribute: str | None
+    related_attribute: str
+    association_type: type[_AssociationPivot]
+    related_type: type[_ModelHost]
+
+
 class ManyToManyRelation[ParentT: _ModelHost]:
     """Provide explicit operations for one mapped many-to-many relation.
 
@@ -210,22 +279,31 @@ class ManyToManyRelation[ParentT: _ModelHost]:
         self._name = name
         mapper = sa_inspect(self._parent_type)
         relationship = mapper.relationships.get(name)
-        if relationship is None:
-            raise DatabaseQueryError(_RELATIONSHIP_NOT_FOUND_ERROR)
-        secondary = relationship.secondary
-        morph_info = _parse_morph_many_to_many_info(
-            relationship.info.get("titanspan_morph_many_to_many"),
+        association_info = _association_proxy_info(
+            self._parent_type,
+            name,
+            mapper,
         )
-        if (
-            secondary is None
-            or (relationship.viewonly and morph_info is None)
-            or not relationship.uselist
-        ):
-            raise DatabaseQueryError(_MANY_TO_MANY_REQUIRED_ERROR)
-        self._related_type = cast(
-            "type[_ModelHost]",
-            relationship.mapper.class_,
-        )
+        if association_info is None:
+            if relationship is None:
+                raise DatabaseQueryError(_RELATIONSHIP_NOT_FOUND_ERROR)
+            secondary = relationship.secondary
+            morph_info = _parse_morph_many_to_many_info(
+                relationship.info.get("titanspan_morph_many_to_many"),
+            )
+            if (
+                secondary is None
+                or (relationship.viewonly and morph_info is None)
+                or not relationship.uselist
+            ):
+                raise DatabaseQueryError(_MANY_TO_MANY_REQUIRED_ERROR)
+            related_type = relationship.mapper.class_
+        else:
+            secondary = None
+            morph_info = None
+            related_type = association_info.related_type
+        self._association_info = association_info
+        self._related_type = related_type
         self._parent_key = self._parent_type.primary_key_name()
         self._related_key = self._related_type.primary_key_name()
         self._morph_info = morph_info
@@ -239,7 +317,13 @@ class ManyToManyRelation[ParentT: _ModelHost]:
             if self._morph_info is not None
             else self._related_key
         )
-        if self._parent_type.connection != self._related_type.connection:
+        connections = {
+            self._parent_type.connection,
+            self._related_type.connection,
+        }
+        if association_info is not None:
+            connections.add(association_info.association_type.connection)
+        if len(connections) != 1:
             raise DatabaseQueryError(_CROSS_CONNECTION_ERROR)
         self._relationship_attribute = getattr(self._parent_type, name)
         self._secondary: object = secondary
@@ -248,7 +332,11 @@ class ManyToManyRelation[ParentT: _ModelHost]:
             self._timestamped_secondary,
             self._timestamped_columns,
         ) = self._configure_pivot_timestamps(
-            relationship.info.get("titanspan_pivot_timestamps"),
+            (
+                relationship.info.get("titanspan_pivot_timestamps")
+                if relationship is not None
+                else None
+            ),
         )
         if self._morph_info is not None:
             self._morph_association_columns()
@@ -827,6 +915,45 @@ class ManyToManyRelation[ParentT: _ModelHost]:
             ModelNotFoundError: If the parent row no longer exists.
         """
         identifier, input_models = self._pivot_update_input(related)
+        association_info = self._association_info
+        if association_info is not None:
+            updates = self._validated_pivot_attributes(attributes)
+            if not updates:
+                raise DatabaseQueryError(_PIVOT_UPDATE_ATTRIBUTES_ERROR)
+            service = DB.resolve_service()
+            with service.session(self._parent_type.connection) as session:
+                ensure_session_owner(self._parent, service, session)
+                owner = self._load_parent_sync(session)
+                self._validate_input_ownership(
+                    input_models,
+                    service,
+                    session,
+                )
+                pivot = self._find_association_model(
+                    owner,
+                    identifier,
+                    association_info,
+                )
+                if pivot is None:
+                    return 0
+                pivot.force_fill(updates)
+                if not pivot.save():
+                    raise ModelPersistenceCancelledError(
+                        _PIVOT_MODEL_SAVE_CANCELLED_ERROR,
+                    )
+                association_models = self._association_models(
+                    owner,
+                    association_info,
+                )
+                service.after_commit(
+                    lambda: self._remember_association_cache(
+                        association_models,
+                        service,
+                        association_info,
+                    ),
+                    self._parent_type.connection,
+                )
+                return 1
         service = DB.resolve_service() if self._morph_info is not None else None
         statement = self._pivot_update_statement(
             identifier,
@@ -865,6 +992,56 @@ class ManyToManyRelation[ParentT: _ModelHost]:
             ModelNotFoundError: If the parent row no longer exists.
         """
         identifier, input_models = self._pivot_update_input(related)
+        association_info = self._association_info
+        if association_info is not None:
+            updates = self._validated_pivot_attributes(attributes)
+            if not updates:
+                raise DatabaseQueryError(_PIVOT_UPDATE_ATTRIBUTES_ERROR)
+            service = DB.resolve_service()
+            async with service.session_async(
+                self._parent_type.connection,
+            ) as session:
+                ensure_session_owner(self._parent, service, session)
+                owner = await self._load_parent_async(session)
+                self._validate_input_ownership(
+                    input_models,
+                    service,
+                    session,
+                )
+                pivot = self._find_association_model(
+                    owner,
+                    identifier,
+                    association_info,
+                )
+                if pivot is None:
+                    return 0
+                pivot.force_fill(updates)
+                if not await pivot.save_async():
+                    raise ModelPersistenceCancelledError(
+                        _PIVOT_MODEL_SAVE_CANCELLED_ERROR,
+                    )
+                association_models = self._association_models(
+                    owner,
+                    association_info,
+                )
+
+                async def update_parent_pivots() -> None:
+                    """Refresh the detached parent's mapped pivot collection.
+
+                    Returns:
+                        None.
+                    """
+                    self._remember_association_cache(
+                        association_models,
+                        service,
+                        association_info,
+                    )
+
+                await service.after_commit_async(
+                    update_parent_pivots,
+                    self._parent_type.connection,
+                )
+                return 1
         service = DB.resolve_service() if self._morph_info is not None else None
         statement = self._pivot_update_statement(
             identifier,
@@ -885,6 +1062,88 @@ class ManyToManyRelation[ParentT: _ModelHost]:
                 await session.execute(statement),
             )
             return _updated_row_count(result.rowcount)
+
+    def _association_models(
+        self,
+        owner: _ModelHost,
+        info: _AssociationObjectInfo,
+    ) -> tuple[_AssociationPivot, ...]:
+        """Return the parent's loaded mapped association objects.
+
+        Args:
+            owner: Parent loaded by the active Database session.
+            info: Validated association-object mapping for this relation.
+
+        Returns:
+            Association model instances from its mapped collection.
+
+        """
+        return tuple(
+            cast(
+                "Iterable[_AssociationPivot]",
+                getattr(owner, info.collection_attribute),
+            ),
+        )
+
+    def _find_association_model(
+        self,
+        owner: _ModelHost,
+        identifier: object,
+        info: _AssociationObjectInfo,
+    ) -> _AssociationPivot | None:
+        """Find one loaded pivot by its related model identifier.
+
+        Args:
+            owner: Parent loaded by the active Database session.
+            identifier: Related model primary-key value to match.
+            info: Validated association-object mapping for this relation.
+
+        Returns:
+            The matching association model, if its row exists.
+        """
+        return next(
+            (
+                pivot
+                for pivot in self._association_models(owner, info)
+                if getattr(
+                    getattr(pivot, info.related_attribute),
+                    self._related_key,
+                )
+                == identifier
+            ),
+            None,
+        )
+
+    def _remember_association_cache(
+        self,
+        association_models: tuple[_AssociationPivot, ...],
+        service: DatabaseService,
+        info: _AssociationObjectInfo,
+    ) -> None:
+        """Transfer committed pivot instances to the caller's parent cache.
+
+        Args:
+            association_models: Pivot instances committed by the Unit of Work.
+            service: Database service that owns the committed model graph.
+            info: Validated association-object mapping for this relation.
+        """
+        if info.parent_attribute is not None:
+            for pivot in association_models:
+                set_committed_value(
+                    pivot,
+                    info.parent_attribute,
+                    self._parent,
+                )
+        set_committed_value(
+            self._parent,
+            info.collection_attribute,
+            list(association_models),
+        )
+        remember_service_graph(
+            self._parent,
+            service,
+            self._parent_type.connection,
+        )
 
     def _pivot_update_input(
         self,
@@ -1101,6 +1360,12 @@ class ManyToManyRelation[ParentT: _ModelHost]:
         """
         if not attributes:
             return {}
+        association_info = self._association_info
+        if association_info is not None:
+            return self._validated_association_pivot_attributes(
+                attributes,
+                association_info,
+            )
         if self._morph_info is not None:
             secondary = self._morph_secondary()
             parent_column, related_column, type_column = (
@@ -1132,6 +1397,64 @@ class ManyToManyRelation[ParentT: _ModelHost]:
                 cast("Mapping[object, object]", attributes),
             )
             or not keys.issubset(secondary.c.keys())
+            or keys.intersection(protected)
+        ):
+            raise DatabaseQueryError(_PIVOT_UPDATE_ATTRIBUTES_ERROR)
+        return dict(attributes)
+
+    def _validated_association_pivot_attributes(
+        self,
+        attributes: Mapping[str, object],
+        info: _AssociationObjectInfo,
+    ) -> dict[str, object]:
+        """Validate scalar values against a custom mapped pivot model.
+
+        Args:
+            attributes: Candidate values for one association model.
+            info: Validated mapping for the custom association model.
+
+        Returns:
+            Values restricted to writable non-key model columns.
+
+        Raises:
+            DatabaseQueryError: If a value targets an unknown or protected
+                association attribute.
+        """
+        pivot_mapper = sa_inspect(info.association_type)
+        allowed = {attribute.key for attribute in pivot_mapper.column_attrs}
+        protected = {
+            pivot_mapper.get_property_by_column(column).key
+            for column in pivot_mapper.primary_key
+        }
+        endpoint_tables = set(sa_inspect(self._parent_type).tables) | set(
+            sa_inspect(self._related_type).tables,
+        )
+        for attribute in pivot_mapper.column_attrs:
+            if any(
+                foreign_key.column.table in endpoint_tables
+                for column in attribute.columns
+                for foreign_key in column.foreign_keys
+            ):
+                protected.add(attribute.key)
+        if info.association_type.timestamps:
+            managed_names = {
+                info.association_type.created_at_name,
+                info.association_type.updated_at_name,
+            }
+            protected.update(
+                attribute.key
+                for attribute in pivot_mapper.column_attrs
+                if attribute.key in managed_names
+                or any(
+                    column.name in managed_names for column in attribute.columns
+                )
+            )
+        keys = set(attributes)
+        if (
+            not _mapping_has_string_keys(
+                cast("Mapping[object, object]", attributes),
+            )
+            or not keys.issubset(allowed)
             or keys.intersection(protected)
         ):
             raise DatabaseQueryError(_PIVOT_UPDATE_ATTRIBUTES_ERROR)
@@ -1223,6 +1546,13 @@ class ManyToManyRelation[ParentT: _ModelHost]:
         Returns:
             Related models after the mutation and updated existing pivots.
         """
+        association_info = self._association_info
+        if association_info is not None:
+            return self._apply_association_object_sync(
+                session,
+                mutation,
+                association_info,
+            )
         if self._morph_info is not None:
             morph_updated_ids = self._write_morph_pivot_sync(session, mutation)
             self._expire_parent_collection(session, mutation.owner)
@@ -1291,6 +1621,41 @@ class ManyToManyRelation[ParentT: _ModelHost]:
             updated=tuple(updated_ids),
         )
 
+    def _apply_association_object_sync(
+        self,
+        session: Session,
+        mutation: _PivotMutation,
+        info: _AssociationObjectInfo,
+    ) -> _AppliedRelationshipChanges:
+        """Persist custom pivots through synchronous Model save operations.
+
+        Args:
+            session: Active SQLAlchemy session for the relationship operation.
+            mutation: Planned changes for mapped association model instances.
+            info: Validated mapping for the custom association model.
+
+        Returns:
+            Related and association models after the Unit of Work flushes.
+
+        Raises:
+            ModelPersistenceCancelledError: If a pivot save event rejects a
+                write.
+        """
+        related_models, association_models, updated, touched = (
+            self._mutate_association_object_collection(mutation, info)
+        )
+        for pivot in touched:
+            if not pivot.save():
+                raise ModelPersistenceCancelledError(
+                    _PIVOT_MODEL_SAVE_CANCELLED_ERROR,
+                )
+        session.flush()
+        return _AppliedRelationshipChanges(
+            related_models=related_models,
+            updated=updated,
+            association_models=association_models,
+        )
+
     async def _apply_async_changes(
         self,
         session: AsyncSession,
@@ -1305,6 +1670,13 @@ class ManyToManyRelation[ParentT: _ModelHost]:
         Returns:
             Related models after the mutation and updated existing pivots.
         """
+        association_info = self._association_info
+        if association_info is not None:
+            return await self._apply_association_object_async(
+                session,
+                mutation,
+                association_info,
+            )
         if self._morph_info is not None:
             morph_updated_ids = await self._write_morph_pivot_async(
                 session,
@@ -1374,6 +1746,127 @@ class ManyToManyRelation[ParentT: _ModelHost]:
         return _AppliedRelationshipChanges(
             related_models=committed_models,
             updated=tuple(updated_ids),
+        )
+
+    async def _apply_association_object_async(
+        self,
+        session: AsyncSession,
+        mutation: _PivotMutation,
+        info: _AssociationObjectInfo,
+    ) -> _AppliedRelationshipChanges:
+        """Persist custom pivots through asynchronous Model save operations.
+
+        Args:
+            session: Active SQLAlchemy async session for the operation.
+            mutation: Planned changes for mapped association model instances.
+            info: Validated mapping for the custom association model.
+
+        Returns:
+            Related and association models after the Unit of Work flushes.
+
+        Raises:
+            ModelPersistenceCancelledError: If a pivot save event rejects a
+                write.
+        """
+        related_models, association_models, updated, touched = (
+            self._mutate_association_object_collection(mutation, info)
+        )
+        for pivot in touched:
+            if not await pivot.save_async():
+                raise ModelPersistenceCancelledError(
+                    _PIVOT_MODEL_SAVE_CANCELLED_ERROR,
+                )
+        await session.flush()
+        return _AppliedRelationshipChanges(
+            related_models=related_models,
+            updated=updated,
+            association_models=association_models,
+        )
+
+    def _mutate_association_object_collection(
+        self,
+        mutation: _PivotMutation,
+        info: _AssociationObjectInfo,
+    ) -> tuple[
+        tuple[_ModelHost, ...],
+        tuple[_AssociationPivot, ...],
+        tuple[object, ...],
+        tuple[_AssociationPivot, ...],
+    ]:
+        """Apply changes through mapped association model instances.
+
+        Args:
+            mutation: Relationship changes planned by the active session.
+            info: Validated mapping for the custom association model.
+
+        Returns:
+            Related models, association models, and updated related keys.
+
+        Raises:
+            DatabaseQueryError: If the mapped association collection cannot
+                accept the required model changes.
+        """
+        collection = getattr(mutation.owner, info.collection_attribute)
+        association_models = cast(
+            "list[_AssociationPivot]",
+            list(collection),
+        )
+        pivots_by_related_id = {
+            getattr(
+                getattr(pivot, info.related_attribute),
+                self._related_key,
+            ): pivot
+            for pivot in association_models
+        }
+        for identifier in mutation.detached:
+            pivot = pivots_by_related_id[identifier]
+            _remove_related(collection, pivot)
+            association_models.remove(pivot)
+        for identifier in mutation.attached:
+            pivot_factory = cast(
+                "Callable[[], _AssociationPivot]",
+                info.association_type,
+            )
+            pivot = pivot_factory()
+            setattr(
+                pivot,
+                info.related_attribute,
+                mutation.related_models[identifier],
+            )
+            pivot.force_fill(
+                self._validated_pivot_attributes(
+                    mutation.pivot_values.get(identifier, {}),
+                ),
+            )
+            _append_related(collection, cast("_ModelHost", pivot))
+            association_models.append(pivot)
+            pivots_by_related_id[identifier] = pivot
+        touched: list[_AssociationPivot] = [
+            pivots_by_related_id[identifier] for identifier in mutation.attached
+        ]
+        updated: list[object] = []
+        for identifier in self._pivot_update_identifiers(mutation):
+            pivot = pivots_by_related_id[identifier]
+            pivot.force_fill(mutation.pivot_values[identifier])
+            updated.append(identifier)
+            touched.append(pivot)
+        current_associations = tuple(
+            cast("Iterable[_AssociationPivot]", collection),
+        )
+        related_models = tuple(
+            cast(
+                "Iterable[_ModelHost]",
+                (
+                    getattr(pivot, info.related_attribute)
+                    for pivot in current_associations
+                ),
+            ),
+        )
+        return (
+            related_models,
+            current_associations,
+            tuple(updated),
+            tuple(touched),
         )
 
     def _expire_parent_collection(
@@ -1480,14 +1973,25 @@ class ManyToManyRelation[ParentT: _ModelHost]:
                     mutation,
                 )
                 updated = applied.updated
-                service.after_commit(
-                    lambda: set_committed_value(
-                        self._parent,
-                        self._name,
-                        list(applied.related_models),
-                    ),
-                    self._parent_type.connection,
-                )
+                association_info = self._association_info
+                if association_info is not None:
+                    service.after_commit(
+                        lambda: self._remember_association_cache(
+                            applied.association_models,
+                            service,
+                            association_info,
+                        ),
+                        self._parent_type.connection,
+                    )
+                else:
+                    service.after_commit(
+                        lambda: set_committed_value(
+                            self._parent,
+                            self._name,
+                            list(applied.related_models),
+                        ),
+                        self._parent_type.connection,
+                    )
         return RelationshipChanges(
             attached=to_attach,
             detached=to_detach,
@@ -1589,16 +2093,24 @@ class ManyToManyRelation[ParentT: _ModelHost]:
                     Returns:
                         None.
                     """
-                    set_committed_value(
-                        self._parent,
-                        self._name,
-                        list(applied.related_models),
-                    )
-                    remember_service_graph(
-                        self._parent,
-                        service,
-                        self._parent_type.connection,
-                    )
+                    association_info = self._association_info
+                    if association_info is not None:
+                        self._remember_association_cache(
+                            applied.association_models,
+                            service,
+                            association_info,
+                        )
+                    else:
+                        set_committed_value(
+                            self._parent,
+                            self._name,
+                            list(applied.related_models),
+                        )
+                        remember_service_graph(
+                            self._parent,
+                            service,
+                            self._parent_type.connection,
+                        )
 
                 await service.after_commit_async(
                     update_parent_cache,
@@ -1763,11 +2275,26 @@ class ManyToManyRelation[ParentT: _ModelHost]:
         """
         parent_type = cast("type[object]", self._parent_type)
         parent_attribute = getattr(self._parent_type, self._parent_key)
-        relationship_attribute = getattr(self._parent_type, self._name)
+        if self._association_info is None:
+            load_option = selectinload(
+                getattr(self._parent_type, self._name),
+            )
+        else:
+            collection_attribute = getattr(
+                self._parent_type,
+                self._association_info.collection_attribute,
+            )
+            related_attribute = getattr(
+                self._association_info.association_type,
+                self._association_info.related_attribute,
+            )
+            load_option = selectinload(collection_attribute).selectinload(
+                related_attribute,
+            )
         return (
             select(parent_type)
             .where(parent_attribute == identifier)
-            .options(selectinload(relationship_attribute))
+            .options(load_option)
         )
 
     def _load_related_sync(
@@ -1861,6 +2388,87 @@ class ManyToManyRelation[ParentT: _ModelHost]:
         if any(identifier not in indexed for identifier in identifiers):
             raise ModelNotFoundError(_RELATED_MODEL_NOT_FOUND_ERROR)
         return indexed
+
+
+def _association_proxy_info(
+    parent_type: type[_ModelHost],
+    name: str,
+    mapper: Mapper[Any],
+) -> _AssociationObjectInfo | None:
+    """Resolve a writable association-object proxy through mapped relations.
+
+    Args:
+        parent_type: Mapped parent class that declares the proxy.
+        name: Candidate proxy attribute name.
+        mapper: SQLAlchemy mapper for the parent class.
+
+    Returns:
+        Validated association-object metadata when the attribute is a proxy.
+
+    Raises:
+        DatabaseQueryError: If a proxy does not describe a writable many-to-
+            many association object backed by Titanspan models.
+    """
+    descriptor = getattr_static(
+        parent_type,
+        name,
+        _NO_ASSOCIATION_PROXY,
+    )
+    if not isinstance(descriptor, AssociationProxy):
+        return None
+    proxy = cast("AssociationProxy[object]", descriptor)
+    collection_relationship = mapper.relationships.get(proxy.target_collection)
+    if (
+        collection_relationship is None
+        or not collection_relationship.uselist
+        or collection_relationship.secondary is not None
+        or collection_relationship.viewonly
+    ):
+        raise DatabaseQueryError(_MANY_TO_MANY_REQUIRED_ERROR)
+    association_type = cast(
+        "type[object]",
+        collection_relationship.mapper.class_,
+    )
+    association_mapper = cast(
+        "Mapper[Any]",
+        sa_inspect(association_type),
+    )
+    related_relationship = association_mapper.relationships.get(
+        proxy.value_attr,
+    )
+    if (
+        related_relationship is None
+        or related_relationship.uselist
+        or related_relationship.secondary is not None
+        or related_relationship.viewonly
+    ):
+        raise DatabaseQueryError(_MANY_TO_MANY_REQUIRED_ERROR)
+    if not all(
+        callable(getattr(association_type, attribute, None))
+        for attribute in (
+            "primary_key_name",
+            "force_fill",
+            "save",
+            "save_async",
+        )
+    ) or not isinstance(getattr(association_type, "timestamps", None), bool):
+        raise DatabaseQueryError(_MANY_TO_MANY_REQUIRED_ERROR)
+    if not all(
+        isinstance(getattr(association_type, attribute, None), str)
+        for attribute in ("created_at_name", "updated_at_name")
+    ):
+        raise DatabaseQueryError(_MANY_TO_MANY_REQUIRED_ERROR)
+    related_type = cast(
+        "type[_ModelHost]",
+        related_relationship.mapper.class_,
+    )
+    return _AssociationObjectInfo(
+        collection_attribute=proxy.target_collection,
+        parent_attribute=collection_relationship.back_populates,
+        related_attribute=proxy.value_attr,
+        association_type=cast("type[_AssociationPivot]", association_type),
+        related_type=related_type,
+    )
 
 
 def _parse_morph_many_to_many_info(
