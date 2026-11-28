@@ -834,8 +834,73 @@ code to query the target. These explicit methods avoid hidden database I/O.
 `associate(model)` sets both mapped source fields, and `dissociate()` clears
 them. Persist the source model through its normal sync or async save method.
 The target must have a trusted alias and a non-null owner key. Polymorphic
-one-to-one and one-to-many declarations, polymorphic many-to-many relations,
-and eager polymorphic loading are not implemented yet.
+many-to-many relations and eager polymorphic loading are not implemented yet.
+
+### Polymorphic one-to-one and one-to-many relations
+
+Declare `morph_one()` or `morph_many()` on the parent model. The child table
+stores both the discriminator and the parent key, and the parent's class must
+have an alias in the application's trusted `morph_map`:
+
+```python
+from typing import ClassVar
+
+from sqlalchemy.orm import Mapped
+
+from titanspan.database import (
+    Model,
+    MorphMany,
+    MorphOne,
+    morph_many,
+    morph_one,
+)
+
+
+class Comment(Model):
+    """Represent a row that belongs to one polymorphic parent."""
+
+    table = "comments"
+    fillable = ("body",)
+
+    body: Mapped[str]
+    commentable_type: Mapped[str | None]
+    commentable_id: Mapped[int | None]
+
+
+class Article(Model):
+    """Represent a parent with many comments and one featured comment."""
+
+    table = "articles"
+    fillable = ("title",)
+
+    title: Mapped[str]
+    comments: ClassVar[MorphMany[Comment]] = morph_many(
+        Comment,
+        type_column="commentable_type",
+        foreign_key="commentable_id",
+    )
+    featured_comment: ClassVar[MorphOne[Comment]] = morph_one(
+        Comment,
+        type_column="commentable_type",
+        foreign_key="commentable_id",
+    )
+
+
+database_config = {
+    "morph_map": {"article": Article},
+}
+```
+
+As with `morph_to()`, call `resolve()` or `resolve_async()` to load results
+explicitly. The relation's `query()` method returns the native model query
+builder. `create()` and `save()` set trusted discriminator and owner-key
+values before persisting through the model lifecycle. `dissociate(child)`
+clears both child columns in memory; save the child normally to persist that
+change. Dissociation requires nullable mapped columns.
+
+Morph-one and morph-many relations do not perform implicit I/O or eager
+polymorphic loading. A morph-one relation selects the first matching child;
+use a database uniqueness constraint when the schema requires one child.
 
 `belongs_to_many()` maps a writable SQLAlchemy secondary relationship.
 Use `relation()` for transactional attachment changes by identifier or
@@ -988,8 +1053,9 @@ and mutators. A separate dynamic cast registry is not provided.
 model operations, safe conversion, and batch relationship loading. Ordinary
 collection behavior remains owned by `titanspan.collections`.
 
-Morph-to access and trusted application maps are implemented. Other
-polymorphic relationship forms and API resources are not implemented yet.
+Morph-to, morph-one, morph-many, and trusted application maps are implemented.
+Polymorphic many-to-many relationships, eager polymorphic loading, and API
+resources are not implemented yet.
 
 ## Schema and migrations
 

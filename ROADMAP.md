@@ -96,9 +96,10 @@ with native `db:seed` and `make:seeder` commands.
 - Database persistence, migrations, factories, seeders, model events,
   validation, route binding, and native Console foundations are implemented.
   Native database assertions, one-of-many model relationships, and sync and
-  async query-count assertions are implemented. Trusted morph maps and
-  explicit polymorphic belongs-to access are implemented. Other polymorphic
-  relationship forms, relationship factories, and database test isolation
+  async query-count assertions are implemented. Trusted morph maps, explicit
+  polymorphic belongs-to access, and parent-side morph-one and morph-many
+  relations are implemented. Polymorphic many-to-many relations, eager
+  polymorphic loading, relationship factories, and database test isolation
   remain planned.
 - Structured concurrency, CPU parallelism, and bounded streaming pipelines.
 

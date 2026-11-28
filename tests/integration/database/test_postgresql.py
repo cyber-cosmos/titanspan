@@ -22,9 +22,13 @@ from titanspan.database import (
     DatabaseTransactionError,
     MigrationManager,
     Model,
+    MorphMany,
+    MorphOne,
     MorphTo,
     Schema,
     latest_of_many,
+    morph_many,
+    morph_one,
     morph_to,
     oldest_of_many,
 )
@@ -127,6 +131,44 @@ class PostgreSQLMorphTarget(Model):
     label: Mapped[str]
 
 
+class PostgreSQLMorphChild(Model):
+    """Represent one PostgreSQL child for morph one and many.
+
+    Its polymorphic key columns intentionally have no cross-table constraint.
+    """
+
+    table = "postgres_morph_children"
+    timestamps = False
+    fillable = ("body",)
+
+    body: Mapped[str]
+    subject_type: Mapped[str | None]
+    subject_id: Mapped[int | None]
+
+
+class PostgreSQLMorphOwner(Model):
+    """Represent the owner of PostgreSQL morph-one and morph-many rows.
+
+    The trusted app alias is written when related children are saved.
+    """
+
+    table = "postgres_morph_owners"
+    timestamps = False
+    fillable = ("label",)
+
+    label: Mapped[str]
+    children: ClassVar[MorphMany[PostgreSQLMorphChild]] = morph_many(
+        PostgreSQLMorphChild,
+        type_column="subject_type",
+        foreign_key="subject_id",
+    )
+    featured_child: ClassVar[MorphOne[PostgreSQLMorphChild]] = morph_one(
+        PostgreSQLMorphChild,
+        type_column="subject_type",
+        foreign_key="subject_id",
+    )
+
+
 class PostgreSQLMorphSource(Model):
     """Represent one PostgreSQL row with a polymorphic target reference.
 
@@ -177,6 +219,7 @@ def application(tmp_path: Path) -> Application:
                 },
                 "morph_map": {
                     "postgres_target": PostgreSQLMorphTarget,
+                    "postgres_owner": PostgreSQLMorphOwner,
                 },
             },
         },
@@ -375,6 +418,62 @@ async def test_postgresql_morph_to_resolves_trusted_target(
             )
             await DB.statement_async(
                 "DROP TABLE IF EXISTS postgres_morph_targets",
+            )
+
+
+async def test_postgresql_morph_one_and_many_persist_and_resolve(
+    application: Application,
+) -> None:
+    """Persist and resolve polymorphic children on real PostgreSQL.
+
+    Args:
+        application: Isolated PostgreSQL integration application.
+    """
+    async with application:
+        await DB.statement_async(
+            "DROP TABLE IF EXISTS postgres_morph_children",
+        )
+        await DB.statement_async(
+            "DROP TABLE IF EXISTS postgres_morph_owners",
+        )
+        try:
+            await DB.statement_async(
+                "CREATE TABLE postgres_morph_owners ("
+                "id SERIAL PRIMARY KEY, label TEXT NOT NULL, "
+                "created_at TIMESTAMPTZ, updated_at TIMESTAMPTZ)"
+            )
+            await DB.statement_async(
+                "CREATE TABLE postgres_morph_children ("
+                "id SERIAL PRIMARY KEY, body TEXT NOT NULL, "
+                "subject_type TEXT, subject_id INTEGER, "
+                "created_at TIMESTAMPTZ, updated_at TIMESTAMPTZ)"
+            )
+            owner = await PostgreSQLMorphOwner.create_async(
+                {"label": "owner"},
+            )
+
+            child = await owner.children.create_async(
+                {
+                    "body": "related",
+                    "subject_type": "spoofed",
+                    "subject_id": 999,
+                },
+            )
+
+            resolved_children = await owner.children.resolve_async()
+            resolved_one = await owner.featured_child.resolve_async()
+
+            assert resolved_children.model_keys() == (child.id,)
+            assert resolved_one is not None
+            assert resolved_one.id == child.id
+            assert child.subject_type == "postgres_owner"
+            assert child.subject_id == owner.id
+        finally:
+            await DB.statement_async(
+                "DROP TABLE IF EXISTS postgres_morph_children",
+            )
+            await DB.statement_async(
+                "DROP TABLE IF EXISTS postgres_morph_owners",
             )
 
 

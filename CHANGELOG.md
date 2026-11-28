@@ -28,6 +28,8 @@ public release.
 - Add immutable application-scoped morph maps and typed `morph_to()` access
   with explicit synchronous and asynchronous resolution, association, and
   dissociation. Persisted aliases resolve only to configured mapped classes.
+- Add explicit `morph_one()` and `morph_many()` relations with scoped model
+  queries, trusted owner aliases, and sync and async child persistence.
 - Add sync and async many-to-many attach, detach, sync, toggle, and existing
   pivot-attribute update operations through the owning Database session.
 - Add native Queue and Bus dispatch with typed jobs, bounded JSON envelopes,
