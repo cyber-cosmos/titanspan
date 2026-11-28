@@ -283,6 +283,87 @@ async def test_collection_visibility_changes_are_instance_scoped(
         assert "name" not in collection.to_dicts()[0]
 
 
+async def test_instance_appends_are_mutable_and_collection_scoped(
+    application: Application,
+) -> None:
+    """Change appended attributes on instances and collection members.
+
+    Args:
+        application: Application configured by the test fixture.
+    """
+    async with application:
+        await _create_schema()
+        await SerializationParent.create_async(
+            {
+                "name": "first",
+                "private_value": "first private",
+                "payload": {"status": "ready"},
+            },
+        )
+        await SerializationParent.create_async(
+            {
+                "name": "second",
+                "private_value": "second private",
+                "payload": {"status": "ready"},
+            },
+        )
+        parents = await (
+            SerializationParent.query()
+            .with_("children")
+            .order_by("id")
+            .get_async()
+        )
+        first, second = parents
+
+        assert first.get_appends() == ("label", "child_names")
+        assert first.has_appended("label")
+        assert not first.has_appended("missing")
+        assert first.append() is first
+        assert first.merge_appends(()) is first
+        assert first.get_appends() == ("label", "child_names")
+        assert first.set_appends(("label",)) is first
+        assert first.append("private_value") is first
+        first_values = first.to_dict()
+        assert first_values["label"] == "Parent: first"
+        assert "child_names" not in first_values
+        assert "private_value" not in first_values
+        assert "child_names" in second.to_dict()
+        assert SerializationParent.appends == ("label", "child_names")
+
+        assert first.append("child_names", "label") is first
+        assert first.get_appends() == (
+            "label",
+            "private_value",
+            "child_names",
+        )
+        assert first.merge_appends(("label",)) is first
+        assert first.get_appends() == (
+            "label",
+            "private_value",
+            "child_names",
+        )
+        assert first.without_appends() is first
+        assert "label" not in first.to_dict()
+        assert "child_names" not in first.to_dict()
+
+        collection = ModelCollection(parents)
+        assert collection.set_appends(("label",)) is collection
+        assert [value["label"] for value in collection.to_dicts()] == [
+            "Parent: first",
+            "Parent: second",
+        ]
+        assert collection.append("child_names") is collection
+        assert [value["child_names"] for value in collection.to_dicts()] == [
+            [],
+            [],
+        ]
+        assert collection.without_appends() is collection
+        assert all(
+            "label" not in value and "child_names" not in value
+            for value in collection.to_dicts()
+        )
+
+
 async def test_serialization_skips_unloaded_appends_without_database_io(
     application: Application,
 ) -> None:

@@ -54,6 +54,8 @@ public release.
 - Convert ModelCollection members into an ownership-checked ORM query.
 - Apply hidden and visible serialization policies to ModelCollection members
   without mutating their model-class defaults.
+- Append computed serialization attributes to individual models and
+  ModelCollection members without changing model-class defaults.
 - Recycle persisted models into writable many-to-many factory relations and
   build nested mapped association objects through factories.
 - Add `with_where_has()` to filter parent models and eager-load matching rows

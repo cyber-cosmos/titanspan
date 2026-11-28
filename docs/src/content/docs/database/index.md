@@ -1176,7 +1176,11 @@ Session is released.
 Async model results are detached after the operation. Accessing an unloaded
 relationship does not initiate hidden async I/O. Serialization includes only
 already-loaded relationships and omits attributes listed in `hidden`; it does
-not lazy-load related records.
+not lazy-load related records. Model classes may declare default `appends`;
+`append()`, `merge_appends()`, `set_appends()`, and `without_appends()` update
+the computed attributes for one model instance. Appended properties are
+evaluated only after all mapped fields and relationships are loaded.
+`get_appends()` and `has_appended()` inspect the instance configuration.
 
 The built-in cast declaration currently supports `"hashed"`. SQLAlchemy types
 own other value conversion, while Python properties provide native accessors
@@ -1192,6 +1196,9 @@ constrained to persisted collection members. The `make_visible()`,
 `merge_visible()`, `set_visible()`, `make_hidden()`, `merge_hidden()`, and
 `set_hidden()` methods apply serialization policy to each model instance
 without changing class defaults.
+
+Use `append()`, `set_appends()`, and `without_appends()` on a ModelCollection to
+apply computed serialization attributes to every member.
 
 Morph-to, morph-one, morph-many, polymorphic many-to-many relationships, and
 trusted application maps are implemented. Use `with_()` with a direct

@@ -326,6 +326,42 @@ class ModelCollection[ModelT](Collection[ModelT]):
             cast("Model", model).set_visible(attributes)
         return self
 
+    def append(self, *attributes: str) -> Self:
+        """Append computed attributes across every model in the collection.
+
+        Args:
+            *attributes: Computed attributes included in model serialization.
+
+        Returns:
+            This collection after each model's append list is updated.
+        """
+        for model in self:
+            cast("Model", model).append(*attributes)
+        return self
+
+    def set_appends(self, attributes: Sequence[str]) -> Self:
+        """Replace appended attributes on every model in the collection.
+
+        Args:
+            attributes: Computed attributes included in model serialization.
+
+        Returns:
+            This collection after each model's append list is replaced.
+        """
+        for model in self:
+            cast("Model", model).set_appends(attributes)
+        return self
+
+    def without_appends(self) -> Self:
+        """Remove appended attributes from every model in the collection.
+
+        Returns:
+            This collection after each model's append list is cleared.
+        """
+        for model in self:
+            cast("Model", model).without_appends()
+        return self
+
     def load(self, *paths: str) -> Self:
         """Load related models in bounded batches through SQLAlchemy ORM.
 

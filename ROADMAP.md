@@ -98,9 +98,10 @@ with native `db:seed` and `make:seeder` commands.
   validation, route binding, and native Console foundations are implemented.
   Native database assertions, one-of-many model relationships, collection
   refresh, query conversion, and instance-scoped collection visibility
-  operations are implemented. Sync and async query-count assertions are
-  implemented. Trusted morph maps, explicit polymorphic belongs-to access,
-  and parent-side morph-one and morph-many relations are implemented.
+  and append operations are implemented. Sync and async query-count
+  assertions are implemented. Trusted morph maps, explicit polymorphic
+  belongs-to access, and parent-side morph-one and morph-many relations are
+  implemented.
   Polymorphic many-to-many relations use explicit pivot writes. Database test
   isolation remains planned. Factory support includes nested association
   objects and recycled many-to-many members; broader relationship-factory

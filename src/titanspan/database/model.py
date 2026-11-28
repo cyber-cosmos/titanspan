@@ -185,6 +185,7 @@ _MYSQL_DUPLICATE_ENTRY_CODE = 1062
 _OMIT_SERIALIZED_VALUE = object()
 _MODEL_HIDDEN_INFO_KEY = "titanspan_model_hidden_attributes"
 _MODEL_VISIBLE_INFO_KEY = "titanspan_model_visible_attributes"
+_MODEL_APPENDS_INFO_KEY = "titanspan_model_appended_attributes"
 _DESTROY_CHUNK_SIZE = 500
 _DEFAULT_PRUNE_CHUNK_SIZE = 1000
 _INVALID_PRUNE_CHUNK_SIZE_ERROR = (
@@ -2327,6 +2328,79 @@ class Model(DeclarativeBase):
         sa_inspect(self).info[_MODEL_VISIBLE_INFO_KEY] = tuple(attributes)
         return self
 
+    def append(self, *attributes: str) -> Self:
+        """Append computed attributes to this instance's serialized form.
+
+        Args:
+            *attributes: Computed model attributes included in serialization.
+
+        Returns:
+            This model after its appended attributes are updated.
+        """
+        return self.merge_appends(attributes)
+
+    def get_appends(self) -> tuple[str, ...]:
+        """Return computed attributes appended by this model instance.
+
+        Returns:
+            Appended attribute names in their serialization order.
+        """
+        return cast(
+            "tuple[str, ...]",
+            sa_inspect(self).info.get(
+                _MODEL_APPENDS_INFO_KEY,
+                type(self).appends,
+            ),
+        )
+
+    def set_appends(self, attributes: Sequence[str]) -> Self:
+        """Replace this instance's appended serialization attributes.
+
+        Args:
+            attributes: Computed model attributes included in serialization.
+
+        Returns:
+            This model after its appended attributes are replaced.
+        """
+        sa_inspect(self).info[_MODEL_APPENDS_INFO_KEY] = tuple(attributes)
+        return self
+
+    def merge_appends(self, attributes: Sequence[str]) -> Self:
+        """Add computed attributes without duplicate serialization entries.
+
+        Args:
+            attributes: Computed model attributes included in serialization.
+
+        Returns:
+            This model after its appended attributes are merged.
+        """
+        if not attributes:
+            return self
+        existing = self.get_appends()
+        sa_inspect(self).info[_MODEL_APPENDS_INFO_KEY] = tuple(
+            dict.fromkeys((*existing, *attributes)),
+        )
+        return self
+
+    def has_appended(self, attribute: str) -> bool:
+        """Return whether this instance appends one computed attribute.
+
+        Args:
+            attribute: Computed model attribute to look up.
+
+        Returns:
+            Whether the attribute is part of this instance's append list.
+        """
+        return attribute in self.get_appends()
+
+    def without_appends(self) -> Self:
+        """Remove all appended attributes from this model instance.
+
+        Returns:
+            This model with no computed attributes added to serialization.
+        """
+        return self.set_appends(())
+
     def to_dict(self) -> dict[str, object]:
         """Serialize a bounded graph of loaded model attributes.
 
@@ -3606,7 +3680,14 @@ def _serialize_appended_attributes(
         Serialized appended values that pass visibility checks.
     """
     values: dict[str, object] = {}
-    for name in type(model).appends:
+    appends = cast(
+        "tuple[str, ...]",
+        sa_inspect(model).info.get(
+            _MODEL_APPENDS_INFO_KEY,
+            type(model).appends,
+        ),
+    )
+    for name in appends:
         if name in hidden or (allowed is not None and name not in allowed):
             continue
         # Appended descriptors run only after SQLAlchemy has no unloaded
