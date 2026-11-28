@@ -89,6 +89,9 @@ _FACTORY_RELATIONSHIP_COUNT_ERROR = (
 _FACTORY_RECYCLED_MODEL_ERROR = (
     "A recycled factory relationship requires a persisted model."
 )
+_FACTORY_ATTRIBUTE_INDEX_ERROR = (
+    "A factory attribute index must be a non-negative integer."
+)
 
 
 @dataclass(frozen=True, slots=True)
@@ -377,6 +380,48 @@ class ModelFactory[ModelT: _FactoryModel]:
         _validate_count(count)
         return FactoryBatch(self, count)
 
+    def raw_attributes(
+        self,
+        *,
+        index: int = 0,
+        attributes: Mapping[str, object] | None = None,
+    ) -> dict[str, object]:
+        """Resolve one item's attributes without constructing its model.
+
+        Factory relationships and lifecycle callbacks are not run.
+
+        Args:
+            index: Non-negative index used by sequences and value callables.
+            attributes: Trusted final values that override factory defaults.
+
+        Returns:
+            Mutable snapshot of the resolved factory attribute values.
+
+        Raises:
+            DatabaseFactoryError: If ``index`` is negative or boolean.
+        """
+        if type(index) is not int or index < 0:
+            raise DatabaseFactoryError(_FACTORY_ATTRIBUTE_INDEX_ERROR)
+        values = _resolve_mapping(self._definition, index)
+        if self._options.sequence_values:
+            sequence_index = index % len(self._options.sequence_values)
+            values.update(
+                _resolve_mapping(
+                    self._options.sequence_values[sequence_index],
+                    index,
+                ),
+            )
+        for state in self._options.states:
+            state_values = (
+                cast("Mapping[str, _FactoryValue]", state)
+                if isinstance(state, Mapping)
+                else state(index)
+            )
+            values.update(_resolve_mapping(state_values, index))
+        if attributes is not None:
+            values.update(attributes)
+        return values
+
     def make(
         self,
         attributes: Mapping[str, object] | None = None,
@@ -553,24 +598,7 @@ class ModelFactory[ModelT: _FactoryModel]:
         Returns:
             One transient model after its make callbacks have run.
         """
-        values = _resolve_mapping(self._definition, index)
-        if self._options.sequence_values:
-            sequence_index = index % len(self._options.sequence_values)
-            values.update(
-                _resolve_mapping(
-                    self._options.sequence_values[sequence_index],
-                    index,
-                ),
-            )
-        for state in self._options.states:
-            state_values = (
-                cast("Mapping[str, _FactoryValue]", state)
-                if isinstance(state, Mapping)
-                else state(index)
-            )
-            values.update(_resolve_mapping(state_values, index))
-        if attributes is not None:
-            values.update(attributes)
+        values = self.raw_attributes(index=index, attributes=attributes)
         model = self._model_class().force_fill(values)
         # SQLAlchemy's Unit of Work persists this graph through its mapped
         # relationship cascade, keeping parent and related rows atomic.

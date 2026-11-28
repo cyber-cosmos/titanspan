@@ -38,3 +38,16 @@ def test_factory_requires_sequence_values() -> None:
     """
     with pytest.raises(DatabaseFactoryError, match="at least one value"):
         Model.factory().sequence()
+
+
+def test_factory_rejects_invalid_raw_attribute_indices() -> None:
+    """Require a non-negative integer for raw value resolution.
+
+    Index callables use the same zero-based ordering as factory batches.
+    """
+    factory = Model.factory()
+
+    with pytest.raises(DatabaseFactoryError, match="attribute index"):
+        factory.raw_attributes(index=-1)
+    with pytest.raises(DatabaseFactoryError, match="attribute index"):
+        factory.raw_attributes(index=True)

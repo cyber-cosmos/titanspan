@@ -92,7 +92,7 @@ class SoftAggregatePost(Model):
     )
 
 
-class ThroughUser(Model):
+class ThroughUser(SoftDeletes, Model):
     """Represent an intermediate model between a country and posts.
 
     This mapped table contains foreign keys to the parent and final models.
@@ -105,6 +105,9 @@ class ThroughUser(Model):
         ForeignKey("through_countries.id"),
     )
     name: Mapped[str]
+    country_tags_count: Mapped[int | None] = query_expression()
+    country: Mapped[ThroughCountry] = relationship(back_populates="users")
+    posts: Mapped[list[ThroughPost]] = relationship(back_populates="user")
 
 
 class ThroughPost(SoftDeletes, Model):
@@ -117,6 +120,7 @@ class ThroughPost(SoftDeletes, Model):
     user_id: Mapped[int] = mapped_column(ForeignKey("through_users.id"))
     title: Mapped[str]
     amount: Mapped[int] = mapped_column(default=0)
+    user: Mapped[ThroughUser] = relationship(back_populates="posts")
 
 
 class ThroughTag(Model):
@@ -138,6 +142,7 @@ class ThroughCountry(Model):
 
     name: Mapped[str]
     posts_count: Mapped[int | None] = query_expression()
+    users_posts_count: Mapped[int | None] = query_expression()
     posts_exists: Mapped[bool | None] = query_expression()
     posts_sum_amount: Mapped[int | None] = query_expression()
     posts_avg_amount: Mapped[float | None] = query_expression()
@@ -147,6 +152,7 @@ class ThroughCountry(Model):
         ThroughPost,
         ThroughUser,
     )
+    users: Mapped[list[ThroughUser]] = relationship(back_populates="country")
     first_post: Mapped[ThroughPost] = has_one_through(
         ThroughPost,
         ThroughUser,
@@ -727,6 +733,121 @@ async def test_relationship_count_uses_mapped_query_expression(
         assert stale_model.posts_count is None
 
 
+async def test_nested_relationship_aggregates_apply_intermediate_scopes(
+    application: Application,
+) -> None:
+    """Aggregate nested paths while applying each model's visibility scope.
+
+    Args:
+        application: Isolated SQLite application for this test.
+    """
+    async with application:
+        await _create_schema()
+        populated = await ThroughCountry.create_async({"name": "Populated"})
+        await ThroughCountry.create_async({"name": "Empty"})
+        scoped = await ThroughCountry.create_async({"name": "Scoped"})
+        user = await ThroughUser.create_async(
+            {"country_id": populated.id, "name": "Ada"},
+        )
+        deleted_user = await ThroughUser.create_async(
+            {"country_id": scoped.id, "name": "Deleted owner"},
+        )
+        await ThroughPost.create_async(
+            {"user_id": user.id, "title": "First", "amount": 7},
+        )
+        await ThroughPost.create_async(
+            {"user_id": user.id, "title": "Second", "amount": 9},
+        )
+        deleted_post = await ThroughPost.create_async(
+            {"user_id": user.id, "title": "Deleted", "amount": 50},
+        )
+        await ThroughPost.create_async(
+            {
+                "user_id": deleted_user.id,
+                "title": "Hidden owner",
+                "amount": 100,
+            },
+        )
+        assert await deleted_post.delete_async()
+        assert await deleted_user.delete_async()
+
+        expected = {
+            "Populated": (2, 16),
+            "Empty": (0, None),
+            "Scoped": (0, None),
+        }
+        loaded = await (
+            ThroughCountry.query()
+            .with_count("users.posts")
+            .with_sum(
+                "users.posts",
+                "amount",
+                attribute="posts_sum_amount",
+            )
+            .get_async()
+        )
+        assert {
+            country.name: (
+                country.users_posts_count,
+                country.posts_sum_amount,
+            )
+            for country in loaded
+        } == expected
+
+        deferred = await ThroughCountry.query().get_async()
+        await deferred.load_aggregate_async("users.posts", "count")
+        await deferred.load_aggregate_async(
+            "users.posts",
+            "sum",
+            column_name="amount",
+            attribute="posts_sum_amount",
+        )
+        assert {
+            country.name: (
+                country.users_posts_count,
+                country.posts_sum_amount,
+            )
+            for country in deferred
+        } == expected
+
+
+async def test_nested_aggregate_joins_a_secondary_relationship(
+    application: Application,
+) -> None:
+    """Aggregate a nested path that ends in a many-to-many relation.
+
+    Args:
+        application: Isolated SQLite application for this test.
+    """
+    async with application:
+        await _create_schema()
+        tagged = await ThroughCountry.create_async({"name": "Tagged"})
+        empty = await ThroughCountry.create_async({"name": "Empty"})
+        tag = await ThroughTag.create_async({"name": "featured"})
+        await tagged.relation("tags").attach_async(tag)
+        await ThroughUser.create_async(
+            {"country_id": tagged.id, "name": "Tagged owner"},
+        )
+        await ThroughUser.create_async(
+            {"country_id": empty.id, "name": "Empty owner"},
+        )
+
+        loaded = await (
+            ThroughUser.query().with_count("country.tags").get_async()
+        )
+        assert {user.name: user.country_tags_count for user in loaded} == {
+            "Tagged owner": 1,
+            "Empty owner": 0,
+        }
+
+        deferred = await ThroughUser.query().get_async()
+        await deferred.load_aggregate_async("country.tags", "count")
+        assert {user.name: user.country_tags_count for user in deferred} == {
+            "Tagged owner": 1,
+            "Empty owner": 0,
+        }
+
+
 async def test_deferred_aggregates_include_soft_deleted_parent_models(
     application: Application,
 ) -> None:
@@ -779,7 +900,8 @@ async def _create_schema() -> None:
     await DB.statement_async(
         "CREATE TABLE through_users ("
         "id INTEGER PRIMARY KEY, country_id INTEGER NOT NULL, "
-        "name TEXT NOT NULL, created_at TIMESTAMP, updated_at TIMESTAMP, "
+        "name TEXT NOT NULL, deleted_at TIMESTAMP, created_at TIMESTAMP, "
+        "updated_at TIMESTAMP, "
         "FOREIGN KEY(country_id) REFERENCES through_countries(id))"
     )
     await DB.statement_async(

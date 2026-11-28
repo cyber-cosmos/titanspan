@@ -497,6 +497,18 @@ discards pending create callbacks. Faker is not a mandatory dependency.
 Factory callbacks can use deterministic Python values or an application-
 selected fake-data library.
 
+Use `raw_attributes()` to resolve defaults, sequence values, states, and final
+overrides without constructing a model or touching the database. It does not
+build related models or run factory callbacks:
+
+```python
+attributes = (
+    User.factory()
+    .sequence({"name": "Ada"}, {"name": "Grace"})
+    .raw_attributes(index=1)
+)
+```
+
 Use `relationship()` to assign a related factory or recycle a persisted model
 for a single-valued relation. The mapped relationship determines whether the
 result is a single object or a collection. Supply `count` for collection
@@ -891,7 +903,7 @@ async def users_with_titled_posts() -> ModelCollection[User]:
 The callback mutates and returns its related query builder. Nested relationship
 paths may be constrained with the same method.
 
-Load a direct relationship count through a typed SQLAlchemy query expression:
+Load a relationship count through a typed SQLAlchemy query expression:
 
 ```python
 from __future__ import annotations
@@ -924,13 +936,15 @@ Pass `attribute="published_posts_count"` to `with_count()` to select into a
 different declared `query_expression()`. `with_exists()`, `with_sum()`,
 `with_avg()`, `with_min()`, and `with_max()` select matching aggregates.
 Declare each result using `query_expression()` and use the matching default
-attribute name shown by the method. Aggregates apply the related model's
-global and soft-delete scopes. Self-referential and nested aggregates are not
-supported yet.
+attribute name shown by the method. Nested paths such as `users.posts` use
+`users_posts_count` as their default count attribute. Aggregates apply global
+and soft-delete scopes to every model along the path. Paths that revisit a
+mapped table, including self-referential paths, are not supported.
 
 Load an aggregate after retrieving a collection with
 `load_aggregate()` or `load_aggregate_async()`. This issues one query for the
-collection and assigns results to its declared query-expression attributes:
+collection and assigns results to its declared query-expression attributes.
+Both APIs accept direct or nested relationship paths:
 
 ```python
 users = await User.query().get_async()

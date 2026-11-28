@@ -14,6 +14,8 @@ public release.
 - Add schema and table inspection, guarded cleanup, fresh migrations, and
   model and migration generators to Database Console. Compose related model
   factories through mapped relationships and recycle existing model values.
+- Expose deterministic factory attribute resolution without model construction
+  or database access.
 - Add `model:show` to inspect mapped columns and relationships without opening
   a database connection.
 - Add sync and async bounded model pruning with pretend counts, soft-delete
@@ -105,6 +107,8 @@ public release.
   Database service and reuse the existing Testing lifecycle.
 - Add sync and async Database query-count context managers with listener
   cleanup on success, mismatch, and test-body exceptions.
+- Support query-time and deferred relationship aggregates across nested paths,
+  applying scopes to intermediate and final models.
 - Add sync and async atomic Query Builder upserts and insert-or-ignore
   operations using SQLAlchemy's supported SQLite, PostgreSQL, and MySQL
   dialect constructs. SQLite and PostgreSQL behavior has real integration

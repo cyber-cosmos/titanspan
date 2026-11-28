@@ -312,7 +312,7 @@ class ModelCollection[ModelT](Collection[ModelT]):
         selected by the aggregate kind. One query loads the full collection.
 
         Args:
-            relationship: Direct mapped relationship to aggregate.
+            relationship: Mapped relationship path to aggregate.
             aggregate: Count, existence, sum, average, minimum, or maximum.
             column_name: Related mapped column required by numeric aggregates.
             attribute: Declared ``query_expression()`` result attribute.
@@ -344,7 +344,7 @@ class ModelCollection[ModelT](Collection[ModelT]):
         """Asynchronously load one aggregate for persisted models.
 
         Args:
-            relationship: Direct mapped relationship to aggregate.
+            relationship: Mapped relationship path to aggregate.
             aggregate: Count, existence, sum, average, minimum, or maximum.
             column_name: Related mapped column required by numeric aggregates.
             attribute: Declared ``query_expression()`` result attribute.
@@ -492,7 +492,7 @@ class ModelCollection[ModelT](Collection[ModelT]):
         """Query aggregate values once and assign them to original models.
 
         Args:
-            relationship: Direct mapped relation to aggregate.
+            relationship: Mapped relationship path to aggregate.
             aggregate: Selected aggregate kind.
             column_name: Related model column for numeric aggregates.
             attribute: Optional result attribute override.
@@ -539,7 +539,7 @@ class ModelCollection[ModelT](Collection[ModelT]):
         """Asynchronously query one aggregate for the whole collection.
 
         Args:
-            relationship: Direct mapped relation to aggregate.
+            relationship: Mapped relationship path to aggregate.
             aggregate: Selected aggregate kind.
             column_name: Related model column for numeric aggregates.
             attribute: Optional result attribute override.
@@ -630,7 +630,7 @@ def _apply_relationship_aggregate[ModelT](
 
     Args:
         query: Builder for the parent model type.
-        relationship: Direct mapped relation to aggregate.
+        relationship: Mapped relationship path to aggregate.
         aggregate: Selected aggregate kind.
         column_name: Related mapped column for numeric aggregates.
         attribute: Optional result attribute override.
@@ -642,16 +642,22 @@ def _apply_relationship_aggregate[ModelT](
         DatabaseQueryError: If the aggregate or its required column is invalid.
     """
     if aggregate == "count":
-        result_attribute = attribute or f"{relationship}_count"
+        result_attribute = attribute or (
+            f"{relationship.replace('.', '_')}_count"
+        )
         query.with_count(relationship, attribute=result_attribute)
         return result_attribute
     if aggregate == "exists":
-        result_attribute = attribute or f"{relationship}_exists"
+        result_attribute = attribute or (
+            f"{relationship.replace('.', '_')}_exists"
+        )
         query.with_exists(relationship, attribute=result_attribute)
         return result_attribute
     if column_name is None:
         raise DatabaseQueryError(_AGGREGATE_COLUMN_ERROR)
-    result_attribute = attribute or f"{relationship}_{aggregate}_{column_name}"
+    result_attribute = attribute or (
+        f"{relationship.replace('.', '_')}_{aggregate}_{column_name}"
+    )
     if aggregate == "sum":
         query.with_sum(
             relationship,

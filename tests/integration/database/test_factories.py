@@ -172,6 +172,28 @@ async def test_factory_make_state_sequence_and_create(
         )
         assert not empty_sync
 
+        made_callbacks: list[FactoryUser] = []
+        factory = (
+            FactoryUser.factory()
+            .sequence({"name": "Grace"}, {"name": "Linus"})
+            .state({"name": lambda index: f"State {index}"})
+            .after_making(made_callbacks.append)
+        )
+        raw_attributes = factory.raw_attributes(index=1)
+        assert raw_attributes == {
+            "name": "State 1",
+            "email": "user-1@example.test",
+        }
+        assert factory.raw_attributes(
+            index=1,
+            attributes={"name": "Ada"},
+        ) == {
+            "name": "Ada",
+            "email": "user-1@example.test",
+        }
+        assert not made_callbacks
+        assert await DB.table("factory_users").count_async() == 0
+
         made = FactoryUser.factory().make()
 
         assert made.name == "User 0"
