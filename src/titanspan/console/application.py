@@ -83,6 +83,7 @@ _UNKNOWN_COMMAND_ERROR = "The requested command is not registered."
 _NESTED_SYNC_RUNTIME_ERROR = (
     "Synchronous nested execution requires a Console command handler."
 )
+_INTERRUPTED_EXIT_CODE = 130
 _MAX_EXCEPTION_DETAILS = 8192
 _APPLICATION_BOOTSTRAP_ERROR = "The application bootstrap could not be loaded."
 _APPLICATION_FACTORY_ERROR = (
@@ -687,6 +688,10 @@ class Console:
                     )
             except ConsoleExitError as error:
                 exit_code = error.code
+                raise
+            except KeyboardInterrupt as error:
+                exit_code = _INTERRUPTED_EXIT_CODE
+                exception_type = type(error).__name__
                 raise
             except Exception as error:
                 exit_code = 1

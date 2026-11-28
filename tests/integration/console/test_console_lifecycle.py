@@ -44,6 +44,7 @@ _APPLICATION_NAME = "Console integration"
 _UNEXPECTED_FACTORY_MESSAGE = "Active execution created another app."
 _COMMAND_FAILURE_SENTINEL = "synthetic-command-error-marker"
 _LIFECYCLE_EXIT_CODE = 7
+_INTERRUPT_EXIT_CODE = 130
 _PROGRAMMATIC_EXIT_CODE = 17
 _NESTED_COMMAND_COUNT = 2
 
@@ -974,3 +975,61 @@ async def test_async_execution_cancellation_shuts_down_owned_application() -> (
         finished_events[0].exception_type
         == anyio.get_cancelled_exc_class().__name__
     )
+
+
+def test_keyboard_interrupt_reports_shell_status_and_cleans_application() -> (
+    None
+):
+    """Map a CLI keyboard interrupt to the standard shell status.
+
+    The command finish event and application shutdown must both complete.
+    """
+    lifecycle: list[str] = []
+    finished_events: list[CommandFinished] = []
+
+    def make_application(provider: ServiceProvider) -> Application:
+        """Create one app and register a lifecycle observer.
+
+        Args:
+            provider: Console output provider for command execution.
+
+        Returns:
+            The isolated Application used by Console.
+        """
+        application = (
+            Application.builder()
+            .with_service_provider(provider)
+            .on_startup(lambda: lifecycle.append("startup"))
+            .on_shutdown(lambda: lifecycle.append("shutdown"))
+            .build()
+        )
+        dispatcher = application.container.make(EventDispatcher)
+
+        def record_finished(event: CommandFinished) -> None:
+            """Retain the process outcome without exception text.
+
+            Args:
+                event: Completed command metadata.
+            """
+            finished_events.append(event)
+
+        dispatcher.listen(CommandFinished, record_finished)
+        return application
+
+    console = Console(application_factory=make_application)
+
+    @console.command("interrupt")
+    def interrupt() -> None:
+        """Simulate the interrupt delivered by a terminal signal.
+
+        Click should convert KeyboardInterrupt into shell status 130.
+        """
+        raise KeyboardInterrupt
+
+    result = console.invoke(["interrupt"])
+
+    assert result.exit_code == _INTERRUPT_EXIT_CODE
+    assert lifecycle == ["startup", "shutdown"]
+    assert len(finished_events) == 1
+    assert finished_events[0].exit_code == _INTERRUPT_EXIT_CODE
+    assert finished_events[0].exception_type == "KeyboardInterrupt"

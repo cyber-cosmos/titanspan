@@ -26,6 +26,7 @@ application composition and resource cleanup.
 | Conventional application commands | Implemented | `routes/console.py` handlers exposed through trusted `titanspan.commands` entry points |
 | Terminal text, tables, prompts, and progress | Implemented | `TerminalOutput` implements `ConsoleOutput` |
 | Process status and error reporting | Implemented | Exit-code, failure, and cleanup tests |
+| Keyboard interrupt handling | Implemented at the CLI boundary | `test_keyboard_interrupt_reports_shell_status_and_cleans_application`; Click returns status 130 |
 | Async programmatic execution | Implemented | Active app reuse, standalone lifecycle, input checks, and cancellation tests |
 | Nested command execution | Implemented | `test_sync_command_executes_nested_command_in_the_same_application` and `test_async_nested_command_reuses_the_application` |
 | Silent nested execution | Implemented | `test_silent_sync_nested_command_hides_output_and_preserves_status` and `test_silent_async_nested_command_hides_failure_output` |
@@ -154,7 +155,9 @@ cancellation. This keeps command resources alive until user code exits.
 `ConsoleExitError` carries an operating-system status from 0 through 255.
 Other `Exception` values are reported through Foundation when an Application
 is active. Console writes a concise error and returns status 1. Cancellation
-propagates through Foundation cleanup.
+propagates through Foundation cleanup. A CLI `KeyboardInterrupt` completes
+application cleanup and reports status 130 through Click; command completion
+events include that status. Programmatic cancellation continues to propagate.
 
 ## Shared contracts
 
