@@ -22,6 +22,8 @@ application composition and resource cleanup.
 | Application startup and shutdown | Implemented | Lifecycle callbacks run around each command |
 | Trusted installed command discovery | Implemented | Deterministic entry-point loading tests |
 | Installed application provider discovery | Implemented | Default factory uses Foundation provider discovery |
+| Canonical application factory selection | Implemented | `test_default_factory_uses_conventional_application_bootstrap` |
+| Conventional application commands | Implemented | `routes/console.py` handlers exposed through trusted `titanspan.commands` entry points |
 | Terminal text, tables, prompts, and progress | Implemented | `TerminalOutput` implements `ConsoleOutput` |
 | Process status and error reporting | Implemented | Exit-code, failure, and cleanup tests |
 | Async programmatic execution | Implemented | Active app reuse, standalone lifecycle, input checks, and cancellation tests |
@@ -61,11 +63,12 @@ primitive parameters must use `Argument` or `Option` metadata.
 Each CLI application-aware command creates a fresh Application through its
 configured factory. The factory receives `ConsoleServiceProvider`, which
 registers the selected output instance through the shared `ServiceRegistry`
-contract before Container composition. The default factory first discovers
-trusted `titanspan.providers` entry points through Foundation. It then adds
-the Console provider, so application services and Console output share one
-Container. `execute_async()` reuses an active Application. Without an active
-context, it creates and closes one Application through the same factory.
+contract before Container composition. The default factory loads the fixed
+`bootstrap/app.py:create_application` convention when present and passes the
+Console provider to it. Otherwise, it builds from the current directory and
+discovers trusted `titanspan.providers` entry points through Foundation.
+`execute_async()` reuses an active Application. Without an active context, it
+creates and closes one Application through the same factory.
 
 Foundation starts the Application, activates its context, runs provider boot
 and invokes the handler through the Container. Foundation then shuts down the
@@ -99,10 +102,15 @@ Container injection.
 
 `discover_commands()` reads Python entry points from one named group. The
 installed `titanspan` entry point discovers commands before parsing. The
-default Application factory discovers service providers from
-`titanspan.providers`. Both discovery paths sort entries by name and value,
-record successful loads, and skip them on repeated calls. Discovery imports
-installed package code and therefore accepts only trusted distributions.
+conventional `routes/console.py` module can provide handlers through the
+application package's `titanspan.commands` entry points. Command discovery
+sorts entries by name and value, records successful loads, and skips them on
+repeated calls. The default Application factory uses the fixed
+`bootstrap/app.py:create_application` convention when present; otherwise it
+discovers service providers from `titanspan.providers`. Entry-point discovery
+imports installed package code and therefore accepts only trusted
+distributions. The bootstrap imports only that fixed application file and
+isolates relative imports by resolved application root.
 The built-in configuration commands accept `--path` to select an application
 root. They default to the current directory and never call `chdir()`.
 Route metadata commands use `ApplicationPaths` and write under the active
@@ -159,5 +167,6 @@ must provide typed values for the command's declared arguments and options.
 - Unit behavior: `tests/unit/console/` and `tests/unit/test_cli.py`.
 - Configuration CLI: `tests/unit/config/test_config_cli.py`.
 - Foundation integration: `tests/integration/console/`.
+- Canonical factory: `tests/integration/console/test_console_lifecycle.py`.
 - Artifact generation: `tests/unit/console/test_generators.py` and real
   Console/Application/ASGI coverage in `tests/integration/console/`.

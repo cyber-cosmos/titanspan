@@ -4,6 +4,7 @@ Tests exercise the production parser, provider, Container, and Foundation
 lifecycle together.
 """
 
+from pathlib import Path
 from types import SimpleNamespace
 from typing import Annotated
 
@@ -192,6 +193,192 @@ def test_default_factory_loads_application_provider_entry_points(
 
     assert result.exit_code == 0
     assert "provider service" in result.stdout
+
+
+def test_default_factory_uses_conventional_application_bootstrap(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Execute commands through the application's canonical factory.
+
+    The fixed bootstrap convention keeps Console and HTTP composition aligned.
+    """
+    app_source = '''"""Build the Console integration application."""
+
+from pathlib import Path
+
+from titanspan import Application
+from titanspan.contracts import ServiceProvider
+
+from .settings import APPLICATION_NAME
+
+
+def create_application(
+    *additional_providers: ServiceProvider,
+) -> Application:
+    """Build one application with trusted providers and test settings.
+
+    Args:
+        *additional_providers: Host providers registered by Console.
+
+    Returns:
+        One unstarted application owned by Foundation.
+    """
+    builder = (
+        Application.builder()
+        .with_base_path(Path(__file__).resolve().parents[1])
+        .with_config({"app": {"name": APPLICATION_NAME}})
+        .discover_providers()
+    )
+    for provider in additional_providers:
+        builder.with_service_provider(provider)
+    return builder.build()
+'''
+    applications: list[Application] = []
+    for application_name in ("console-first", "console-second"):
+        application_root = tmp_path / application_name
+        bootstrap = application_root / "bootstrap"
+        bootstrap.mkdir(parents=True)
+        (bootstrap / "settings.py").write_text(
+            f'"""Define settings for {application_name}."""\n'
+            f'APPLICATION_NAME: str = "{application_name}"\n',
+            encoding="utf-8",
+        )
+        (bootstrap / "app.py").write_text(
+            app_source,
+            encoding="utf-8",
+        )
+        monkeypatch.chdir(application_root)
+        console = Console()
+
+        @console.command("inspect")
+        def inspect_application(
+            config: ConfigRepository,
+            output: ConsoleOutput,
+        ) -> None:
+            """Write the application name selected by its bootstrap.
+
+            Args:
+                config: Configuration composed by the selected factory.
+                output: Output service registered in that same application.
+            """
+            active = active_application_context()
+            assert active is not None
+            assert isinstance(active.application, Application)
+            applications.append(active.application)
+            output.write(str(config.get("app.name")))
+
+        result = ConsoleTester(console).invoke(["inspect"])
+        cached_console = Console()
+        cached_console.command("inspect")(inspect_application)
+        cached_result = ConsoleTester(cached_console).invoke(["inspect"])
+
+        assert result.exit_code == 0
+        assert application_name in result.stdout
+        assert cached_result.exit_code == 0
+        assert application_name in cached_result.stdout
+        assert applications[0] is not applications[1]
+        assert active_application_context() is None
+
+
+@pytest.mark.parametrize(
+    ("application_source", "expected_message"),
+    [
+        (
+            '"""Omit the required factory export."""\n'
+            'APPLICATION_NAME: str = "invalid"\n',
+            "must define a callable create_application",
+        ),
+        (
+            '"""Fail while loading the trusted bootstrap."""\n'
+            'raise RuntimeError("bootstrap failed")\n',
+            "The application bootstrap could not be loaded",
+        ),
+        (
+            '"""Return an invalid application value."""\n'
+            "from titanspan.contracts import ServiceProvider\n\n"
+            "def create_application(\n"
+            "    *additional_providers: ServiceProvider,\n"
+            ") -> object:\n"
+            '    """Return a value that Foundation cannot run."""\n'
+            "    return object()\n",
+            "must return a native Application",
+        ),
+    ],
+)
+def test_default_factory_rejects_invalid_application_bootstraps(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    application_source: str,
+    expected_message: str,
+) -> None:
+    """Fail safely when the selected application bootstrap is invalid.
+
+    Args:
+        tmp_path: Isolated application root for one failure case.
+        monkeypatch: Restores process working-directory state.
+        application_source: Source loaded from the fixed bootstrap path.
+        expected_message: Safe framework-owned failure description.
+    """
+    bootstrap = tmp_path / "bootstrap"
+    bootstrap.mkdir()
+    (bootstrap / "app.py").write_text(
+        application_source,
+        encoding="utf-8",
+    )
+    monkeypatch.chdir(tmp_path)
+    console = Console(show_exception_details=True)
+
+    @console.command("inspect")
+    def inspect_application(output: ConsoleOutput) -> None:
+        """Run after bootstrap validation succeeds.
+
+        Args:
+            output: Console output owned by the command application.
+        """
+        output.write("inspected")
+
+    result = ConsoleTester(console).invoke(["inspect"])
+
+    assert result.exit_code == 1
+    assert expected_message in " ".join(result.stderr.split())
+
+
+def test_default_factory_rejects_bootstrap_symlinks_outside_root(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Reject a conventional bootstrap file that escapes its root.
+
+    The Console must not execute a file reached through an external symlink.
+    """
+    external_file = tmp_path / "external_app.py"
+    external_file.write_text(
+        '"""A bootstrap outside the selected application root."""\n'
+        'raise RuntimeError("outside bootstrap executed")\n',
+        encoding="utf-8",
+    )
+    application_root = tmp_path / "application"
+    bootstrap = application_root / "bootstrap"
+    bootstrap.mkdir(parents=True)
+    (bootstrap / "app.py").symlink_to(external_file)
+    monkeypatch.chdir(application_root)
+    console = Console()
+
+    @console.command("inspect")
+    def inspect_application(output: ConsoleOutput) -> None:
+        """Run only when no invalid bootstrap file exists.
+
+        Args:
+            output: Console output owned by the command application.
+        """
+        output.write("inspected")
+
+    result = ConsoleTester(console).invoke(["inspect"])
+
+    assert result.exit_code == 1
+    assert "ConsoleRuntimeError" in result.stderr
+    assert "outside bootstrap executed" not in result.stderr
 
 
 @pytest.mark.anyio

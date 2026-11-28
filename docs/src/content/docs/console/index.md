@@ -125,19 +125,24 @@ console = Console()
 console.register_command("status", StatusCommand)
 ```
 
-The default command factory builds an Application from the current directory.
-It loads trusted installed service providers from `titanspan.providers`, then
-registers the Console output provider in the same Container. Pass
-`application_factory` when commands need explicit configuration or
-application-specific provider setup. A Console with a custom factory retains
-the framework and component commands from the installed catalog. The factory
-receives the Console output provider.
+The default command factory uses `bootstrap/app.py:create_application` when
+that conventional file exists. The synchronous function receives the
+`ConsoleServiceProvider` and must return a native `Application`. Its own
+Foundation builder settings, trusted providers, logging, and middleware then
+apply to Console execution. Relative imports within `bootstrap/` remain
+isolated by application root. Without that file, Console builds an
+`Application` from the current directory and discovers trusted
+`titanspan.providers` entry points. Pass `application_factory` to a `Console`
+when one instance needs explicit composition. A Console with a custom factory
+retains the framework and component commands from the installed catalog.
 
 ## Discover installed commands
 
 Call `discover_commands()` to load trusted installed entry points from the
 `titanspan.commands` group. Discovery order uses entry-point name and value.
-This operation imports installed Python code. Install only trusted packages.
+Applications can keep command handlers in `routes/console.py` and expose them
+through that group. This operation imports installed Python code. Install only
+trusted packages.
 
 Use `with_application=False` only for bootstrap commands that need no
 Container services. The built-in configuration commands use this mode because

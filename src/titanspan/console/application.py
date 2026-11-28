@@ -6,10 +6,14 @@ composition, dependency resolution, startup, and shutdown.
 
 from __future__ import annotations
 
+import sys
 from contextvars import ContextVar
 from dataclasses import dataclass, field
 from functools import partial
+from hashlib import sha256
+from importlib.machinery import ModuleSpec
 from importlib.metadata import entry_points
+from importlib.util import module_from_spec, spec_from_file_location
 from inspect import (
     Parameter,
     Signature,
@@ -20,11 +24,14 @@ from inspect import (
     signature,
 )
 from pathlib import Path
+from threading import RLock
 from traceback import format_exception
+from types import ModuleType
 from typing import (
     TYPE_CHECKING,
     Annotated,
     TypeGuard,
+    cast,
     get_args,
     get_origin,
     get_type_hints,
@@ -49,6 +56,7 @@ from titanspan.foundation import Application
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Mapping, Sequence
+    from types import ModuleType
 
     from titanspan.contracts.console import (
         CommandHandler,
@@ -70,6 +78,15 @@ _INVALID_COMMAND_VALUES_ERROR = (
 )
 _UNKNOWN_COMMAND_ERROR = "The requested command is not registered."
 _MAX_EXCEPTION_DETAILS = 8192
+_APPLICATION_BOOTSTRAP_ERROR = "The application bootstrap could not be loaded."
+_APPLICATION_FACTORY_ERROR = (
+    "bootstrap/app.py must define a callable create_application."
+)
+_APPLICATION_FACTORY_RESULT_ERROR = (
+    "The application factory must return a native Application."
+)
+_APPLICATION_FACTORY_LOCK = RLock()
+_APPLICATION_MODULE_PREFIX = "_titanspan_application_"
 
 
 @dataclass(frozen=True, slots=True)
@@ -785,13 +802,109 @@ def _build_application(provider: ServiceProvider) -> Application:
     Returns:
         A not-yet-started application with one canonical Container.
     """
+    base_path = Path.cwd().resolve()
+    application_factory = _load_application_factory(base_path)
+    if application_factory is not None:
+        application = application_factory(provider)
+        if not isinstance(application, Application):
+            raise ConsoleRuntimeError(_APPLICATION_FACTORY_RESULT_ERROR)
+        return application
     return (
         Application.builder()
-        .with_base_path(Path.cwd())
+        .with_base_path(base_path)
         .discover_providers()
         .with_service_provider(provider)
         .build()
     )
+
+
+def _load_application_factory(
+    base_path: Path,
+) -> Callable[[ServiceProvider], object] | None:
+    """Load the trusted factory at the fixed application bootstrap path.
+
+    Args:
+        base_path: Resolved root selected by the command process.
+
+    Returns:
+        The conventional factory or None when no bootstrap file exists.
+
+    Raises:
+        ConsoleRuntimeError: If the file is outside the root, invalid, or
+            fails while loading.
+    """
+    candidate = base_path / "bootstrap" / "app.py"
+    if not candidate.is_file():
+        return None
+    try:
+        bootstrap_path = candidate.resolve(strict=True)
+        bootstrap_path.relative_to(base_path)
+    except (OSError, ValueError) as error:
+        raise ConsoleRuntimeError(_APPLICATION_BOOTSTRAP_ERROR) from error
+
+    identity = sha256(str(base_path).encode("utf-8")).hexdigest()[:16]
+    package_name = f"{_APPLICATION_MODULE_PREFIX}{identity}"
+    module_name = f"{package_name}.app"
+    with _APPLICATION_FACTORY_LOCK:
+        module = sys.modules.get(module_name)
+        if module is None:
+            module = _import_application_module(
+                package_name,
+                module_name,
+                bootstrap_path,
+            )
+            sys.modules[module_name] = module
+        factory = getattr(module, "create_application", None)
+        if not callable(factory):
+            _remove_application_package(package_name)
+            raise ConsoleRuntimeError(_APPLICATION_FACTORY_ERROR)
+        return cast("Callable[[ServiceProvider], object]", factory)
+
+
+def _import_application_module(
+    package_name: str,
+    module_name: str,
+    bootstrap_path: Path,
+) -> ModuleType:
+    """Import one bootstrap module in its own package namespace.
+
+    Args:
+        package_name: Root-specific private package name.
+        module_name: Module name nested under the private package.
+        bootstrap_path: Validated ``bootstrap/app.py`` path.
+
+    Returns:
+        The loaded trusted bootstrap module.
+
+    Raises:
+        ConsoleRuntimeError: If Python cannot create or execute the module.
+    """
+    package_spec = ModuleSpec(package_name, loader=None, is_package=True)
+    package_spec.submodule_search_locations = [str(bootstrap_path.parent)]
+    sys.modules[package_name] = module_from_spec(package_spec)
+    module_spec = spec_from_file_location(module_name, bootstrap_path)
+    if module_spec is None or module_spec.loader is None:
+        _remove_application_package(package_name)
+        raise ConsoleRuntimeError(_APPLICATION_BOOTSTRAP_ERROR)
+    module = module_from_spec(module_spec)
+    sys.modules[module_name] = module
+    try:
+        module_spec.loader.exec_module(module)
+    except Exception as error:
+        _remove_application_package(package_name)
+        raise ConsoleRuntimeError(_APPLICATION_BOOTSTRAP_ERROR) from error
+    return module
+
+
+def _remove_application_package(package_name: str) -> None:
+    """Remove a failed bootstrap and all modules loaded beneath its package.
+
+    Args:
+        package_name: Private namespace created for one application root.
+    """
+    for name in tuple(sys.modules):
+        if name == package_name or name.startswith(f"{package_name}."):
+            del sys.modules[name]
 
 
 def _handler_target(
