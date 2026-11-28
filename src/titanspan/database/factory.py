@@ -11,6 +11,7 @@ from collections.abc import Callable, Mapping
 from dataclasses import dataclass, replace
 from typing import TYPE_CHECKING, ClassVar, Protocol, Self, TypeGuard, cast
 
+from sqlalchemy import Table
 from sqlalchemy import inspect as sa_inspect
 from sqlalchemy.exc import NoInspectionAvailable
 from sqlalchemy.orm.attributes import set_committed_value
@@ -250,7 +251,8 @@ class ModelFactory[ModelT: _FactoryModel]:
         """Build one mapped related value or a collection of related models.
 
         A related factory creates fresh models for each parent. A persisted
-        model can be supplied for a single-valued relation.
+        model can be supplied for a single-valued relation or one writable
+        many-to-many collection entry.
 
         Args:
             name: Mapped relationship on this factory's model.
@@ -581,8 +583,14 @@ class ModelFactory[ModelT: _FactoryModel]:
         for relationship in self._options.relationships:
             if not relationship.recycled:
                 continue
-            related_model = getattr(model, relationship.name)
-            ensure_session_owner(related_model, service, session)
+            related_value = getattr(model, relationship.name)
+            related_models = (
+                tuple(related_value)
+                if relationship.collection
+                else (related_value,)
+            )
+            for related_model in related_models:
+                ensure_session_owner(related_model, service, session)
 
     def _make_one(
         self,
@@ -730,7 +738,7 @@ def _recycled_relationship(
     mapped_relationship: RelationshipProperty[object],
     related: _FactoryModel,
 ) -> _FactoryRelationship:
-    """Build safe behavior for one persisted single-valued relation.
+    """Build safe behavior for one persisted scalar or many-to-many relation.
 
     Args:
         owner_type: Mapped class that owns the relationship.
@@ -743,12 +751,16 @@ def _recycled_relationship(
 
     Raises:
         DatabaseFactoryError: If the related model is transient or the
-            relationship does not expose direct foreign-key synchronization.
+            relation cannot safely persist a reused model.
     """
-    if mapped_relationship.uselist:
-        raise DatabaseFactoryError(_FACTORY_RELATIONSHIP_ERROR)
     if not related.exists:
         raise DatabaseFactoryError(_FACTORY_RECYCLED_MODEL_ERROR)
+    if mapped_relationship.uselist:
+        return _recycled_collection_relationship(
+            name,
+            mapped_relationship,
+            related,
+        )
     related_type = type(related)
     owner_mapper = sa_inspect(owner_type)
     related_mapper = sa_inspect(related_type)
@@ -810,6 +822,53 @@ def _recycled_relationship(
         count=1,
         recycled=True,
         populate_foreign_keys=populate_foreign_keys,
+        make_related=make_related,
+        schedule_created=None,
+    )
+
+
+def _recycled_collection_relationship(
+    name: str,
+    mapped_relationship: RelationshipProperty[object],
+    related: _FactoryModel,
+) -> _FactoryRelationship:
+    """Build safe behavior for one reused many-to-many collection member.
+
+    Args:
+        name: Relationship attribute name on the owner model.
+        mapped_relationship: SQLAlchemy's mapped relationship property.
+        related: Persisted related model selected by the caller.
+
+    Returns:
+        Construction behavior for the existing collection member.
+
+    Raises:
+        DatabaseFactoryError: If the relation cannot safely persist a reuse.
+    """
+    if (
+        not isinstance(mapped_relationship.secondary, Table)
+        or mapped_relationship.viewonly
+    ):
+        raise DatabaseFactoryError(_FACTORY_RELATIONSHIP_ERROR)
+
+    def make_related(index: int) -> _FactoryModel:
+        """Reuse the selected model without copying or constructing it.
+
+        Args:
+            index: Unused factory item index.
+
+        Returns:
+            The existing model selected by the caller.
+        """
+        del index
+        return related
+
+    return _FactoryRelationship(
+        name=name,
+        collection=True,
+        count=1,
+        recycled=True,
+        populate_foreign_keys=None,
         make_related=make_related,
         schedule_created=None,
     )

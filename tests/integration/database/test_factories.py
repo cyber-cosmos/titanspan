@@ -9,7 +9,15 @@ from typing import TYPE_CHECKING, ClassVar
 
 import anyio
 import pytest
-from sqlalchemy import ForeignKey, String
+from sqlalchemy import (
+    Column,
+    DateTime,
+    ForeignKey,
+    Integer,
+    String,
+    Table,
+    func,
+)
 from sqlalchemy.orm import Mapped, foreign, mapped_column, relationship
 
 from titanspan.database import (
@@ -19,6 +27,7 @@ from titanspan.database import (
     FactoryBatch,
     Model,
     Schema,
+    belongs_to_many,
 )
 from titanspan.facades.database import DB
 from titanspan.foundation import Application
@@ -34,8 +43,40 @@ _EXPECTED_USER_COUNT = 4
 _EXPECTED_RELATED_MODEL_COUNT = 2
 _EXPECTED_RECYCLED_PARENT_COUNT = 2
 _EXPECTED_CHILD_COUNT_AFTER_RECYCLE = 3
+_EXPECTED_FACTORY_TAG_COUNT = 2
+_EXPECTED_FACTORY_PARENT_COUNT = 2
+_EXPECTED_FACTORY_PIVOT_COUNT = 3
+_EXPECTED_SYNC_FACTORY_PARENT_COUNT = 3
+_EXPECTED_SYNC_FACTORY_PIVOT_COUNT = 4
 _SYNC_BATCH_COUNT = 2
 _ROLLBACK_MESSAGE = "factory rollback"
+
+_FACTORY_PARENT_TAGS = Table(
+    "factory_parent_tags",
+    Model.metadata,
+    Column(
+        "parent_id",
+        Integer,
+        ForeignKey("factory_parents.id"),
+        primary_key=True,
+    ),
+    Column(
+        "tag_id",
+        Integer,
+        ForeignKey("factory_tags.id"),
+        primary_key=True,
+    ),
+    Column(
+        "created_at",
+        DateTime(timezone=True),
+        server_default=func.current_timestamp(),
+    ),
+    Column(
+        "updated_at",
+        DateTime(timezone=True),
+        server_default=func.current_timestamp(),
+    ),
+)
 
 
 def _user_name(index: int) -> str:
@@ -79,6 +120,18 @@ class FactoryUser(Model):
     email: Mapped[str] = mapped_column(String(320), unique=True)
 
 
+class FactoryTag(Model):
+    """Represent a related row selected by a collection factory.
+
+    The many-to-many tests persist tags through an association table.
+    """
+
+    table = "factory_tags"
+    fillable = ("name",)
+
+    name: Mapped[str] = mapped_column(String(120), unique=True)
+
+
 class FactoryParent(Model):
     """Represent a parent in relationship factory integration cases.
 
@@ -95,6 +148,14 @@ class FactoryParent(Model):
     children: Mapped[list[FactoryChild]] = relationship(
         back_populates="parent",
         cascade="all, delete-orphan",
+    )
+    memberships: Mapped[list[FactoryMembership]] = relationship(
+        back_populates="parent",
+        cascade="all, delete-orphan",
+    )
+    tags: Mapped[list[FactoryTag]] = belongs_to_many(
+        FactoryTag,
+        _FACTORY_PARENT_TAGS,
     )
     primary_child: Mapped[FactoryChild] = relationship(
         primaryjoin=lambda: FactoryParent.id == foreign(FactoryChild.parent_id),
@@ -121,6 +182,27 @@ class FactoryChild(Model):
     )
     label: Mapped[str] = mapped_column(String(120))
     parent: Mapped[FactoryParent] = relationship(back_populates="children")
+
+
+class FactoryMembership(Model):
+    """Represent pivot attributes through a mapped association object.
+
+    Factories can build this model and its related tag as one nested graph.
+    """
+
+    table = "factory_memberships"
+    fillable = ("parent_id", "tag_id", "role")
+    factory_attributes: ClassVar[Mapping[str, object]] = {"role": "member"}
+
+    parent_id: Mapped[int] = mapped_column(
+        ForeignKey("factory_parents.id"),
+    )
+    tag_id: Mapped[int] = mapped_column(ForeignKey("factory_tags.id"))
+    role: Mapped[str] = mapped_column(String(80))
+    parent: Mapped[FactoryParent] = relationship(
+        back_populates="memberships",
+    )
+    tag: Mapped[FactoryTag] = relationship()
 
 
 @pytest.fixture
@@ -349,6 +431,171 @@ async def test_factory_builds_persists_and_recycles_related_models(
                 "primary_child",
                 created_child,
             ).make()
+
+
+async def test_factory_builds_and_recycles_many_to_many_models(
+    application: Application,
+) -> None:
+    """Build a mapped pivot graph and reuse persisted collection members.
+
+    Args:
+        application: Application configured by the test fixture.
+    """
+    async with application:
+        async with Schema.create("factory_parents") as table:
+            table.id()
+            table.string("name", length=120)
+            table.timestamps()
+        async with Schema.create("factory_tags") as table:
+            table.id()
+            table.string("name", length=120).unique()
+            table.timestamps()
+        await DB.statement_async(
+            "CREATE TABLE factory_parent_tags ("
+            "parent_id INTEGER NOT NULL REFERENCES factory_parents(id), "
+            "tag_id INTEGER NOT NULL REFERENCES factory_tags(id), "
+            "created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, "
+            "updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, "
+            "PRIMARY KEY(parent_id, tag_id))"
+        )
+
+        tag_factory = FactoryTag.factory().state(
+            {"name": lambda index: f"Tag {index}"},
+        )
+        parent_factory = FactoryParent.factory().relationship(
+            "tags",
+            tag_factory,
+            count=_EXPECTED_FACTORY_TAG_COUNT,
+        )
+        transient = parent_factory.make()
+        assert not transient.exists
+        assert len(transient.tags) == _EXPECTED_FACTORY_TAG_COUNT
+        assert all(not tag.exists for tag in transient.tags)
+        assert await DB.table("factory_parent_tags").count_async() == 0
+
+        created_parent = await parent_factory.create_async()
+        assert created_parent.exists
+        assert len(created_parent.tags) == _EXPECTED_FACTORY_TAG_COUNT
+        assert all(tag.exists for tag in created_parent.tags)
+        assert await DB.table("factory_parents").count_async() == 1
+        assert await DB.table("factory_tags").count_async() == (
+            _EXPECTED_FACTORY_TAG_COUNT
+        )
+        assert await DB.table("factory_parent_tags").count_async() == (
+            _EXPECTED_FACTORY_TAG_COUNT
+        )
+
+        recycled_tag = created_parent.tags[0]
+        recycled_parent = await (
+            FactoryParent.factory()
+            .relationship("tags", recycled_tag)
+            .create_async()
+        )
+        assert recycled_parent.exists
+        assert len(recycled_parent.tags) == 1
+        assert recycled_parent.tags[0].id == recycled_tag.id
+        assert await DB.table("factory_parents").count_async() == (
+            _EXPECTED_FACTORY_PARENT_COUNT
+        )
+        assert await DB.table("factory_tags").count_async() == (
+            _EXPECTED_FACTORY_TAG_COUNT
+        )
+        assert await DB.table("factory_parent_tags").count_async() == (
+            _EXPECTED_FACTORY_PIVOT_COUNT
+        )
+
+        def create_sync_recycled_parent() -> FactoryParent:
+            """Persist a parent that reuses one loaded tag synchronously.
+
+            The synchronous Database session runs in an AnyIO worker thread.
+            """
+            return (
+                FactoryParent.factory()
+                .relationship("tags", recycled_tag)
+                .create()
+            )
+
+        sync_parent = await anyio.to_thread.run_sync(
+            create_sync_recycled_parent,
+        )
+        assert sync_parent.exists
+        assert await DB.table("factory_parents").count_async() == (
+            _EXPECTED_SYNC_FACTORY_PARENT_COUNT
+        )
+        assert await DB.table("factory_parent_tags").count_async() == (
+            _EXPECTED_SYNC_FACTORY_PIVOT_COUNT
+        )
+
+
+async def test_factory_builds_nested_mapped_pivot_models(
+    application: Application,
+) -> None:
+    """Persist pivot attributes with a nested association-object factory.
+
+    Args:
+        application: Application configured by the test fixture.
+    """
+    async with application:
+        async with Schema.create("factory_parents") as table:
+            table.id()
+            table.string("name", length=120)
+            table.timestamps()
+        async with Schema.create("factory_tags") as table:
+            table.id()
+            table.string("name", length=120).unique()
+            table.timestamps()
+        async with Schema.create("factory_memberships") as table:
+            table.id()
+            table.foreign_id("parent_id").references("factory_parents")
+            table.foreign_id("tag_id").references("factory_tags")
+            table.string("role", length=80)
+            table.timestamps()
+
+        tag_factory = FactoryTag.factory().state(
+            {"name": lambda index: f"Pivot tag {index}"},
+        )
+        membership_factory = (
+            FactoryMembership.factory()
+            .state({"role": lambda index: f"member-{index}"})
+            .relationship("tag", tag_factory)
+        )
+        parent_factory = FactoryParent.factory().relationship(
+            "memberships",
+            membership_factory,
+            count=_EXPECTED_FACTORY_TAG_COUNT,
+        )
+        transient = parent_factory.make()
+        assert not transient.exists
+        assert len(transient.memberships) == _EXPECTED_FACTORY_TAG_COUNT
+        assert all(
+            not membership.exists for membership in transient.memberships
+        )
+        assert all(
+            not membership.tag.exists for membership in transient.memberships
+        )
+        assert await DB.table("factory_memberships").count_async() == 0
+
+        created_parent = await parent_factory.create_async()
+        assert created_parent.exists
+        assert [
+            membership.role for membership in created_parent.memberships
+        ] == [
+            "member-0",
+            "member-1",
+        ]
+        assert all(
+            membership.exists for membership in created_parent.memberships
+        )
+        assert all(
+            membership.tag.exists for membership in created_parent.memberships
+        )
+        assert await DB.table("factory_parents").count_async() == 1
+        assert await DB.table("factory_memberships").count_async() == (
+            _EXPECTED_FACTORY_TAG_COUNT
+        )
+        assert await DB.table("factory_tags").count_async() == (
+            _EXPECTED_FACTORY_TAG_COUNT
+        )
 
 
 async def test_factory_callbacks_observe_make_and_commit_boundaries(

@@ -34,6 +34,8 @@ public release.
   pivot-attribute update operations through the owning Database session.
 - Stamp configured pivot timestamps during explicit relation-manager writes
   and refresh `updated_at` when updating existing pivot attributes.
+- Recycle persisted models into writable many-to-many factory relations and
+  build nested mapped association objects through factories.
 - Add native Queue and Bus dispatch with typed jobs, bounded JSON envelopes,
   and Taskiq-backed Redis workers.
 - Keep handler scopes, middleware, retries, delayed delivery, ordered chains,

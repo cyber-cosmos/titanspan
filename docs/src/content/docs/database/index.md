@@ -509,15 +509,34 @@ attributes = (
 )
 ```
 
-Use `relationship()` to assign a related factory or recycle a persisted model
-for a single-valued relation. The mapped relationship determines whether the
-result is a single object or a collection. Supply `count` for collection
-factories. Nested factory graphs remain transient until the root factory
-persists them through SQLAlchemy's
-Unit of Work and relationship cascade. Related `after_creating()` callbacks
-run only after the owning transaction commits. Recycled models are reused and
-are not copied or created again. Map association objects when pivot rows need
-additional attributes.
+Use `relationship()` to assign a related factory. The mapped relationship
+determines whether the result is a single object or a collection. Supply
+`count` for factory-built collections. A persisted model can be recycled for
+a single-valued relation or as one entry in a writable many-to-many relation;
+collection recycling requires `count=1`. Recycled models are reused and are
+not copied or created again. Nested factory graphs remain transient until the
+root factory persists them through SQLAlchemy's Unit of Work and relationship
+cascade. Related `after_creating()` callbacks run only after the owning
+transaction commits. Direct secondary relationships use their table defaults
+for pivot columns that the factory does not set.
+
+Map an association object when pivot rows need application attributes. Its
+factory can build a related target as another nested relationship:
+
+```python
+from app.models import Membership, Tag, Team
+
+
+membership_factory = Membership.factory().relationship(
+    "tag",
+    Tag.factory(),
+)
+team_factory = Team.factory().relationship(
+    "memberships",
+    membership_factory,
+    count=3,
+)
+```
 
 ```python
 post = Post.factory().relationship("author", User.factory())
