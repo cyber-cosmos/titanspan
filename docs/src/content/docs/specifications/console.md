@@ -27,6 +27,7 @@ application composition and resource cleanup.
 | Terminal text, tables, prompts, and progress | Implemented | `TerminalOutput` implements `ConsoleOutput` |
 | Process status and error reporting | Implemented | Exit-code, failure, and cleanup tests |
 | Async programmatic execution | Implemented | Active app reuse, standalone lifecycle, input checks, and cancellation tests |
+| Nested command execution | Implemented | `test_sync_command_executes_nested_command_in_the_same_application` and `test_async_nested_command_reuses_the_application` |
 | Parser-backed command tests | Implemented | `ConsoleTester` delegates to the production parser |
 | Configuration commands | Implemented | `tests/unit/config/test_config_cli.py` |
 | Framework information command | Implemented | `about` reports Titanspan and Python versions without starting an application |
@@ -48,6 +49,7 @@ application composition and resource cleanup.
 | `run()` | Parse process arguments and execute one command |
 | `invoke(arguments, stdin=...)` | Run the real parser with captured streams |
 | `execute_async(command_path, values=None)` | Run a registered command from Python without CLI parsing |
+| `execute_sync(command_path, values=None)` | Run a nested command from a synchronous command handler in the current Application |
 | `output` | Return the configured `ConsoleOutput` implementation |
 | `command_names` | Return registered command paths in sorted order |
 | `Argument(...)`, `Option(...)` | Mark typed parameters as CLI values |
@@ -67,7 +69,10 @@ contract before Container composition. The default factory loads the fixed
 `bootstrap/app.py:create_application` convention when present and passes the
 Console provider to it. Otherwise, it builds from the current directory and
 discovers trusted `titanspan.providers` entry points through Foundation.
-`execute_async()` reuses an active Application. Without an active context, it
+`execute_async()` reuses an active Application. `execute_sync()` bridges from
+a synchronous handler's AnyIO worker thread to the same runtime; it does not
+create a nested event loop. Async handlers should await `execute_async()`.
+Without an active context, `execute_async()`
 creates and closes one Application through the same factory.
 
 Foundation starts the Application, activates its context, runs provider boot

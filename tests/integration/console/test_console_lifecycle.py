@@ -41,6 +41,7 @@ _APPLICATION_NAME = "Console integration"
 _UNEXPECTED_FACTORY_MESSAGE = "Active execution created another app."
 _COMMAND_FAILURE_SENTINEL = "synthetic-command-error-marker"
 _PROGRAMMATIC_EXIT_CODE = 17
+_NESTED_COMMAND_COUNT = 2
 
 
 class _CommandDependency:
@@ -193,6 +194,149 @@ def test_default_factory_loads_application_provider_entry_points(
 
     assert result.exit_code == 0
     assert "provider service" in result.stdout
+
+
+def test_sync_command_executes_nested_command_in_the_same_application() -> None:
+    """Execute a child command through the active sync handler context.
+
+    The nested command must reuse the same Application and lifecycle.
+    """
+    lifecycle: list[str] = []
+    applications: list[object] = []
+    child_statuses: list[int] = []
+
+    def make_application(provider: ServiceProvider) -> Application:
+        """Build the command application with visible lifecycle callbacks.
+
+        Args:
+            provider: Console services and command executor for this host.
+
+        Returns:
+            One unstarted command application.
+        """
+        return (
+            Application.builder()
+            .with_service_provider(provider)
+            .on_startup(lambda: lifecycle.append("startup"))
+            .on_shutdown(lambda: lifecycle.append("shutdown"))
+            .build()
+        )
+
+    console = Console(application_factory=make_application)
+
+    @console.command("child")
+    def child(output: ConsoleOutput) -> None:
+        """Record the application used by a nested command.
+
+        Args:
+            output: Output owned by the invoking Console.
+        """
+        active = active_application_context()
+        assert active is not None
+        applications.append(active.application)
+        output.write("child command ran")
+
+    @console.command("parent")
+    def parent(command_host: Console, output: ConsoleOutput) -> None:
+        """Invoke one child through the injected Console host.
+
+        Args:
+            command_host: Active command host with the shared catalog.
+            output: Output owned by the invoking Console.
+        """
+        active = active_application_context()
+        assert active is not None
+        applications.append(active.application)
+        status = command_host.execute_sync("child")
+        child_statuses.append(status)
+        output.write(f"child status: {status}")
+
+    result = ConsoleTester(console).invoke(["parent"])
+
+    assert result.exit_code == 0
+    assert "child command ran" in result.stdout
+    assert "child status: 0" in result.stdout
+    assert len(applications) == _NESTED_COMMAND_COUNT
+    assert applications[0] is applications[1]
+    assert child_statuses == [0]
+    assert lifecycle == ["startup", "shutdown"]
+
+
+def test_sync_nested_execution_rejects_outside_handler() -> None:
+    """Avoid creating an event loop for an invalid sync call site.
+
+    Synchronous nested execution is supported only from Console worker
+    handlers, where it can reuse the owning runtime.
+    """
+    console = Console()
+
+    with pytest.raises(ConsoleRuntimeError):
+        console.execute_sync("missing")
+
+
+@pytest.mark.anyio
+async def test_async_nested_command_reuses_the_application() -> None:
+    """Await a child command without opening another application lifecycle.
+
+    Async handlers use the existing programmatic execution path directly.
+    """
+    lifecycle: list[str] = []
+    applications: list[object] = []
+    child_statuses: list[int] = []
+
+    def make_application(provider: ServiceProvider) -> Application:
+        """Build the command application with visible lifecycle callbacks.
+
+        Args:
+            provider: Console services and command executor for this host.
+
+        Returns:
+            One unstarted command application.
+        """
+        return (
+            Application.builder()
+            .with_service_provider(provider)
+            .on_startup(lambda: lifecycle.append("startup"))
+            .on_shutdown(lambda: lifecycle.append("shutdown"))
+            .build()
+        )
+
+    console = Console(application_factory=make_application)
+
+    @console.command("child")
+    def child(output: ConsoleOutput) -> None:
+        """Record the application used by a nested command.
+
+        Args:
+            output: Output owned by the invoking Console.
+        """
+        active = active_application_context()
+        assert active is not None
+        applications.append(active.application)
+        output.write("async child command ran")
+
+    @console.command("parent")
+    async def parent(command_host: Console, output: ConsoleOutput) -> None:
+        """Await one child through the injected Console host.
+
+        Args:
+            command_host: Active command host with the shared catalog.
+            output: Output owned by the invoking Console.
+        """
+        active = active_application_context()
+        assert active is not None
+        applications.append(active.application)
+        status = await command_host.execute_async("child")
+        child_statuses.append(status)
+        output.write(f"child status: {status}")
+
+    status = await console.execute_async("parent")
+
+    assert status == 0
+    assert child_statuses == [0]
+    assert len(applications) == _NESTED_COMMAND_COUNT
+    assert applications[0] is applications[1]
+    assert lifecycle == ["startup", "shutdown"]
 
 
 def test_default_factory_uses_conventional_application_bootstrap(

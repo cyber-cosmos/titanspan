@@ -77,6 +77,9 @@ _INVALID_COMMAND_VALUES_ERROR = (
     "Programmatic command values must match registered CLI parameters."
 )
 _UNKNOWN_COMMAND_ERROR = "The requested command is not registered."
+_NESTED_SYNC_RUNTIME_ERROR = (
+    "Synchronous nested execution requires a Console command handler."
+)
 _MAX_EXCEPTION_DETAILS = 8192
 _APPLICATION_BOOTSTRAP_ERROR = "The application bootstrap could not be loaded."
 _APPLICATION_FACTORY_ERROR = (
@@ -487,6 +490,36 @@ class Console:
             return 1
         return 0
 
+    def execute_sync(
+        self,
+        command_path: str,
+        values: Mapping[str, object] | None = None,
+    ) -> int:
+        """Execute a nested command from a synchronous command handler.
+
+        Synchronous handlers run in an AnyIO worker thread. This method
+        returns to that handler's existing runtime and preserves its active
+        Application. Async handlers should await :meth:`execute_async`.
+
+        Args:
+            command_path: Registered command path, with spaces between groups.
+            values: Typed values for declared command arguments and options.
+
+        Returns:
+            A process-style status code from the command handler.
+
+        Raises:
+            ConsoleRuntimeError: If called outside a Console worker thread.
+        """
+        try:
+            return anyio.from_thread.run(
+                self.execute_async,
+                command_path,
+                values,
+            )
+        except anyio.NoEventLoopError as error:
+            raise ConsoleRuntimeError(_NESTED_SYNC_RUNTIME_ERROR) from error
+
     @property
     def output(self) -> ConsoleOutput:
         """Return the configured output contract.
@@ -679,7 +712,7 @@ class Console:
         """
         active = active_application_context()
         if active is None:
-            provider = ConsoleServiceProvider(self._output)
+            provider = ConsoleServiceProvider(self._output, console=self)
             return self._application_factory(provider), True
         if (
             isinstance(active.application, Application)
