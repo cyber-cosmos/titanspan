@@ -18,6 +18,7 @@ from sqlalchemy import Enum as SAEnum
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from titanspan.database import (
+    DatabaseQueryError,
     DatabaseServiceProvider,
     DatabaseTransactionOwnershipError,
     Model,
@@ -243,6 +244,48 @@ async def test_model_collection_refreshes_existing_instances(
         assert collection[1] is second_member
 
 
+async def test_model_collection_converts_selected_models_to_query(
+    application: Application,
+) -> None:
+    """Restrict a model query to persisted collection members.
+
+    Args:
+        application: Application configured by the test fixture.
+    """
+    async with application:
+        await _create_collection_tables()
+        first = await ChangedLineParent.create_async({"name": "first"})
+        second = await ChangedLineParent.create_async({"name": "second"})
+        await ChangedLineParent.create_async({"name": "outside"})
+        collection = ModelCollection([second, first])
+
+        selected = await collection.to_query().order_by("id").get_async()
+
+        assert selected.model_keys() == (first.id, second.id)
+
+
+def test_empty_model_collection_rejects_query_conversion() -> None:
+    """Reject query conversion when no mapped model type is available.
+
+    Raises:
+        DatabaseQueryError: The empty collection has no query model class.
+    """
+    with pytest.raises(DatabaseQueryError, match="empty"):
+        ModelCollection[ChangedLineParent]().to_query()
+
+
+def test_transient_model_collection_rejects_query_conversion() -> None:
+    """Reject query conversion when members have no persisted keys.
+
+    Raises:
+        DatabaseQueryError: The collection contains no persisted model keys.
+    """
+    collection = ModelCollection([ChangedLineParent(name="transient")])
+
+    with pytest.raises(DatabaseQueryError, match="persisted model keys"):
+        collection.to_query()
+
+
 async def test_sync_soft_delete_counter_updates_are_scoped_to_active_rows(
     application: Application,
 ) -> None:
@@ -383,6 +426,8 @@ def _assert_collection_owner_rejected(
         collection.load("children")
     with pytest.raises(DatabaseTransactionOwnershipError):
         collection.refresh()
+    with pytest.raises(DatabaseTransactionOwnershipError):
+        collection.to_query()
 
 
 def _exercise_soft_delete_counter(

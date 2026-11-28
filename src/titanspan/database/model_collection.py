@@ -365,6 +365,32 @@ class ModelCollection[ModelT](Collection[ModelT]):
         )
         return self
 
+    def to_query(self) -> ModelQueryBuilder[ModelT]:
+        """Create a query limited to this collection's persisted model keys.
+
+        Returns:
+            A model query builder constrained to the collection members.
+
+        Raises:
+            DatabaseQueryError: If the collection has no persisted model keys.
+            DatabaseTransactionOwnershipError: If models have different
+                classes, application owners, or connection owners.
+            ValueError: If a model uses a composite primary key.
+        """
+        if not self:
+            msg = "An empty model collection cannot become a query."
+            raise DatabaseQueryError(msg)
+        identifiers = _refresh_keys(self)
+        if not identifiers:
+            msg = "A model collection query requires persisted model keys."
+            raise DatabaseQueryError(msg)
+        _require_collection_owner(self)
+        model_class = cast("type[_ModelQueryHost[ModelT]]", type(self[0]))
+        return model_class.query().where_in(
+            model_class.primary_key_name(),
+            identifiers,
+        )
+
     def refresh(self) -> Self:
         """Refresh each model in place using its owning Database service.
 
