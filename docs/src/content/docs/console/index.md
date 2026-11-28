@@ -129,8 +129,9 @@ The default command factory builds an Application from the current directory.
 It loads trusted installed service providers from `titanspan.providers`, then
 registers the Console output provider in the same Container. Pass
 `application_factory` when commands need explicit configuration or
-application-specific provider setup. The factory receives the Console output
-provider.
+application-specific provider setup. A Console with a custom factory retains
+the framework and component commands from the installed catalog. The factory
+receives the Console output provider.
 
 ## Discover installed commands
 

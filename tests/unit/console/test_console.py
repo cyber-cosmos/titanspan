@@ -12,6 +12,7 @@ import anyio
 import pytest
 from rich.text import Text
 
+import titanspan.console.cli as console_cli
 from titanspan.console import Argument, Console, ConsoleExitError, Option
 from titanspan.console.exceptions import (
     CommandDiscoveryError,
@@ -88,6 +89,33 @@ def test_sync_command_uses_container_and_application_lifecycle() -> None:
     assert lifecycle == ["started", "stopped"]
     assert len(command_threads) == 1
     assert command_threads[0] != caller_thread
+
+
+def test_application_factory_console_includes_framework_commands() -> None:
+    """Keep the canonical command catalog on custom application hosts.
+
+    A selected application factory retains the installed command catalog.
+    """
+    console = Console(
+        application_factory=lambda provider: (
+            Application.builder().with_service_provider(provider).build()
+        ),
+    )
+
+    assert {
+        "about",
+        "cache:clear",
+        "migrate",
+        "queue:work",
+        "route:list",
+    }.issubset(console.command_names)
+    result = ConsoleTester(console).invoke(["about"])
+    routes = ConsoleTester(console).invoke(["route:list"])
+
+    assert result.exit_code == 0
+    assert "Titanspan" in result.stdout
+    assert routes.exit_code == 0
+    assert "METHOD" in routes.stdout
 
 
 def test_async_command_class_uses_injected_constructor_and_options() -> None:
@@ -224,6 +252,39 @@ def test_nested_groups_and_command_discovery_use_one_registry() -> None:
     assert console.command_names == ("admin users list",)
     result = ConsoleTester(console).invoke(["admin", "users", "list"])
 
+    assert result.exit_code == 0
+    assert "users listed" in result.stdout
+
+
+def test_catalog_copy_preserves_nested_group_commands(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Keep command groups and their handlers when copying a catalog.
+
+    The copied parser must dispatch the same complete command path.
+    """
+    source = Console()
+    admin = source.add_group("admin", description="Administration")
+    users = admin.add_group("users", description="User commands")
+
+    @users.command("list")
+    def list_users(output: ConsoleOutput) -> None:
+        """Write the user list from the copied command catalog.
+
+        Args:
+            output: Output service owned by command execution.
+        """
+        output.write("users listed")
+
+    monkeypatch.setattr(console_cli, "console", source)
+    target = Console(
+        application_factory=lambda provider: (
+            Application.builder().with_service_provider(provider).build()
+        ),
+    )
+    result = ConsoleTester(target).invoke(["admin", "users", "list"])
+
+    assert target.command_names == ("admin users list",)
     assert result.exit_code == 0
     assert "users listed" in result.stdout
 

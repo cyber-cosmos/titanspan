@@ -6,6 +6,7 @@ composition, dependency resolution, startup, and shutdown.
 
 from __future__ import annotations
 
+from contextvars import ContextVar
 from dataclasses import dataclass, field
 from functools import partial
 from importlib.metadata import entry_points
@@ -81,6 +82,7 @@ class _RegisteredCommand:
     handler: CommandHandler | type[ConsoleCommand]
     parameters: tuple[tuple[Parameter, Argument | Option], ...]
     with_application: bool
+    description: str | None
 
 
 @dataclass(slots=True)
@@ -93,6 +95,9 @@ class _RegistrationState:
 
     command_paths: set[str] = field(default_factory=set[str])
     group_paths: set[str] = field(default_factory=set[str])
+    group_descriptions: dict[str, str | None] = field(
+        default_factory=dict[str, str | None]
+    )
     entry_points: set[tuple[str, str, str]] = field(
         default_factory=set[tuple[str, str, str]]
     )
@@ -122,6 +127,7 @@ class Console:
         show_exception_details: bool = False,
         _state: _RegistrationState | None = None,
         _prefix: tuple[str, ...] = (),
+        _register_framework_commands: bool = True,
     ) -> None:
         """Create a command host backed by a fresh or supplied Application.
 
@@ -134,6 +140,8 @@ class Console:
                 Console provider before Container composition.
             show_exception_details: Whether command failures include chained
                 exception text and tracebacks in terminal output.
+            _register_framework_commands: Internal switch used while the
+                canonical CLI creates its framework command catalog.
         """
         self._name = name
         self._output = output if output is not None else TerminalOutput()
@@ -147,6 +155,14 @@ class Console:
             version=version,
             version_output=self._output.write,
         )
+        if _register_framework_commands and application_factory is not None:
+            # Resolve after the CLI singleton has registered its own catalog.
+            from titanspan.console.cli import (  # noqa: PLC0415
+                console as framework_console,
+            )
+
+            if framework_console is not self:
+                self._copy_command_catalog(framework_console)
 
     def command[HandlerT](
         self,
@@ -253,6 +269,7 @@ class Console:
             handler=handler,
             parameters=parameters,
             with_application=with_application,
+            description=description,
         )
 
     def add_group(
@@ -288,6 +305,7 @@ class Console:
             application_factory=self._application_factory,
             _state=self._state,
             _prefix=(*self._prefix, group_name),
+            _register_framework_commands=False,
         )
         try:
             self._backend.add_group(
@@ -302,7 +320,35 @@ class Console:
             )
             raise CommandRegistrationError(message) from error
         self._state.group_paths.add(group_path)
+        self._state.group_descriptions[group_path] = description
         return child
+
+    def _copy_command_catalog(self, source: Console) -> None:
+        """Copy canonical framework registrations into this parser instance.
+
+        Args:
+            source: CLI-owned catalog populated by built-in registrars.
+        """
+        groups: dict[tuple[str, ...], Console] = {(): self}
+        group_paths = sorted(
+            source._state.group_paths,
+            key=lambda path: (path.count(" "), path),
+        )
+        for path in group_paths:
+            parts = tuple(path.split(" "))
+            parent = groups[parts[:-1]]
+            groups[parts] = parent.add_group(
+                parts[-1],
+                description=source._state.group_descriptions.get(path),
+            )
+        for path, command in source._state.commands.items():
+            parts = tuple(path.split(" "))
+            groups[parts[:-1]].register_command(
+                parts[-1],
+                command.handler,
+                description=command.description,
+                with_application=command.with_application,
+            )
 
     def discover_commands(
         self,
@@ -430,6 +476,9 @@ class Console:
 
         Bootstrap commands use this object before application construction.
         """
+        active = _ACTIVE_CONSOLE.get()
+        if active is not None:
+            return active._output  # noqa: SLF001  # Bind built-ins to caller.
         return self._output
 
     @property
@@ -494,6 +543,32 @@ class Console:
         return f"{message}\n{details}"
 
     async def _execute(
+        self,
+        handler: CommandHandler | type[ConsoleCommand],
+        values: dict[str, object],
+        command_path: str,
+        with_application: bool,
+    ) -> None:
+        """Run one command with context-local Console output selection.
+
+        Args:
+            handler: Function, callable object, or injectable command class.
+            values: Parsed command values keyed by parameter name.
+            command_path: Full group and command path for diagnostics.
+            with_application: Whether Foundation owns command execution.
+        """
+        token = _ACTIVE_CONSOLE.set(self)
+        try:
+            await self._execute_command(
+                handler,
+                values,
+                command_path,
+                with_application,
+            )
+        finally:
+            _ACTIVE_CONSOLE.reset(token)
+
+    async def _execute_command(
         self,
         handler: CommandHandler | type[ConsoleCommand],
         values: dict[str, object],
@@ -693,6 +768,12 @@ class Console:
     _state: _RegistrationState
     _prefix: tuple[str, ...]
     _backend: TyperBridge
+
+
+_ACTIVE_CONSOLE: ContextVar[Console | None] = ContextVar(
+    "titanspan_active_console",
+    default=None,
+)
 
 
 def _build_application(provider: ServiceProvider) -> Application:

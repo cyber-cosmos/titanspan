@@ -17,7 +17,6 @@ from titanspan.database import (
     MigrationManager,
     Schema,
 )
-from titanspan.database.commands import register_database_commands
 from titanspan.foundation import Application
 
 if TYPE_CHECKING:
@@ -203,7 +202,6 @@ def test_console_reports_migration_argument_and_lock_failures(
         )
 
     console = Console(application_factory=application_factory)
-    register_database_commands(console)
     tester = ConsoleTester(console)
 
     rollback = tester.invoke(

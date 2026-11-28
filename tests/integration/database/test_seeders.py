@@ -17,7 +17,6 @@ from sqlalchemy.orm import Mapped, mapped_column
 from titanspan.console import Console
 from titanspan.console.testing import ConsoleTester
 from titanspan.database import DatabaseServiceProvider, Model, Schema, Seeder
-from titanspan.database.commands import register_database_commands
 from titanspan.facades.database import DB
 from titanspan.foundation import Application
 from titanspan.testing import ApplicationTest, AsyncApplicationTest
@@ -293,7 +292,6 @@ def test_seed_command_runs_sync_and_async_seeders(
         )
 
     console = Console(application_factory=application_factory)
-    register_database_commands(console)
     result = ConsoleTester(console).invoke(
         [
             "db:seed",
@@ -335,7 +333,6 @@ def test_seed_command_requires_force_in_production(
         )
 
     console = Console(application_factory=application_factory)
-    register_database_commands(console)
     result = ConsoleTester(console).invoke(
         [
             "db:seed",
@@ -394,7 +391,6 @@ def test_seed_command_discovers_default_seeder_from_application_root(
         )
 
     console = Console(application_factory=application_factory)
-    register_database_commands(console)
     result = ConsoleTester(console).invoke(["db:seed", "--force"])
 
     assert result.exit_code == 0
@@ -446,7 +442,6 @@ def test_seed_command_rejects_unsafe_or_unavailable_targets(
         )
 
     console = Console(application_factory=application_factory)
-    register_database_commands(console)
     result = ConsoleTester(console).invoke(
         ["db:seed", "--class", target, "--force"],
     )
@@ -492,7 +487,6 @@ def test_seed_command_accepts_testing_confirmation_without_force(
         )
 
     console = Console(application_factory=application_factory)
-    register_database_commands(console)
     result = ConsoleTester(console).invoke(
         ["db:seed", "--class", f"{__name__}:ConsoleSyncSeeder"],
         stdin="y\n",

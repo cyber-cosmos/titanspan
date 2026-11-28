@@ -86,7 +86,6 @@ def test_queue_generators_run_through_console_application(
         )
 
     console = Console(application_factory=build_application)
-    register_queue_commands(console)
 
     result = ConsoleTester(console).invoke([command, name])
 

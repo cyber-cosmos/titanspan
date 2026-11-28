@@ -167,7 +167,6 @@ def test_model_show_inspects_mapping_without_opening_database(
         )
 
     console = Console(application_factory=application_factory)
-    register_database_commands(console)
     model_path = f"{_CommandShownRecord.__module__}:_CommandShownRecord"
 
     result = ConsoleTester(console).invoke(["model:show", model_path])
@@ -259,7 +258,6 @@ def test_model_prune_command_requires_explicit_model_and_reports_count(
         )
 
     console = Console(application_factory=application_factory)
-    register_database_commands(console)
     model_path = f"{__name__}:_CommandPruneRecord"
     declined = ConsoleTester(console).invoke(
         ["model:prune", "--model", model_path],
@@ -345,7 +343,6 @@ def test_prune_command_rejects_invalid_target_or_environment(
         )
 
     console = Console(application_factory=application_factory)
-    register_database_commands(console)
     arguments = ["model:prune", "--model", model_path]
     if force:
         arguments.append("--force")
@@ -484,7 +481,6 @@ def test_database_show_inspects_tables_and_optional_counts(
         )
 
     console = Console(application_factory=application_factory)
-    register_database_commands(console)
     result = ConsoleTester(console).invoke(
         ["db:show", "--counts", "--views"],
     )
@@ -565,7 +561,6 @@ def test_migration_status_runs_through_application_lifecycle(
         )
 
     console = Console(application_factory=application_factory)
-    register_database_commands(console)
 
     result = ConsoleTester(console).invoke(["migrate:status"])
 
@@ -636,7 +631,6 @@ def test_migration_status_lists_pending_revisions(
         )
 
     console = Console(application_factory=application_factory)
-    register_database_commands(console)
     result = ConsoleTester(console).invoke(["migrate:status"])
 
     assert result.exit_code == 0
@@ -735,7 +729,6 @@ def test_database_commands_reject_invalid_environment_values(
         )
 
     console = Console(application_factory=application_factory)
-    register_database_commands(console)
     result = ConsoleTester(console).invoke([command, *arguments])
 
     assert result.exit_code == 1
@@ -786,7 +779,6 @@ def test_destructive_database_command_fails_closed_in_production(
         )
 
     console = Console(application_factory=application_factory)
-    register_database_commands(console)
 
     result = ConsoleTester(console).invoke([command])
 
@@ -854,7 +846,6 @@ def test_database_wipe_reports_schema_failure_safely(
         )
 
     console = Console(application_factory=application_factory)
-    register_database_commands(console)
     result = ConsoleTester(console).invoke(["db:wipe", "--force"])
 
     assert result.exit_code == 1
@@ -926,7 +917,6 @@ def test_migrate_fresh_reports_schema_failure_safely(
         )
 
     console = Console(application_factory=application_factory)
-    register_database_commands(console)
     result = ConsoleTester(console).invoke(["migrate:fresh", "--force"])
 
     assert result.exit_code == 1
@@ -975,7 +965,6 @@ def test_migrate_rollback_exposes_isolated_option(
         )
 
     console = Console(application_factory=application_factory)
-    register_database_commands(console)
 
     result = ConsoleTester(console).invoke(
         ["migrate:rollback", "--isolated"],
@@ -1057,7 +1046,6 @@ def test_migrate_requires_force_in_production_and_force_runs(
         )
 
     console = Console(application_factory=application_factory)
-    register_database_commands(console)
 
     refused = ConsoleTester(console).invoke(["migrate"])
     database_path = tmp_path / "database" / "ordinary.sqlite"
@@ -1117,7 +1105,6 @@ def test_migrate_confirmation_identifies_target_without_credentials(
         )
 
     console = Console(application_factory=application_factory)
-    register_database_commands(console)
 
     result = ConsoleTester(console).invoke(["migrate"], stdin="n\n")
     output = result.stdout + result.stderr
@@ -1171,7 +1158,6 @@ def test_migrate_refuses_an_unconfigured_target_before_prompting(
         )
 
     console = Console(application_factory=application_factory)
-    register_database_commands(console)
 
     result = ConsoleTester(console).invoke(
         ["migrate", "--database", "missing"],
@@ -1220,7 +1206,6 @@ def test_seeder_generator_runs_through_native_console(
         )
 
     console = Console(application_factory=application_factory)
-    register_database_commands(console)
 
     result = ConsoleTester(console).invoke(["make:seeder", "Article"])
     target = tmp_path / "database" / "seeders" / "article_seeder.py"
@@ -1290,7 +1275,6 @@ def test_model_generator_imports_a_conventional_database_model(
         )
 
     console = Console(application_factory=application_factory)
-    register_database_commands(console)
     result = ConsoleTester(console).invoke(["make:model", "Invoice"])
     target = tmp_path / "app" / "models" / "invoice_model.py"
     source = target.read_text(encoding="utf-8")
@@ -1355,7 +1339,6 @@ def test_migration_generator_creates_an_importable_native_revision(
         )
 
     console = Console(application_factory=application_factory)
-    register_database_commands(console)
     result = ConsoleTester(console).invoke(
         ["make:migration", "create invoice table"],
     )

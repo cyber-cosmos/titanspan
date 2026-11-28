@@ -57,6 +57,7 @@ console = Console(
     name="titanspan",
     description="Engineer beyond limits.",
     version=__version__,
+    _register_framework_commands=False,
 )
 register_cache_commands(console)
 register_queue_commands(console)

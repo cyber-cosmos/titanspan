@@ -5,6 +5,8 @@ public release.
 
 ## Unreleased
 
+- Preserve the installed framework and component command catalog when a
+  Console uses an application-specific factory.
 - Honor configured timestamp column names during model saves, upserts,
   replication, and atomic increments.
 - Make native Database and Number capabilities available in the standard
