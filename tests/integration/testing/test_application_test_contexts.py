@@ -3,16 +3,20 @@
 The helpers wrap production Foundation and Container lifecycles.
 """
 
+from importlib.metadata import EntryPoint, EntryPoints
 from pathlib import Path
 from typing import Protocol
 
 import anyio
 import pytest
 
+import titanspan.foundation.builder as builder_module
+from titanspan.config import Settings
 from titanspan.container import ContainerClosedError
 from titanspan.contracts.config import ConfigRepository
 from titanspan.contracts.container import ServiceRegistry
 from titanspan.contracts.foundation import ApplicationPaths, ServiceProvider
+from titanspan.contracts.http import HttpRequest, HttpResponse, RequestHandler
 from titanspan.testing import ApplicationTest, AsyncApplicationTest
 
 pytestmark = pytest.mark.integration
@@ -93,6 +97,40 @@ def _label_route(label: _Label) -> dict[str, str]:
     return {"value": label.value()}
 
 
+class _ResponseHeaderMiddleware:
+    """Add a marker header through the native middleware contract.
+
+    ApplicationTest must compose this class through Foundation's builder.
+    """
+
+    async def handle(
+        self,
+        request: HttpRequest,
+        next_handler: RequestHandler,
+    ) -> HttpResponse:
+        """Delegate the request and mark the returned response.
+
+        Args:
+            request: Current request passed through the production router.
+            next_handler: Downstream handler in the native middleware chain.
+
+        Returns:
+            The downstream response with the test marker header.
+        """
+        response = await next_handler(request)
+        response.with_header("X-Test-Application", "configured")
+        return response
+
+
+def _ready_route() -> dict[str, bool]:
+    """Return one payload for settings and middleware integration checks.
+
+    Returns:
+        A JSON-safe readiness marker.
+    """
+    return {"ready": True}
+
+
 def _application_identity(
     label: _Label,
     config: ConfigRepository,
@@ -143,6 +181,63 @@ def test_application_test_uses_container_replacement_and_temporary_root() -> (
     assert not root.exists()
 
 
+def test_application_test_passes_settings_and_middleware_to_builder() -> None:
+    """Use typed settings and native middleware in the test application.
+
+    The route crosses the production middleware and ASGI boundaries.
+    """
+    settings = Settings(app_name="Test builder")
+    test_app = ApplicationTest(
+        settings=settings,
+        http_middleware=(_ResponseHeaderMiddleware,),
+    )
+    test_app.application.router.get("/ready", _ready_route)
+
+    with test_app:
+        response = test_app.client.get("/ready")
+
+    assert test_app.application.settings is settings
+    assert response.status_code == _HTTP_OK
+    assert response.json() == {"ready": True}
+    assert response.headers["x-test-application"] == "configured"
+
+
+def test_application_test_discovers_trusted_provider_entry_points(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Resolve discovered providers through a real synchronous ASGI request.
+
+    ApplicationTest must use Foundation's canonical provider-aware builder.
+    """
+    entry_point = EntryPoint(
+        name="label-provider",
+        value=f"{__name__}:_LabelProvider",
+        group="titanspan.providers",
+    )
+
+    def fake_entry_points(*, group: str | None = None) -> EntryPoints:
+        """Return the trusted provider selected by the application builder.
+
+        Args:
+            group: Entry-point group requested during application creation.
+
+        Returns:
+            The test provider for the framework's trusted group.
+        """
+        assert group == "titanspan.providers"
+        return EntryPoints([entry_point])
+
+    monkeypatch.setattr(builder_module, "entry_points", fake_entry_points)
+    test_app = ApplicationTest()
+    test_app.application.router.get("/label", _label_route)
+
+    with test_app:
+        response = test_app.client.get("/label")
+
+    assert response.status_code == _HTTP_OK
+    assert response.json() == {"value": "production"}
+
+
 @pytest.mark.anyio
 async def test_async_application_test_starts_and_closes_real_asgi_app() -> None:
     """Run an async route through HTTPX2 ASGI transport and clean up.
@@ -175,6 +270,43 @@ async def test_async_application_test_starts_and_closes_real_asgi_app() -> None:
     with pytest.raises(ContainerClosedError):
         test_app.application.container.make(_Label)
     assert not root.exists()
+
+
+@pytest.mark.anyio
+async def test_async_application_test_discovers_trusted_provider_entry_points(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Resolve discovered providers through an asynchronous ASGI request.
+
+    AsyncApplicationTest shares Foundation's canonical provider-aware builder.
+    """
+    entry_point = EntryPoint(
+        name="label-provider",
+        value=f"{__name__}:_LabelProvider",
+        group="titanspan.providers",
+    )
+
+    def fake_entry_points(*, group: str | None = None) -> EntryPoints:
+        """Return the trusted provider selected by the application builder.
+
+        Args:
+            group: Entry-point group requested during application creation.
+
+        Returns:
+            The test provider for the framework's trusted group.
+        """
+        assert group == "titanspan.providers"
+        return EntryPoints([entry_point])
+
+    monkeypatch.setattr(builder_module, "entry_points", fake_entry_points)
+    test_app = AsyncApplicationTest()
+    test_app.application.router.get("/label", _label_route)
+
+    async with test_app:
+        response = await test_app.client.get("/label")
+
+    assert response.status_code == _HTTP_OK
+    assert response.json() == {"value": "production"}
 
 
 def test_sync_test_context_cleans_up_after_test_failure() -> None:

@@ -129,13 +129,20 @@ class _ApplicationTestState:
         providers = tuple(service_providers)
         if replacements:
             providers = (*providers, _ServiceReplacementProvider(replacements))
-        self.application = Application(
-            base_path=self.base_path,
-            config=config,
-            settings=settings,
-            service_providers=providers,
-            http_middleware=http_middleware,
+        builder = (
+            Application.builder()
+            .with_base_path(self.base_path)
+            .discover_providers()
         )
+        if config is not None:
+            builder.with_config(config)
+        if settings is not None:
+            builder.with_settings(settings)
+        if http_middleware:
+            builder.with_http_middleware(*http_middleware)
+        for provider in providers:
+            builder.with_service_provider(provider)
+        self.application = builder.build()
 
     def cleanup(self) -> None:
         """Remove a temporary root owned by this test context.

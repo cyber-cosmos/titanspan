@@ -5,8 +5,9 @@ title: "Testing behavioral specification"
 # Testing behavioral specification
 
 This specification records application testing helpers in
-`titanspan.testing`. Pytest remains the runner. The helpers use the production
-Application, Container, providers, HTTP middleware, and ASGI application.
+`titanspan.testing`. Pytest remains the runner. The helpers use Foundation's
+canonical ApplicationBuilder and the production Container, providers, HTTP
+middleware, and ASGI application.
 
 ## Capability inventory
 
@@ -15,8 +16,9 @@ Application, Container, providers, HTTP middleware, and ASGI application.
 | Synchronous application test lifecycle | Implemented | `ApplicationTest` starts and shuts down through the real ASGI lifespan |
 | Asynchronous application test lifecycle | Implemented | `AsyncApplicationTest` uses Foundation startup and shutdown with HTTPX2 ASGI transport; the installed-wheel smoke verifies injected request handling |
 | Temporary or explicit application root | Implemented | Roots are created per test; temporary roots are removed on context exit |
-| Configuration and typed settings | Implemented | Values pass to the production Application constructor |
-| Provider and middleware registration | Implemented | The ordinary Foundation composition path receives them |
+| Configuration and typed settings | Implemented | Values pass through the canonical ApplicationBuilder |
+| Trusted provider discovery | Implemented | `titanspan.providers` entry points load before test-specific providers |
+| Provider and middleware registration | Implemented | The ordinary Foundation builder composes them |
 | Per-application service replacement | Implemented | Replacement instances register through a provider before Container composition |
 | Request, response, cookie, and file assertions | Delegated | Returned clients use Starlette and HTTPX2 response APIs |
 | Storage, Event, HTTP, and Logging fakes | Delegated | Each component owns its fake and isolation policy |
@@ -64,6 +66,6 @@ fakes remain managed by their owning components.
 
 ## Verification
 
-- Real lifecycle and service replacement: `tests/integration/testing/`.
+- Real lifecycle, trusted discovery, and service replacement: `tests/integration/testing/`.
 - Console lifecycle: `tests/integration/console/`.
 - Component fakes: the owning component test suites.

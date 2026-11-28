@@ -48,10 +48,12 @@ async with test_application:
     assert result.status_code == 200
 ```
 
-Both helpers accept configuration, typed Settings, service providers, HTTP
-middleware, and `replacements`. Replacements register in the test application's
-canonical Container before graph composition. They cannot change another
-Application. Component fakes remain owned by their components.
+Both helpers compose applications through Foundation's `Application.builder()`
+and discover trusted `titanspan.providers` entry points before registering
+test providers and middleware. Configuration and typed Settings pass through
+that builder. `replacements` register in the test application's canonical
+Container before graph composition. They cannot change another Application.
+Component fakes remain owned by their components.
 
 See the [application testing specification](/framework/specifications/testing/)
 for lifecycle and substitution behavior.

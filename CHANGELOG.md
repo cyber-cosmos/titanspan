@@ -8,6 +8,7 @@ public release.
 - Preserve the installed framework and component command catalog when a
   Console uses an application-specific factory.
 - Use the conventional application factory for default Console composition.
+- Compose native application test contexts through Foundation's provider-aware builder.
 - Honor configured timestamp column names during model saves, upserts,
   replication, and atomic increments.
 - Make native Database and Number capabilities available in the standard
