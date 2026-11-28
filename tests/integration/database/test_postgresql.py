@@ -550,11 +550,15 @@ async def test_postgresql_morph_many_to_many_reads_and_writes(
         try:
             await DB.statement_async(
                 "CREATE TABLE postgres_morph_many_owners ("
-                "id SERIAL PRIMARY KEY, label TEXT NOT NULL)"
+                "id SERIAL PRIMARY KEY, label TEXT NOT NULL, "
+                "created_at TIMESTAMPTZ NULL, "
+                "updated_at TIMESTAMPTZ NULL)"
             )
             await DB.statement_async(
                 "CREATE TABLE postgres_morph_many_tags ("
-                "id SERIAL PRIMARY KEY, label TEXT NOT NULL)"
+                "id SERIAL PRIMARY KEY, label TEXT NOT NULL, "
+                "created_at TIMESTAMPTZ NULL, "
+                "updated_at TIMESTAMPTZ NULL)"
             )
             await DB.statement_async(
                 "CREATE TABLE postgres_morph_taggables ("
