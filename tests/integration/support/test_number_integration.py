@@ -1,4 +1,4 @@
-"""Verify Number behavior across the real optional number libraries.
+"""Verify Number behavior across the real locale and spelling libraries.
 
 The tests exercise the locale and spelling boundaries with installed packages.
 """

@@ -64,6 +64,11 @@ class DatabaseSeederError(DatabaseError):
     """  # fmt: skip
 
 
+class DatabasePruningError(DatabaseError):
+    """Report invalid model pruning configuration or batch values.
+    """  # fmt: skip
+
+
 class DatabaseTransactionError(DatabaseError):
     """Report an invalid transaction lifecycle operation.
     """  # fmt: skip
@@ -174,6 +179,7 @@ __all__ = [
     "DatabaseError",
     "DatabaseFactoryError",
     "DatabaseMigrationError",
+    "DatabasePruningError",
     "DatabaseQueryError",
     "DatabaseSchemaError",
     "DatabaseSeederError",

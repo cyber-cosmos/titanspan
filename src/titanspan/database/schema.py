@@ -9,6 +9,7 @@ from __future__ import annotations
 import re
 from contextlib import contextmanager
 from contextvars import ContextVar
+from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any, Literal, TypedDict
 
 from alembic.migration import MigrationContext
@@ -27,6 +28,7 @@ from sqlalchemy import (
     ForeignKeyConstraint,
     Integer,
     LargeBinary,
+    MetaData,
     Numeric,
     SmallInteger,
     String,
@@ -54,6 +56,74 @@ if TYPE_CHECKING:
     from sqlalchemy.sql.type_api import TypeEngine
 
 
+@dataclass(frozen=True, slots=True)
+class SchemaColumn:
+    """Describe a reflected column without exposing backend objects.
+
+    Attributes:
+        name: Column identifier returned by the database Inspector.
+        type_name: Human-readable SQLAlchemy type description.
+        nullable: Whether the database permits a null value.
+        primary_key: Whether the column participates in the primary key.
+    """
+
+    name: str
+    type_name: str
+    nullable: bool
+    primary_key: bool
+
+
+@dataclass(frozen=True, slots=True)
+class SchemaIndex:
+    """Describe one reflected database index.
+
+    Attributes:
+        name: Database index name, when provided by the dialect.
+        columns: Indexed column names in declaration order.
+        unique: Whether the index enforces uniqueness.
+    """
+
+    name: str | None
+    columns: tuple[str, ...]
+    unique: bool
+
+
+@dataclass(frozen=True, slots=True)
+class SchemaForeignKey:
+    """Describe one reflected foreign-key constraint.
+
+    Attributes:
+        name: Constraint name, when provided by the dialect.
+        columns: Constrained columns in declaration order.
+        referred_table: Referenced table name.
+        referred_columns: Referenced column names in declaration order.
+    """
+
+    name: str | None
+    columns: tuple[str, ...]
+    referred_table: str
+    referred_columns: tuple[str, ...]
+
+
+@dataclass(frozen=True, slots=True)
+class TableDescription:
+    """Summarize reflected table structure for inspection tools.
+
+    Attributes:
+        name: Table identifier returned by the Inspector.
+        schema: Selected database schema, when supplied.
+        columns: Reflected column definitions.
+        indexes: Reflected index definitions.
+        foreign_keys: Reflected foreign-key constraints.
+    """
+
+    name: str
+    schema: str | None
+    columns: tuple[SchemaColumn, ...]
+    indexes: tuple[SchemaIndex, ...]
+    foreign_keys: tuple[SchemaForeignKey, ...]
+
+
 class _Alteration(TypedDict):
     """Keep Alembic alteration arguments statically checked.
 
@@ -70,6 +140,7 @@ class _Alteration(TypedDict):
 _IDENTIFIER = re.compile(r"^[A-Za-z_][A-Za-z0-9_$]*$")
 _SCHEMA_PARTS = 2
 _DEFAULT_INDEX_PREFIX = "ix"
+_TABLE_DESCRIPTION_NOT_FOUND = "The selected database table does not exist."
 _MIGRATION_OPERATIONS: ContextVar[Operations | None] = ContextVar(
     "titanspan_database_migration_operations",
     default=None,
@@ -205,6 +276,33 @@ class Schema(Facade[DatabaseService]):
             "drop_if_exists",
             connection,
         )
+
+    @classmethod
+    def drop_all(cls, *, connection: str | None = None) -> None:
+        """Drop every table in the selected connection's default schema.
+
+        Args:
+            connection: Optional named application connection.
+        """
+        service = cls.resolve_service()
+        with service.session(connection) as session:
+            _drop_all_tables(session.connection())
+
+    @classmethod
+    async def drop_all_async(
+        cls,
+        *,
+        connection: str | None = None,
+    ) -> None:
+        """Asynchronously drop tables using SQLAlchemy metadata ordering.
+
+        Args:
+            connection: Optional named application connection.
+        """
+        service = cls.resolve_service()
+        async with service.session_async(connection) as session:
+            async_connection = await session.connection()
+            await async_connection.run_sync(_drop_all_tables)
 
     @classmethod
     def rename(
@@ -634,6 +732,106 @@ class Schema(Facade[DatabaseService]):
             cls.resolve_service(),
             connection,
             schema,
+        )
+
+    @classmethod
+    def list_views(
+        cls,
+        *,
+        schema: str | None = None,
+        connection: str | None = None,
+    ) -> list[str]:
+        """List database views through SQLAlchemy reflection.
+
+        Args:
+            schema: Optional safe database schema.
+            connection: Optional named application connection.
+
+        Returns:
+            View names returned by the selected dialect's Inspector.
+        """
+        _validate_optional_identifier(schema)
+        return _inspect_list_sync(
+            cls.resolve_service(),
+            connection,
+            schema,
+            views=True,
+        )
+
+    @classmethod
+    async def list_views_async(
+        cls,
+        *,
+        schema: str | None = None,
+        connection: str | None = None,
+    ) -> list[str]:
+        """Asynchronously list database views through reflection.
+
+        Args:
+            schema: Optional safe database schema.
+            connection: Optional named application connection.
+
+        Returns:
+            View names returned by the selected dialect's Inspector.
+        """
+        _validate_optional_identifier(schema)
+        return await _inspect_list_async(
+            cls.resolve_service(),
+            connection,
+            schema,
+            views=True,
+        )
+
+    @classmethod
+    def describe_table(
+        cls,
+        table_name: str,
+        *,
+        connection: str | None = None,
+    ) -> TableDescription:
+        """Return reflected columns, indexes, and foreign keys.
+
+        Args:
+            table_name: Safe table name, optionally schema-qualified.
+            connection: Optional named application connection.
+
+        Returns:
+            A typed description built from SQLAlchemy Inspector metadata.
+
+        Raises:
+            DatabaseSchemaError: If the table is absent or metadata is invalid.
+        """
+        return _inspect_sync(
+            cls.resolve_service(),
+            connection,
+            _describe_table,
+            table_name,
+        )
+
+    @classmethod
+    async def describe_table_async(
+        cls,
+        table_name: str,
+        *,
+        connection: str | None = None,
+    ) -> TableDescription:
+        """Asynchronously describe reflected table metadata.
+
+        Args:
+            table_name: Safe table name, optionally schema-qualified.
+            connection: Optional named application connection.
+
+        Returns:
+            A typed description built through SQLAlchemy's async bridge.
+
+        Raises:
+            DatabaseSchemaError: If the table is absent or metadata is invalid.
+        """
+        return await _inspect_async(
+            cls.resolve_service(),
+            connection,
+            _describe_table,
+            table_name,
         )
 
 
@@ -1714,46 +1912,146 @@ async def _inspect_async[InspectionT](
         )
 
 
+def _describe_table(
+    inspector: Inspector,
+    schema: str | None,
+    table_name: str,
+) -> TableDescription:
+    """Build a detached description from one Inspector connection.
+
+    Args:
+        inspector: SQLAlchemy Inspector for the selected application session.
+        schema: Optional schema containing the table.
+        table_name: Table identifier without its schema qualifier.
+
+    Returns:
+        Reflected columns, indexes, and foreign-key values.
+
+    Raises:
+        DatabaseSchemaError: If the selected table or metadata is incomplete.
+    """
+    if not inspector.has_table(table_name, schema=schema):
+        raise DatabaseSchemaError(_TABLE_DESCRIPTION_NOT_FOUND)
+
+    primary_key_columns = set(
+        inspector.get_pk_constraint(
+            table_name,
+            schema=schema,
+        ).get("constrained_columns")
+        or ()
+    )
+    columns = tuple(
+        SchemaColumn(
+            name=column["name"],
+            type_name=str(column["type"]),
+            nullable=column["nullable"],
+            primary_key=column["name"] in primary_key_columns,
+        )
+        for column in inspector.get_columns(table_name, schema=schema)
+    )
+    indexes = tuple(
+        SchemaIndex(
+            name=index["name"],
+            columns=tuple(
+                column for column in index["column_names"] if column is not None
+            ),
+            unique=index["unique"],
+        )
+        for index in inspector.get_indexes(table_name, schema=schema)
+    )
+    foreign_keys: list[SchemaForeignKey] = []
+    for foreign_key in inspector.get_foreign_keys(table_name, schema=schema):
+        referred_table = foreign_key["referred_table"]
+        foreign_keys.append(
+            SchemaForeignKey(
+                name=foreign_key["name"],
+                columns=tuple(foreign_key["constrained_columns"] or ()),
+                referred_table=referred_table,
+                referred_columns=tuple(foreign_key["referred_columns"] or ()),
+            ),
+        )
+    return TableDescription(
+        name=table_name,
+        schema=schema,
+        columns=columns,
+        indexes=indexes,
+        foreign_keys=tuple(foreign_keys),
+    )
+
+
+def _drop_all_tables(connection: SQLConnection) -> None:
+    """Reflect and drop tables through SQLAlchemy's dependency ordering.
+
+    Args:
+        connection: SQLAlchemy connection owned by one Database session.
+    """
+    metadata = MetaData()
+    metadata.reflect(bind=connection)
+    metadata.drop_all(bind=connection)
+
+
 def _inspect_list_sync(
     service: DatabaseService,
     connection: str | None,
     schema: str | None,
+    *,
+    views: bool = False,
 ) -> list[str]:
-    """List tables through one synchronous Inspector instance.
+    """List tables or views through one synchronous Inspector instance.
 
     Args:
         service: Application Database service.
         connection: Optional selected logical connection.
         schema: Optional safe schema name.
+        views: Whether to return views instead of tables.
 
     Returns:
         Reflected table names.
     """
     with service.session(connection) as session:
-        return inspect(session.connection()).get_table_names(schema=schema)
+        inspector = inspect(session.connection())
+        if views:
+            return inspector.get_view_names(schema=schema)
+        return inspector.get_table_names(schema=schema)
 
 
 async def _inspect_list_async(
     service: DatabaseService,
     connection: str | None,
     schema: str | None,
+    *,
+    views: bool = False,
 ) -> list[str]:
-    """List tables through SQLAlchemy's async run_sync bridge.
+    """List tables or views through SQLAlchemy's async run_sync bridge.
 
     Args:
         service: Application Database service.
         connection: Optional selected logical connection.
         schema: Optional safe schema name.
+        views: Whether to return views instead of tables.
 
     Returns:
         Reflected table names.
     """
     async with service.session_async(connection) as session:
         async_connection = await session.connection()
+
+        def list_names(sync_connection: SQLConnection) -> list[str]:
+            """Return selected object names on the sync inspection bridge.
+
+            Args:
+                sync_connection: Connection owned by the async session.
+
+            Returns:
+                Reflected table or view names.
+            """
+            inspector = inspect(sync_connection)
+            if views:
+                return inspector.get_view_names(schema=schema)
+            return inspector.get_table_names(schema=schema)
+
         return await async_connection.run_sync(
-            lambda sync_connection: inspect(
-                sync_connection,
-            ).get_table_names(schema=schema),
+            list_names,
         )
 
 
@@ -1877,5 +2175,9 @@ __all__ = [
     "Blueprint",
     "ColumnDefinition",
     "Schema",
+    "SchemaColumn",
+    "SchemaForeignKey",
+    "SchemaIndex",
+    "TableDescription",
     "use_migration_operations",
 ]

@@ -13,8 +13,6 @@ from contextlib import (
     contextmanager,
 )
 from http import HTTPStatus
-from importlib import import_module
-from importlib.util import find_spec
 from inspect import isawaitable, iscoroutinefunction
 from pathlib import Path
 from typing import TYPE_CHECKING, Self, cast
@@ -174,16 +172,18 @@ def _select_builtin_providers(
     Raises:
         ValueError: If more than one provider targets a built-in component.
     """
+    # Database re-exports facade and event types. Load it after Foundation
+    # finishes importing to avoid a package initialization cycle.
+    from titanspan.database import DatabaseServiceProvider  # noqa: PLC0415
+
     provider_types: tuple[type[ServiceProvider], ...] = (
         ValidationServiceProvider,
         FilesystemServiceProvider,
         HashingServiceProvider,
+        DatabaseServiceProvider,
         CacheServiceProvider,
         QueueServiceProvider,
     )
-    database_provider_type = _optional_database_provider_type()
-    if database_provider_type is not None:
-        provider_types = (*provider_types, database_provider_type)
     selected: list[ServiceProvider] = []
     for provider_type in provider_types:
         matches = tuple(
@@ -200,22 +200,6 @@ def _select_builtin_providers(
         if not isinstance(provider, provider_types)
     )
     return tuple(selected), remaining
-
-
-def _optional_database_provider_type() -> type[ServiceProvider] | None:
-    """Return Database's provider type when its optional dependencies exist.
-
-    Foundation stays importable without the Database extra. When SQLAlchemy
-    and Alembic are installed, Database joins the built-in replacement policy
-    so an explicit application provider replaces its default exactly once.
-
-    Returns:
-        The Database provider type, or ``None`` without its dependencies.
-    """
-    if find_spec("sqlalchemy") is None or find_spec("alembic") is None:
-        return None
-    module = import_module("titanspan.database")
-    return cast("type[ServiceProvider]", module.DatabaseServiceProvider)
 
 
 class _ApplicationContextMiddleware:

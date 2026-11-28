@@ -11,6 +11,7 @@ import anyio
 import pytest
 
 from titanspan.database import DatabaseServiceProvider, Schema
+from titanspan.database.exceptions import DatabaseSchemaError
 from titanspan.facades.database import DB
 from titanspan.foundation import Application
 
@@ -87,6 +88,57 @@ async def test_async_schema_create_alter_and_inspection(
             {"email": "ada@example.test", "active": True},
         )
         assert await DB.table("users").count_async() == 1
+
+
+async def test_async_schema_view_and_table_descriptions(
+    application: Application,
+) -> None:
+    """Reflect view and table metadata through async schema APIs.
+
+    Args:
+        application: Isolated application fixture.
+    """
+    async with application:
+        async with Schema.create("described_rows") as table:
+            table.id()
+            table.string("name", length=32)
+        await DB.statement_async(
+            "CREATE VIEW described_view AS SELECT id FROM described_rows",
+        )
+
+        assert await Schema.list_views_async() == ["described_view"]
+        description = await Schema.describe_table_async("described_rows")
+        assert [column.name for column in description.columns] == [
+            "id",
+            "name",
+        ]
+
+        with pytest.raises(DatabaseSchemaError, match="does not exist"):
+            await Schema.describe_table_async("missing_rows")
+
+
+async def test_drop_all_tables_respects_foreign_key_order(
+    application: Application,
+) -> None:
+    """Drop related SQLite tables through SQLAlchemy metadata ordering.
+
+    Args:
+        application: Isolated application fixture.
+    """
+    async with application:
+        async with Schema.create("drop_parents") as table:
+            table.id()
+        async with Schema.create("drop_children") as table:
+            table.id()
+            table.foreign_id("parent_id")
+            table.foreign("parent_id", references="drop_parents")
+
+        assert await Schema.list_tables_async() == [
+            "drop_children",
+            "drop_parents",
+        ]
+        await Schema.drop_all_async()
+        assert await Schema.list_tables_async() == []
 
 
 async def test_schema_indexes_foreign_keys_and_morph_columns(

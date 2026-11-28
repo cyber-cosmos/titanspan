@@ -57,7 +57,7 @@ Console registration.
 | Queue result persistence | Backend-dependent | Redis supports bounded JSON results and finite retention. Other built-in drivers do not expose result handles. |
 | Failed-job persistence and administration | Deferred | Requires a native persistence contract and owner. |
 | Unique jobs and distributed overlap controls | Deferred | Cache lease behavior is not a verified Queue guarantee. |
-| Transaction-aware dispatch | Deferred | Requires the canonical Database transaction lifecycle. |
+| Transaction-aware dispatch | Implemented and verified | Async Queue and Bus dispatch register with the selected Database connection; nested savepoints, outer commit, rollback, and immediate dispatch are covered. Database commit and broker publication are not atomic. |
 | Queued event listeners | Deferred | Events does not serialize or schedule arbitrary listener callbacks. |
 | SQS transport | Unsupported | No supported Taskiq SQS package is integrated. |
 | Exactly-once execution | Unsupported | Broker acknowledgement and handler side effects cannot provide this guarantee. |
@@ -74,6 +74,13 @@ and destinations before its first side effect. It delegates each publication
 to the single-job path. Taskiq has no public atomic bulk operation. A payload,
 handler, broker failure, or cancellation can leave a published prefix. A
 broker error can also leave the current outcome uncertain.
+
+`dispatch_after_commit_async()` registers an async publication callback through
+the canonical Database service. The selected database transaction owns the
+callback. Savepoint release promotes it to the parent transaction; rollback
+discards it. With no active transaction, the Database service invokes it
+immediately. A publication failure occurs after the database commit and is
+reported as a transaction callback failure; it cannot undo the committed data.
 
 `dispatch_if()` and `dispatch_unless()` return pending builders or `None`.
 Their `_async` variants perform an enabled operation and return a receipt.

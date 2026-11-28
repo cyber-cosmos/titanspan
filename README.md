@@ -19,8 +19,8 @@ and integration coverage, but lifecycle,
 concurrency, security, and operational limits remain. Titanspan is not yet
 production-ready. See the architecture, roadmap, and component specifications
 for current capability status.
-Numeric locale formatting and number spelling use the optional `numbers`
-extra. Logging capabilities and planned work are listed in the native
+Locale-aware number formatting and spelling are included in the standard
+installation. Logging capabilities and planned work are listed in the native
 [logging specification](docs/src/content/docs/specifications/logging.md).
 
 ## Install

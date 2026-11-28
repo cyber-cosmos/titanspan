@@ -68,7 +68,6 @@ def application(tmp_path: Path) -> Application:
                 },
             },
         },
-        service_providers=(DatabaseServiceProvider(),),
     )
 
 
@@ -111,7 +110,7 @@ async def test_provider_shares_manager_and_initializes_sqlite_lazily(
 async def test_database_provider_joins_foundation_default_policy(
     tmp_path: Path,
 ) -> None:
-    """Resolve Database without manually adding its optional provider.
+    """Resolve the built-in Database provider without manual registration.
 
     Args:
         tmp_path: Temporary application root used for SQLite path resolution.
@@ -143,8 +142,8 @@ async def test_database_provider_joins_foundation_default_policy(
 def test_database_provider_duplicates_rejected_by_builtin_policy() -> None:
     """Reject multiple explicit providers for the Database component.
 
-    The optional Database default follows Foundation's deterministic
-    provider replacement policy for subclasses as well as the base type.
+    The built-in Database provider follows Foundation's deterministic
+    replacement policy for subclasses as well as the base type.
     """
 
     class AlternateDatabaseProvider(DatabaseServiceProvider):

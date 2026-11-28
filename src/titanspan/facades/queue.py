@@ -151,6 +151,33 @@ class Queue(Facade[QueueDispatcher]):
         )
 
     @classmethod
+    async def dispatch_after_commit_async(
+        cls,
+        job: Job,
+        *,
+        database: str | None = None,
+        connection: str | None = None,
+        queue: str | None = None,
+        delay: float | timedelta | datetime | None = None,
+    ) -> None:
+        """Defer Queue publication through Database's transaction callback.
+
+        Args:
+            job: Registered job containing serializable application data.
+            database: Database connection whose transaction owns dispatch.
+            connection: Optional configured Queue connection.
+            queue: Optional logical queue name.
+            delay: Optional backend-supported delivery time.
+        """
+        await cls.resolve_service().dispatch_after_commit_async(
+            job,
+            database=database,
+            connection=connection,
+            queue=queue,
+            delay=delay,
+        )
+
+    @classmethod
     async def dispatch_many_async(
         cls,
         jobs: Sequence[Job],

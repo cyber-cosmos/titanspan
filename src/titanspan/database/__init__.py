@@ -1,6 +1,5 @@
-"""Expose native application persistence APIs over SQLAlchemy.
+"""Expose the built-in application persistence APIs over SQLAlchemy.
 
-Import this optional component after installing the ``database`` extra.
 SQLAlchemy owns database infrastructure while Titanspan owns application
 configuration, connection selection, sessions, and transaction conventions.
 """
@@ -47,6 +46,7 @@ from titanspan.database.exceptions import (
     DatabaseError,
     DatabaseFactoryError,
     DatabaseMigrationError,
+    DatabasePruningError,
     DatabaseQueryError,
     DatabaseSchemaError,
     DatabaseSeederError,
@@ -68,6 +68,10 @@ from titanspan.database.migration_manager import (
 from titanspan.database.migrations import Migration, run_migration
 from titanspan.database.model import Model, SoftDeletes
 from titanspan.database.model_collection import ModelCollection
+from titanspan.database.model_relationships import (
+    ManyToManyRelation,
+    RelationshipChanges,
+)
 from titanspan.database.orm_builder import ModelQueryBuilder
 from titanspan.database.pagination import (
     CursorPaginator,
@@ -84,7 +88,15 @@ from titanspan.database.relationships import (
     has_one_through,
 )
 from titanspan.database.routing import bind_model
-from titanspan.database.schema import Blueprint, ColumnDefinition, Schema
+from titanspan.database.schema import (
+    Blueprint,
+    ColumnDefinition,
+    Schema,
+    SchemaColumn,
+    SchemaForeignKey,
+    SchemaIndex,
+    TableDescription,
+)
 from titanspan.database.seeder import Seeder
 from titanspan.database.service_provider import DatabaseServiceProvider
 from titanspan.database.testing import (
@@ -125,6 +137,7 @@ __all__ = [
     "DatabaseJoinClause",
     "DatabaseManager",
     "DatabaseMigrationError",
+    "DatabasePruningError",
     "DatabaseQueryBuilder",
     "DatabaseQueryError",
     "DatabaseResult",
@@ -138,6 +151,7 @@ __all__ = [
     "FactoryBatch",
     "LengthAwarePage",
     "LengthAwarePaginator",
+    "ManyToManyRelation",
     "MassAssignmentError",
     "Migration",
     "MigrationManager",
@@ -167,10 +181,15 @@ __all__ = [
     "MultipleModelsFoundError",
     "Paginator",
     "QueryBuilder",
+    "RelationshipChanges",
     "Schema",
+    "SchemaColumn",
+    "SchemaForeignKey",
+    "SchemaIndex",
     "Seeder",
     "SimplePage",
     "SoftDeletes",
+    "TableDescription",
     "TransactionOutcome",
     "TransactionReceipt",
     "assert_database_count",

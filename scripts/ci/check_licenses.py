@@ -16,7 +16,9 @@ from typing import cast
 
 from packaging.requirements import InvalidRequirement, Requirement
 
-REQUIREMENT_LINE = re.compile(r"^([A-Za-z0-9][A-Za-z0-9._-]*)==")
+PINNED_REQUIREMENT_LINE = re.compile(
+    r"^([A-Za-z0-9][A-Za-z0-9._-]*)==([^;\s\\]+)"
+)
 ALLOWED_LICENSES = {
     "Apache-2.0",
     "Apache-2.0 AND MIT",
@@ -42,12 +44,22 @@ ALLOWED_LICENSES = {
 _REVIEWED_LICENSE_OVERRIDES = {
     # Version 1.5.7 ships an MIT LICENSE file but omits license metadata.
     ("taskiq-dependencies", "1.5.7"): "MIT",
+    # These exact PyPI releases publish license expressions but omit the
+    # metadata fields that pip-licenses reads from their distributions.
+    ("aio-pika", "10.2.3"): "Apache-2.0",
+    ("aiormq", "7.2.5"): "Apache-2.0",
+    ("asyncmy", "0.2.18"): "Apache-2.0",
+    ("pamqp", "5.0.0"): "BSD-3-Clause",
+    ("pymysql", "1.2.4"): "MIT",
+    ("taskiq-aio-pika", "0.6.1"): "MIT",
+    ("taskiq-redis", "1.2.4"): "MIT",
 }
 
 __all__ = [
     "ALLOWED_LICENSES",
     "main",
     "parse_exported_requirements",
+    "parse_exported_versions",
     "validate_license_inventory",
 ]
 
@@ -74,10 +86,22 @@ def parse_exported_requirements(requirements: str) -> set[str]:
         Canonical package names, excluding comments and hash continuation
         lines.
     """
-    names: set[str] = set()
+    return set(parse_exported_versions(requirements))
+
+
+def parse_exported_versions(requirements: str) -> dict[str, str]:
+    """Extract pinned distribution versions from a locked uv export.
+
+    Args:
+        requirements: Requirements-format output from ``uv export``.
+
+    Returns:
+        Canonical package names mapped to their locked versions.
+    """
+    versions: dict[str, str] = {}
     for line in requirements.splitlines():
         normalized_line = line.strip().removesuffix("\\")
-        match = REQUIREMENT_LINE.match(normalized_line)
+        match = PINNED_REQUIREMENT_LINE.match(normalized_line)
         if match is None:
             continue
         try:
@@ -86,8 +110,8 @@ def parse_exported_requirements(requirements: str) -> set[str]:
             continue
         if requirement.marker is not None and not requirement.marker.evaluate():
             continue
-        names.add(_normalize_package_name(match.group(1)))
-    return names
+        versions[_normalize_package_name(match.group(1))] = match.group(2)
+    return versions
 
 
 def _string_mapping(value: object) -> dict[str, object] | None:
@@ -107,16 +131,48 @@ def _string_mapping(value: object) -> dict[str, object] | None:
     return cast("dict[str, object]", raw_mapping)
 
 
+def _resolve_missing_license_rows(
+    packages: set[str],
+    expected_versions: dict[str, str] | None,
+) -> tuple[list[tuple[str, str]], list[str]]:
+    """Resolve only exact-version license records reviewed by maintainers.
+
+    Args:
+        packages: Expected distributions omitted from the license report.
+        expected_versions: Locked versions from the uv requirements export.
+
+    Returns:
+        Resolved package/license rows and diagnostics for unresolved packages.
+    """
+    rows: list[tuple[str, str]] = []
+    errors: list[str] = []
+    for package in sorted(packages):
+        version = (expected_versions or {}).get(package)
+        license_name = (
+            _REVIEWED_LICENSE_OVERRIDES.get((package, version))
+            if version is not None
+            else None
+        )
+        if license_name is None:
+            errors.append(f"missing package license metadata: {package}")
+            continue
+        rows.append((package, license_name))
+    return rows, errors
+
+
 def validate_license_inventory(
     payload: str,
     *,
     expected_packages: set[str],
+    expected_versions: dict[str, str] | None = None,
 ) -> tuple[list[tuple[str, str]], list[str]]:
     """Compare reported runtime licenses with locked packages and policy.
 
     Args:
         payload: JSON output from ``pip-licenses --format=json``.
         expected_packages: Canonical runtime package names from uv export.
+        expected_versions: Optional locked versions from uv export. An
+            exact-version override may fill an omitted license-report row.
 
     Returns:
         Sorted package/license rows and policy diagnostics.
@@ -146,16 +202,16 @@ def validate_license_inventory(
             version_value if isinstance(version_value, str) else None,
         )
 
-    errors.extend(
-        f"missing package license metadata: {package}"
-        for package in sorted(expected_packages - set(observed))
+    rows, missing_errors = _resolve_missing_license_rows(
+        expected_packages - set(observed),
+        expected_versions,
     )
+    errors.extend(missing_errors)
     errors.extend(
         f"unexpected package in runtime license report: {package}"
         for package in sorted(set(observed) - expected_packages)
     )
 
-    rows: list[tuple[str, str]] = []
     for package, (license_name, version) in sorted(observed.items()):
         resolved_license = license_name
         if not license_name or license_name.casefold() in {
@@ -249,6 +305,7 @@ def main() -> int:
     rows, errors = validate_license_inventory(
         report.stdout,
         expected_packages=packages,
+        expected_versions=parse_exported_versions(export.stdout),
     )
     for name, license_name in rows:
         sys.stdout.write(f"{name}: {license_name}\n")

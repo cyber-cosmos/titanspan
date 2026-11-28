@@ -50,14 +50,14 @@ for the complete notice.
 
 ## Babel
 
-The optional `numbers` extra uses Babel 2.19.0's public locale formatting
+Native Number utilities use Babel 2.19.0's public locale formatting
 and parsing APIs. Titanspan does not copy Babel source. Babel is distributed
 under the BSD 3-Clause License; see the
 [Babel 2.19.0 license](https://github.com/python-babel/babel/blob/v2.19.0/LICENSE).
 
 ## num2words
 
-The optional `numbers` extra uses the public `num2words` function from
+Native Number utilities use the public `num2words` function from
 num2words 0.5.14. Titanspan does not copy num2words source. The upstream
 package is distributed under LGPL-2.1; see the
 [0.5.14 release metadata](https://pypi.org/project/num2words/0.5.14/) and
@@ -162,3 +162,22 @@ packages native client libraries. Titanspan does not vendor or modify these
 distributions; each is installed separately by the Python package manager.
 Applications that redistribute an installed environment must retain the
 driver distributions' license files and applicable native-library notices.
+
+## MySQL and RabbitMQ adapters
+
+The optional MySQL driver set includes asyncmy 0.2.18 under Apache-2.0 and
+PyMySQL 1.2.4 under MIT. The optional RabbitMQ adapter set includes aio-pika
+10.2.3 and aiormq 7.2.5 under Apache-2.0, pamqp 5.0.0 under BSD-3-Clause,
+and taskiq-aio-pika 0.6.1 under MIT. The optional Redis queue adapter
+taskiq-redis 1.2.4 is also distributed under MIT. See each exact
+[PyPI release record](https://pypi.org/project/asyncmy/0.2.18/),
+[PyPI release record](https://pypi.org/project/PyMySQL/1.2.4/),
+[aio-pika release record](https://pypi.org/project/aio-pika/10.2.3/),
+[aiormq release record](https://pypi.org/project/aiormq/7.2.5/),
+[pamqp release record](https://pypi.org/project/pamqp/5.0.0/),
+[taskiq-aio-pika release record](https://pypi.org/project/taskiq-aio-pika/0.6.1/),
+and [taskiq-redis release record](https://pypi.org/project/taskiq-redis/1.2.4/).
+These packages are installed separately from Titanspan; the project does not
+copy or modify their source. pip-licenses omits these exact releases because
+their distributions lack the license metadata fields it reads. The CI
+inventory uses these release records as version-specific license evidence.

@@ -215,6 +215,33 @@ class QueueDispatcher(Protocol):
         """
         ...
 
+    async def dispatch_after_commit_async(
+        self,
+        job: object,
+        *,
+        database: str | None = None,
+        connection: str | None = None,
+        queue: str | None = None,
+        delay: float | timedelta | datetime | None = None,
+    ) -> None:
+        """Schedule publication through the active Database transaction.
+
+        The method returns after callback registration when a transaction is
+        active. Database commit and broker publication are separate effects.
+
+        Args:
+            job: Registered job instance containing serializable data.
+            database: Database connection whose transaction owns dispatch.
+            connection: Optional Queue connection.
+            queue: Optional logical queue.
+            delay: Optional backend-supported delivery time.
+
+        Raises:
+            DatabaseTransactionOwnershipError: If no async-compatible owner
+                can register the callback.
+        """
+        ...
+
     async def dispatch_many_async(
         self,
         jobs: Sequence[object],

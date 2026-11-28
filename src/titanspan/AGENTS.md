@@ -5,7 +5,9 @@ Apply root [`AGENTS.md`](../../AGENTS.md) and
 nearest implemented module. This file governs runtime package code only.
 
 - Follow the module responsibilities and dependency direction in
-  `ARCHITECTURE.md`; do not import optional integrations into core modules.
+  `ARCHITECTURE.md`; do not import optional external integrations into core
+  modules. Database is a built-in component, and Foundation wires its native
+  provider through the application composition root.
 - Keep public APIs typed and explicit. Use synchronous interfaces for pure
   construction and in-memory work; use explicit async interfaces where
   underlying I/O or resource initialization is asynchronous.

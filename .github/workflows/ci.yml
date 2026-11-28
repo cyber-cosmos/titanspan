@@ -464,7 +464,7 @@ jobs:
       - name: Install locked dependencies
         run: >-
           uv sync --locked --all-groups --extra redis --extra queue-redis
-          --extra queue-rabbitmq --extra database --extra postgresql --extra mysql
+          --extra queue-rabbitmq --extra postgresql --extra mysql
       - name: Run real dependency integrations
         id: tests
         run: make integration-test
@@ -938,7 +938,7 @@ jobs:
         with:
           name: distributions
           path: dist
-      - name: Install minimal and optional profiles
+      - name: Install standard and optional backend profiles
         shell: bash
         env:
           TEMP_ROOT: ${{ runner.temp }}
@@ -949,40 +949,48 @@ jobs:
             echo "Expected exactly one wheel, found ${#wheels[@]}"
             exit 1
           fi
-          uv venv --python 3.12 "$TEMP_ROOT/titanspan-minimal"
+          uv venv --python 3.12 "$TEMP_ROOT/titanspan-standard"
           uv pip install \
-            --python "$TEMP_ROOT/titanspan-minimal/bin/python" \
+            --python "$TEMP_ROOT/titanspan-standard/bin/python" \
             "${wheels[0]}"
-          uv venv --python 3.12 "$TEMP_ROOT/titanspan-numbers"
+          uv venv --python 3.12 "$TEMP_ROOT/titanspan-postgresql"
           uv pip install \
-            --python "$TEMP_ROOT/titanspan-numbers/bin/python" \
-            "${wheels[0]}[numbers]"
+            --python "$TEMP_ROOT/titanspan-postgresql/bin/python" \
+            "${wheels[0]}[postgresql]"
       - name: Verify installed package outside the source tree
         working-directory: ${{ runner.temp }}
         env:
-          MINIMAL_PYTHON: ${{ runner.temp }}/titanspan-minimal/bin/python
-          NUMBERS_PYTHON: ${{ runner.temp }}/titanspan-numbers/bin/python
+          STANDARD_PYTHON: ${{ runner.temp }}/titanspan-standard/bin/python
+          POSTGRESQL_PYTHON: ${{ runner.temp }}/titanspan-postgresql/bin/python
         run: |
-          "$MINIMAL_PYTHON" -c '
+          "$STANDARD_PYTHON" -c '
           from importlib.metadata import version
           from pathlib import Path
 
+          import aiosqlite
+          import alembic
+          import babel
+          import num2words
+          import sqlalchemy
           import titanspan
+          from titanspan.database import Model, Schema
+          from titanspan.facades import DB
+          from titanspan.support import Number
 
           package = Path(titanspan.__file__).parent
           installed = version("titanspan")
           assert installed and titanspan.__version__ == installed
           assert (package / "py.typed").is_file()
           assert not list(package.rglob("AGENTS.md"))
+          assert Model.__name__ == "Model"
+          assert Schema.__name__ == "Schema"
+          assert DB.__name__ == "DB"
+          assert Number.format(1234.5) == "1,234.5"
+          assert Number.spell(42) == "forty-two"
+          assert all((aiosqlite, alembic, babel, num2words, sqlalchemy))
           print(titanspan.__file__)
           '
-          "$NUMBERS_PYTHON" -c '
-          import titanspan
-          import babel
-          import num2words
-
-          print(titanspan.__version__)
-          '
+          "$POSTGRESQL_PYTHON" -c 'import psycopg; print(psycopg.__version__)'
 
   cli-smoke:
     name: "Runtime: Installed CLI"
@@ -1023,6 +1031,11 @@ jobs:
         run: |
           "$RUNNER_TEMP/titanspan-cli/bin/titanspan" --help
           "$RUNNER_TEMP/titanspan-cli/bin/titanspan" --version
+          "$RUNNER_TEMP/titanspan-cli/bin/titanspan" db:show --help
+          "$RUNNER_TEMP/titanspan-cli/bin/titanspan" db:table --help
+          "$RUNNER_TEMP/titanspan-cli/bin/titanspan" db:wipe --help
+          "$RUNNER_TEMP/titanspan-cli/bin/titanspan" migrate --help
+          "$RUNNER_TEMP/titanspan-cli/bin/titanspan" migrate:fresh --help
 
   application-smoke:
     name: "Runtime: Installed application lifecycle"

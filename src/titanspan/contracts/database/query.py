@@ -141,6 +141,17 @@ class DatabaseQueryBuilder(Protocol):
         """
         ...
 
+    def distinct(self, enabled: bool = True) -> Self:
+        """Select unique result rows when distinct mode is enabled.
+
+        Args:
+            enabled: Whether to apply distinct selection to this query.
+
+        Returns:
+            This builder for further query composition.
+        """
+        ...
+
     def select_sub(
         self,
         query: DatabaseQueryBuilder,

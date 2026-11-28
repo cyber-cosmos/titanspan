@@ -8,16 +8,25 @@ their Unit of Work and transaction.
 from __future__ import annotations
 
 from collections.abc import Callable, Mapping
+from dataclasses import dataclass, replace
 from typing import TYPE_CHECKING, ClassVar, Protocol, Self, TypeGuard, cast
+
+from sqlalchemy import inspect as sa_inspect
+from sqlalchemy.exc import NoInspectionAvailable
+from sqlalchemy.orm.attributes import set_committed_value
 
 from titanspan.database.exceptions import (
     DatabaseFactoryError,
     ModelPersistenceCancelledError,
 )
 from titanspan.database.model_collection import ModelCollection
+from titanspan.database.model_state import ensure_session_owner
 from titanspan.facades.database import DB
 
 if TYPE_CHECKING:
+    from sqlalchemy.ext.asyncio import AsyncSession
+    from sqlalchemy.orm import RelationshipProperty, Session
+
     from titanspan.contracts.database import DatabaseService
 
 
@@ -28,6 +37,15 @@ class _FactoryModel(Protocol):
     """
 
     connection: ClassVar[str | None]
+
+    @property
+    def exists(self) -> bool:
+        """Whether the model already represents a persisted row.
+
+        Returns:
+            Whether the model has been persisted.
+        """
+        ...
 
     def force_fill(self, attributes: Mapping[str, object], /) -> Self:
         """Assign factory-owned values to mapped columns.
@@ -62,6 +80,57 @@ type _FactoryState = (
 type _FactoryCallback[ModelT] = Callable[[ModelT], None]
 
 _EMPTY_INDEX = 0
+_FACTORY_RELATIONSHIP_ERROR = (
+    "The factory relationship must name a compatible mapped relation."
+)
+_FACTORY_RELATIONSHIP_COUNT_ERROR = (
+    "Scalar or recycled factory relationships require a count of one."
+)
+_FACTORY_RECYCLED_MODEL_ERROR = (
+    "A recycled factory relationship requires a persisted model."
+)
+
+
+@dataclass(frozen=True, slots=True)
+class _FactoryRelationship:
+    """Describe related values and callbacks for one model graph.
+
+    Attributes:
+        name: Mapped relationship name on the owner model.
+        collection: Whether the mapped relationship accepts a collection.
+        count: Number of related models built by the factory.
+        recycled: Whether the factory reuses a caller-owned model.
+        populate_foreign_keys: Copy keys for a recycled scalar relation.
+        make_related: Build or reuse one related instance.
+        schedule_created: Register child factory callbacks after commit.
+    """
+
+    name: str
+    collection: bool
+    count: int
+    recycled: bool
+    populate_foreign_keys: Callable[[object, _FactoryModel], None] | None
+    make_related: Callable[[int], _FactoryModel]
+    schedule_created: Callable[[DatabaseService, object], None] | None
+
+
+@dataclass(frozen=True, slots=True)
+class _FactoryOptions[ModelT: _FactoryModel]:
+    """Retain immutable builder options for one model factory.
+
+    Attributes:
+        states: Ordered attribute overrides applied to each model.
+        sequence_values: Repeating per-item attribute overrides.
+        after_making: Callbacks run after transient model construction.
+        after_creating: Callbacks deferred until the transaction commits.
+        relationships: Related factories or existing mapped records.
+    """
+
+    states: tuple[_FactoryState, ...] = ()
+    sequence_values: tuple[Mapping[str, _FactoryValue], ...] = ()
+    after_making: tuple[_FactoryCallback[ModelT], ...] = ()
+    after_creating: tuple[_FactoryCallback[ModelT], ...] = ()
+    relationships: tuple[_FactoryRelationship, ...] = ()
 
 
 class ModelFactory[ModelT: _FactoryModel]:
@@ -76,31 +145,18 @@ class ModelFactory[ModelT: _FactoryModel]:
         self,
         model_class: type[ModelT],
         definition: Mapping[str, _FactoryValue],
-        *,
-        states: tuple[_FactoryState, ...] = (),
-        sequence_values: tuple[Mapping[str, _FactoryValue], ...] = (),
-        after_making: tuple[_FactoryCallback[ModelT], ...] = (),
-        after_creating: tuple[_FactoryCallback[ModelT], ...] = (),
+        options: _FactoryOptions[ModelT] | None = None,
     ) -> None:
         """Bind a model type and copy its trusted factory definition.
 
         Args:
             model_class: Mapped class that the factory constructs.
             definition: Default values declared by the application model.
-            states: Ordered attribute overrides applied to each generated item.
-            sequence_values: Ordered per-item overrides repeated by index.
-            after_making: Callbacks invoked after transient construction.
-            after_creating: Callbacks deferred until the owning transaction
-                commits successfully.
+            options: Immutable builder settings copied by fluent operations.
         """
         self._model_class = model_class
         self._definition = dict(definition)
-        self._states = states
-        self._sequence_values = tuple(
-            dict(values) for values in sequence_values
-        )
-        self._after_making = after_making
-        self._after_creating = after_creating
+        self._options = options or _FactoryOptions[ModelT]()
 
     def state(self, values: _FactoryState) -> ModelFactory[ModelT]:
         """Return a factory with one additional attribute state.
@@ -111,7 +167,12 @@ class ModelFactory[ModelT: _FactoryModel]:
         Returns:
             A new factory that preserves this factory's defaults and hooks.
         """
-        return self._copy(states=(*self._states, values))
+        return self._copy(
+            replace(
+                self._options,
+                states=(*self._options.states, values),
+            ),
+        )
 
     def sequence(
         self,
@@ -131,7 +192,12 @@ class ModelFactory[ModelT: _FactoryModel]:
         if not values:
             message = "A model factory sequence requires at least one value."
             raise DatabaseFactoryError(message)
-        return self._copy(sequence_values=tuple(values))
+        return self._copy(
+            replace(
+                self._options,
+                sequence_values=tuple(dict(value) for value in values),
+            ),
+        )
 
     def after_making(
         self,
@@ -145,7 +211,12 @@ class ModelFactory[ModelT: _FactoryModel]:
         Returns:
             A new factory that includes the callback.
         """
-        return self._copy(after_making=(*self._after_making, callback))
+        return self._copy(
+            replace(
+                self._options,
+                after_making=(*self._options.after_making, callback),
+            ),
+        )
 
     def after_creating(
         self,
@@ -159,7 +230,137 @@ class ModelFactory[ModelT: _FactoryModel]:
         Returns:
             A new factory that includes the callback.
         """
-        return self._copy(after_creating=(*self._after_creating, callback))
+        return self._copy(
+            replace(
+                self._options,
+                after_creating=(*self._options.after_creating, callback),
+            ),
+        )
+
+    def relationship[RelatedT: _FactoryModel](
+        self,
+        name: str,
+        related: ModelFactory[RelatedT] | RelatedT,
+        *,
+        count: int = 1,
+    ) -> ModelFactory[ModelT]:
+        """Build one mapped related value or a collection of related models.
+
+        A related factory creates fresh models for each parent. A persisted
+        model can be supplied for a single-valued relation.
+
+        Args:
+            name: Mapped relationship on this factory's model.
+            related: Related-model factory or an existing mapped model.
+            count: Number of models for a collection relationship.
+
+        Returns:
+            A new factory with the related graph attached during ``make``.
+
+        Raises:
+            DatabaseFactoryError: If the relationship or related type is
+                invalid, or the count conflicts with its mapped cardinality.
+        """
+        _validate_count(count)
+        mapped_relationship = _resolve_mapped_relationship(
+            self._model_class,
+            name,
+        )
+        if not mapped_relationship.uselist and count != 1:
+            raise DatabaseFactoryError(_FACTORY_RELATIONSHIP_COUNT_ERROR)
+        if isinstance(related, ModelFactory):
+            relationship = self._factory_relationship(
+                name,
+                mapped_relationship,
+                related,
+                count,
+            )
+        else:
+            if mapped_relationship.uselist and count != 1:
+                raise DatabaseFactoryError(
+                    _FACTORY_RELATIONSHIP_COUNT_ERROR,
+                )
+            if not isinstance(related, mapped_relationship.mapper.class_):
+                raise DatabaseFactoryError(_FACTORY_RELATIONSHIP_ERROR)
+            relationship = _recycled_relationship(
+                self._model_class,
+                name,
+                mapped_relationship,
+                related,
+            )
+        return self._copy(
+            replace(
+                self._options,
+                relationships=(
+                    *self._options.relationships,
+                    relationship,
+                ),
+            ),
+        )
+
+    def _factory_relationship[RelatedT: _FactoryModel](
+        self,
+        name: str,
+        mapped_relationship: RelationshipProperty[object],
+        related: ModelFactory[RelatedT],
+        count: int,
+    ) -> _FactoryRelationship:
+        """Build a recursive relationship specification from a factory.
+
+        Args:
+            name: Relationship attribute on the owner model.
+            mapped_relationship: SQLAlchemy's relationship property.
+            related: Factory for transient related models.
+            count: Number of models for collection relationships.
+
+        Returns:
+            Relation construction and callback behavior.
+
+        Raises:
+            DatabaseFactoryError: If the related type is incompatible.
+        """
+        related_type = related._model_class
+        if not issubclass(related_type, mapped_relationship.mapper.class_):
+            raise DatabaseFactoryError(_FACTORY_RELATIONSHIP_ERROR)
+
+        def make_related(index: int) -> _FactoryModel:
+            """Build one related model without database I/O.
+
+            Args:
+                index: Deterministic index passed to the related factory.
+
+            Returns:
+                One transient mapped related model.
+            """
+            return related._make_one(index, None)
+
+        def schedule_related(
+            service: DatabaseService,
+            related_model: object,
+        ) -> None:
+            """Schedule nested callbacks after the complete graph commits.
+
+            Args:
+                service: Database service that owns the transaction.
+                related_model: Related instance flushed with its parent.
+            """
+            if not isinstance(related_model, related_type):
+                raise DatabaseFactoryError(_FACTORY_RELATIONSHIP_ERROR)
+            related._schedule_after_creating(service, related_model)
+            related._schedule_relationship_callbacks(
+                service,
+                related_model,
+            )
+
+        return _FactoryRelationship(
+            name=name,
+            collection=bool(mapped_relationship.uselist),
+            count=count,
+            recycled=False,
+            populate_foreign_keys=None,
+            make_related=make_related,
+            schedule_created=schedule_related,
+        )
 
     def count(self, count: int) -> FactoryBatch[ModelT]:
         """Select a typed batch operation with a fixed item count.
@@ -247,11 +448,20 @@ class ModelFactory[ModelT: _FactoryModel]:
         if not models:
             return models
         service = DB.resolve_service()
-        with service.transaction(self._model_class.connection):
+        with (
+            service.transaction(self._model_class.connection),
+            service.session(self._model_class.connection) as session,
+        ):
             for model in models:
+                self._validate_recycled_relationships(
+                    service,
+                    session,
+                    model,
+                )
                 saved = model.save()
                 _require_successful_save(model, saved)
                 self._schedule_after_creating(service, model)
+                self._schedule_relationship_callbacks(service, model)
         return models
 
     async def create_async(
@@ -292,12 +502,42 @@ class ModelFactory[ModelT: _FactoryModel]:
         if not models:
             return models
         service = DB.resolve_service()
-        async with service.transaction_async(self._model_class.connection):
+        async with (
+            service.transaction_async(self._model_class.connection),
+            service.session_async(
+                self._model_class.connection,
+            ) as session,
+        ):
             for model in models:
+                self._validate_recycled_relationships(
+                    service,
+                    session,
+                    model,
+                )
                 saved = await model.save_async()
                 _require_successful_save(model, saved)
                 self._schedule_after_creating(service, model)
+                self._schedule_relationship_callbacks(service, model)
         return models
+
+    def _validate_recycled_relationships(
+        self,
+        service: DatabaseService,
+        session: Session | AsyncSession,
+        model: ModelT,
+    ) -> None:
+        """Verify reused related models share the active app and session.
+
+        Args:
+            service: Database service owning the factory operation.
+            session: Current Unit of Work session.
+            model: Factory-created parent or child with assigned relations.
+        """
+        for relationship in self._options.relationships:
+            if not relationship.recycled:
+                continue
+            related_model = getattr(model, relationship.name)
+            ensure_session_owner(related_model, service, session)
 
     def _make_one(
         self,
@@ -314,15 +554,15 @@ class ModelFactory[ModelT: _FactoryModel]:
             One transient model after its make callbacks have run.
         """
         values = _resolve_mapping(self._definition, index)
-        if self._sequence_values:
-            sequence_index = index % len(self._sequence_values)
+        if self._options.sequence_values:
+            sequence_index = index % len(self._options.sequence_values)
             values.update(
                 _resolve_mapping(
-                    self._sequence_values[sequence_index],
+                    self._options.sequence_values[sequence_index],
                     index,
                 ),
             )
-        for state in self._states:
+        for state in self._options.states:
             state_values = (
                 cast("Mapping[str, _FactoryValue]", state)
                 if isinstance(state, Mapping)
@@ -332,7 +572,37 @@ class ModelFactory[ModelT: _FactoryModel]:
         if attributes is not None:
             values.update(attributes)
         model = self._model_class().force_fill(values)
-        for callback in self._after_making:
+        # SQLAlchemy's Unit of Work persists this graph through its mapped
+        # relationship cascade, keeping parent and related rows atomic.
+        for relationship in self._options.relationships:
+            related_models = [
+                relationship.make_related(
+                    index * max(relationship.count, 1) + related_index,
+                )
+                for related_index in range(relationship.count)
+            ]
+            related_value: object = (
+                related_models if relationship.collection else related_models[0]
+            )
+            if relationship.recycled and not relationship.collection:
+                # Keep a reused parent's inverse collection untouched while
+                # this child remains transient.
+                if relationship.populate_foreign_keys is None:
+                    raise DatabaseFactoryError(
+                        _FACTORY_RELATIONSHIP_ERROR,
+                    )
+                relationship.populate_foreign_keys(
+                    model,
+                    related_models[0],
+                )
+                set_committed_value(
+                    model,
+                    relationship.name,
+                    related_value,
+                )
+            else:
+                setattr(model, relationship.name, related_value)
+        for callback in self._options.after_making:
             callback(model)
         return model
 
@@ -347,27 +617,43 @@ class ModelFactory[ModelT: _FactoryModel]:
             service: Active application Database service.
             model: Model whose flush completed in the current transaction.
         """
-        for callback in self._after_creating:
+        for callback in self._options.after_creating:
             service.after_commit(
                 lambda callback=callback, model=model: callback(model),
                 self._model_class.connection,
             )
 
-    def _copy(
+    def _schedule_relationship_callbacks(
         self,
-        *,
-        states: tuple[_FactoryState, ...] | None = None,
-        sequence_values: tuple[Mapping[str, _FactoryValue], ...] | None = None,
-        after_making: tuple[_FactoryCallback[ModelT], ...] | None = None,
-        after_creating: tuple[_FactoryCallback[ModelT], ...] | None = None,
-    ) -> ModelFactory[ModelT]:
-        """Create a builder copy with selected immutable option changes.
+        service: DatabaseService,
+        model: ModelT,
+    ) -> None:
+        """Schedule related factory callbacks after their shared commit.
 
         Args:
-            states: Replacement ordered state definitions.
-            sequence_values: Replacement sequence definitions.
-            after_making: Replacement transient callbacks.
-            after_creating: Replacement committed-create callbacks.
+            service: Application Database service that owns the transaction.
+            model: Persisted model whose related graph was flushed.
+        """
+        for relationship in self._options.relationships:
+            if relationship.schedule_created is None:
+                continue
+            related_value = getattr(model, relationship.name)
+            related_models = (
+                tuple(related_value)
+                if relationship.collection
+                else (related_value,)
+            )
+            for related_model in related_models:
+                relationship.schedule_created(service, related_model)
+
+    def _copy(
+        self,
+        options: _FactoryOptions[ModelT],
+    ) -> ModelFactory[ModelT]:
+        """Create a builder copy with selected immutable options.
+
+        Args:
+            options: New options applied to the copied factory.
 
         Returns:
             A new factory with unchanged options copied from this instance.
@@ -375,28 +661,130 @@ class ModelFactory[ModelT: _FactoryModel]:
         return ModelFactory(
             self._model_class,
             self._definition,
-            states=self._states if states is None else states,
-            sequence_values=(
-                self._sequence_values
-                if sequence_values is None
-                else sequence_values
-            ),
-            after_making=(
-                self._after_making if after_making is None else after_making
-            ),
-            after_creating=(
-                self._after_creating
-                if after_creating is None
-                else after_creating
-            ),
+            options,
         )
 
     _model_class: type[ModelT]
     _definition: dict[str, _FactoryValue]
-    _states: tuple[_FactoryState, ...]
-    _sequence_values: tuple[Mapping[str, _FactoryValue], ...]
-    _after_making: tuple[_FactoryCallback[ModelT], ...]
-    _after_creating: tuple[_FactoryCallback[ModelT], ...]
+    _options: _FactoryOptions[ModelT]
+
+
+def _resolve_mapped_relationship(
+    owner_type: type[object],
+    name: str,
+) -> RelationshipProperty[object]:
+    """Resolve one mapped relationship or report a native factory error.
+
+    Args:
+        owner_type: Candidate mapped class that owns the relationship.
+        name: Relationship attribute requested by the factory.
+
+    Returns:
+        SQLAlchemy's mapped relationship property.
+
+    Raises:
+        DatabaseFactoryError: If the class is not mapped or the name is absent.
+    """
+    try:
+        relationship = sa_inspect(owner_type).relationships.get(name)
+    except NoInspectionAvailable as error:
+        raise DatabaseFactoryError(
+            _FACTORY_RELATIONSHIP_ERROR,
+        ) from error
+    if relationship is None:
+        raise DatabaseFactoryError(_FACTORY_RELATIONSHIP_ERROR)
+    return relationship
+
+
+def _recycled_relationship(
+    owner_type: type[object],
+    name: str,
+    mapped_relationship: RelationshipProperty[object],
+    related: _FactoryModel,
+) -> _FactoryRelationship:
+    """Build safe behavior for one persisted single-valued relation.
+
+    Args:
+        owner_type: Mapped class that owns the relationship.
+        name: Relationship attribute name on the owner model.
+        mapped_relationship: SQLAlchemy relationship property.
+        related: Persisted related model selected by the caller.
+
+    Returns:
+        Construction and foreign-key behavior for one reused value.
+
+    Raises:
+        DatabaseFactoryError: If the related model is transient or the
+            relationship does not expose direct foreign-key synchronization.
+    """
+    if mapped_relationship.uselist:
+        raise DatabaseFactoryError(_FACTORY_RELATIONSHIP_ERROR)
+    if not related.exists:
+        raise DatabaseFactoryError(_FACTORY_RECYCLED_MODEL_ERROR)
+    related_type = type(related)
+    owner_mapper = sa_inspect(owner_type)
+    related_mapper = sa_inspect(related_type)
+
+    def populate_foreign_keys(
+        owner: object,
+        related_model: _FactoryModel,
+    ) -> None:
+        """Set owner foreign keys before assigning the recycled relation.
+
+        Args:
+            owner: Transient model being constructed by this factory.
+            related_model: Existing related row selected by the caller.
+
+        Raises:
+            DatabaseFactoryError: If the relationship uses a custom join.
+        """
+        if not isinstance(owner, owner_type) or not isinstance(
+            related_model,
+            related_type,
+        ):
+            raise DatabaseFactoryError(_FACTORY_RELATIONSHIP_ERROR)
+        copied = False
+        for (
+            source_column,
+            target_column,
+        ) in mapped_relationship.synchronize_pairs:
+            if (
+                source_column.table is not related_mapper.local_table
+                or target_column.table is not owner_mapper.local_table
+            ):
+                raise DatabaseFactoryError(_FACTORY_RELATIONSHIP_ERROR)
+            source_key = related_mapper.get_property_by_column(
+                source_column,
+            ).key
+            target_key = owner_mapper.get_property_by_column(
+                target_column,
+            ).key
+            setattr(owner, target_key, getattr(related_model, source_key))
+            copied = True
+        if not copied:
+            raise DatabaseFactoryError(_FACTORY_RELATIONSHIP_ERROR)
+
+    def make_related(index: int) -> _FactoryModel:
+        """Return the selected existing model without copying it.
+
+        Args:
+            index: Unused factory item index.
+
+        Returns:
+            The existing model selected by the caller.
+        """
+        del index
+        return related
+
+    return _FactoryRelationship(
+        name=name,
+        collection=False,
+        count=1,
+        recycled=True,
+        populate_foreign_keys=populate_foreign_keys,
+        make_related=make_related,
+        schedule_created=None,
+    )
 
 
 class FactoryBatch[ModelT: _FactoryModel]:

@@ -20,8 +20,11 @@ node conventions, builders, authorization, lifecycle integration, and testing
 utilities around it. Persist serializable workflow state, not live containers,
 sessions, or connections.
 
-LangGraph and LangChain are not initial dependencies. Recheck Python support,
-licensing, security, and APIs when implementing the AI vertical slice.
+LangGraph and LangChain remain absent while their components are planned.
+When Workflows is implemented, LangGraph becomes a mandatory runtime
+dependency of that native component. Recheck Python support, licensing,
+security, and APIs at that implementation point; provider-specific SDKs may
+remain optional.
 
 ## Alternatives considered
 

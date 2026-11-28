@@ -358,26 +358,6 @@ class NonAdvancingNumberRangeError(ValueError):
         super().__init__("by is too small to advance the range.")
 
 
-class MissingNumberDependencyError(ImportError):
-    """Report an unavailable package required by a Number operation.
-
-    Formatting and word spelling use optional dependencies so applications
-    that do not need them can keep the base installation small.
-    """
-
-    def __init__(self, package: str) -> None:
-        """Explain which optional extra provides the required package.
-
-        Args:
-            package: The missing package import name.
-        """
-        self.package = package
-        super().__init__(
-            f"{package} is required for this operation; "
-            "install the titanspan[numbers] extra."
-        )
-
-
 __all__ = [
     "ArrayConversionError",
     "ArrayMutationError",
@@ -394,7 +374,6 @@ __all__ = [
     "InvalidRetryConfigurationTypeError",
     "InvalidSortCriterionError",
     "MacroNotFoundError",
-    "MissingNumberDependencyError",
     "MultipleMatchingArrayItemsError",
     "NoMatchingArrayItemError",
     "NonAdvancingNumberRangeError",

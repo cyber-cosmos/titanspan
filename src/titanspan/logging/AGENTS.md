@@ -19,9 +19,10 @@ backend types.
 
 The module may depend on Python's logging package, Structlog, AnyIO, native
 Titanspan configuration, and the application lifecycle boundary. Do not make
-logging depend on optional AI, database, workflow, queue, or storage modules.
-Those modules can attach execution-local context through explicit integration
-hooks when they exist. Do not create a competing event dispatcher, DI
+logging depend on optional AI, workflow, queue, or storage modules. Database
+is built in, but Logging remains independent of its implementation. Components
+can attach execution-local context through explicit integration hooks. Do not
+create a competing event dispatcher, DI
 container, formatter engine, or logging service registry.
 
 `LoggingServiceProvider` must resolve `ConfigRepository` through the native

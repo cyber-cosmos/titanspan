@@ -10,7 +10,6 @@ from contextvars import ContextVar
 from typing import TYPE_CHECKING, ClassVar
 
 from titanspan.contracts.database import DatabaseService
-from titanspan.foundation import app
 
 if TYPE_CHECKING:
     from titanspan.foundation.application import Application
@@ -138,6 +137,9 @@ def _application() -> Application:
     Returns:
         The Application bound to the current command or test context.
     """
+    # Resolve Foundation only when a seeder executes to avoid import cycles.
+    from titanspan.foundation import app  # noqa: PLC0415
+
     return app()
 
 

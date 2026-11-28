@@ -14,19 +14,45 @@ from importlib.util import module_from_spec, spec_from_file_location
 from pathlib import Path
 from subprocess import run
 from tempfile import TemporaryDirectory
-from typing import TYPE_CHECKING, TypedDict, cast
+from typing import TYPE_CHECKING, ClassVar, TypedDict, cast
 
 import anyio
+from pydantic import BaseModel
+from sqlalchemy import ForeignKey
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from titanspan.console import Console
 from titanspan.contracts.filesystem import StorageManager
 from titanspan.contracts.foundation import ServiceProvider
 from titanspan.contracts.queue import QueueDispatcher
 from titanspan.contracts.routing import ControllerAction, UriUrlGenerator
-from titanspan.facades import Event, Hash, Http, Log, Queue, Storage
+from titanspan.database import (
+    DatabaseConnectionError,
+    DatabaseManager,
+    MigrationManager,
+    Model,
+    Schema,
+    Seeder,
+    assert_database_has_async,
+    bind_model,
+    has_many,
+    unique_rule,
+)
+from titanspan.facades import (
+    DB,
+    Event,
+    Hash,
+    Http,
+    Log,
+    Queue,
+    Storage,
+    Validation,
+)
 from titanspan.foundation import Application
 from titanspan.queue import Job, QueueManager, QueueServiceProvider
+from titanspan.support import Number
 from titanspan.testing import AsyncApplicationTest
+from titanspan.validation import ValidationException
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Sequence
@@ -86,6 +112,11 @@ _PRIVATE_FAILURE_DETAIL = "private-reference-diagnostic"
 _HTTP_NOT_FOUND_STATUS = 404
 _HTTP_INTERNAL_ERROR_STATUS = 500
 _HEADER_PAIR_LENGTH = 2
+_EXPECTED_DATABASE_USER_COUNT = 2
+_RUNTIME_USER_NAME = "Ada"
+_RUNTIME_FACTORY_NAME = "Factory User"
+_RUNTIME_SEEDED_NAME = "Seeded"
+_RUNTIME_ROLLBACK_NAME = "Rollback"
 _EXPECTED_UPLOADED_DOCUMENT = {
     "path": "guides/reference.txt",
     "bytes": len(_EXPECTED_STORED_CONTENT),
@@ -93,6 +124,89 @@ _EXPECTED_UPLOADED_DOCUMENT = {
 }
 _HTTP_OK_STATUS = 200
 _HTTP_UNPROCESSABLE_STATUS = 422
+
+
+class _SmokeRollbackError(RuntimeError):
+    """Request a deterministic rollback in the installed Database smoke.
+    """  # fmt: skip
+
+
+class _InstalledRuntimeError(RuntimeError):
+    """Report a failed assertion from the installed-package smoke.
+    """  # fmt: skip
+
+    def __init__(self) -> None:
+        """Set one generic message without exposing smoke input values.
+        """  # fmt: skip
+        super().__init__("Installed Database smoke verification failed.")
+
+
+class _InstalledRuntimePost(Model):
+    """Represent a post in the installed Database smoke application.
+
+    The mapping verifies that relationship loading works from the wheel.
+    """
+
+    table = "runtime_posts"
+    fillable = ("user_id", "title")
+
+    user_id: Mapped[int] = mapped_column(ForeignKey("runtime_users.id"))
+    title: Mapped[str]
+    user: Mapped[_InstalledRuntimeUser] = relationship(
+        back_populates="posts",
+    )
+
+
+class _InstalledRuntimeUser(Model):
+    """Represent one user for installed-package persistence verification.
+
+    The mapped collection exercises native eager relationship loading.
+    """
+
+    table = "runtime_users"
+    fillable = ("name",)
+    factory_attributes: ClassVar[Mapping[str, object]] = {
+        "name": _RUNTIME_FACTORY_NAME,
+    }
+
+    name: Mapped[str]
+    posts: Mapped[list[_InstalledRuntimePost]] = has_many(
+        _InstalledRuntimePost,
+        back_populates="user",
+    )
+
+
+class _InstalledRuntimeSeeder(Seeder):
+    """Insert a row through the installed transactional Seeder API.
+    """  # fmt: skip
+
+    async def run_async(self) -> None:
+        """Create one row in the seeder's application transaction.
+        """  # fmt: skip
+        await _InstalledRuntimeUser.create_async(
+            {"name": _RUNTIME_SEEDED_NAME},
+        )
+
+
+class _RuntimeNameInput(BaseModel):
+    """Validate a name used by the installed Database rule smoke.
+    """  # fmt: skip
+
+    name: str
+
+
+async def _show_runtime_user(
+    user: _InstalledRuntimeUser,
+) -> dict[str, object]:
+    """Return safe fields from a model resolved by route binding.
+
+    Args:
+        user: Database model loaded through the installed route binder.
+
+    Returns:
+        Safe model data serialized by the native route integration.
+    """
+    return {"name": user.name}
 
 
 class _ValidationRejection(TypedDict):
@@ -133,6 +247,10 @@ class SmokeResult(TypedDict):
             private in both the response and log record.
         queue_dispatch_verified: Whether native Queue access paths shared
             one manager and executed injected job services.
+        database_verified: Whether the built-in provider, SQLite modes,
+            schema, transactions, models, and relationships worked.
+        number_utilities_verified: Whether Number formatting and spelling
+            worked from the standard package installation.
     """
 
     health: object
@@ -152,6 +270,8 @@ class SmokeResult(TypedDict):
     custom_exception_verified: bool
     safe_failure_verified: bool
     queue_dispatch_verified: bool
+    database_verified: bool
+    number_utilities_verified: bool
 
 
 class _ComponentFakeResults(TypedDict):
@@ -306,6 +426,11 @@ async def run_smoke() -> SmokeResult:
                 routes["failure"],
             )
         queue_dispatch_verified = await _verify_installed_queue(base_path)
+        database_verified = await _verify_installed_database(base_path)
+        number_utilities_verified = (
+            Number.format(1234.5) == "1,234.5"
+            and Number.spell(42) == "forty-two"
+        )
 
     result: SmokeResult = {
         "health": primary_http["health"].body,
@@ -335,9 +460,269 @@ async def run_smoke() -> SmokeResult:
         "custom_exception_verified": custom_exception_verified,
         "safe_failure_verified": safe_failure_verified,
         "queue_dispatch_verified": queue_dispatch_verified,
+        "database_verified": database_verified,
+        "number_utilities_verified": number_utilities_verified,
     }
     require_smoke_success(result)
     return result
+
+
+async def _verify_installed_database(base_path: Path) -> bool:
+    """Exercise native Database behavior through the installed package.
+
+    Args:
+        base_path: Temporary application root used by the runtime smoke.
+
+    Returns:
+        Whether the built-in provider stayed lazy and real SQLite operations
+        succeeded through sync and async APIs.
+    """
+    database_root = base_path / "database-smoke"
+    database_root.mkdir()
+    database_path = database_root / "runtime.sqlite"
+    application = Application(
+        base_path=database_root,
+        config={
+            "database": {
+                "default": "sqlite",
+                "connections": {
+                    "sqlite": {
+                        "driver": "sqlite",
+                        "database": database_path.name,
+                    },
+                },
+            },
+        },
+    )
+    application.router.get(
+        "/runtime-users/{user}",
+        _show_runtime_user,
+    )
+    bind_model(
+        application.router,
+        _InstalledRuntimeUser,
+        parameter="user",
+    )
+    manager: DatabaseManager
+    async with application:
+        manager = await application.container.make_async(DatabaseManager)
+        _ensure_runtime_check(DB.resolve_service() is manager)
+        _ensure_runtime_check(not database_path.exists())
+
+        await _create_runtime_database_schema()
+        user = await _create_runtime_database_user()
+        _ensure_runtime_check(await _verify_runtime_database_validation())
+        await _verify_runtime_database_route(application, user.id)
+        await _InstalledRuntimeSeeder().execute_async()
+        _ensure_runtime_check(
+            await DB.table("runtime_users").count_async()
+            == _EXPECTED_DATABASE_USER_COUNT
+        )
+        await _verify_runtime_migrations(application)
+        _ensure_runtime_check(await _verify_runtime_rollback())
+        _ensure_runtime_check(
+            await anyio.to_thread.run_sync(
+                _verify_sync_database,
+                application,
+            ),
+        )
+
+    try:
+        manager.engine("sqlite")
+    except DatabaseConnectionError:
+        return True
+    _ensure_runtime_check(False)
+    return True
+
+
+def _ensure_runtime_check(condition: bool) -> None:
+    """Fail the installed-package smoke when a behavior check is false.
+
+    Args:
+        condition: Result of a real installed-package operation.
+    """
+    if not condition:
+        raise _InstalledRuntimeError
+
+
+async def _create_runtime_database_schema() -> None:
+    """Create the temporary SQLite schema used by the installed smoke.
+    """  # fmt: skip
+    async with Schema.create("runtime_users") as table:
+        table.id()
+        table.string("name", length=120)
+        table.timestamps()
+    async with Schema.create("runtime_posts") as table:
+        table.id()
+        table.foreign_id("user_id")
+        table.string("title", length=120)
+        table.timestamps()
+        table.foreign(
+            "user_id",
+            references="runtime_users",
+            on_delete="cascade",
+        )
+
+
+async def _create_runtime_database_user() -> _InstalledRuntimeUser:
+    """Create and eager-load a model through the installed factory API.
+
+    Returns:
+        The persisted model loaded with its related post.
+    """
+    transient = _InstalledRuntimeUser.factory().make()
+    _ensure_runtime_check(not transient.exists)
+    _ensure_runtime_check(transient.name == _RUNTIME_FACTORY_NAME)
+
+    user = await (
+        _InstalledRuntimeUser.factory()
+        .state({"name": _RUNTIME_USER_NAME})
+        .create_async()
+    )
+    await _InstalledRuntimePost.create_async(
+        {"user_id": user.id, "title": "First"},
+    )
+    loaded_user = await (
+        _InstalledRuntimeUser.query().with_("posts").find_async(user.id)
+    )
+    if loaded_user is None:
+        raise _InstalledRuntimeError
+    _ensure_runtime_check(len(loaded_user.posts) == 1)
+    _ensure_runtime_check(loaded_user.posts[0].title == "First")
+    await assert_database_has_async(
+        "runtime_users",
+        {"name": _RUNTIME_USER_NAME},
+    )
+    return loaded_user
+
+
+async def _verify_runtime_database_validation() -> bool:
+    """Reject a duplicate through Database-backed Validation rules.
+    """  # fmt: skip
+    duplicate_name = unique_rule(
+        _InstalledRuntimeUser,
+        "name",
+        field="name",
+    )
+    try:
+        await Validation.validate_async(
+            {"name": _RUNTIME_USER_NAME},
+            _RuntimeNameInput,
+            async_rules=(duplicate_name,),
+        )
+    except ValidationException:
+        return True
+    return False
+
+
+async def _verify_runtime_database_route(
+    application: Application,
+    user_id: int,
+) -> None:
+    """Resolve a model through the installed route binding integration.
+
+    Args:
+        application: Started Application with its Database connection.
+        user_id: Persisted user primary key used as the route parameter.
+    """
+    response = await _send_request(
+        application.asgi,
+        f"/runtime-users/{user_id}",
+    )
+    _ensure_runtime_check(response.status == _HTTP_OK_STATUS)
+    _ensure_runtime_check(
+        response.body == {"name": _RUNTIME_USER_NAME},
+    )
+
+
+async def _verify_runtime_migrations(application: Application) -> None:
+    """Apply and roll back a generated Alembic revision.
+
+    Args:
+        application: Active Application that owns the migration manager.
+    """
+    migrations = await application.container.make_async(MigrationManager)
+    migration_path = migrations.create_revision("runtime smoke table")
+    _prepare_runtime_migration(migration_path)
+    await migrations.upgrade_async()
+    _ensure_runtime_check(
+        await Schema.has_table_async("runtime_migrations"),
+    )
+    await migrations.rollback_async()
+    _ensure_runtime_check(
+        not await Schema.has_table_async("runtime_migrations"),
+    )
+
+
+async def _verify_runtime_rollback() -> bool:
+    """Confirm a failed transaction leaves no inserted database row.
+    """  # fmt: skip
+    try:
+        async with DB.transaction_async():
+            await DB.table("runtime_users").insert_async(
+                {"name": _RUNTIME_ROLLBACK_NAME},
+            )
+            # Leave the transaction body so its context manager rolls back.
+            raise _SmokeRollbackError  # noqa: TRY301
+    except _SmokeRollbackError:
+        pass
+    count = await (
+        DB.table("runtime_users")
+        .where("name", _RUNTIME_ROLLBACK_NAME)
+        .count_async()
+    )
+    return count == 0
+
+
+def _prepare_runtime_migration(path: Path) -> None:
+    """Populate a generated migration with reversible smoke schema changes.
+
+    Args:
+        path: Revision generated inside the temporary Application root.
+    """
+    source = path.read_text(encoding="utf-8")
+    source = source.replace(
+        "from titanspan.database import Migration, run_migration",
+        "from titanspan.database import Migration, Schema, run_migration",
+    )
+    source = source.replace(
+        "    def up(self) -> None:\n"
+        '        """Apply this revision\'s schema changes."""\n'
+        "        pass\n",
+        "    def up(self) -> None:\n"
+        '        """Apply this revision\'s schema changes."""\n'
+        '        with Schema.create("runtime_migrations") as table:\n'
+        "            table.id()\n"
+        '            table.string("label", length=120)\n',
+    )
+    source = source.replace(
+        "    def down(self) -> None:\n"
+        '        """Reverse this revision\'s schema changes."""\n'
+        "        pass\n",
+        "    def down(self) -> None:\n"
+        '        """Reverse this revision\'s schema changes."""\n'
+        '        with Schema.drop_if_exists("runtime_migrations"):\n'
+        "            pass\n",
+    )
+    path.write_text(source, encoding="utf-8")
+
+
+def _verify_sync_database(application: Application) -> bool:
+    """Create and query a table through the synchronous SQLite API.
+
+    Args:
+        application: Started Application owning the installed smoke database.
+
+    Returns:
+        Whether the synchronous schema and query operations round-trip a row.
+    """
+    with application.context():
+        with Schema.create("runtime_sync_values") as table:
+            table.id()
+            table.string("value", length=40)
+        DB.table("runtime_sync_values").insert({"value": "sync"})
+        rows = DB.table("runtime_sync_values").select("value").get()
+    return len(rows) == 1 and rows[0].get("value") == "sync"
 
 
 def _resolve_smoke_routes(application: Application) -> _SmokeRoutes:
@@ -1494,6 +1879,8 @@ def require_smoke_success(result: SmokeResult) -> None:
         "public exception rendering": result["custom_exception_verified"],
         "safe unexpected failure": result["safe_failure_verified"],
         "installed Queue integration": result["queue_dispatch_verified"],
+        "installed Database integration": result["database_verified"],
+        "Number utilities": result["number_utilities_verified"],
         "typed JSON validation": result["json_validation_safe"],
         "response cookie handling": result["response_cookie_verified"],
     }

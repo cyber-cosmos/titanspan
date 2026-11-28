@@ -26,8 +26,11 @@ classifiers = [
     "Typing :: Typed",
 ]
 dependencies = [
+    "aiosqlite>=0.21,<1",
+    "alembic>=1.20.1,<2",
     "anyio>=4.16,<5",
     "argon2-cffi>=25.1,<26",
+    "babel>=2.18,<3",
     "bcrypt>=5,<6",
     "blinker>=1.9,<2",
     "cachetools>=8,<9",
@@ -36,11 +39,13 @@ dependencies = [
     "fastapi>=0.115,<1",
     "fsspec>=2025.3,<2027",
     "httpx2>=2,<3",
+    "num2words>=0.5.14,<1",
     "pydantic>=2.9,<3",
     "pydantic-settings>=2.7,<3",
     "python-dotenv>=1.0,<2",
     "python-multipart>=0.0.32,<0.1",
     "rich>=13.9,<15",
+    "sqlalchemy[asyncio]>=2.1.9,<2.2",
     "structlog>=26.1,<27",
     "taskiq>=0.13,<1",
     "tenacity>=9.1,<10",
@@ -59,10 +64,6 @@ Changelog = "https://github.com/titanspan/framework/blob/main/CHANGELOG.md"
 titanspan = "titanspan.console.cli:main"
 
 [project.optional-dependencies]
-numbers = [
-    "babel>=2.18,<3",
-    "num2words>=0.5.14,<1",
-]
 redis = [
     "redis>=6,<9",
 ]
@@ -71,11 +72,6 @@ queue-redis = [
 ]
 queue-rabbitmq = [
     "taskiq-aio-pika>=0.6.1,<1",
-]
-database = [
-    "aiosqlite>=0.21,<1",
-    "alembic>=1.20.1,<2",
-    "sqlalchemy[asyncio]>=2.1.9,<2.2",
 ]
 postgresql = [
     "psycopg[binary]>=3.2,<4",
@@ -87,15 +83,11 @@ mysql = [
 
 [dependency-groups]
 dev = [
-    "aiosqlite>=0.21,<1",
-    "alembic>=1.20.1,<2",
-    "babel>=2.18,<3",
     "defusedxml>=0.7.1,<1",
     "detect-secrets>=1.5,<2",
     "diff-cover>=9,<12",
     "hypothesis>=6.130,<7",
     "import-linter>=2.17,<3",
-    "num2words>=0.5.14,<1",
     "packaging>=25,<27",
     "pip-audit>=2.9,<3",
     "pip-licenses>=5,<6",
@@ -108,7 +100,6 @@ dev = [
     "pyyaml>=6,<7",
     "redis>=6,<9",
     "ruff>=0.14,<0.15",
-    "sqlalchemy[asyncio]>=2.1.9,<2.2",
     "twine>=7,<8",
     "types-pyyaml>=6.0,<7",
     "uvicorn[standard]>=0.34,<1",
@@ -209,9 +200,6 @@ ignore = [
 ]
 "src/titanspan/support/benchmark.py" = [
     "PIE790", # Keep required overload declarations explicit.
-]
-"src/titanspan/support/number.py" = [
-    "PLC0415", # Load optional number libraries only when called.
 ]
 "src/titanspan/logging/drivers/standard.py" = [
     "N802", # Match TimedRotatingFileHandler.computeRollover.

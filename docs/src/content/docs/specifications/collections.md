@@ -9,8 +9,8 @@ Python iterables. It delegates iteration, ordering, aggregation, and nested
 mapping access to Python and Support.
 
 Collections are value-oriented. They work without an Application, a
-Container, or optional AI, database, queue, and web packages. The component
-adds no runtime dependencies.
+Container, or the AI, Database, Queue, and web modules. The component adds no
+runtime dependencies.
 
 ## Public API
 

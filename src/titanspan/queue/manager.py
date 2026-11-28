@@ -39,6 +39,7 @@ from titanspan._application_context import (
     bind_application_context,
 )
 from titanspan.container import Scope
+from titanspan.contracts.database import DatabaseService
 from titanspan.contracts.queue import (
     BatchBuilder,
     BusDispatcher,
@@ -1622,6 +1623,51 @@ class QueueManager(BusDispatcher):
             delay=delay,
         )
         return await pending.dispatch_async()
+
+    async def dispatch_after_commit_async(
+        self,
+        job: object,
+        *,
+        database: str | None = None,
+        connection: str | None = None,
+        queue: str | None = None,
+        delay: float | timedelta | datetime | None = None,
+    ) -> None:
+        """Publish only after the selected Database transaction commits.
+
+        Args:
+            job: Registered job instance containing serializable data.
+            database: Database connection whose transaction owns dispatch.
+            connection: Optional Queue connection.
+            queue: Optional logical Queue name.
+            delay: Optional backend-supported delivery time.
+
+        Raises:
+            DatabaseTransactionOwnershipError: If the callback cannot belong
+                to the current task's asynchronous transaction.
+
+        Notes:
+            A commit followed by broker publication has a failure window. A
+            publication error is reported after commit and cannot roll it back.
+        """
+        database_service = await self._container.make_async(DatabaseService)
+
+        async def publish_after_commit() -> None:
+            """Dispatch through the canonical Queue after Database commit.
+
+            The parent callback runs only after the owning transaction commits.
+            """
+            await self.dispatch_async(
+                job,
+                connection=connection,
+                queue=queue,
+                delay=delay,
+            )
+
+        await database_service.after_commit_async(
+            publish_after_commit,
+            database,
+        )
 
     async def dispatch_if_async(
         self,

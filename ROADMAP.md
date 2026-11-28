@@ -33,8 +33,8 @@ batches, results, unique jobs, queued event listeners, and
 transaction-aware dispatch remain planned. Console provides native command
 registration and application-aware execution.
 
-Database now provides an optional SQLAlchemy and Alembic-backed persistence
-component with application-owned connections and sessions, sync and async
+Database is a built-in SQLAlchemy and Alembic-backed persistence component
+with application-owned connections and sessions, sync and async
 query and model APIs, schema operations, migrations, and SQLite and PostgreSQL
 integration coverage. Basic model factories support in-memory construction,
 states, sequences, and sync and async persistence. Explicit route model

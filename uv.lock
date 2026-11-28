@@ -3126,8 +3126,11 @@ name = "titanspan"
 version = "0.1.0.dev0"
 source = { editable = "." }
 dependencies = [
+    { name = "aiosqlite" },
+    { name = "alembic" },
     { name = "anyio" },
     { name = "argon2-cffi" },
+    { name = "babel" },
     { name = "bcrypt" },
     { name = "blinker" },
     { name = "cachetools" },
@@ -3136,11 +3139,13 @@ dependencies = [
     { name = "fastapi" },
     { name = "fsspec" },
     { name = "httpx2" },
+    { name = "num2words" },
     { name = "pydantic" },
     { name = "pydantic-settings" },
     { name = "python-dotenv" },
     { name = "python-multipart" },
     { name = "rich" },
+    { name = "sqlalchemy", extra = ["asyncio"] },
     { name = "structlog" },
     { name = "taskiq" },
     { name = "tenacity" },
@@ -3149,18 +3154,9 @@ dependencies = [
 ]
 
 [package.optional-dependencies]
-database = [
-    { name = "aiosqlite" },
-    { name = "alembic" },
-    { name = "sqlalchemy", extra = ["asyncio"] },
-]
 mysql = [
     { name = "asyncmy" },
     { name = "pymysql" },
-]
-numbers = [
-    { name = "babel" },
-    { name = "num2words" },
 ]
 postgresql = [
     { name = "psycopg", extra = ["binary"] },
@@ -3177,15 +3173,11 @@ redis = [
 
 [package.dev-dependencies]
 dev = [
-    { name = "aiosqlite" },
-    { name = "alembic" },
-    { name = "babel" },
     { name = "defusedxml" },
     { name = "detect-secrets" },
     { name = "diff-cover" },
     { name = "hypothesis" },
     { name = "import-linter" },
-    { name = "num2words" },
     { name = "packaging" },
     { name = "pip-audit" },
     { name = "pip-licenses" },
@@ -3198,7 +3190,6 @@ dev = [
     { name = "pyyaml" },
     { name = "redis" },
     { name = "ruff" },
-    { name = "sqlalchemy", extra = ["asyncio"] },
     { name = "twine" },
     { name = "types-pyyaml" },
     { name = "uvicorn", extra = ["standard"] },
@@ -3207,12 +3198,12 @@ dev = [
 
 [package.metadata]
 requires-dist = [
-    { name = "aiosqlite", marker = "extra == 'database'", specifier = ">=0.21,<1" },
-    { name = "alembic", marker = "extra == 'database'", specifier = ">=1.20.1,<2" },
+    { name = "aiosqlite", specifier = ">=0.21,<1" },
+    { name = "alembic", specifier = ">=1.20.1,<2" },
     { name = "anyio", specifier = ">=4.16,<5" },
     { name = "argon2-cffi", specifier = ">=25.1,<26" },
     { name = "asyncmy", marker = "extra == 'mysql'", specifier = ">=0.2,<1" },
-    { name = "babel", marker = "extra == 'numbers'", specifier = ">=2.18,<3" },
+    { name = "babel", specifier = ">=2.18,<3" },
     { name = "bcrypt", specifier = ">=5,<6" },
     { name = "blinker", specifier = ">=1.9,<2" },
     { name = "cachetools", specifier = ">=8,<9" },
@@ -3221,7 +3212,7 @@ requires-dist = [
     { name = "fastapi", specifier = ">=0.115,<1" },
     { name = "fsspec", specifier = ">=2025.3,<2027" },
     { name = "httpx2", specifier = ">=2,<3" },
-    { name = "num2words", marker = "extra == 'numbers'", specifier = ">=0.5.14,<1" },
+    { name = "num2words", specifier = ">=0.5.14,<1" },
     { name = "psycopg", extras = ["binary"], marker = "extra == 'postgresql'", specifier = ">=3.2,<4" },
     { name = "pydantic", specifier = ">=2.9,<3" },
     { name = "pydantic-settings", specifier = ">=2.7,<3" },
@@ -3230,7 +3221,7 @@ requires-dist = [
     { name = "python-multipart", specifier = ">=0.0.32,<0.1" },
     { name = "redis", marker = "extra == 'redis'", specifier = ">=6,<9" },
     { name = "rich", specifier = ">=13.9,<15" },
-    { name = "sqlalchemy", extras = ["asyncio"], marker = "extra == 'database'", specifier = ">=2.1.9,<2.2" },
+    { name = "sqlalchemy", extras = ["asyncio"], specifier = ">=2.1.9,<2.2" },
     { name = "structlog", specifier = ">=26.1,<27" },
     { name = "taskiq", specifier = ">=0.13,<1" },
     { name = "taskiq-aio-pika", marker = "extra == 'queue-rabbitmq'", specifier = ">=0.6.1,<1" },
@@ -3239,19 +3230,15 @@ requires-dist = [
     { name = "typer", specifier = ">=0.15,<1" },
     { name = "typing-extensions", specifier = ">=4.16,<5" },
 ]
-provides-extras = ["numbers", "redis", "queue-redis", "queue-rabbitmq", "database", "postgresql", "mysql"]
+provides-extras = ["redis", "queue-redis", "queue-rabbitmq", "postgresql", "mysql"]
 
 [package.metadata.requires-dev]
 dev = [
-    { name = "aiosqlite", specifier = ">=0.21,<1" },
-    { name = "alembic", specifier = ">=1.20.1,<2" },
-    { name = "babel", specifier = ">=2.18,<3" },
     { name = "defusedxml", specifier = ">=0.7.1,<1" },
     { name = "detect-secrets", specifier = ">=1.5,<2" },
     { name = "diff-cover", specifier = ">=9,<12" },
     { name = "hypothesis", specifier = ">=6.130,<7" },
     { name = "import-linter", specifier = ">=2.17,<3" },
-    { name = "num2words", specifier = ">=0.5.14,<1" },
     { name = "packaging", specifier = ">=25,<27" },
     { name = "pip-audit", specifier = ">=2.9,<3" },
     { name = "pip-licenses", specifier = ">=5,<6" },
@@ -3264,7 +3251,6 @@ dev = [
     { name = "pyyaml", specifier = ">=6,<7" },
     { name = "redis", specifier = ">=6,<9" },
     { name = "ruff", specifier = ">=0.14,<0.15" },
-    { name = "sqlalchemy", extras = ["asyncio"], specifier = ">=2.1.9,<2.2" },
     { name = "twine", specifier = ">=7,<8" },
     { name = "types-pyyaml", specifier = ">=6.0,<7" },
     { name = "uvicorn", extras = ["standard"], specifier = ">=0.34,<1" },

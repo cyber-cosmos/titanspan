@@ -9,11 +9,13 @@ from typing import TYPE_CHECKING, ClassVar
 
 import anyio
 import pytest
-from sqlalchemy import String
-from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy import ForeignKey, String
+from sqlalchemy.orm import Mapped, foreign, mapped_column, relationship
 
 from titanspan.database import (
+    DatabaseFactoryError,
     DatabaseServiceProvider,
+    DatabaseTransactionOwnershipError,
     FactoryBatch,
     Model,
     Schema,
@@ -29,6 +31,9 @@ if TYPE_CHECKING:
 pytestmark = [pytest.mark.integration, pytest.mark.anyio]
 _EXPECTED_BATCH_COUNT = 3
 _EXPECTED_USER_COUNT = 4
+_EXPECTED_RELATED_MODEL_COUNT = 2
+_EXPECTED_RECYCLED_PARENT_COUNT = 2
+_EXPECTED_CHILD_COUNT_AFTER_RECYCLE = 3
 _SYNC_BATCH_COUNT = 2
 _ROLLBACK_MESSAGE = "factory rollback"
 
@@ -72,6 +77,50 @@ class FactoryUser(Model):
 
     name: Mapped[str] = mapped_column(String(120))
     email: Mapped[str] = mapped_column(String(320), unique=True)
+
+
+class FactoryParent(Model):
+    """Represent a parent in relationship factory integration cases.
+
+    The children collection uses SQLAlchemy's ordinary Unit of Work cascade.
+    """
+
+    table = "factory_parents"
+    fillable = ("name",)
+    factory_attributes: ClassVar[Mapping[str, object]] = {
+        "name": "Generated parent",
+    }
+
+    name: Mapped[str] = mapped_column(String(120))
+    children: Mapped[list[FactoryChild]] = relationship(
+        back_populates="parent",
+        cascade="all, delete-orphan",
+    )
+    primary_child: Mapped[FactoryChild] = relationship(
+        primaryjoin=lambda: FactoryParent.id == foreign(FactoryChild.parent_id),
+        uselist=False,
+        viewonly=True,
+        overlaps="children,parent",
+    )
+
+
+class FactoryChild(Model):
+    """Represent a child in relationship factory integration cases.
+
+    Its parent relationship permits nested and recycled factory values.
+    """
+
+    table = "factory_children"
+    fillable = ("parent_id", "label")
+    factory_attributes: ClassVar[Mapping[str, object]] = {
+        "label": "Generated child",
+    }
+
+    parent_id: Mapped[int] = mapped_column(
+        ForeignKey("factory_parents.id"),
+    )
+    label: Mapped[str] = mapped_column(String(120))
+    parent: Mapped[FactoryParent] = relationship(back_populates="children")
 
 
 @pytest.fixture
@@ -158,6 +207,128 @@ async def test_factory_make_state_sequence_and_create(
         )
 
 
+async def test_factory_builds_persists_and_recycles_related_models(
+    application: Application,
+) -> None:
+    """Build transient and persisted graphs through mapped relationships.
+
+    Args:
+        application: Application configured by the test fixture.
+    """
+    async with application:
+        async with Schema.create("factory_parents") as table:
+            table.id()
+            table.string("name", length=120)
+            table.timestamps()
+        async with Schema.create("factory_children") as table:
+            table.id()
+            table.foreign_id("parent_id").references("factory_parents")
+            table.string("label", length=120)
+            table.timestamps()
+
+        with pytest.raises(
+            DatabaseFactoryError,
+            match="persisted model",
+        ):
+            FactoryChild.factory().relationship(
+                "parent",
+                FactoryParent.factory().make(),
+            )
+
+        related_create_ids: list[int] = []
+        child_factory = FactoryChild.factory().after_creating(
+            lambda child: related_create_ids.append(child.id),
+        )
+        parent_factory = FactoryParent.factory().relationship(
+            "children",
+            child_factory,
+            count=_EXPECTED_RELATED_MODEL_COUNT,
+        )
+
+        transient = parent_factory.make()
+        assert not transient.exists
+        assert len(transient.children) == _EXPECTED_RELATED_MODEL_COUNT
+        assert all(not child.exists for child in transient.children)
+        assert await DB.table("factory_parents").count_async() == 0
+        assert await DB.table("factory_children").count_async() == 0
+
+        created_parent = await parent_factory.create_async()
+        assert created_parent.exists
+        assert await DB.table("factory_parents").count_async() == 1
+        assert (
+            await DB.table("factory_children").count_async()
+            == _EXPECTED_RELATED_MODEL_COUNT
+        )
+        assert len(related_create_ids) == _EXPECTED_RELATED_MODEL_COUNT
+
+        recycled_parent = await FactoryParent.factory().create_async(
+            {"name": "Recycled parent"},
+        )
+        child_with_parent = (
+            FactoryChild.factory()
+            .relationship(
+                "parent",
+                recycled_parent,
+            )
+            .make()
+        )
+        assert child_with_parent.parent is recycled_parent
+        assert not child_with_parent.exists
+        created_child = (
+            await FactoryChild.factory()
+            .relationship(
+                "parent",
+                recycled_parent,
+            )
+            .create_async()
+        )
+        assert created_child.exists
+        assert created_child.parent.id == recycled_parent.id
+        assert (
+            await DB.table("factory_parents").count_async()
+            == _EXPECTED_RECYCLED_PARENT_COUNT
+        )
+        assert (
+            await DB.table("factory_children").count_async()
+            == _EXPECTED_CHILD_COUNT_AFTER_RECYCLE
+        )
+
+        with pytest.raises(DatabaseFactoryError, match="count of one"):
+            FactoryChild.factory().relationship(
+                "parent",
+                FactoryParent.factory(),
+                count=2,
+            )
+        with pytest.raises(DatabaseFactoryError, match="compatible mapped"):
+            FactoryChild.factory().relationship(
+                "parent",
+                FactoryChild.factory(),
+            )
+        with pytest.raises(DatabaseFactoryError, match="compatible mapped"):
+            FactoryChild.factory().relationship(
+                "missing",
+                FactoryParent.factory(),
+            )
+        with pytest.raises(DatabaseFactoryError, match="compatible mapped"):
+            FactoryChild.factory().relationship(
+                "parent",
+                created_child,
+            )
+        with pytest.raises(DatabaseFactoryError, match="count of one"):
+            FactoryParent.factory().relationship(
+                "children",
+                created_child,
+                count=2,
+            )
+        with pytest.raises(DatabaseFactoryError, match="compatible mapped"):
+            FactoryParent.factory().relationship("children", created_child)
+        with pytest.raises(DatabaseFactoryError, match="compatible mapped"):
+            FactoryParent.factory().relationship(
+                "primary_child",
+                created_child,
+            ).make()
+
+
 async def test_factory_callbacks_observe_make_and_commit_boundaries(
     application: Application,
 ) -> None:
@@ -198,6 +369,50 @@ async def test_factory_callbacks_observe_make_and_commit_boundaries(
 
         assert created_states == []
         assert await DB.table("factory_users").count_async() == 1
+
+
+async def test_factory_rejects_recycled_models_from_another_application(
+    application: Application,
+    tmp_path: Path,
+) -> None:
+    """Keep recycled factory relations within their owning application.
+
+    Args:
+        application: First isolated SQLite application.
+        tmp_path: Shared application root for the second service instance.
+    """
+    async with application:
+        async with Schema.create("factory_parents") as table:
+            table.id()
+            table.string("name", length=120)
+            table.timestamps()
+        async with Schema.create("factory_children") as table:
+            table.id()
+            table.foreign_id("parent_id").references("factory_parents")
+            table.string("label", length=120)
+            table.timestamps()
+        parent = await FactoryParent.factory().create_async()
+
+    second_application = Application(
+        base_path=tmp_path,
+        config={
+            "database": {
+                "default": "sqlite",
+                "connections": {
+                    "sqlite": {
+                        "driver": "sqlite",
+                        "database": "database/factories.sqlite",
+                    },
+                },
+            },
+        },
+        service_providers=(DatabaseServiceProvider(),),
+    )
+    async with second_application:
+        child_factory = FactoryChild.factory().relationship("parent", parent)
+        with pytest.raises(DatabaseTransactionOwnershipError):
+            await child_factory.create_async()
+        assert await DB.table("factory_children").count_async() == 0
 
 
 def test_sync_factory_uses_application_owned_transaction() -> None:

@@ -53,12 +53,11 @@ future utility has been implemented.
   independent of app state, while `Uri.redirect()` requires active app
   context and inherits native external and protocol-relative redirect checks.
 
-## Optional capabilities
+## Runtime dependencies
 
-Number spelling and locale-aware behavior depend on the `numbers` extra.
-Importing `titanspan.support` must not eagerly load optional infrastructure.
-Optional integrations must fail with the native Support exception that
-identifies the missing capability.
+Locale-aware Number operations use mandatory Babel and `num2words`
+dependencies. Support remains independent of the built-in Database module
+and does not load optional queue brokers, AI providers, or backend drivers.
 
 ## Verification
 

@@ -72,6 +72,34 @@ when the builder is created or discarded. See
 [Dispatching](/framework/queue/dispatching/) for synchronous execution,
 delays, and application scope rules.
 
+Use `dispatch_after_commit_async()` to publish through the canonical Database
+transaction lifecycle:
+
+```python
+from app.jobs import ProcessDocument
+from app.models import Document
+from titanspan.facades import Bus, DB
+
+
+async def save_and_dispatch(document: Document) -> None:
+    """Publish only after the document transaction commits."""
+    async with DB.transaction_async("primary"):
+        await document.save_async()
+        await Bus.dispatch_after_commit_async(
+            ProcessDocument(document.id),
+            database="primary",
+            connection="redis",
+            queue="documents",
+        )
+```
+
+The callback waits for the outermost commit and is discarded on rollback,
+including a rolled-back savepoint. Without an active transaction, dispatch
+runs immediately. The `database` option selects transaction ownership;
+`connection` and `queue` select Queue delivery. Database commit and broker
+publication remain separate effects: publication can fail after commit, and
+the database cannot roll back at that point.
+
 ## Choose a connection
 
 The `sync` connection runs jobs inline. The `null` connection records a

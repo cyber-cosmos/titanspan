@@ -84,6 +84,13 @@ _GENERATED_ARTIFACTS: tuple[
         "class AnalyticsSeeder(Seeder):",
     ),
     (
+        "model",
+        "Invoice",
+        None,
+        "app/models/invoice_model.py",
+        "class Invoice(Model):",
+    ),
+    (
         "test",
         "documents",
         None,

@@ -3,8 +3,8 @@
 Follow the root `AGENTS.md`, `ARCHITECTURE.md`, and
 `docs/src/content/docs/development/standards.md`.
 
-- Keep Support independent of optional database, queue, AI, and web
-  integrations.
+- Keep Support independent of Database, Queue, AI, and web components. Do not
+  import optional external drivers or provider integrations.
 - Follow the native Support specification and established behavior tests.
 - Use one idiomatic Python spelling per public operation. Do not add
   duplicate aliases or forwarding wrappers.

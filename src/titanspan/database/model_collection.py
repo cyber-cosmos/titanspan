@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import json
 from itertools import chain
-from typing import TYPE_CHECKING, Protocol, Self, cast
+from typing import TYPE_CHECKING, Literal, Protocol, Self, cast
 
 from sqlalchemy import inspect as sa_inspect
 from sqlalchemy.orm import InstanceState
@@ -16,6 +16,7 @@ from sqlalchemy.orm.attributes import set_committed_value
 
 from titanspan.collections import Collection
 from titanspan.database.exceptions import (
+    DatabaseQueryError,
     DatabaseTransactionOwnershipError,
     ModelSerializationLimitError,
 )
@@ -37,7 +38,19 @@ type _Identity = tuple[
     tuple[object, ...],
     object | None,
 ]
+type _RelationshipAggregate = Literal[
+    "count",
+    "exists",
+    "sum",
+    "avg",
+    "min",
+    "max",
+]
 _MAX_SERIALIZED_MODELS = 256
+_AGGREGATE_COLUMN_ERROR = (
+    "Sum, average, minimum, and maximum aggregates require a mapped column."
+)
+_UNSUPPORTED_AGGREGATE_ERROR = "The selected relationship aggregate is invalid."
 
 
 class ModelCollection[ModelT](Collection[ModelT]):
@@ -285,6 +298,73 @@ class ModelCollection[ModelT](Collection[ModelT]):
         await self._load_relationships_async(paths, missing_only=True)
         return self
 
+    def load_aggregate(
+        self,
+        relationship: str,
+        aggregate: _RelationshipAggregate,
+        *,
+        column_name: str | None = None,
+        attribute: str | None = None,
+    ) -> Self:
+        """Load one direct relationship aggregate for persisted models.
+
+        The result is assigned to the mapped ``query_expression()`` attribute
+        selected by the aggregate kind. One query loads the full collection.
+
+        Args:
+            relationship: Direct mapped relationship to aggregate.
+            aggregate: Count, existence, sum, average, minimum, or maximum.
+            column_name: Related mapped column required by numeric aggregates.
+            attribute: Declared ``query_expression()`` result attribute.
+
+        Returns:
+            This collection after matching aggregate values are populated.
+
+        Raises:
+            DatabaseQueryError: If the relation, result attribute, or column
+                is invalid.
+            DatabaseTransactionOwnershipError: If models have mixed owners.
+        """
+        self._load_relationship_aggregate(
+            relationship,
+            aggregate,
+            column_name=column_name,
+            attribute=attribute,
+        )
+        return self
+
+    async def load_aggregate_async(
+        self,
+        relationship: str,
+        aggregate: _RelationshipAggregate,
+        *,
+        column_name: str | None = None,
+        attribute: str | None = None,
+    ) -> Self:
+        """Asynchronously load one aggregate for persisted models.
+
+        Args:
+            relationship: Direct mapped relationship to aggregate.
+            aggregate: Count, existence, sum, average, minimum, or maximum.
+            column_name: Related mapped column required by numeric aggregates.
+            attribute: Declared ``query_expression()`` result attribute.
+
+        Returns:
+            This collection after matching aggregate values are populated.
+
+        Raises:
+            DatabaseQueryError: If the relation, result attribute, or column
+                is invalid.
+            DatabaseTransactionOwnershipError: If models have mixed owners.
+        """
+        await self._load_relationship_aggregate_async(
+            relationship,
+            aggregate,
+            column_name=column_name,
+            attribute=attribute,
+        )
+        return self
+
     def fresh(self) -> ModelCollection[ModelT]:
         """Retrieve current database versions for persisted model keys.
 
@@ -401,6 +481,100 @@ class ModelCollection[ModelT](Collection[ModelT]):
         for model in self:
             remember_service_graph(model, service, connection_name)
 
+    def _load_relationship_aggregate(
+        self,
+        relationship: str,
+        aggregate: _RelationshipAggregate,
+        *,
+        column_name: str | None,
+        attribute: str | None,
+    ) -> None:
+        """Query aggregate values once and assign them to original models.
+
+        Args:
+            relationship: Direct mapped relation to aggregate.
+            aggregate: Selected aggregate kind.
+            column_name: Related model column for numeric aggregates.
+            attribute: Optional result attribute override.
+        """
+        identifiers = _refresh_keys(self)
+        if not identifiers:
+            return
+        model_class = cast("type[_ModelQueryHost[ModelT]]", type(self[0]))
+        service, connection_name = _require_collection_owner(self)
+        key_name = model_class.primary_key_name()
+        query = model_class.query()
+        if getattr(model_class, "__soft_delete_enabled__", False):
+            query.with_trashed()
+        result_attribute = _apply_relationship_aggregate(
+            query,
+            relationship,
+            aggregate,
+            column_name=column_name,
+            attribute=attribute,
+        )
+        fresh_models = query.where_in(key_name, identifiers).get()
+        values = {
+            getattr(model, key_name): getattr(model, result_attribute)
+            for model in fresh_models
+        }
+        for model in self:
+            identifier = getattr(model, key_name)
+            if identifier in values:
+                set_committed_value(
+                    model,
+                    result_attribute,
+                    values[identifier],
+                )
+            remember_service_graph(model, service, connection_name)
+
+    async def _load_relationship_aggregate_async(
+        self,
+        relationship: str,
+        aggregate: _RelationshipAggregate,
+        *,
+        column_name: str | None,
+        attribute: str | None,
+    ) -> None:
+        """Asynchronously query one aggregate for the whole collection.
+
+        Args:
+            relationship: Direct mapped relation to aggregate.
+            aggregate: Selected aggregate kind.
+            column_name: Related model column for numeric aggregates.
+            attribute: Optional result attribute override.
+        """
+        identifiers = _refresh_keys(self)
+        if not identifiers:
+            return
+        model_class = cast("type[_ModelQueryHost[ModelT]]", type(self[0]))
+        service, connection_name = _require_collection_owner(self)
+        key_name = model_class.primary_key_name()
+        query = model_class.query()
+        if getattr(model_class, "__soft_delete_enabled__", False):
+            query.with_trashed()
+        result_attribute = _apply_relationship_aggregate(
+            query,
+            relationship,
+            aggregate,
+            column_name=column_name,
+            attribute=attribute,
+        )
+        fresh_models = await query.where_in(key_name, identifiers).get_async()
+        values = {
+            getattr(model, key_name): getattr(model, result_attribute)
+            for model in fresh_models
+        }
+        for model in self:
+            identifier = getattr(model, key_name)
+            if identifier in values:
+                set_committed_value(
+                    model,
+                    result_attribute,
+                    values[identifier],
+                )
+            remember_service_graph(model, service, connection_name)
+
 
 class _SerializableModel(Protocol):
     """Describe a model's public serialization contract.
@@ -433,6 +607,80 @@ class _ModelQueryHost[ModelT](Protocol):
             A query builder that can reload selected model identities.
         """
         ...
+
+    @classmethod
+    def primary_key_name(cls) -> str:
+        """Return the mapped single-column key used for collection loading.
+
+        Returns:
+            The mapped primary-key attribute name.
+        """
+        ...
+
+
+def _apply_relationship_aggregate[ModelT](
+    query: ModelQueryBuilder[ModelT],
+    relationship: str,
+    aggregate: _RelationshipAggregate,
+    *,
+    column_name: str | None,
+    attribute: str | None,
+) -> str:
+    """Add one aggregate to a query and return its result attribute name.
+
+    Args:
+        query: Builder for the parent model type.
+        relationship: Direct mapped relation to aggregate.
+        aggregate: Selected aggregate kind.
+        column_name: Related mapped column for numeric aggregates.
+        attribute: Optional result attribute override.
+
+    Returns:
+        The declared query-expression attribute populated by the builder.
+
+    Raises:
+        DatabaseQueryError: If the aggregate or its required column is invalid.
+    """
+    if aggregate == "count":
+        result_attribute = attribute or f"{relationship}_count"
+        query.with_count(relationship, attribute=result_attribute)
+        return result_attribute
+    if aggregate == "exists":
+        result_attribute = attribute or f"{relationship}_exists"
+        query.with_exists(relationship, attribute=result_attribute)
+        return result_attribute
+    if column_name is None:
+        raise DatabaseQueryError(_AGGREGATE_COLUMN_ERROR)
+    result_attribute = attribute or f"{relationship}_{aggregate}_{column_name}"
+    if aggregate == "sum":
+        query.with_sum(
+            relationship,
+            column_name,
+            attribute=result_attribute,
+        )
+        return result_attribute
+    if aggregate == "avg":
+        query.with_avg(
+            relationship,
+            column_name,
+            attribute=result_attribute,
+        )
+        return result_attribute
+    if aggregate == "min":
+        query.with_min(
+            relationship,
+            column_name,
+            attribute=result_attribute,
+        )
+        return result_attribute
+    if aggregate == "max":
+        query.with_max(
+            relationship,
+            column_name,
+            attribute=result_attribute,
+        )
+        return result_attribute
+    raise DatabaseQueryError(_UNSUPPORTED_AGGREGATE_ERROR)
 
 
 def _model_identity(value: object) -> _Identity | None:

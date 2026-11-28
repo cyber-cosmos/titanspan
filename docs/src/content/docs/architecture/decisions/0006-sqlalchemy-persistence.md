@@ -20,9 +20,10 @@ primitives. Use Alembic for migrations. A future Titanspan model and query API
 must keep native SQLAlchemy access, use explicit transactions, and avoid
 sharing unsafe mutable async sessions across concurrent tasks.
 
-SQLAlchemy and Alembic are optional Database dependencies, not base runtime
-requirements. The package lock records the selected stable versions; driver
-extras keep backend-specific packages optional.
+Database is a built-in component. SQLAlchemy, Alembic, and aiosqlite are
+mandatory runtime dependencies so native persistence and the default SQLite
+backend work in a standard install. Backend-specific drivers remain optional
+extras. Engine and connection acquisition stays lazy and application-owned.
 
 ## Alternatives considered
 

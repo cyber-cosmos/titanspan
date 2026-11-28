@@ -1,9 +1,8 @@
 """Format, parse, and summarize numeric values for application code.
 
 Babel provides locale-sensitive formatting and parsing. Number-to-word
-conversions delegate to the optional num2words package. Scoped locale and
-currency values use context variables so concurrent tasks do not share
-temporary overrides.
+conversions delegate to num2words. Scoped locale and currency values use
+context variables so concurrent tasks do not share temporary overrides.
 """
 
 from __future__ import annotations
@@ -17,6 +16,16 @@ from decimal import Decimal
 from enum import IntEnum
 from typing import TYPE_CHECKING, Literal, TypeVar, cast
 
+from babel import Locale
+from babel.numbers import (
+    NumberFormatError,
+    format_currency,
+    format_decimal,
+    format_percent,
+    parse_decimal,
+)
+from num2words import num2words
+
 from titanspan.support.exceptions import (
     AsyncCallbackUsageError,
     InvalidNumberParseTypeError,
@@ -24,7 +33,6 @@ from titanspan.support.exceptions import (
     InvalidNumberPrecisionTypeError,
     InvalidNumberStepError,
     InvalidNumberValueError,
-    MissingNumberDependencyError,
     NonAdvancingNumberRangeError,
 )
 from titanspan.support.macroable import Macroable
@@ -54,8 +62,6 @@ _UNITS: tuple[tuple[int, str, str], ...] = (
 _MAGNITUDE_BASE = Decimal(1000)
 _MAGNITUDE_BLOCK = Decimal("1e15")
 _FILE_SIZE_BASE = Decimal(1024)
-_BABEL_PACKAGE = "Babel"
-_NUM2WORDS_PACKAGE = "num2words"
 _NUMBER_PATTERN = re.compile(
     r"(?P<integer>[#0][#,0]*)(?:\.(?P<fraction>[#0]+))?"
 )
@@ -86,10 +92,6 @@ class Number(Macroable):
     Calls to ``with_locale`` and ``with_currency`` restore their prior values
     even when callbacks raise. Async callbacks use the explicit async forms.
 
-    Notes:
-        Install the ``numbers`` extra for Babel and num2words. This class can
-        be imported without that extra; locale and spelling operations need
-        their corresponding optional package at call time.
     """
 
     @classmethod
@@ -115,7 +117,6 @@ class Number(Macroable):
         Raises:
             TypeError: If a boolean is supplied as a numeric value.
             ValueError: If a precision is negative or not an integer.
-            ImportError: If the optional numbers extra is unavailable.
         """
         cls._validate_number(number)
         cls._validate_precision(precision, max_precision)
@@ -147,7 +148,6 @@ class Number(Macroable):
         Raises:
             TypeError: If the text or parser mode has an invalid type.
             ValueError: If the parser mode is not supported.
-            ImportError: If the optional numbers extra is unavailable.
 
         Notes:
             Python integer results are not limited to a fixed machine width.
@@ -160,11 +160,6 @@ class Number(Macroable):
             raise InvalidNumberParseTypeError from exc
 
         active_locale = locale if locale is not None else _LOCALE.get()
-        try:
-            from babel.numbers import NumberFormatError, parse_decimal
-        except ImportError as exc:
-            raise MissingNumberDependencyError(_BABEL_PACKAGE) from exc
-
         try:
             parsed = parse_decimal(string, locale=active_locale)
         except NumberFormatError:
@@ -233,7 +228,6 @@ class Number(Macroable):
             The spelled value or its locale-formatted numeric representation.
 
         Raises:
-            ImportError: If the optional num2words package is unavailable.
             NotImplementedError: If num2words does not support the language.
         """
         cls._validate_number(number)
@@ -259,7 +253,6 @@ class Number(Macroable):
             The ordinal representation, such as ``1st``.
 
         Raises:
-            ImportError: If the optional num2words package is unavailable.
             NotImplementedError: If num2words does not support the language.
         """
         cls._validate_number(number)
@@ -281,7 +274,6 @@ class Number(Macroable):
             The spelled ordinal, such as ``first``.
 
         Raises:
-            ImportError: If the optional num2words package is unavailable.
             NotImplementedError: If num2words does not support the language.
         """
         cls._validate_number(number)
@@ -309,17 +301,10 @@ class Number(Macroable):
         Raises:
             TypeError: If ``number`` is a boolean.
             ValueError: If a precision is negative or not an integer.
-            ImportError: If the optional numbers extra is unavailable.
         """
         cls._validate_number(number)
         cls._validate_precision(precision, max_precision)
         active_locale = locale if locale is not None else _LOCALE.get()
-        try:
-            from babel import Locale
-            from babel.numbers import format_percent
-        except ImportError as exc:
-            raise MissingNumberDependencyError(_BABEL_PACKAGE) from exc
-
         pattern = Locale.parse(active_locale).percent_formats[None].pattern
         pattern = cls._with_precision(pattern, precision, max_precision)
         decimal_number = Decimal(str(number)) / Decimal(100)
@@ -364,7 +349,6 @@ class Number(Macroable):
         Raises:
             TypeError: If the value is boolean or precision has the wrong type.
             ValueError: If precision is negative or the currency is invalid.
-            ImportError: If the optional numbers extra is unavailable.
 
         Notes:
             ``in_`` names the keyword-like option without using a reserved
@@ -374,12 +358,6 @@ class Number(Macroable):
         cls._validate_precision(precision, None)
         active_locale = locale if locale is not None else _LOCALE.get()
         currency_code = in_ if in_ else _CURRENCY.get()
-        try:
-            from babel import Locale
-            from babel.numbers import format_currency
-        except ImportError as exc:
-            raise MissingNumberDependencyError(_BABEL_PACKAGE) from exc
-
         pattern = None
         if precision is not None:
             pattern = (
@@ -427,7 +405,6 @@ class Number(Macroable):
         Raises:
             TypeError: If the byte count is boolean.
             ValueError: If a precision is invalid.
-            ImportError: If the optional numbers extra is unavailable.
         """
         cls._validate_number(byte_count)
         cls._validate_precision(precision, max_precision)
@@ -497,7 +474,6 @@ class Number(Macroable):
         Raises:
             TypeError: If ``number`` is boolean or precision has the wrong type.
             ValueError: If precision is negative.
-            ImportError: If the optional numbers extra is unavailable.
         """
         cls._validate_number(number)
         cls._validate_precision(precision, max_precision)
@@ -831,11 +807,6 @@ class Number(Macroable):
         Returns:
             The Babel-formatted number string.
         """
-        try:
-            from babel.numbers import format_decimal
-        except ImportError as exc:
-            raise MissingNumberDependencyError(_BABEL_PACKAGE) from exc
-
         pattern = None
         if precision is not None or max_precision is not None:
             pattern = cls._with_precision(
@@ -874,11 +845,6 @@ class Number(Macroable):
             A decimal value, or ``None`` when the string cannot be parsed.
         """
         try:
-            from babel.numbers import NumberFormatError, parse_decimal
-        except ImportError as exc:
-            raise MissingNumberDependencyError(_BABEL_PACKAGE) from exc
-
-        try:
             return parse_decimal(string, locale=locale)
         except NumberFormatError:
             return None
@@ -901,14 +867,8 @@ class Number(Macroable):
             The generated words.
 
         Raises:
-            ImportError: If the optional num2words package is unavailable.
             NotImplementedError: If its adapters do not support the language.
         """
-        try:
-            from num2words import num2words
-        except ImportError as exc:
-            raise MissingNumberDependencyError(_NUM2WORDS_PACKAGE) from exc
-
         language = (locale or _LOCALE.get()).replace("-", "_")
         return num2words(number, lang=language, to=to)
 

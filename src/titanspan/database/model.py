@@ -42,7 +42,6 @@ from sqlalchemy import (
 )
 from sqlalchemy import inspect as sa_inspect
 from sqlalchemy.exc import IntegrityError
-from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import (
     DeclarativeBase,
     Mapped,
@@ -74,9 +73,9 @@ from titanspan.database.events import (
     ModelUpdating,
 )
 from titanspan.database.exceptions import (
+    DatabasePruningError,
     DatabaseQueryError,
     DatabaseTransactionError,
-    DatabaseTransactionOwnershipError,
     MassAssignmentError,
     ModelNotFoundError,
     ModelPersistenceCancelledError,
@@ -84,13 +83,14 @@ from titanspan.database.exceptions import (
 )
 from titanspan.database.factory import ModelFactory
 from titanspan.database.model_collection import ModelCollection
+from titanspan.database.model_relationships import ManyToManyRelation
 from titanspan.database.model_state import (
+    ensure_session_owner,
     last_changes,
     recently_created,
     remember_deleted,
     remember_save,
     remember_service,
-    require_service,
     was_deleted,
 )
 from titanspan.database.orm_builder import ModelQueryBuilder
@@ -99,6 +99,7 @@ from titanspan.facades.event import Event
 from titanspan.facades.hash import Hash
 
 if TYPE_CHECKING:
+    from sqlalchemy.ext.asyncio import AsyncSession
     from sqlalchemy.orm import InstanceState, Mapper
     from sqlalchemy.sql.elements import ColumnElement
     from sqlalchemy.sql.schema import Column, Table
@@ -183,6 +184,10 @@ _MODEL_NOT_FOUND_MESSAGE = "The requested model was not found."
 _MYSQL_DUPLICATE_ENTRY_CODE = 1062
 _OMIT_SERIALIZED_VALUE = object()
 _DESTROY_CHUNK_SIZE = 500
+_DEFAULT_PRUNE_CHUNK_SIZE = 1000
+_INVALID_PRUNE_CHUNK_SIZE_ERROR = (
+    "Model pruning chunk size must be a positive integer."
+)
 _OBSERVER_METHODS_ERROR = "A model observer must define a lifecycle method."
 _OBSERVER_HOOK_ERROR = "Observer lifecycle hooks must be callable."
 _COMPOSITE_KEY_ERROR = (
@@ -373,6 +378,20 @@ class Model(DeclarativeBase):
         """
         return ModelQueryBuilder(cls, DB.resolve_service())
 
+    def relation(self, name: str) -> ManyToManyRelation[Self]:
+        """Start explicit operations for one mapped many-to-many relation.
+
+        Args:
+            name: Mapped many-to-many attribute on this model.
+
+        Returns:
+            A manager with transactional relationship and pivot mutations.
+
+        Raises:
+            DatabaseQueryError: If the relation is not writable many-to-many.
+        """
+        return ManyToManyRelation(self, name)
+
     @classmethod
     def factory(cls) -> ModelFactory[Self]:
         """Create a factory using this model's trusted attribute defaults.
@@ -383,6 +402,242 @@ class Model(DeclarativeBase):
             a factory operation creates records.
         """
         return ModelFactory(cls, cls.factory_attributes)
+
+    def prunable[PruneModelT: Model](
+        self: PruneModelT,
+    ) -> ModelQueryBuilder[PruneModelT]:
+        """Return the application query selecting records eligible to prune.
+
+        Override this method on a model to declare its pruning policy.
+
+        Returns:
+            A model query containing only records eligible for pruning.
+
+        Raises:
+            DatabasePruningError: If the model has no explicit policy.
+        """
+        message = "Override prunable() to define a model pruning policy."
+        raise DatabasePruningError(message)
+
+    @classmethod
+    def prune_all(
+        cls,
+        *,
+        chunk_size: int = _DEFAULT_PRUNE_CHUNK_SIZE,
+        pretend: bool = False,
+    ) -> int:
+        """Delete eligible models in bounded pages and run model hooks.
+
+        Args:
+            chunk_size: Maximum number of model objects loaded per page.
+            pretend: Count selected models without invoking hooks or deleting.
+
+        Returns:
+            Number of models whose deletion was accepted.
+
+        Raises:
+            DatabasePruningError: If the chunk size or model policy is invalid.
+        """
+        _validate_pruning_chunk_size(chunk_size)
+        query = cls._prunable_query()
+        if pretend:
+            return query.count()
+
+        total = 0
+        cursor: str | None = None
+        while True:
+            page = query.cursor_paginate(chunk_size, cursor=cursor)
+            if not page.items:
+                return total
+            for model in page.items:
+                if model.prune():
+                    total += 1
+            if not page.has_more_pages:
+                return total
+            cursor = page.next_cursor
+
+    @classmethod
+    async def prune_all_async(
+        cls,
+        *,
+        chunk_size: int = _DEFAULT_PRUNE_CHUNK_SIZE,
+        pretend: bool = False,
+    ) -> int:
+        """Asynchronously prune eligible models in bounded pages.
+
+        Args:
+            chunk_size: Maximum number of model objects loaded per page.
+            pretend: Count selected models without invoking hooks or deleting.
+
+        Returns:
+            Number of models whose deletion was accepted.
+
+        Raises:
+            DatabasePruningError: If the chunk size or model policy is invalid.
+        """
+        _validate_pruning_chunk_size(chunk_size)
+        query = cls._prunable_query()
+        if pretend:
+            return await query.count_async()
+
+        total = 0
+        cursor: str | None = None
+        while True:
+            page = await query.cursor_paginate_async(
+                chunk_size,
+                cursor=cursor,
+            )
+            if not page.items:
+                return total
+            for model in page.items:
+                if await model.prune_async():
+                    total += 1
+            if not page.has_more_pages:
+                return total
+            cursor = page.next_cursor
+
+    @classmethod
+    def mass_prune_all(
+        cls,
+        *,
+        chunk_size: int = _DEFAULT_PRUNE_CHUNK_SIZE,
+        pretend: bool = False,
+    ) -> int:
+        """Prune eligible rows with bounded set-based deletes.
+
+        This skips model hydration hooks and per-instance lifecycle events.
+
+        Args:
+            chunk_size: Maximum number of primary keys per delete statement.
+            pretend: Count selected rows without issuing delete statements.
+
+        Returns:
+            Number of rows the backend reports as deleted.
+
+        Raises:
+            DatabasePruningError: If the chunk size or model policy is invalid.
+        """
+        _validate_pruning_chunk_size(chunk_size)
+        query = cls._prunable_query()
+        if pretend:
+            return query.count()
+        return cls._mass_prune(query, chunk_size)
+
+    @classmethod
+    async def mass_prune_all_async(
+        cls,
+        *,
+        chunk_size: int = _DEFAULT_PRUNE_CHUNK_SIZE,
+        pretend: bool = False,
+    ) -> int:
+        """Asynchronously prune eligible rows with set-based deletes.
+
+        Args:
+            chunk_size: Maximum number of primary keys per delete statement.
+            pretend: Count selected rows without issuing delete statements.
+
+        Returns:
+            Number of rows the backend reports as deleted.
+
+        Raises:
+            DatabasePruningError: If the chunk size or model policy is invalid.
+        """
+        _validate_pruning_chunk_size(chunk_size)
+        query = cls._prunable_query()
+        if pretend:
+            return await query.count_async()
+        return await cls._mass_prune_async(query, chunk_size)
+
+    @classmethod
+    def _prunable_query(cls) -> ModelQueryBuilder[Self]:
+        """Apply the model's policy and include soft-deleted candidates.
+
+        Returns:
+            A fresh pruning query with the default soft-delete filter removed.
+        """
+        query = cls().prunable()
+        if issubclass(cls, SoftDeletes):
+            query.with_trashed()
+        return query
+
+    @classmethod
+    def _mass_prune(
+        cls,
+        query: ModelQueryBuilder[Self],
+        chunk_size: int,
+    ) -> int:
+        """Delete matching primary-key groups without hydrating all columns.
+
+        Args:
+            query: Application-defined candidate query.
+            chunk_size: Maximum number of candidate models per group.
+
+        Returns:
+            Number of rows the backend reports as deleted.
+        """
+        primary_key = cls.primary_key_name()
+        cursor: str | None = None
+        total = 0
+        while True:
+            page = (
+                query.clone()
+                .select(primary_key)
+                .cursor_paginate(
+                    chunk_size,
+                    cursor=cursor,
+                )
+            )
+            if not page.items:
+                return total
+            identifiers = [getattr(model, primary_key) for model in page.items]
+            deletion = query.clone().where_in(primary_key, identifiers)
+            affected = (
+                deletion.force_delete()
+                if issubclass(cls, SoftDeletes)
+                else deletion.delete()
+            )
+            total += len(identifiers) if affected < 0 else affected
+            if not page.has_more_pages:
+                return total
+            cursor = page.next_cursor
+
+    @classmethod
+    async def _mass_prune_async(
+        cls,
+        query: ModelQueryBuilder[Self],
+        chunk_size: int,
+    ) -> int:
+        """Asynchronously delete matching primary-key groups.
+
+        Args:
+            query: Application-defined candidate query.
+            chunk_size: Maximum number of candidate models per group.
+
+        Returns:
+            Number of rows the backend reports as deleted.
+        """
+        primary_key = cls.primary_key_name()
+        cursor: str | None = None
+        total = 0
+        while True:
+            page_query = query.clone().select(primary_key)
+            page = await page_query.cursor_paginate_async(
+                chunk_size,
+                cursor=cursor,
+            )
+            if not page.items:
+                return total
+            identifiers = [getattr(model, primary_key) for model in page.items]
+            deletion = query.clone().where_in(primary_key, identifiers)
+            affected = (
+                await deletion.force_delete_async()
+                if issubclass(cls, SoftDeletes)
+                else await deletion.delete_async()
+            )
+            total += len(identifiers) if affected < 0 else affected
+            if not page.has_more_pages:
+                return total
+            cursor = page.next_cursor
 
     @classmethod
     def observe(
@@ -1341,6 +1596,42 @@ class Model(DeclarativeBase):
         self.fill(attributes)
         return await self.save_async()
 
+    def pruning(self) -> None:
+        """Prepare one model instance before permanent deletion.
+
+        Override this hook to release application-owned resources.
+        """
+
+    async def pruning_async(self) -> None:
+        """Run the model pruning hook through the async interface.
+
+        Override this method when pruning requires asynchronous work. The
+        default implementation calls ``pruning()`` for shared sync behavior.
+        """
+        self.pruning()
+
+    def prune(self) -> bool:
+        """Run the model hook and permanently delete this persisted record.
+
+        Returns:
+            Whether model lifecycle policy accepted the deletion.
+        """
+        self.pruning()
+        if isinstance(self, SoftDeletes):
+            return self.force_delete()
+        return self.delete()
+
+    async def prune_async(self) -> bool:
+        """Asynchronously run the hook and permanently delete this record.
+
+        Returns:
+            Whether model lifecycle policy accepted the deletion.
+        """
+        await self.pruning_async()
+        if isinstance(self, SoftDeletes):
+            return await self.force_delete_async()
+        return await self.delete_async()
+
     def delete(self) -> bool:
         """Delete this persisted model in its current application context.
 
@@ -2035,7 +2326,7 @@ class Model(DeclarativeBase):
     def _ensure_session_owner(
         self,
         service: DatabaseService,
-        session: object,
+        session: Session | AsyncSession,
     ) -> None:
         """Validate app ownership and reject attachment to another Session.
 
@@ -2047,16 +2338,7 @@ class Model(DeclarativeBase):
             DatabaseTransactionOwnershipError: If service or Session ownership
                 does not match.
         """
-        require_service(self, service)
-        attached = object_session(self)
-        owner_session = (
-            session.sync_session
-            if isinstance(session, AsyncSession)
-            else session
-        )
-        if attached is not None and attached is not owner_session:
-            msg = "The model is attached to a different database session."
-            raise DatabaseTransactionOwnershipError(msg)
+        ensure_session_owner(self, service, session)
 
     def _numeric_attribute(self, column_name: str) -> int | float | Decimal:
         """Read a loaded numeric column without triggering deferred I/O.
@@ -3317,6 +3599,19 @@ def _creation_values(
         New values without mutating either caller-owned mapping.
     """
     return {**dict(values or {}), **attributes}
+
+
+def _validate_pruning_chunk_size(size: int) -> None:
+    """Require a positive bounded page size for pruning operations.
+
+    Args:
+        size: Requested number of model keys per page.
+
+    Raises:
+        DatabasePruningError: If size is zero, negative, or not an integer.
+    """
+    if isinstance(size, bool) or size < 1:
+        raise DatabasePruningError(_INVALID_PRUNE_CHUNK_SIZE_ERROR)
 
 
 def _require_successful_save(model: Model, saved: bool) -> None:

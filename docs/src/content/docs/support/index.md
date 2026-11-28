@@ -19,7 +19,7 @@ The current implementation includes:
 - `Str` for tested string transformations and validators.
 - `Stringable` for explicit chainable transformations over `Str`.
 - `Number` for locale-aware formatting, parsing, spelling, and summaries;
-  Babel and `num2words` are available through the optional `numbers` extra.
+  Babel and `num2words` are mandatory runtime dependencies.
 - `BinaryCodec` for UUID and ULID conversion between text and 16-byte
   identifiers, with process-local custom codec registration.
 - `ConfigurationUrlParser` for database connection URLs, nested query
@@ -61,8 +61,9 @@ assert optional(None).get("name") is None
 debug = env("TITANSPAN_DEBUG", False)
 ```
 
-The module has no optional AI, database, queue, or infrastructure
-dependencies. URI redirects reuse the Starlette version already installed
+Support uses mandatory Babel and `num2words` for Number operations and remains
+independent of Database, Queue, and AI modules. URI redirects reuse the
+Starlette version already installed
 through the web foundation; URI parsing and encoding otherwise use the Python
 standard library and Titanspan's `Arr` helpers.
 
@@ -83,7 +84,7 @@ their Python behavior, [HTML values](/framework/support/html/) for context-aware
 guidance, [timing utilities](/framework/support/timing/) for `Benchmark`, `InteractsWithTime`,
 `Lottery`, and `Timebox`, and [Sleep](/framework/support/sleep/) for explicit synchronous and
 asynchronous waiting. See [Number utilities](/framework/support/numbers/) for numeric
-formatting, locale scopes, optional dependencies, and Python-specific behavior,
+formatting, locale scopes, and Python-specific behavior,
 and [binary codecs](/framework/support/binary-codecs/) for UUID and ULID conversion. See
 [configuration URLs](/framework/support/configuration-urls/) for parsing database URLs and SQL
 Server DSN values, and [namespaced item keys](/framework/support/namespaced-items/) for dotted-key

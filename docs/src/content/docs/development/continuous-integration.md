@@ -188,13 +188,16 @@ are required.
 The build job creates a wheel and source distribution, validates metadata and
 archive contents, checks the distributions with Twine, and uploads them as a
 short-lived artifact. Clean-install jobs consume that exact wheel outside the
-checkout and verify the minimal and implemented `numbers` extra profiles.
+checkout and verify the standard install and optional PostgreSQL driver.
 Development instructions, skills, and CI scripts are checked for accidental
-inclusion. The application smoke uses the installed package to exercise
+inclusion. The installed-package smoke exercises mandatory Database and
+Number APIs, including SQLite persistence, schema, relationships, transaction
+rollback, generated and reversed migrations, factories, seeders, validation,
+route binding, assertions, shutdown cleanup, and synchronous execution. The
+application smoke also checks
 provider registration, contract injection, logging, named URL generation,
 native route dispatch, and ASGI startup and shutdown. Docker CI validates
-Compose, builds the non-root image, and exercises the installed CLI; it does
-not start unused database or Redis services.
+Compose, builds the non-root image, and exercises the installed CLI.
 
 ## Documentation and additional workflows
 

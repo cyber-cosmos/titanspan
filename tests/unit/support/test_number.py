@@ -1,29 +1,23 @@
 """Verify locale-aware numeric formatting and parsing behavior.
 
 The cases cover API names, locale formatting, number spelling, boundaries,
-optional dependencies, task-local state, and async callback handling.
+task-local state, and async callback handling.
 """
 
 from __future__ import annotations
 
 import asyncio
-import builtins
 import math
 from typing import TYPE_CHECKING, cast
 
 import pytest
 
-from titanspan.support import (
-    MissingNumberDependencyError,
-    Number,
-    NumberParseType,
-)
+from titanspan.support import Number, NumberParseType
 
 pytestmark = pytest.mark.unit
 
 if TYPE_CHECKING:
-    from collections.abc import Callable, Iterator, Mapping, Sequence
-    from types import ModuleType
+    from collections.abc import Callable, Iterator
 
 
 @pytest.fixture
@@ -538,93 +532,3 @@ def test_number_rejects_boolean_precision() -> None:
     """
     with pytest.raises(TypeError, match="precision"):
         Number.format(1.2, precision=True)
-
-
-def test_number_reports_missing_babel_extra(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """Give a useful package error when Babel is not installed.
-
-    Args:
-        monkeypatch: Pytest's temporary import replacement fixture.
-    """
-    original_import = builtins.__import__
-
-    def guarded_import(
-        name: str,
-        globalns: Mapping[str, object] | None = None,
-        localns: Mapping[str, object] | None = None,
-        fromlist: Sequence[str] | None = (),
-        level: int = 0,
-    ) -> ModuleType:
-        """Fail only on Babel imports while delegating all other imports.
-
-        Args:
-            name: The module requested by the import statement.
-            globalns: Optional importer global namespace.
-            localns: Optional importer local namespace.
-            fromlist: Imported names requested by the caller.
-            level: Relative import level.
-
-        Returns:
-            The imported module for an allowed dependency.
-
-        Raises:
-            ModuleNotFoundError: If the request is for Babel.
-        """
-        if name == "babel" or name.startswith("babel."):
-            raise ModuleNotFoundError(name=name)
-        return original_import(name, globalns, localns, fromlist, level)
-
-    monkeypatch.setattr(builtins, "__import__", guarded_import)
-    operations: tuple[Callable[[], object], ...] = (
-        lambda: Number.format(1),
-        lambda: Number.parse("1"),
-        lambda: Number.percentage(1),
-        lambda: Number.currency(1),
-        lambda: Number.abbreviate(1000),
-    )
-    for operation in operations:
-        with pytest.raises(MissingNumberDependencyError):
-            operation()
-
-
-def test_number_reports_missing_num2words_extra(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """Give a useful package error when number spelling is unavailable.
-
-    Args:
-        monkeypatch: Pytest's temporary import replacement fixture.
-    """
-    original_import = builtins.__import__
-
-    def guarded_import(
-        name: str,
-        globalns: Mapping[str, object] | None = None,
-        localns: Mapping[str, object] | None = None,
-        fromlist: Sequence[str] | None = (),
-        level: int = 0,
-    ) -> ModuleType:
-        """Fail on num2words imports and delegate all other imports.
-
-        Args:
-            name: The module requested by the import statement.
-            globalns: Optional importer global namespace.
-            localns: Optional importer local namespace.
-            fromlist: Imported names requested by the caller.
-            level: Relative import level.
-
-        Returns:
-            The imported module for an allowed dependency.
-
-        Raises:
-            ModuleNotFoundError: If the request is for num2words.
-        """
-        if name == "num2words":
-            raise ModuleNotFoundError(name=name)
-        return original_import(name, globalns, localns, fromlist, level)
-
-    monkeypatch.setattr(builtins, "__import__", guarded_import)
-    with pytest.raises(MissingNumberDependencyError):
-        Number.spell(1)

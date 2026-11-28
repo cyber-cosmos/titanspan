@@ -17,7 +17,7 @@ for compatibility, maintenance, licensing, and security before use.
 - [0007 — LangGraph orchestration](/framework/architecture/decisions/0007-langgraph-orchestration/)
 - [0008 — Structured concurrency](/framework/architecture/decisions/0008-structured-concurrency/)
 - [0009 — Contract-driven adapters](/framework/architecture/decisions/0009-contract-driven-adapters/)
-- [0010 — Optional dependencies](/framework/architecture/decisions/0010-optional-dependencies/)
+- [0010 — Optional dependencies (superseded)](/framework/architecture/decisions/0010-optional-dependencies/)
 - [0011 — Testing and quality standards](/framework/architecture/decisions/0011-testing-and-quality-standards/)
 - [0012 — Native logging API and private backends](/framework/architecture/decisions/0012-native-logging/)
 - [0013 — Native configuration repository and safe snapshots](/framework/architecture/decisions/0013-native-configuration/)
@@ -30,3 +30,4 @@ for compatibility, maintenance, licensing, and security before use.
 - [0022 — Native application bootstrap and lifecycle hooks](/framework/architecture/decisions/0022-native-foundation-bootstrap/)
 - [0023 — Container-owned facade overrides](/framework/architecture/decisions/0023-container-owned-facade-overrides/)
 - [0024 — Native Cache component and backend ownership](/framework/architecture/decisions/0024-native-cache-component/)
+- [0025 — Batteries-included native components](/framework/architecture/decisions/0025-batteries-included-components/)

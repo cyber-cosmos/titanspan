@@ -37,6 +37,7 @@ _MUTATION_ROWS = 2
 _ONE_ROW = 1
 _NO_ROWS = 0
 _GROUPED_ENTRY_COUNT = 5
+_EXPECTED_BOUND_ROWS = 3
 
 
 @pytest.fixture
@@ -1193,6 +1194,73 @@ async def test_cursor_pagination_stabilizes_order_and_supports_reverse_pages(
 
         with pytest.raises(DatabaseQueryError, match="cursor token"):
             await query.cursor_paginate_async(2, cursor="not-a-token")
+
+
+async def test_pagination_validation_and_empty_cursor_pages(
+    application: Application,
+) -> None:
+    """Exercise pagination bounds, cursor constraints, and empty pages.
+
+    Args:
+        application: Application configured with an isolated SQLite database.
+    """
+    async with application:
+        await DB.statement_async(
+            "CREATE TABLE bounded_rows ("
+            "id INTEGER PRIMARY KEY, group_name TEXT NOT NULL)"
+        )
+        await DB.table("bounded_rows").insert_many_async(
+            [
+                {"id": 1, "group_name": "A"},
+                {"id": 2, "group_name": "A"},
+                {"id": 3, "group_name": "B"},
+            ],
+        )
+
+        all_rows = await (
+            DB.table("bounded_rows").limit(1).limit(None).get_async()
+        )
+        assert len(all_rows) == _EXPECTED_BOUND_ROWS
+
+        with pytest.raises(ValueError, match="non-negative integer"):
+            DB.table("bounded_rows").limit(-1)
+        with pytest.raises(ValueError, match="non-negative integer"):
+            DB.table("bounded_rows").limit(True)
+        with pytest.raises(ValueError, match="non-negative integer"):
+            DB.table("bounded_rows").offset(-1)
+        with pytest.raises(ValueError, match="non-negative integer"):
+            DB.table("bounded_rows").offset(True)
+
+        with pytest.raises(DatabaseQueryError, match="non-grouped"):
+            await (
+                DB.table("bounded_rows")
+                .group_by("group_name")
+                .cursor_paginate_async(2)
+            )
+        with pytest.raises(DatabaseQueryError, match="non-grouped"):
+            await (
+                DB.table("bounded_rows")
+                .select("id")
+                .distinct()
+                .cursor_paginate_async(2)
+            )
+        with pytest.raises(DatabaseQueryError, match="unique order columns"):
+            await (
+                DB.table("bounded_rows")
+                .order_by("id")
+                .order_by("id")
+                .cursor_paginate_async(2)
+            )
+
+        ordered_page = await (
+            DB.table("bounded_rows").order_by("id").cursor_paginate_async(2)
+        )
+        assert [row["id"] for row in ordered_page.items] == [1, 2]
+        empty_page = await (
+            DB.table("bounded_rows").where("id", 99).cursor_paginate_async(2)
+        )
+        assert empty_page.items == ()
+        assert not empty_page.has_more_pages
 
 
 async def test_sync_retrieval_and_pagination_edges(

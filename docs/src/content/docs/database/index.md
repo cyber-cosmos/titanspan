@@ -17,26 +17,22 @@ listed in the project roadmap.
 
 ## Install
 
-Install the optional Database and migration dependencies:
+The standard Titanspan distribution includes SQLAlchemy, Alembic, and
+`aiosqlite`. SQLite works in synchronous and asynchronous applications
+without an extra. PostgreSQL applications can install the tested Psycopg
+driver with:
 
 ```shell
-uv add "titanspan[database]"
+uv add "titanspan[postgresql]"
 ```
 
-SQLite and PostgreSQL drivers have separate extras. PostgreSQL applications
-can install the tested Psycopg driver with:
-
-```shell
-uv add "titanspan[database,postgresql]"
-```
-
-The base Titanspan installation does not import SQLAlchemy or Alembic. Add the
-Database provider to the application that uses persistence:
+Foundation registers the Database provider with its built-in providers.
+Provider registration constructs an application-owned lazy manager; it does
+not open a connection during application construction.
 
 ```python
 from pathlib import Path
 
-from titanspan.database import DatabaseServiceProvider
 from titanspan.foundation import Application
 
 application = Application(
@@ -52,14 +48,11 @@ application = Application(
             },
         },
     },
-    service_providers=(DatabaseServiceProvider(),),
 )
 ```
 
-Provider registration creates a lazy, application-owned manager. It does not
-open a connection during application construction. Relative SQLite paths are
-resolved beneath `Application.base_path`; the process working directory is
-not changed.
+Relative SQLite paths resolve beneath `Application.base_path`; the process
+working directory is not changed.
 
 ## Connections and execution
 
@@ -73,7 +66,7 @@ validated before engine construction.
 ```python
 from collections.abc import Mapping
 
-from titanspan.facades.database import DB
+from titanspan.facades import DB
 
 
 def active_users() -> list[Mapping[str, object]]:
@@ -104,7 +97,7 @@ Use explicit transaction scopes when multiple statements must commit or roll
 back together:
 
 ```python
-from titanspan.facades.database import DB
+from titanspan.facades import DB
 
 
 async def add_user() -> None:
@@ -141,7 +134,7 @@ before composing independent queries. Values are bound through SQLAlchemy;
 table and column identifiers are validated before expression construction.
 
 ```python
-from titanspan.facades.database import DB
+from titanspan.facades import DB
 
 
 active_users = (
@@ -180,7 +173,7 @@ operation. `unique_by` names the unique key and `update` optionally restricts
 the inserted columns copied into a conflicting row:
 
 ```python
-from titanspan.facades.database import DB
+from titanspan.facades import DB
 
 
 async def save_user(email: str, name: str) -> int:
@@ -423,6 +416,7 @@ from sqlalchemy.orm import Mapped, mapped_column
 from sqlalchemy.sql.elements import ColumnElement
 
 from titanspan.database import Model, ModelQueryBuilder
+from sqlalchemy.orm import Mapped, mapped_column
 
 
 class PublishedPost(Model):
@@ -499,10 +493,28 @@ async def create_users() -> ModelCollection[User]:
 and returns the native `ModelCollection`. `sequence()` applies repeating
 ordered overrides. `after_making()` runs after transient construction, while
 `after_creating()` waits for the owning transaction to commit. A rollback
-discards pending create callbacks. Applications can use Faker in their own
-attribute callbacks; the Database extra does not install a fake-data engine.
+discards pending create callbacks. Faker is not a mandatory dependency.
+Factory callbacks can use deterministic Python values or an application-
+selected fake-data library.
 
-Relationship factories and model recycling are not implemented.
+Use `relationship()` to assign a related factory or recycle a persisted model
+for a single-valued relation. The mapped relationship determines whether the
+result is a single object or a collection. Supply `count` for collection
+factories. Nested factory graphs remain transient until the root factory
+persists them through SQLAlchemy's
+Unit of Work and relationship cascade. Related `after_creating()` callbacks
+run only after the owning transaction commits. Recycled models are reused and
+are not copied or created again. Map association objects when pivot rows need
+additional attributes.
+
+```python
+post = Post.factory().relationship("author", User.factory())
+posts = Post.factory().relationship(
+    "comments",
+    Comment.factory(),
+    count=3,
+)
+```
 
 ### Seeders
 
@@ -540,6 +552,35 @@ The `SoftDeletes` mixin adds a nullable deletion timestamp and filters deleted
 rows from model queries by default. `with_trashed()`, `only_trashed()`,
 `restore()`, and `force_delete()` provide explicit visibility and deletion
 operations. Raw table queries intentionally bypass model scopes.
+
+Declare a model's pruning query explicitly. Ordinary pruning processes
+bounded keyset pages, invokes `pruning()` and model delete hooks, and hard
+deletes matching `SoftDeletes` models. The pretend form only counts matches:
+
+```python
+from titanspan.database import Model, ModelQueryBuilder
+
+
+class ExpiredUpload(Model):
+    """Represent uploads retained only for a limited period."""
+
+    table = "uploads"
+    expired: Mapped[bool] = mapped_column(default=False)
+
+    def prunable(self) -> ModelQueryBuilder[ExpiredUpload]:
+        """Select expired uploads for permanent removal."""
+        return ExpiredUpload.query().where("expired", True)
+
+
+count = await ExpiredUpload.prune_all_async(chunk_size=500, pretend=True)
+```
+
+Use `mass_prune_all()` or `mass_prune_all_async()` when per-model hooks and
+lifecycle events should be skipped. Both modes bound each page and include
+soft-deleted candidates; matching soft-deletable rows are permanently
+removed. The `model:prune --model package.module:Class` Console command
+requires an explicit trusted model path. It prompts before destructive work
+and requires `--force` in production. `--pretend` performs no deletion.
 
 ## Model lifecycle events
 
@@ -672,23 +713,39 @@ The intermediate `User` table must reference `Country`, and `Post` must
 reference `User`. A one-through relation also requires data and constraints
 that make its single-result semantics valid.
 
-`belongs_to_many()` uses SQLAlchemy's instrumented collection for pivot
-changes. Eager-load an existing collection before changing it because
-detached async models do not perform implicit relationship I/O. Append or
-remove related models and save the parent; SQLAlchemy's Unit of Work writes the
-association rows:
+`belongs_to_many()` maps a writable SQLAlchemy secondary relationship.
+Use `relation()` for transactional attachment changes by identifier or
+persisted related model. Titanspan loads the current collection in its owning
+session and refreshes the detached parent's collection after commit:
 
 ```python
-user.tags.append(tag)
-await user.save_async()
+relation = user.relation("tags")
+await relation.attach_async(tag.id)
 
-user.tags.remove(tag)
-await user.save_async()
+changes = await relation.sync_async([first_tag.id, second_tag.id])
+assert changes.detached == (removed_tag_id,)
 ```
 
-Explicit `attach()`, `detach()`, `sync()`, and pivot-attribute helpers are not
-provided. Declare association objects as mapped models when pivot rows need
-additional application behavior.
+The manager provides sync and async `attach`, `detach`, `sync`,
+`sync_without_detaching`, `toggle`, and `update_existing_pivot` operations.
+`detach()` without IDs removes every association. `sync()` removes omitted
+associations by default; pass `detaching=False` to retain them. These
+operations use the application's Database session and transaction lifecycle.
+
+`update_existing_pivot()` and its async form update non-key columns on one
+existing association row and return the affected-row count. They support a
+direct SQLAlchemy `Table` with one unambiguous foreign key to each model's
+single primary key. Key columns and unknown column names are rejected. An
+identifier with no matching association returns zero. For richer pivot
+behavior, timestamps managed by the ORM, or custom pivot models, map an
+association object and use its normal model persistence APIs.
+
+```python
+updated = await user.relation("tags").update_existing_pivot_async(
+    tag.id,
+    {"position": 2},
+)
+```
 
 Use `with_()` to load relationships as part of the query:
 
@@ -759,6 +816,26 @@ attribute name shown by the method. Aggregates apply the related model's
 global and soft-delete scopes. Self-referential and nested aggregates are not
 supported yet.
 
+Load an aggregate after retrieving a collection with
+`load_aggregate()` or `load_aggregate_async()`. This issues one query for the
+collection and assigns results to its declared query-expression attributes:
+
+```python
+users = await User.query().get_async()
+await users.load_aggregate_async("posts", "count")
+await users.load_aggregate_async(
+    "posts",
+    "sum",
+    column_name="views",
+    attribute="published_views",
+)
+```
+
+The aggregate kind is `count`, `exists`, `sum`, `avg`, `min`, or `max`. Numeric
+aggregates require `column_name`. All returned values must target mapped
+`query_expression()` attributes. Transient models without database identities
+are skipped.
+
 Stream large model results through a context that owns the Session and cursor:
 
 ```python
@@ -807,17 +884,33 @@ async def create_user_schema() -> None:
 ```
 
 The current schema API creates, alters, and drops tables; defines common
-columns and constraints; and inspects tables, columns, indexes, and foreign
-keys through SQLAlchemy. SQLite alterations use Alembic batch operations.
+columns and constraints; and inspects tables, views, columns, indexes, and
+foreign keys through SQLAlchemy. SQLite alterations use Alembic batch
+operations.
 Dialect-specific operations fail explicitly when the selected backend cannot
 provide them.
 
 Alembic owns the revision graph and version table. Native `Migration` classes
 run through Alembic's operation context. `MigrationManager` provides revision
 creation, status, install, upgrade, rollback, reset, and refresh operations.
-The Console currently registers `migrate`, `migrate:install`,
-`migrate:status`, `migrate:rollback`, `migrate:reset`, `migrate:refresh`,
-`db:seed`, and `make:seeder`.
+The Console currently registers `migrate`, `migrate:fresh`,
+`migrate:install`, `migrate:status`, `migrate:rollback`, `migrate:reset`,
+`migrate:refresh`, `db:show`, `db:table`, `db:wipe`, `db:seed`, and
+`make:migration`, `make:model`, `make:seeder`, `model:prune`, and
+`model:show`. `db:show`
+displays the selected connection's redacted target, dialect, tables, and
+optional views. Use `--counts` to query each table's row count; this may be
+slow on large tables. The command does not estimate database size or report
+server-wide open connections. `db:table <name>` displays reflected columns,
+SQL types, nullability, primary keys, indexes, and foreign keys for one table.
+It accepts `--database` to select a configured connection. `db:wipe` drops
+tables in the selected connection's default schema through SQLAlchemy's
+dependency ordering. It prompts before dropping tables and requires `--force`
+in production. Views remain intact. `migrate:fresh` applies the same table
+cleanup, runs all pending migrations, and optionally executes a trusted
+seeder with `--seed` and `--seeder`.
+`model:show module:Class` displays mapped columns and relationships without
+opening a database connection.
 Destructive rollback, reset, and refresh commands confirm before operating
 and refuse production execution unless the explicit force policy permits it.
 The ordinary `migrate` command also requires `--force` in production and
@@ -827,16 +920,20 @@ provide this cross-process guarantee. PostgreSQL locking has real-server
 coverage. MySQL and MariaDB locking has orchestration tests but no live-server
 integration test.
 
-Fresh-database, schema-dump, database-inspection, and model-generation
-commands are not implemented. Autogenerated revisions require review before
-execution. DDL rollback guarantees follow the selected dialect; some
-databases commit schema changes implicitly.
+Schema-dump commands and `db:monitor` are not implemented. `make:model`
+generates an importable model with the framework's conventional table name.
+`make:migration` creates a native revision; `--autogenerate` delegates
+metadata comparison to Alembic and still requires review before execution.
+`db:show` provides a basic table and view overview. Autogenerated revisions
+require review before execution. DDL
+rollback guarantees follow the selected dialect; some databases commit
+schema changes implicitly.
 
 ## Application tests
 
 Use the existing `ApplicationTest` or `AsyncApplicationTest` from
-`titanspan.testing` and add `DatabaseServiceProvider` to the test application.
-The Database component does not create another application lifecycle.
+`titanspan.testing`. The Database component participates in the standard
+application lifecycle and does not create another one.
 Current integration tests use temporary SQLite databases and a disposable
 PostgreSQL database. PostgreSQL integration is mandatory in CI; it fails if
 the job's required URL is missing.
@@ -845,8 +942,8 @@ Database assertions run real Query Builder and ORM queries through the active
 application service. Import `assert_database_has`, `assert_database_count`,
 `assert_model_exists`, and their `_async` variants from `titanspan.database`.
 The helpers also include missing-row, empty-table, and soft-delete assertions.
-They do not create, migrate, or reset a test database. Query-count assertions
-remain unavailable until Database query monitoring is implemented.
+They do not create, migrate, or reset a test database. Query monitoring and
+query-count assertions are not implemented.
 
 ## Database-backed Validation rules
 
@@ -913,9 +1010,9 @@ boundary. Use SQLAlchemy and Alembic APIs directly for capabilities not yet
 exposed by the native layer.
 
 The Database component does not yet provide scoped or automatic Routing model
-binding, model-based URL generation, soft-delete and restore events,
-query-count assertions, database test isolation helpers, read replicas, query
-caching, or distributed migration coordination. See
+binding, model-based URL generation, query-count assertions, database test
+isolation helpers, read replicas, query caching, or distributed migration
+coordination. Soft-delete and restore lifecycle events are implemented. See
 [ADR 0006](/framework/architecture/decisions/0006-sqlalchemy-persistence/) for
 the accepted persistence boundary and
 [the backend boundary specification](/framework/specifications/backend-boundaries/)

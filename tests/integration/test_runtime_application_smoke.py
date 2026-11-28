@@ -24,6 +24,8 @@ async def test_runtime_smoke_uses_native_routing_and_injected_services() -> (
     """
     result = await run_smoke()
 
+    assert result["database_verified"] is True
+    assert result["number_utilities_verified"] is True
     assert result["health"] == {
         "status": "ok",
         "application": "Document Processor",
@@ -85,6 +87,8 @@ def test_installed_smoke_rejects_a_failed_integration_check() -> None:
         "invalid_upload": {"status": _HTTP_UNPROCESSABLE_STATUS, "body": {}},
         "json_metadata": {},
         "json_validation_safe": True,
+        "database_verified": True,
+        "number_utilities_verified": True,
         "response_cookie_verified": True,
         "middleware_verified": True,
         "component_fakes": {

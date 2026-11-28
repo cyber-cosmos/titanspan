@@ -8,8 +8,6 @@ from __future__ import annotations
 
 import json
 import platform
-from importlib import import_module
-from importlib.util import find_spec
 from pathlib import Path
 from typing import TYPE_CHECKING, Annotated, NoReturn, TypeGuard, cast
 
@@ -26,12 +24,12 @@ from titanspan.console.exceptions import CommandGenerationError
 from titanspan.console.generators import ArtifactKind, generate_artifact
 from titanspan.contracts import (  # noqa: TC001
     ApplicationPaths,
-    CommandRegistrar,
     ConsoleOutput,
     RouteCatalog,
 )
 from titanspan.contracts.config import ConfigRepository  # noqa: TC001
 from titanspan.contracts.http import MiddlewareDeclaration
+from titanspan.database.commands import register_database_commands
 from titanspan.events import (
     DiscoveryEntry,
     EventDiscoveryError,
@@ -46,8 +44,6 @@ from titanspan.routing.router import Router  # noqa: TC001
 from titanspan.support.arr import Arr
 
 if TYPE_CHECKING:
-    from collections.abc import Callable
-
     from titanspan.contracts.config import ConfigDiagnostics
     from titanspan.contracts.http import MiddlewareItem
     from titanspan.contracts.routing import (
@@ -64,6 +60,7 @@ console = Console(
 )
 register_cache_commands(console)
 register_queue_commands(console)
+register_database_commands(console)
 _MISSING = object()
 _CONTROLLER_ACTION_PARTS = 2
 _ROUTE_CACHE_PARTS = ("bootstrap", "cache", "routes.json")
@@ -77,25 +74,6 @@ def about() -> None:
     """
     console.output.write(f"Titanspan {__version__}")
     console.output.write(f"Python {platform.python_version()}")
-
-
-def _register_database_commands() -> None:
-    """Register optional Database commands when their backend is installed.
-
-    SQLAlchemy and Alembic remain in the Database extra, so importing the
-    base Console must continue to work without either dependency.
-    """
-    if find_spec("sqlalchemy") is None or find_spec("alembic") is None:
-        return
-    module = import_module("titanspan.database.commands")
-    register = cast(
-        "Callable[[CommandRegistrar], None]",
-        module.register_database_commands,
-    )
-    register(console)
-
-
-_register_database_commands()
 
 
 @console.command("config:show", with_application=False)

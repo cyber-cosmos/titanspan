@@ -10,7 +10,8 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING, cast
 
 from sqlalchemy import inspect as sa_inspect
-from sqlalchemy.orm import InstanceState
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import InstanceState, Session, object_session
 from sqlalchemy.orm.base import NO_VALUE
 
 from titanspan.database.exceptions import DatabaseTransactionOwnershipError
@@ -101,6 +102,34 @@ def require_service(
     requested = _ownership(instance, service, connection_name)
     if selected is not None and selected != requested:
         msg = "The model belongs to a different app or database connection."
+        raise DatabaseTransactionOwnershipError(msg)
+
+
+def ensure_session_owner(
+    instance: object,
+    service: DatabaseService,
+    session: Session | AsyncSession,
+    connection_name: str | None = None,
+) -> None:
+    """Require a model to belong to the selected app and SQLAlchemy session.
+
+    Args:
+        instance: SQLAlchemy-instrumented model being used.
+        service: Current application Database service.
+        session: SQLAlchemy session selected for this operation.
+        connection_name: Logical connection selected for this operation.
+
+    Raises:
+        DatabaseTransactionOwnershipError: If another app, connection, or
+            session already owns the model.
+    """
+    require_service(instance, service, connection_name)
+    owner_session = (
+        session.sync_session if isinstance(session, AsyncSession) else session
+    )
+    attached_session = object_session(instance)
+    if attached_session is not None and attached_session is not owner_session:
+        msg = "The model is attached to a different database session."
         raise DatabaseTransactionOwnershipError(msg)
 
 

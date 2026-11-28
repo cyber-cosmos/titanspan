@@ -34,6 +34,11 @@ Laravel inspires the developer experience. Python determines the
 implementation architecture and language semantics. Framework cohesion
 determines the design.
 
+Comprehensive behavioral parity with Laravel 13.x Database, Query Builder,
+Eloquent ORM, Schema Builder, Migrations, Factories, Seeders, and applicable
+integrations is a mandatory Database requirement. Adapt those behaviors to
+Python and Titanspan APIs; do not reproduce PHP syntax or compatibility APIs.
+
 Titanspan does not maintain external framework API compatibility, reproduce
 PHP-specific behavior, or introduce compatibility-only naming conventions.
 
@@ -148,7 +153,12 @@ The preferred technology foundations are:
 | Testing                     | Pytest                          |
 
 These are architectural foundations, not requirements to install every
-dependency or implement every associated component immediately.
+dependency or implement every associated component immediately. Dependencies
+required by an implemented native component are mandatory runtime
+dependencies. Optional extras are reserved for external drivers,
+integrations, and provider-specific SDKs. Database is a built-in component;
+its native APIs and SQLite backend are available in the standard install.
+Do not add dependencies for unfinished components before implementation.
 
 Do not introduce unused, redundant, or unjustified dependencies.
 
@@ -223,8 +233,10 @@ or artificial abstraction layers merely to satisfy an architectural diagram.
 
 ### Dependency boundaries
 
-Keep foundational modules independent of optional AI, database, queue, and
-infrastructure adapters.
+Keep foundational modules independent of optional AI, queue, and
+infrastructure adapters. Database is a built-in component with mandatory
+native dependencies; Foundation registers its provider as part of application
+composition. Keep connections and other external resources lazy.
 
 Prevent circular dependencies.
 

@@ -5,6 +5,24 @@ public release.
 
 ## Unreleased
 
+- Make native Database and Number capabilities available in the standard
+  installation. Declare SQLAlchemy, Alembic, aiosqlite, Babel, and num2words
+  as runtime dependencies; keep external backend drivers optional.
+- Register the Database provider and commands by default. Extend installed
+  package verification to cover SQLite schema, ORM relationships,
+  transactions, synchronous operations, and Number utilities.
+- Add schema and table inspection, guarded cleanup, fresh migrations, and
+  model and migration generators to Database Console. Compose related model
+  factories through mapped relationships and recycle existing model values.
+- Add `model:show` to inspect mapped columns and relationships without opening
+  a database connection.
+- Add sync and async bounded model pruning with pretend counts, soft-delete
+  handling, optional event-free mass deletion, and an explicitly targeted
+  Console command.
+- Add sync and async deferred collection aggregates using one SQLAlchemy ORM
+  query per aggregate and preserving each model's existing identity.
+- Add sync and async many-to-many attach, detach, sync, toggle, and existing
+  pivot-attribute update operations through the owning Database session.
 - Add native Queue and Bus dispatch with typed jobs, bounded JSON envelopes,
   and Taskiq-backed Redis workers.
 - Keep handler scopes, middleware, retries, delayed delivery, ordered chains,
@@ -35,8 +53,11 @@ public release.
   resources exactly once.
 - Bound process-local batch history and reject admission when active batches
   fill the configured capacity.
-- Defer durable failed-job records, unique jobs, distributed batches, queued
-  listeners, and transaction-aware dispatch.
+- Defer durable failed-job records, unique jobs, distributed batches, and
+  queued listeners.
+- Add async Queue and Bus publication through Database-owned after-commit
+  callbacks. Nested rollback discards dispatch; broker publication remains a
+  separate, non-atomic effect after the database commit.
 - Serialize middleware response models with their declared Pydantic schemas.
   Render middleware errors through Foundation's exception policy.
 - Dispatch asynchronous Cache failover events through Events. Preserve
@@ -47,7 +68,7 @@ public release.
   service.
 - Limit async Hashing worker admission before entering AnyIO's general worker
   pool. Bind HTTP fakes created in an Application context to that Application.
-- Add the optional Database component over SQLAlchemy and Alembic with
+- Initially add the Database component over SQLAlchemy and Alembic with
   application-owned named connections, thread-owned sync sessions,
   task-owned async sessions, explicit transactions, Core and ORM query
   builders, typed Active Record models, schema operations, migrations, model
@@ -340,9 +361,9 @@ public release.
   file updates.
 - Added synchronous and AnyIO-based asynchronous retry helpers backed by
   Tenacity.
-- Added locale-aware numeric formatting, parsing, spelling, summaries, and
-  context-local locale and currency scopes through the optional `numbers`
-  extra.
+- Initially add locale-aware numeric formatting, parsing, spelling,
+  summaries, and context-local locale and currency scopes through the optional
+  `numbers` extra; these packages are now mandatory runtime dependencies.
 - Added UUID and ULID binary codecs with typed custom codec registration and
   Python byte interoperability.
 - Added configuration URL parsing for common database schemes, nested query

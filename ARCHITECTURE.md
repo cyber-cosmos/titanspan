@@ -25,8 +25,12 @@ infrastructure remains planned unless the table below marks it implemented.
 - Use one canonical `snake_case` name per public operation. Components may
   re-export shared contract objects, but must not create compatibility aliases
   or duplicate protocol identities.
-- Keep core modules independent of optional AI, database, queue, and storage
-  integrations.
+- Treat implemented native components as first-class framework features.
+  Dependencies required by those features are mandatory runtime dependencies;
+  optional extras are for external drivers and integrations. Database is a
+  built-in component with automatic provider registration and lazy resources.
+- Keep core modules independent of optional AI, queue, and storage
+  integrations and backend-specific database drivers.
 - Make resource ownership and asynchronous operations explicit.
 - Keep backend APIs behind explicit interoperability boundaries. Ordinary
   application APIs use Titanspan-owned contracts and domain types.
@@ -78,7 +82,7 @@ tracked in [`docs/src/content/docs/specifications/backend-boundaries.md`](docs/s
 | `http` | Incoming ASGI requests, native responses, middleware, streaming, and pooled outgoing clients. | Initial component implemented and application-integrated; pending behavior is listed in `docs/src/content/docs/specifications/http.md`. |
 | `auth` | Authentication, authorization, guards, gates, and policies. | Planned. |
 | `hashing` | Password hashing, verification, inspection, and hash upgrades. | Argon2-CFFI and PyCA Bcrypt services integrate through Config, Container, and the `Hash` facade. Authentication remains planned. See `docs/src/content/docs/specifications/hashing.md`. |
-| `database` | SQLAlchemy-backed models, queries, transactions, migrations, and persistence. | Application-owned sync and async query and model operations, SQLite and PostgreSQL native upserts, schema builders, Alembic revisions, basic factories, transactional Seeders, native seeder commands, typed lifecycle events, and Container-resolved observers are implemented; advanced ORM and cross-component integrations remain in progress. See `docs/src/content/docs/database/`. |
+| `database` | SQLAlchemy-backed models, queries, transactions, migrations, and persistence. | Application-owned sync and async query and model operations, SQLite and PostgreSQL native upserts, schema builders, Alembic revisions, related factories, bounded model pruning, transactional Seeders, native Console commands, typed lifecycle events, and Container-resolved observers are implemented. Queue publication can register with Database after-commit callbacks; the database and broker effects are not atomic. Broader ORM parity remains in progress. See `docs/src/content/docs/database/`. |
 | `collections` | Typed eager and lazy APIs over ordinary Python iterables. | Eager and lazy value APIs are implemented. The component depends on Support and does not require Application or Container. Async iteration remains planned elsewhere. |
 | `cache` | Application caching, expiration, named stores, and backend adapters. | Native memory and optional Redis stores integrate with Config, Container, Events, Facades, lifecycle, and Console. See `docs/src/content/docs/specifications/cache.md`. |
 | `concurrency` | Structured asynchronous concurrency, bounded pools, and cancellation. | Planned. |
@@ -86,7 +90,7 @@ tracked in [`docs/src/content/docs/specifications/backend-boundaries.md`](docs/s
 | `pipeline` | Ordered synchronous and asynchronous value transformations. | Sequential callable and Container-resolved stages are implemented. Pipeline does not own streaming or concurrent execution. See `docs/src/content/docs/specifications/pipeline.md`. |
 | `validation` | Pydantic-backed schema validation, safe field issues, and ordered application rules. | Native sync and async services, explicit HTTP input validation, typed route rules, and safe Foundation rendering are implemented. Endpoint annotations own OpenAPI schemas. See `docs/src/content/docs/specifications/validation.md`. |
 | `events` | Event dispatching, listeners, subscribers, and application event lifecycle integration. | Native Blinker-backed dispatch, listener injection, scoped fakes, deferred and pushed events, trusted discovery, and Database transaction callbacks are implemented. Queue, Broadcasting, and event-owned CLI commands remain pending. See `docs/src/content/docs/specifications/events.md`. |
-| `queue` | Trusted job declarations, dispatch, worker execution, retries, chains, and batches. | Native Queue and Bus dispatch use one application-owned manager, bounded versioned JSON envelopes, native JOB scopes, Taskiq Redis Streams, and explicit local batches. Durable failed-job records, distributed batches, results, uniqueness, and transaction-aware publication remain deferred. See `docs/src/content/docs/specifications/queue.md`. |
+| `queue` | Trusted job declarations, dispatch, worker execution, retries, chains, and batches. | Native Queue and Bus dispatch use one application-owned manager, bounded versioned JSON envelopes, native JOB scopes, Taskiq Redis Streams, explicit local batches, and Database-owned async after-commit callbacks. Durable failed-job records, distributed batches, broader result persistence, and uniqueness remain deferred. See `docs/src/content/docs/specifications/queue.md`. |
 | `mail` | Email messages, delivery, templates, and attachments. | Planned. |
 | `notifications` | Multi-channel application notifications. | Planned. |
 | `filesystem` | Local and remote storage abstractions. | Application-owned local and memory disks delegate to fsspec. Remote drivers are registered by optional integrations. See `docs/src/content/docs/specifications/filesystem.md`. |
@@ -234,8 +238,8 @@ without importing concrete log records into the contracts package.
 
 The package dependency order places `titanspan.contracts` below configuration
 and core service modules. Contracts use Python's standard typing facilities
-and do not import concrete modules, optional database, AI, queue, or storage
-adapters.
+and do not import concrete modules or adapters for database backends, AI,
+queues, or storage.
 The implemented native contracts, owners, and deferred boundaries are
 recorded in [`docs/src/content/docs/specifications/contracts.md`](docs/src/content/docs/specifications/contracts.md).
 

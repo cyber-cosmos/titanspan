@@ -183,6 +183,42 @@ async def test_restore_of_active_record_is_a_noop(
         )
 
 
+async def test_cancelled_restore_preserves_soft_deleted_record(
+    application: Application,
+) -> None:
+    """Leave a deleted row unchanged when a restore listener cancels.
+
+    Args:
+        application: Isolated Database application for this test.
+    """
+    async with application:
+        await _create_table()
+        record = await SoftDeleteEventRecord.create_async({"name": "draft"})
+        assert await record.delete_async()
+
+        def cancel_restore(
+            event: ModelRestoring[SoftDeleteEventRecord],
+        ) -> None:
+            """Reject restoration before the model state changes.
+
+            Args:
+                event: Pending model restoration event.
+            """
+            event.cancel()
+
+        with Event.listen(ModelRestoring, cancel_restore):
+            assert not await record.restore_async()
+            assert not await anyio.to_thread.run_sync(record.restore)
+
+        assert record.trashed()
+        assert (
+            await DB.table("soft_delete_event_records")
+            .where_not_null("deleted_at")
+            .count_async()
+            == 1
+        )
+
+
 async def test_cancelled_soft_delete_does_not_change_the_record(
     application: Application,
 ) -> None:

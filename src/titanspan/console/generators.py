@@ -13,6 +13,7 @@ from typing import TYPE_CHECKING, Literal
 from titanspan.console.exceptions import CommandGenerationError
 
 if TYPE_CHECKING:
+    from collections.abc import Callable
     from pathlib import Path
 
     from titanspan.contracts.foundation import ApplicationPaths
@@ -26,6 +27,7 @@ type ArtifactKind = Literal[
     "listener",
     "job",
     "job_middleware",
+    "model",
     "seeder",
     "test",
 ]
@@ -43,6 +45,7 @@ _ARTIFACT_LAYOUT: dict[ArtifactKind, tuple[tuple[str, ...], str, str]] = {
         "",
         "_job_middleware",
     ),
+    "model": (("app", "models"), "", "_model"),
     "seeder": (("database", "seeders"), "", "_seeder"),
     "test": (("tests",), "test_", ""),
 }
@@ -190,6 +193,7 @@ def _class_suffix(kind: ArtifactKind) -> str:
         "listener": "_listener",
         "job": "_job",
         "job_middleware": "_job_middleware",
+        "model": "_model",
         "seeder": "_seeder",
         "test": "_test",
     }[kind]
@@ -213,6 +217,7 @@ def _generated_class_suffix(kind: ArtifactKind) -> str:
         "listener": "Listener",
         "job": "Job",
         "job_middleware": "JobMiddleware",
+        "model": "",
         "seeder": "Seeder",
         "test": "",
     }[kind]
@@ -238,26 +243,25 @@ def _render_source(
     Raises:
         CommandGenerationError: If listener metadata is incomplete or unsafe.
     """
-    if kind == "controller":
-        source = _controller_source(class_name, artifact_name)
-    elif kind == "middleware":
-        source = _middleware_source(class_name)
-    elif kind == "provider":
-        source = _provider_source(class_name, artifact_name)
-    elif kind == "command":
-        source = _command_source(class_name, artifact_name)
-    elif kind == "event":
-        source = _event_source(class_name)
-    elif kind == "listener":
-        source = _listener_source(class_name, event_type)
-    elif kind == "job":
-        source = _job_source(class_name, artifact_name)
-    elif kind == "job_middleware":
-        source = _job_middleware_source(class_name)
-    elif kind == "seeder":
-        source = _seeder_source(class_name)
-    else:
-        source = _test_source(artifact_name)
+    if kind == "model":
+        return dedent(_model_source(class_name)).lstrip() + "\n"
+    if kind == "test":
+        return dedent(_test_source(artifact_name)).lstrip() + "\n"
+    renderers: dict[ArtifactKind, Callable[[], str]] = {
+        "controller": lambda: _controller_source(
+            class_name,
+            artifact_name,
+        ),
+        "middleware": lambda: _middleware_source(class_name),
+        "provider": lambda: _provider_source(class_name, artifact_name),
+        "command": lambda: _command_source(class_name, artifact_name),
+        "event": lambda: _event_source(class_name),
+        "listener": lambda: _listener_source(class_name, event_type),
+        "job": lambda: _job_source(class_name, artifact_name),
+        "job_middleware": lambda: _job_middleware_source(class_name),
+        "seeder": lambda: _seeder_source(class_name),
+    }
+    source = renderers[kind]()
     return dedent(source).lstrip() + "\n"
 
 
@@ -561,6 +565,28 @@ def _seeder_source(class_name: str) -> str:
             This starter seeder intentionally has no initial data.
             """
             pass
+'''
+
+
+def _model_source(class_name: str) -> str:
+    """Render a minimal application model using native conventions.
+
+    Args:
+        class_name: Generated Model subclass name.
+
+    Returns:
+        Importable application model source.
+    """
+    return f'''\
+    """Provide the generated {class_name} database model."""
+
+    from titanspan.database import Model
+
+
+    class {class_name}(Model):
+        """Represent {class_name} records in the application database."""
+
+        pass
 '''
 
 

@@ -10,16 +10,9 @@ uses `num2words`.
 
 ## Installation
 
-Number helpers are available in the base package. Locale-sensitive
-formatting and parsing require the optional `numbers` extra:
-
-```bash
-uv add "titanspan[numbers]"
-```
-
-The package can be imported without the extra. An operation that needs an
-optional library raises `MissingNumberDependencyError` with installation
-guidance when that library is absent.
+Number helpers work with the standard Titanspan installation. Babel and
+`num2words` are mandatory runtime dependencies used by formatting, parsing,
+and spelling operations.
 
 ## Formatting and parsing
 

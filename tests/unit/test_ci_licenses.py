@@ -9,6 +9,7 @@ import json
 import pytest
 from scripts.ci.check_licenses import (
     parse_exported_requirements,
+    parse_exported_versions,
     validate_license_inventory,
 )
 
@@ -33,6 +34,59 @@ def test_runtime_requirement_export_yields_normalized_package_names() -> None:
         "anyio",
         "titanspan",
     }
+    assert parse_exported_versions(requirements) == {
+        "anyio": "4.16.0",
+        "titanspan": "0.1.0",
+    }
+
+
+def test_license_inventory_uses_exact_locked_license_overrides() -> None:
+    """Fill omitted package rows only for reviewed locked versions.
+
+    The database and broker drivers publish release licenses while omitting
+    metadata consumed by pip-licenses.
+    """
+    payload = "[]"
+    versions = {
+        "aio-pika": "10.2.3",
+        "aiormq": "7.2.5",
+        "asyncmy": "0.2.18",
+        "pamqp": "5.0.0",
+        "pymysql": "1.2.4",
+        "taskiq-aio-pika": "0.6.1",
+        "taskiq-redis": "1.2.4",
+    }
+
+    rows, errors = validate_license_inventory(
+        payload,
+        expected_packages=set(versions),
+        expected_versions=versions,
+    )
+
+    assert rows == [
+        ("aio-pika", "Apache-2.0"),
+        ("aiormq", "Apache-2.0"),
+        ("asyncmy", "Apache-2.0"),
+        ("pamqp", "BSD-3-Clause"),
+        ("pymysql", "MIT"),
+        ("taskiq-aio-pika", "MIT"),
+        ("taskiq-redis", "MIT"),
+    ]
+    assert errors == []
+
+
+def test_license_inventory_rejects_unreviewed_omitted_package_version() -> None:
+    """Reject omitted license metadata after a package version changes.
+
+    License review is pinned to exact locked versions.
+    """
+    _, errors = validate_license_inventory(
+        "[]",
+        expected_packages={"aio-pika"},
+        expected_versions={"aio-pika": "10.2.4"},
+    )
+
+    assert errors == ["missing package license metadata: aio-pika"]
 
 
 def test_license_inventory_accepts_reviewed_runtime_licenses() -> None:

@@ -1,10 +1,10 @@
 ---
-title: "ADR 0010: Optional Dependencies"
+title: "ADR 0010: Optional Dependencies (Superseded)"
 ---
 
 <span id="adr-0010-optional-dependencies"></span>
 
-- Status: Accepted
+- Status: Superseded by [ADR 0025](../0025-batteries-included-components/)
 - Date: 2026-11-24
 
 ## Context
@@ -12,12 +12,12 @@ title: "ADR 0010: Optional Dependencies"
 Long-term scope includes databases, AI models, queues, Redis, mail, storage,
 and observability. Most applications will not use every integration.
 
-## Decision
+## Historical decision
 
 Keep the core dependencies limited to the initial application lifecycle,
-dependency injection, typed settings, and CLI. Add integration extras only
-when the related APIs are implemented, tested, documented, and installable. Do
-not publish empty extras or imply planned modules work.
+dependency injection, typed settings, and CLI. This decision was superseded
+when Titanspan adopted mandatory dependencies for implemented native
+components and reserved extras for external integrations.
 
 ## Alternatives considered
 
