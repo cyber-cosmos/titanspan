@@ -339,6 +339,88 @@ async def test_async_nested_command_reuses_the_application() -> None:
     assert lifecycle == ["startup", "shutdown"]
 
 
+def test_silent_sync_nested_command_hides_output_and_preserves_status() -> None:
+    """Suppress nested terminal output while preserving explicit status.
+
+    The parent command continues using the normal output service afterward.
+    """
+    console = Console()
+
+    @console.command("child")
+    def child(output: ConsoleOutput) -> None:
+        """Write content that a silent call must hide.
+
+        Args:
+            output: Output resolved through the active Container.
+        """
+        output.write("hidden child output")
+        output.write_error("hidden child error")
+        output.table(["result"], [["hidden table"]])
+        with output.progress(1, "hidden progress") as task:
+            task.advance()
+            task.complete()
+        raise ConsoleExitError(_PROGRAMMATIC_EXIT_CODE)
+
+    @console.command("parent")
+    def parent(command_host: Console, output: ConsoleOutput) -> None:
+        """Invoke the child silently and retain its status.
+
+        Args:
+            command_host: Host for nested command execution.
+            output: Parent command output, outside the silent scope.
+        """
+        status = command_host.execute_sync("child", silent=True)
+        output.write(f"parent status: {status}")
+
+    result = ConsoleTester(console).invoke(["parent"])
+
+    assert result.exit_code == 0
+    assert "parent status: 17" in result.stdout
+    assert "hidden" not in result.stdout
+    assert "hidden" not in result.stderr
+
+
+@pytest.mark.anyio
+async def test_silent_async_nested_command_hides_failure_output(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """Hide nested command output and failures without changing status.
+
+    The async parent remains able to report its own result after the call.
+    """
+    console = Console()
+
+    @console.command("child")
+    def child(output: ConsoleOutput) -> None:
+        """Emit data and fail to test silent error handling.
+
+        Args:
+            output: Output resolved through the active Container.
+        """
+        output.write("hidden async child output")
+        raise RuntimeError(_COMMAND_FAILURE_SENTINEL)
+
+    @console.command("parent")
+    async def parent(command_host: Console, output: ConsoleOutput) -> None:
+        """Await the child and report its status through normal output.
+
+        Args:
+            command_host: Host for nested command execution.
+            output: Parent command output, outside the silent scope.
+        """
+        status = await command_host.execute_async("child", silent=True)
+        output.write(f"async parent status: {status}")
+
+    status = await console.execute_async("parent")
+    captured = capsys.readouterr()
+
+    assert status == 0
+    assert "async parent status: 1" in captured.out
+    assert "hidden async child output" not in captured.out
+    assert _COMMAND_FAILURE_SENTINEL not in captured.out
+    assert _COMMAND_FAILURE_SENTINEL not in captured.err
+
+
 def test_default_factory_uses_conventional_application_bootstrap(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,

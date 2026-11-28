@@ -7,6 +7,7 @@ composition, dependency resolution, startup, and shutdown.
 from __future__ import annotations
 
 import sys
+from contextlib import AsyncExitStack
 from contextvars import ContextVar
 from dataclasses import dataclass, field
 from functools import partial
@@ -48,10 +49,11 @@ from titanspan.console.exceptions import (
     ConsoleExitError,
     ConsoleRuntimeError,
 )
-from titanspan.console.output import TerminalOutput
+from titanspan.console.output import SilentConsoleOutput, TerminalOutput
 from titanspan.console.parameters import Argument, Option
 from titanspan.console.results import ConsoleResult
 from titanspan.console.service_provider import ConsoleServiceProvider
+from titanspan.contracts.console import ConsoleOutput
 from titanspan.foundation import Application
 
 if TYPE_CHECKING:
@@ -61,7 +63,6 @@ if TYPE_CHECKING:
     from titanspan.contracts.console import (
         CommandHandler,
         ConsoleCommand,
-        ConsoleOutput,
     )
     from titanspan.contracts.foundation import ServiceProvider
 
@@ -447,6 +448,8 @@ class Console:
         self,
         command_path: str,
         values: Mapping[str, object] | None = None,
+        *,
+        silent: bool = False,
     ) -> int:
         """Execute one registered command from an existing async runtime.
 
@@ -457,6 +460,7 @@ class Console:
         Args:
             command_path: Registered command path, with spaces between groups.
             values: Typed values for declared CLI parameters.
+            silent: Suppress command output while preserving its status.
 
         Returns:
             A process-style status code from the command handler.
@@ -478,15 +482,17 @@ class Console:
                 command_values,
                 command_path,
                 registration.with_application,
+                silent,
             )
         except ConsoleExitError as exit_request:
             return exit_request.code
         except ConsoleRuntimeError:
             raise
         except Exception as error:
-            self._output.write_error(
-                self._failure_message(command_path, error),
-            )
+            if not silent:
+                self._output.write_error(
+                    self._failure_message(command_path, error),
+                )
             return 1
         return 0
 
@@ -494,6 +500,8 @@ class Console:
         self,
         command_path: str,
         values: Mapping[str, object] | None = None,
+        *,
+        silent: bool = False,
     ) -> int:
         """Execute a nested command from a synchronous command handler.
 
@@ -504,6 +512,7 @@ class Console:
         Args:
             command_path: Registered command path, with spaces between groups.
             values: Typed values for declared command arguments and options.
+            silent: Suppress command output while preserving its status.
 
         Returns:
             A process-style status code from the command handler.
@@ -513,9 +522,12 @@ class Console:
         """
         try:
             return anyio.from_thread.run(
-                self.execute_async,
-                command_path,
-                values,
+                partial(
+                    self.execute_async,
+                    command_path,
+                    values,
+                    silent=silent,
+                ),
             )
         except anyio.NoEventLoopError as error:
             raise ConsoleRuntimeError(_NESTED_SYNC_RUNTIME_ERROR) from error
@@ -563,6 +575,7 @@ class Console:
                 dict(values),
                 command_path,
                 with_application,
+                False,
             )
         except ConsoleExitError as exit_request:
             self._backend.exit(exit_request.code)
@@ -598,6 +611,7 @@ class Console:
         values: dict[str, object],
         command_path: str,
         with_application: bool,
+        silent: bool,
     ) -> None:
         """Run one command with context-local Console output selection.
 
@@ -606,6 +620,7 @@ class Console:
             values: Parsed command values keyed by parameter name.
             command_path: Full group and command path for diagnostics.
             with_application: Whether Foundation owns command execution.
+            silent: Whether to suppress output from this command.
         """
         token = _ACTIVE_CONSOLE.set(self)
         try:
@@ -614,6 +629,7 @@ class Console:
                 values,
                 command_path,
                 with_application,
+                silent,
             )
         finally:
             _ACTIVE_CONSOLE.reset(token)
@@ -624,6 +640,7 @@ class Console:
         values: dict[str, object],
         command_path: str,
         with_application: bool,
+        silent: bool,
     ) -> None:
         """Resolve injected values and execute through Foundation lifecycle.
 
@@ -632,6 +649,7 @@ class Console:
             values: Parsed command values keyed by parameter name.
             command_path: Full group and command path for exception reports.
             with_application: Whether the command uses an Application.
+            silent: Whether to suppress output from this command.
         """
         if not with_application:
             await self._execute_without_application(handler, values)
@@ -645,47 +663,22 @@ class Console:
             Foundation owns application context and resource cleanup.
             """
             try:
-                if _is_command_class(handler):
-                    if iscoroutinefunction(handler.handle):
-                        command = await application.container.make_async(
-                            handler,
+                async with AsyncExitStack() as stack:
+                    if silent:
+                        await stack.enter_async_context(
+                            application.container.override(
+                                {
+                                    ConsoleOutput: SilentConsoleOutput(
+                                        self._output,
+                                    ),
+                                }
+                            )
                         )
-                        return await application.container.call_async(
-                            command.handle,
-                            values,
-                        )
-
-                    command_type = handler
-
-                    def run_sync_command() -> object:
-                        """Construct and run a sync command in one worker.
-
-                        Returns:
-                            The command handler result.
-                        """
-                        command = application.container.make(command_type)
-                        return application.container.call(
-                            command.handle,
-                            values,
-                        )
-
-                    return await anyio.to_thread.run_sync(
-                        run_sync_command,
-                        abandon_on_cancel=False,
-                    )
-
-                callback = _callable_target(handler)
-                if iscoroutinefunction(callback):
-                    return await application.container.call_async(
-                        callback,
+                    return await self._invoke_handler(
+                        application,
+                        handler,
                         values,
                     )
-                return await anyio.to_thread.run_sync(
-                    application.container.call,
-                    callback,
-                    values,
-                    abandon_on_cancel=False,
-                )
             except ConsoleExitError:
                 raise
             except Exception as error:
@@ -699,6 +692,56 @@ class Console:
             await application.run(operation)
         else:
             await operation()
+
+    async def _invoke_handler(
+        self,
+        application: Application,
+        handler: CommandHandler | type[ConsoleCommand],
+        values: dict[str, object],
+    ) -> object:
+        """Resolve and invoke one handler through the Application Container.
+
+        Args:
+            application: Active Application that owns dependency resolution.
+            handler: Registered function, callable object, or command class.
+            values: Parsed or programmatic CLI inputs.
+
+        Returns:
+            The value returned by the handler.
+        """
+        if _is_command_class(handler):
+            if iscoroutinefunction(handler.handle):
+                command = await application.container.make_async(handler)
+                return await application.container.call_async(
+                    command.handle,
+                    values,
+                )
+
+            command_type = handler
+
+            def run_sync_command() -> object:
+                """Construct and run a sync command in one worker.
+
+                Returns:
+                    The command handler result.
+                """
+                command = application.container.make(command_type)
+                return application.container.call(command.handle, values)
+
+            return await anyio.to_thread.run_sync(
+                run_sync_command,
+                abandon_on_cancel=False,
+            )
+
+        callback = _callable_target(handler)
+        if iscoroutinefunction(callback):
+            return await application.container.call_async(callback, values)
+        return await anyio.to_thread.run_sync(
+            application.container.call,
+            callback,
+            values,
+            abandon_on_cancel=False,
+        )
 
     def _application_for_execution(self) -> tuple[Application, bool]:
         """Select the current app or create one owned by this command.

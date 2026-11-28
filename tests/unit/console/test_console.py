@@ -6,7 +6,8 @@ Tests use the real Typer runner and Titanspan application container.
 from collections.abc import Sequence
 from threading import get_ident
 from types import SimpleNamespace
-from typing import TYPE_CHECKING, Annotated
+from typing import TYPE_CHECKING, Annotated, cast
+from unittest.mock import Mock
 
 import anyio
 import pytest
@@ -20,7 +21,7 @@ from titanspan.console.exceptions import (
     ConsoleOutputError,
     ConsoleRuntimeError,
 )
-from titanspan.console.output import TerminalOutput
+from titanspan.console.output import SilentConsoleOutput, TerminalOutput
 from titanspan.console.service_provider import ConsoleServiceProvider
 from titanspan.console.testing import ConsoleTester
 from titanspan.contracts import (
@@ -493,6 +494,30 @@ def test_console_provider_registers_output_with_the_native_container() -> None:
     application = Application.builder().with_service_provider(provider).build()
 
     assert application.container.make(ConsoleOutput) is output
+
+
+def test_silent_output_preserves_validation_and_confirmation() -> None:
+    """Validate discarded output and retain interactive confirmations.
+
+    Silent rendering must not bypass output input validation or prompt logic.
+    """
+    interactive_mock = Mock(spec=ConsoleOutput)
+    interactive_output = cast("ConsoleOutput", interactive_mock)
+    silent_output = SilentConsoleOutput(interactive_output)
+    interactive_mock.confirm.return_value = True
+
+    with pytest.raises(ConsoleOutputError, match="at least one header"):
+        silent_output.table([], [])
+    with pytest.raises(ConsoleOutputError, match="match the header count"):
+        silent_output.table(["value"], [()])
+    with pytest.raises(ConsoleOutputError, match="cannot be negative"):
+        silent_output.progress(-1, "hidden")
+
+    assert silent_output.confirm("Continue?", default=False)
+    interactive_mock.confirm.assert_called_once_with(
+        "Continue?",
+        default=False,
+    )
 
 
 def test_terminal_output_writes_plain_text_to_both_streams(
