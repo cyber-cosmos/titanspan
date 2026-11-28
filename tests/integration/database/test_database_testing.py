@@ -30,6 +30,8 @@ from titanspan.database import (
     assert_model_missing_async,
     assert_not_soft_deleted,
     assert_not_soft_deleted_async,
+    assert_query_count,
+    assert_query_count_async,
     assert_soft_deleted,
     assert_soft_deleted_async,
 )
@@ -162,6 +164,64 @@ async def test_soft_delete_assertions_query_the_database(
             await assert_soft_deleted_async(active)
         with pytest.raises(AssertionError, match="not soft deleted"):
             await assert_not_soft_deleted_async(deleted)
+
+
+async def test_query_count_assertions_count_real_sync_and_async_queries(
+    application: Application,
+) -> None:
+    """Count real statements through both native database execution paths.
+
+    Args:
+        application: Application configured by the test fixture.
+    """
+    async with application:
+        await _create_tables()
+        await DatabaseAssertionRecord.create_async({"name": "counted"})
+
+        with (
+            pytest.raises(ValueError, match="non-negative integer"),
+            assert_query_count(-1),
+        ):
+            pass
+        with (
+            pytest.raises(ValueError, match="non-negative integer"),
+            assert_query_count(True),
+        ):
+            pass
+        with pytest.raises(ValueError, match="non-negative integer"):
+            async with assert_query_count_async(-1):
+                pass
+
+        await anyio.to_thread.run_sync(_assert_sync_query_count)
+        async with assert_query_count_async(1):
+            assert await DB.table("testing_records").count_async() == 1
+        with pytest.raises(
+            AssertionError,
+            match="Expected 0 SQL statements but observed 1",
+        ):
+            async with assert_query_count_async(0):
+                await DB.table("testing_records").count_async()
+        async with assert_query_count_async(1):
+            assert await DB.table("testing_records").count_async() == 1
+
+
+def _assert_sync_query_count() -> None:
+    """Assert one synchronous SQL statement in an owned worker thread.
+
+    The real engine listener must be removed after the assertion exits.
+    """
+    with assert_query_count(1):
+        assert DB.table("testing_records").count() == 1
+    with (
+        pytest.raises(
+            AssertionError,
+            match="Expected 0 SQL statements but observed 1",
+        ),
+        assert_query_count(0),
+    ):
+        DB.table("testing_records").count()
+    with assert_query_count(1):
+        assert DB.table("testing_records").count() == 1
 
 
 async def test_sync_database_assertions_use_worker_owned_sessions(

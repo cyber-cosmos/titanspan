@@ -909,8 +909,7 @@ and mutators. A separate dynamic cast registry is not provided.
 model operations, safe conversion, and batch relationship loading. Ordinary
 collection behavior remains owned by `titanspan.collections`.
 
-Polymorphic relationships, deferred aggregate
-loading, and API resources are not implemented yet.
+Polymorphic relationships and API resources are not implemented yet.
 
 ## Schema and migrations
 
@@ -989,8 +988,23 @@ Database assertions run real Query Builder and ORM queries through the active
 application service. Import `assert_database_has`, `assert_database_count`,
 `assert_model_exists`, and their `_async` variants from `titanspan.database`.
 The helpers also include missing-row, empty-table, and soft-delete assertions.
-They do not create, migrate, or reset a test database. Query monitoring and
-query-count assertions are not implemented.
+They do not create, migrate, or reset a test database. Use query-count
+assertions to check statements issued through the selected connection while
+the context is active. SQLite's generated `BEGIN` transaction boundary is
+excluded from the count.
+
+```python
+from titanspan.database import assert_query_count_async
+from titanspan.facades import DB
+
+async with assert_query_count_async(1):
+    await DB.table("users").count_async()
+```
+
+Use `assert_query_count` with a regular `with` block for synchronous queries.
+The context removes its SQLAlchemy event listener after success, mismatch, or
+an exception from the test body. Query logging and monitoring remain
+unimplemented.
 
 ## Database-backed Validation rules
 
@@ -1057,9 +1071,9 @@ boundary. Use SQLAlchemy and Alembic APIs directly for capabilities not yet
 exposed by the native layer.
 
 The Database component does not yet provide scoped or automatic Routing model
-binding, model-based URL generation, query-count assertions, database test
-isolation helpers, read replicas, query caching, or distributed migration
-coordination. Soft-delete and restore lifecycle events are implemented. See
+binding, model-based URL generation, query monitoring, database test isolation
+helpers, read replicas, query caching, or distributed migration coordination.
+Soft-delete and restore lifecycle events are implemented. See
 [ADR 0006](/framework/architecture/decisions/0006-sqlalchemy-persistence/) for
 the accepted persistence boundary and
 [the backend boundary specification](/framework/specifications/backend-boundaries/)

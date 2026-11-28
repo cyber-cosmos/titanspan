@@ -117,6 +117,8 @@ from titanspan.database.testing import (
     assert_model_missing_async,
     assert_not_soft_deleted,
     assert_not_soft_deleted_async,
+    assert_query_count,
+    assert_query_count_async,
     assert_soft_deleted,
     assert_soft_deleted_async,
 )
@@ -209,6 +211,8 @@ __all__ = [
     "assert_model_missing_async",
     "assert_not_soft_deleted",
     "assert_not_soft_deleted_async",
+    "assert_query_count",
+    "assert_query_count_async",
     "assert_soft_deleted",
     "assert_soft_deleted_async",
     "belongs_to",

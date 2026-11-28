@@ -6,15 +6,21 @@ application lifecycle or bypass SQLAlchemy's execution policy.
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+from contextlib import asynccontextmanager, contextmanager
+from typing import TYPE_CHECKING, cast
+
+from sqlalchemy import event
 
 from titanspan.database.model import Model, SoftDeletes
 from titanspan.database.model_state import require_service
 from titanspan.facades.database import DB
 
 if TYPE_CHECKING:
-    from collections.abc import Mapping
+    from collections.abc import AsyncGenerator, Generator, Mapping
 
+    from sqlalchemy.engine import Engine
+
+    from titanspan.database.manager import DatabaseManager
     from titanspan.database.orm_builder import ModelQueryBuilder
 
 _DATABASE_ROW_MISSING = (
@@ -30,6 +36,7 @@ _NOT_SOFT_DELETED = (
     "Expected the model's row to be active and not soft deleted."
 )
 _SOFT_DELETE_TYPE_ERROR = "Soft-delete assertions require SoftDeletes models."
+_QUERY_COUNT_INVALID = "Expected query count must be a non-negative integer."
 
 
 def assert_database_has(
@@ -169,6 +176,58 @@ async def assert_database_empty_async(
     await assert_database_count_async(table_name, 0, connection=connection)
 
 
+@contextmanager
+def assert_query_count(
+    expected: int,
+    *,
+    connection: str | None = None,
+) -> Generator[None, None, None]:
+    """Assert the number of SQL statements executed in a synchronous scope.
+
+    Args:
+        expected: Expected non-negative number of SQL statements.
+        connection: Optional configured connection name.
+
+    Yields:
+        Control to the database operations counted by this assertion.
+
+    Raises:
+        ValueError: If ``expected`` is not a non-negative integer.
+        AssertionError: If the scope executes a different statement count.
+    """
+    _validate_query_count(expected)
+    manager = cast("DatabaseManager", DB.resolve_service())
+    name = manager.connection(connection).name
+    with _count_queries(manager.engine(name), expected):
+        yield
+
+
+@asynccontextmanager
+async def assert_query_count_async(
+    expected: int,
+    *,
+    connection: str | None = None,
+) -> AsyncGenerator[None, None]:
+    """Asynchronously assert SQL statements executed in an async scope.
+
+    Args:
+        expected: Expected non-negative number of SQL statements.
+        connection: Optional configured connection name.
+
+    Yields:
+        Control to the asynchronous database operations being counted.
+
+    Raises:
+        ValueError: If ``expected`` is not a non-negative integer.
+        AssertionError: If the scope executes a different statement count.
+    """
+    _validate_query_count(expected)
+    manager = cast("DatabaseManager", DB.resolve_service())
+    name = manager.connection(connection).name
+    with _count_queries(manager.async_engine(name).sync_engine, expected):
+        yield
+
+
 def assert_model_exists(model: Model) -> None:
     """Assert that the model's primary-key row remains in the database.
 
@@ -306,6 +365,65 @@ def _soft_delete_query(model: Model) -> ModelQueryBuilder[Model]:
     return _model_query(model)
 
 
+@contextmanager
+def _count_queries(
+    engine: Engine,
+    expected: int,
+) -> Generator[None, None, None]:
+    """Count statements on one engine and remove the listener on exit.
+
+    Args:
+        engine: Application-owned SQLAlchemy engine being observed.
+        expected: Expected number of statements for the context body.
+
+    Yields:
+        Control to the context body while the listener is active.
+    """
+    actual = 0
+
+    def increment_query_count(
+        _connection: object,
+        _cursor: object,
+        statement: str,
+        *_: object,
+    ) -> None:
+        """Count one query statement and omit SQLite's transaction start.
+
+        Args:
+            _connection: SQLAlchemy connection that emitted the event.
+            _cursor: Driver cursor used for the statement.
+            statement: SQL sent to the driver.
+            *_: Remaining SQLAlchemy event arguments.
+        """
+        nonlocal actual
+        # The async SQLite engine emits this transaction boundary as SQL.
+        if statement.strip().upper() == "BEGIN":
+            return
+        actual += 1
+
+    event.listen(engine, "before_cursor_execute", increment_query_count)
+    try:
+        yield
+    finally:
+        event.remove(engine, "before_cursor_execute", increment_query_count)
+    if actual != expected:
+        message = f"Expected {expected} SQL statements but observed {actual}."
+        raise AssertionError(message)
+
+
+def _validate_query_count(expected: int) -> None:
+    """Reject invalid statement counts before resolving an engine.
+
+    Args:
+        expected: Expected statement count supplied by the caller.
+
+    Raises:
+        ValueError: If the count is negative or is a boolean value.
+    """
+    if isinstance(expected, bool) or expected < 0:
+        raise ValueError(_QUERY_COUNT_INVALID)
+
+
 __all__ = [
     "assert_database_count",
     "assert_database_count_async",
@@ -321,6 +439,8 @@ __all__ = [
     "assert_model_missing_async",
     "assert_not_soft_deleted",
     "assert_not_soft_deleted_async",
+    "assert_query_count",
+    "assert_query_count_async",
     "assert_soft_deleted",
     "assert_soft_deleted_async",
 ]

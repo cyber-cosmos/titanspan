@@ -100,6 +100,8 @@ public release.
 - Add sync and async database, model, and soft-delete assertions.
   The helpers run real Query Builder and ORM queries through the active
   Database service and reuse the existing Testing lifecycle.
+- Add sync and async Database query-count context managers with listener
+  cleanup on success, mismatch, and test-body exceptions.
 - Add sync and async atomic Query Builder upserts and insert-or-ignore
   operations using SQLAlchemy's supported SQLite, PostgreSQL, and MySQL
   dialect constructs. SQLite and PostgreSQL behavior has real integration
