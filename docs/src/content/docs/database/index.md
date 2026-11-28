@@ -987,10 +987,15 @@ Map `"article"` to `Article` in `database.morph_map`. The relationship
 queries use SQLAlchemy's mapped loaders, eager options, and relationship
 predicates. Call `article.relation("tags")` to attach or detach related
 models; its sync and async mutation methods write the active app's alias
-explicitly in the same transaction as the pivot changes. `update_existing_pivot`
-can update non-key values on a direct SQLAlchemy `Table`. ORM-managed pivot
-timestamps and custom pivot models require a separately mapped association
-model.
+explicitly in the same transaction as the pivot changes. Relationship
+mutations accept per-related pivot values as a mapping from identifiers to
+attribute mappings. Pass `pivot_values` to apply common values across those
+rows. Synchronization updates values on requested existing rows, while attach
+keeps an existing row unchanged and toggle applies values only when it adds a
+row. `RelationshipChanges.updated` lists existing pivot rows whose updates
+matched persisted rows. These writes and `update_existing_pivot()` support
+direct SQLAlchemy association tables. A mapped association object is still
+required for custom pivot model behavior.
 
 `belongs_to_many()` maps a writable SQLAlchemy secondary relationship.
 Use `relation()` for transactional attachment changes by identifier or
@@ -1020,15 +1025,28 @@ collection changes use the table's own defaults.
 existing association row and return the affected-row count. They support a
 direct SQLAlchemy `Table` with one unambiguous foreign key to each model's
 single primary key. Key columns and unknown column names are rejected. An
-identifier with no matching association returns zero. Map an association
-object for custom pivot models or per-row attributes during attachment.
+identifier with no matching association returns zero. Attach and sync may use
+per-row values directly:
 
 ```python
+await user.relation("tags").attach_async(
+    {first_tag.id: {"position": 1}, second_tag.id: {"position": 2}},
+)
+
+await user.relation("tags").sync_async(
+    {first_tag.id: {"position": 3}},
+    pivot_values={"active": True},
+)
+
 updated = await user.relation("tags").update_existing_pivot_async(
     tag.id,
     {"position": 2},
 )
 ```
+
+Pivot values must name non-key columns from the mapped association table.
+Endpoint keys, polymorphic type columns, primary keys, and automatically
+managed pivot timestamps cannot be supplied as values.
 
 Use `with_()` to load relationships as part of the query:
 

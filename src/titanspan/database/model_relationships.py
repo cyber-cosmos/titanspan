@@ -93,10 +93,40 @@ class RelationshipChanges:
     Attributes:
         attached: Related identifiers newly associated with the parent.
         detached: Related identifiers removed from the parent.
+        updated: Existing pivot rows updated by synchronization.
     """
 
     attached: tuple[object, ...] = ()
     detached: tuple[object, ...] = ()
+    updated: tuple[object, ...] = ()
+
+
+@dataclass(frozen=True, slots=True)
+class _NormalizedRelationInput:
+    """Hold normalized identifiers, models, and optional per-row values.
+
+    Attributes:
+        identifiers: Unique requested related keys, or ``None`` for detach all.
+        models: Related models supplied directly by the caller.
+        pivot_values: Validated input mappings grouped by related key.
+    """
+
+    identifiers: tuple[object, ...] | None
+    models: tuple[_ModelHost, ...]
+    pivot_values: Mapping[object, Mapping[str, object]]
+
+
+@dataclass(frozen=True, slots=True)
+class _AppliedRelationshipChanges:
+    """Return committed related models and actually updated pivot keys.
+
+    Attributes:
+        related_models: Relationship collection after applying the mutation.
+        updated: Existing pivot keys whose update matched a stored row.
+    """
+
+    related_models: tuple[_ModelHost, ...]
+    updated: tuple[object, ...]
 
 
 @dataclass(frozen=True, slots=True)
@@ -113,24 +143,30 @@ class _MorphManyToManyInfo:
 
 
 @dataclass(frozen=True, slots=True)
-class _MorphPivotMutation:
-    """Carry one prepared polymorphic pivot mutation into its writer.
+class _PivotMutation:
+    """Carry one prepared pivot mutation into its sync or async writer.
 
     Attributes:
+        operation: Requested relation mutation, including sync semantics.
         owner: Parent loaded by the active session.
         current_by_id: Current related models indexed by primary key.
         related_models: New related models indexed by primary key.
         attached: Related primary keys to insert.
         detached: Related primary keys to delete.
         alias: Trusted discriminator value from the active morph map.
+        pivot_values: Per-related association attributes from the caller.
+        service: Active Database service for scoped pivot updates.
     """
 
+    operation: _RelationOperation
     owner: _ModelHost
     current_by_id: Mapping[object, _ModelHost]
     related_models: Mapping[object, _ModelHost]
     attached: tuple[object, ...]
     detached: tuple[object, ...]
     alias: str
+    pivot_values: Mapping[object, Mapping[str, object]]
+    service: DatabaseService
 
 
 class _ModelHost(Protocol):
@@ -419,53 +455,56 @@ class ManyToManyRelation[ParentT: _ModelHost]:
 
     def _morph_insert_values(
         self,
-        owner: _ModelHost,
-        related_models: Mapping[object, _ModelHost],
-        identifiers: tuple[object, ...],
-        alias: str,
+        mutation: _PivotMutation,
     ) -> list[dict[str, object]]:
-        """Build bound association values with the trusted morph alias.
+        """Build bound morph association rows and caller pivot attributes.
 
         Args:
-            owner: Parent loaded by the active session.
-            related_models: New related models indexed by primary key.
-            identifiers: Related primary keys selected for attachment.
-            alias: Trusted discriminator value resolved from the app map.
+            mutation: Prepared parent, related rows, alias, and pivot values.
 
         Returns:
             One association mapping for each newly attached model.
         """
-        if not identifiers:
+        if not mutation.attached:
             return []
         parent_column, related_column, type_column = (
             self._morph_association_columns()
         )
         parent_value = self._pivot_identifier(
-            owner,
+            mutation.owner,
             self._parent_pivot_key,
         )
-        return [
-            {
+        values: list[dict[str, object]] = []
+        for identifier in mutation.attached:
+            row = {
                 parent_column.key: parent_value,
                 related_column.key: self._pivot_identifier(
-                    related_models[identifier],
+                    mutation.related_models[identifier],
                     self._related_pivot_key,
                 ),
-                type_column.key: alias,
+                type_column.key: mutation.alias,
             }
-            for identifier in identifiers
-        ]
+            row.update(
+                self._validated_pivot_attributes(
+                    mutation.pivot_values.get(identifier, {}),
+                ),
+            )
+            values.append(row)
+        return values
 
     def _write_morph_pivot_sync(
         self,
         session: Session,
-        mutation: _MorphPivotMutation,
-    ) -> None:
+        mutation: _PivotMutation,
+    ) -> tuple[object, ...]:
         """Apply pivot writes in the current synchronous Unit of Work.
 
         Args:
             session: Active SQLAlchemy session.
             mutation: Prepared parent, model, key, and alias values.
+
+        Returns:
+            Existing pivot identifiers updated by this operation.
         """
         statement = self._morph_delete_statement(
             mutation.owner,
@@ -475,25 +514,38 @@ class ManyToManyRelation[ParentT: _ModelHost]:
         )
         if statement is not None:
             session.execute(statement)
-        values = self._morph_insert_values(
-            mutation.owner,
-            mutation.related_models,
-            mutation.attached,
-            mutation.alias,
-        )
+        values = self._morph_insert_values(mutation)
         if values:
             session.execute(insert(self._morph_secondary()), values)
+        updated: list[object] = []
+        for identifier in self._pivot_update_identifiers(mutation):
+            result = cast(
+                "CursorResult[tuple[object, ...]]",
+                session.execute(
+                    self._pivot_update_statement(
+                        identifier,
+                        mutation.pivot_values[identifier],
+                        mutation.service,
+                    ),
+                ),
+            )
+            if _updated_row_count(result.rowcount) > 0:
+                updated.append(identifier)
+        return tuple(updated)
 
     async def _write_morph_pivot_async(
         self,
         session: AsyncSession,
-        mutation: _MorphPivotMutation,
-    ) -> None:
+        mutation: _PivotMutation,
+    ) -> tuple[object, ...]:
         """Apply pivot writes in the current asynchronous Unit of Work.
 
         Args:
             session: Active SQLAlchemy async session.
             mutation: Prepared parent, model, key, and alias values.
+
+        Returns:
+            Existing pivot identifiers updated by this operation.
         """
         statement = self._morph_delete_statement(
             mutation.owner,
@@ -503,23 +555,37 @@ class ManyToManyRelation[ParentT: _ModelHost]:
         )
         if statement is not None:
             await session.execute(statement)
-        values = self._morph_insert_values(
-            mutation.owner,
-            mutation.related_models,
-            mutation.attached,
-            mutation.alias,
-        )
+        values = self._morph_insert_values(mutation)
         if values:
             await session.execute(insert(self._morph_secondary()), values)
+        updated: list[object] = []
+        for identifier in self._pivot_update_identifiers(mutation):
+            result = cast(
+                "CursorResult[tuple[object, ...]]",
+                await session.execute(
+                    self._pivot_update_statement(
+                        identifier,
+                        mutation.pivot_values[identifier],
+                        mutation.service,
+                    ),
+                ),
+            )
+            if _updated_row_count(result.rowcount) > 0:
+                updated.append(identifier)
+        return tuple(updated)
 
     def attach(
         self,
         related: object | Sequence[object],
+        *,
+        pivot_values: Mapping[str, object] | None = None,
     ) -> tuple[object, ...]:
         """Attach persisted related models in one transaction.
 
         Args:
             related: Related identifiers or persisted related model instances.
+                A mapping may supply separate pivot values for each identifier.
+            pivot_values: Values shared by each newly attached pivot row.
 
         Returns:
             Identifiers newly attached to the parent.
@@ -528,16 +594,24 @@ class ManyToManyRelation[ParentT: _ModelHost]:
             DatabaseQueryError: If the parent or relationship is invalid.
             ModelNotFoundError: If a requested related identifier is absent.
         """
-        return self._mutate_sync("attach", related).attached
+        return self._mutate_sync(
+            "attach",
+            related,
+            pivot_values=pivot_values,
+        ).attached
 
     async def attach_async(
         self,
         related: object | Sequence[object],
+        *,
+        pivot_values: Mapping[str, object] | None = None,
     ) -> tuple[object, ...]:
         """Asynchronously attach persisted related models.
 
         Args:
             related: Related identifiers or persisted related model instances.
+                A mapping may supply separate pivot values for each identifier.
+            pivot_values: Values shared by each newly attached pivot row.
 
         Returns:
             Identifiers newly attached to the parent.
@@ -546,7 +620,13 @@ class ManyToManyRelation[ParentT: _ModelHost]:
             DatabaseQueryError: If the parent or relationship is invalid.
             ModelNotFoundError: If a requested related identifier is absent.
         """
-        return (await self._mutate_async("attach", related)).attached
+        return (
+            await self._mutate_async(
+                "attach",
+                related,
+                pivot_values=pivot_values,
+            )
+        ).attached
 
     def detach(
         self,
@@ -587,12 +667,15 @@ class ManyToManyRelation[ParentT: _ModelHost]:
         related: object | Sequence[object],
         *,
         detaching: bool = True,
+        pivot_values: Mapping[str, object] | None = None,
     ) -> RelationshipChanges:
         """Synchronize related identifiers inside one transaction.
 
         Args:
             related: Desired identifiers or persisted related models.
+                A mapping may supply values for individual pivot rows.
             detaching: Remove existing associations absent from ``related``.
+            pivot_values: Values shared by newly attached and existing rows.
 
         Returns:
             The attached and detached identifier groups.
@@ -605,6 +688,7 @@ class ManyToManyRelation[ParentT: _ModelHost]:
             "sync",
             related,
             detaching=detaching,
+            pivot_values=pivot_values,
         )
 
     async def sync_async(
@@ -612,12 +696,15 @@ class ManyToManyRelation[ParentT: _ModelHost]:
         related: object | Sequence[object],
         *,
         detaching: bool = True,
+        pivot_values: Mapping[str, object] | None = None,
     ) -> RelationshipChanges:
         """Asynchronously synchronize related identifiers transactionally.
 
         Args:
             related: Desired identifiers or persisted related models.
+                A mapping may supply values for individual pivot rows.
             detaching: Remove existing associations absent from ``related``.
+            pivot_values: Values shared by newly attached and existing rows.
 
         Returns:
             The attached and detached identifier groups.
@@ -630,63 +717,96 @@ class ManyToManyRelation[ParentT: _ModelHost]:
             "sync",
             related,
             detaching=detaching,
+            pivot_values=pivot_values,
         )
 
     def sync_without_detaching(
         self,
         related: object | Sequence[object],
+        *,
+        pivot_values: Mapping[str, object] | None = None,
     ) -> RelationshipChanges:
         """Add the requested associations while keeping existing ones.
 
         Args:
             related: Related identifiers or persisted related models.
+                A mapping may supply values for individual pivot rows.
+            pivot_values: Values shared by newly attached and existing rows.
 
         Returns:
             The newly attached identifiers.
         """
-        return self.sync(related, detaching=False)
+        return self.sync(
+            related,
+            detaching=False,
+            pivot_values=pivot_values,
+        )
 
     async def sync_without_detaching_async(
         self,
         related: object | Sequence[object],
+        *,
+        pivot_values: Mapping[str, object] | None = None,
     ) -> RelationshipChanges:
         """Asynchronously add associations without detaching existing rows.
 
         Args:
             related: Related identifiers or persisted related models.
+                A mapping may supply values for individual pivot rows.
+            pivot_values: Values shared by newly attached and existing rows.
 
         Returns:
             The newly attached identifiers.
         """
-        return await self.sync_async(related, detaching=False)
+        return await self.sync_async(
+            related,
+            detaching=False,
+            pivot_values=pivot_values,
+        )
 
     def toggle(
         self,
         related: object | Sequence[object],
+        *,
+        pivot_values: Mapping[str, object] | None = None,
     ) -> RelationshipChanges:
         """Attach absent identifiers and detach currently related identifiers.
 
         Args:
             related: Related identifiers or persisted related models.
+                A mapping may supply separate pivot values for each identifier.
+            pivot_values: Values shared by newly attached pivot rows.
 
         Returns:
             The attached and detached identifier groups.
         """
-        return self._mutate_sync("toggle", related)
+        return self._mutate_sync(
+            "toggle",
+            related,
+            pivot_values=pivot_values,
+        )
 
     async def toggle_async(
         self,
         related: object | Sequence[object],
+        *,
+        pivot_values: Mapping[str, object] | None = None,
     ) -> RelationshipChanges:
         """Asynchronously toggle selected association rows.
 
         Args:
             related: Related identifiers or persisted related models.
+                A mapping may supply separate pivot values for each identifier.
+            pivot_values: Values shared by newly attached pivot rows.
 
         Returns:
             The attached and detached identifier groups.
         """
-        return await self._mutate_async("toggle", related)
+        return await self._mutate_async(
+            "toggle",
+            related,
+            pivot_values=pivot_values,
+        )
 
     def update_existing_pivot(
         self,
@@ -781,7 +901,13 @@ class ManyToManyRelation[ParentT: _ModelHost]:
         Raises:
             DatabaseQueryError: If the identifier is invalid or ambiguous.
         """
-        identifiers, models = self._normalize(related)
+        normalized = self._normalize(
+            related,
+            allow_pivot_values=False,
+            pivot_values=None,
+        )
+        identifiers = normalized.identifiers
+        models = normalized.models
         if identifiers is None or len(identifiers) != 1:
             raise DatabaseQueryError(_PIVOT_UPDATE_SINGLE_RELATED_ERROR)
         return identifiers[0], models
@@ -835,24 +961,14 @@ class ManyToManyRelation[ParentT: _ModelHost]:
             .scalar_subquery()
         )
         predicates.append(related_column == related_value)
-        updates = dict(attributes)
-        association_keys = {
-            column.key for column in secondary.primary_key.columns
-        }
-        protected = association_keys | {
-            parent_column.key,
-            related_column.key,
-        }
+        updates = self._validated_pivot_attributes(attributes)
+        if not updates:
+            raise DatabaseQueryError(_PIVOT_UPDATE_ATTRIBUTES_ERROR)
         if self._morph_info is not None:
             if service is None:
                 raise DatabaseQueryError(_MANY_TO_MANY_REQUIRED_ERROR)
             _, _, type_column = self._morph_association_columns()
-            protected.add(type_column.key)
             predicates.append(type_column == self._morph_alias(service))
-        if not updates or not set(updates).issubset(secondary.c.keys()):
-            raise DatabaseQueryError(_PIVOT_UPDATE_ATTRIBUTES_ERROR)
-        if set(updates).intersection(protected):
-            raise DatabaseQueryError(_PIVOT_UPDATE_ATTRIBUTES_ERROR)
         if self._pivot_timestamps is not None:
             updates[self._pivot_timestamps[1]] = datetime.now(UTC)
         return update(secondary).where(and_(*predicates)).values(**updates)
@@ -880,12 +996,12 @@ class ManyToManyRelation[ParentT: _ModelHost]:
 
     def _timestamped_pivot_insert(
         self,
-        identifiers: tuple[object, ...],
+        mutation: _PivotMutation,
     ) -> tuple[Insert, list[dict[str, object]]]:
         """Build timestamped association rows for one attachment batch.
 
         Args:
-            identifiers: Related primary-key values to attach.
+            mutation: New related rows and any supplied pivot attributes.
 
         Returns:
             Core insert and bound parameter mappings for SQLAlchemy.
@@ -899,20 +1015,169 @@ class ManyToManyRelation[ParentT: _ModelHost]:
         if secondary is None or columns is None or timestamps is None:
             raise DatabaseQueryError(_PIVOT_TIMESTAMP_MAPPING_ERROR)
         timestamp = datetime.now(UTC)
-        parent_identifier = _persisted_identifier(
-            self._parent,
-            self._parent_key,
+        parent_identifier = self._pivot_identifier(
+            mutation.owner,
+            self._parent_pivot_key,
         )
-        parameters = [
-            {
+        parameters: list[dict[str, object]] = []
+        for identifier in mutation.attached:
+            row = {
                 columns[0].key: parent_identifier,
-                columns[1].key: identifier,
-                timestamps[0]: timestamp,
-                timestamps[1]: timestamp,
+                columns[1].key: self._pivot_identifier(
+                    mutation.related_models[identifier],
+                    self._related_pivot_key,
+                ),
             }
-            for identifier in identifiers
-        ]
+            row.update(
+                self._validated_pivot_attributes(
+                    mutation.pivot_values.get(identifier, {}),
+                ),
+            )
+            row[timestamps[0]] = timestamp
+            row[timestamps[1]] = timestamp
+            parameters.append(row)
         return insert(secondary), parameters
+
+    def _pivot_insert_statement(
+        self,
+        mutation: _PivotMutation,
+    ) -> tuple[Insert, list[dict[str, object]]]:
+        """Build an insert for ordinary pivots with explicit row values.
+
+        Args:
+            mutation: New related rows and any supplied pivot attributes.
+
+        Returns:
+            Core insert and bound parameter mappings for SQLAlchemy.
+
+        Raises:
+            DatabaseQueryError: If the relation has no direct association table.
+        """
+        if self._pivot_timestamps is not None:
+            return self._timestamped_pivot_insert(mutation)
+        secondary_value: object = self._secondary
+        if not isinstance(secondary_value, Table):
+            raise DatabaseQueryError(_PIVOT_UPDATE_UNSUPPORTED_ERROR)
+        secondary = cast(
+            "Table[ReadOnlyColumnCollection[str, Column[Any]]]",
+            secondary_value,
+        )
+        parent_column, related_column = self._association_columns_for(secondary)
+        parent_value = self._pivot_identifier(
+            mutation.owner,
+            self._parent_pivot_key,
+        )
+        parameters: list[dict[str, object]] = []
+        for identifier in mutation.attached:
+            row = {
+                parent_column.key: parent_value,
+                related_column.key: self._pivot_identifier(
+                    mutation.related_models[identifier],
+                    self._related_pivot_key,
+                ),
+            }
+            row.update(
+                self._validated_pivot_attributes(
+                    mutation.pivot_values.get(identifier, {}),
+                ),
+            )
+            parameters.append(row)
+        return insert(secondary), parameters
+
+    def _validated_pivot_attributes(
+        self,
+        attributes: Mapping[str, object],
+    ) -> dict[str, object]:
+        """Reject unknown, key, discriminator, and managed timestamp values.
+
+        Args:
+            attributes: Caller values for one association row.
+
+        Returns:
+            A copied mapping safe to pass to SQLAlchemy Core DML.
+
+        Raises:
+            DatabaseQueryError: If an attribute is unsupported or protected.
+        """
+        if not attributes:
+            return {}
+        if self._morph_info is not None:
+            secondary = self._morph_secondary()
+            parent_column, related_column, type_column = (
+                self._morph_association_columns()
+            )
+            protected = {
+                parent_column.key,
+                related_column.key,
+                type_column.key,
+            }
+        else:
+            secondary_value: object = self._secondary
+            if not isinstance(secondary_value, Table):
+                raise DatabaseQueryError(_PIVOT_UPDATE_UNSUPPORTED_ERROR)
+            secondary = cast(
+                "Table[ReadOnlyColumnCollection[str, Column[Any]]]",
+                secondary_value,
+            )
+            parent_column, related_column = self._association_columns_for(
+                secondary,
+            )
+            protected = {parent_column.key, related_column.key}
+        protected.update(column.key for column in secondary.primary_key.columns)
+        if self._pivot_timestamps is not None:
+            protected.update(self._pivot_timestamps)
+        keys = set(attributes)
+        if (
+            not _mapping_has_string_keys(
+                cast("Mapping[object, object]", attributes),
+            )
+            or not keys.issubset(secondary.c.keys())
+            or keys.intersection(protected)
+        ):
+            raise DatabaseQueryError(_PIVOT_UPDATE_ATTRIBUTES_ERROR)
+        return dict(attributes)
+
+    def _direct_pivot_delete(
+        self,
+        mutation: _PivotMutation,
+    ) -> Delete:
+        """Build a bound delete for ordinary direct association rows.
+
+        Args:
+            mutation: Parent and currently related rows to remove.
+
+        Returns:
+            Delete scoped to this parent and selected related keys.
+
+        Raises:
+            DatabaseQueryError: If the association table is not directly
+                mapped to the relation endpoints.
+        """
+        secondary_value: object = self._secondary
+        if not isinstance(secondary_value, Table):
+            raise DatabaseQueryError(_PIVOT_UPDATE_UNSUPPORTED_ERROR)
+        secondary = cast(
+            "Table[ReadOnlyColumnCollection[str, Column[Any]]]",
+            secondary_value,
+        )
+        parent_column, related_column = self._association_columns_for(secondary)
+        parent_value = self._pivot_identifier(
+            mutation.owner,
+            self._parent_pivot_key,
+        )
+        related_values = tuple(
+            self._pivot_identifier(
+                mutation.current_by_id[identifier],
+                self._related_pivot_key,
+            )
+            for identifier in mutation.detached
+        )
+        return delete(secondary).where(
+            and_(
+                parent_column == parent_value,
+                related_column.in_(related_values),
+            ),
+        )
 
     def _timestamped_pivot_delete(
         self,
@@ -947,8 +1212,8 @@ class ManyToManyRelation[ParentT: _ModelHost]:
     def _apply_sync_changes(
         self,
         session: Session,
-        mutation: _MorphPivotMutation,
-    ) -> tuple[_ModelHost, ...]:
+        mutation: _PivotMutation,
+    ) -> _AppliedRelationshipChanges:
         """Persist one relationship change set synchronously.
 
         Args:
@@ -956,28 +1221,22 @@ class ManyToManyRelation[ParentT: _ModelHost]:
             mutation: Prepared relation changes and trusted morph alias.
 
         Returns:
-            Models that will remain related after commit.
+            Related models after the mutation and updated existing pivots.
         """
         if self._morph_info is not None:
-            self._write_morph_pivot_sync(
-                session,
-                _MorphPivotMutation(
-                    owner=mutation.owner,
-                    current_by_id=mutation.current_by_id,
-                    related_models=mutation.related_models,
-                    attached=mutation.attached,
-                    detached=mutation.detached,
-                    alias=mutation.alias,
-                ),
-            )
+            morph_updated_ids = self._write_morph_pivot_sync(session, mutation)
             self._expire_parent_collection(session, mutation.owner)
-            return _desired_related_models(
-                mutation.current_by_id,
-                mutation.related_models,
-                mutation.attached,
-                mutation.detached,
+            return _AppliedRelationshipChanges(
+                related_models=_desired_related_models(
+                    mutation.current_by_id,
+                    mutation.related_models,
+                    mutation.attached,
+                    mutation.detached,
+                ),
+                updated=morph_updated_ids,
             )
-        if self._pivot_timestamps is None:
+        has_pivot_values = any(mutation.pivot_values.values())
+        if self._pivot_timestamps is None and not has_pivot_values:
             collection = getattr(mutation.owner, self._name)
             for identifier in mutation.detached:
                 _remove_related(
@@ -990,7 +1249,10 @@ class ManyToManyRelation[ParentT: _ModelHost]:
                     mutation.related_models[identifier],
                 )
             session.flush()
-            return tuple(cast("Iterable[_ModelHost]", collection))
+            return _AppliedRelationshipChanges(
+                related_models=tuple(cast("Iterable[_ModelHost]", collection)),
+                updated=(),
+            )
 
         committed_models = _desired_related_models(
             mutation.current_by_id,
@@ -999,21 +1261,41 @@ class ManyToManyRelation[ParentT: _ModelHost]:
             mutation.detached,
         )
         if mutation.detached:
-            session.execute(self._timestamped_pivot_delete(mutation.detached))
-        if mutation.attached:
-            statement, parameters = self._timestamped_pivot_insert(
-                mutation.attached,
+            statement = (
+                self._timestamped_pivot_delete(mutation.detached)
+                if self._pivot_timestamps is not None
+                else self._direct_pivot_delete(mutation)
             )
+            session.execute(statement)
+        if mutation.attached:
+            statement, parameters = self._pivot_insert_statement(mutation)
             # Core executemany keeps large attach batches within backend limits.
             session.execute(statement, parameters)
+        updated_ids: list[object] = []
+        for identifier in self._pivot_update_identifiers(mutation):
+            result = cast(
+                "CursorResult[tuple[object, ...]]",
+                session.execute(
+                    self._pivot_update_statement(
+                        identifier,
+                        mutation.pivot_values[identifier],
+                        mutation.service,
+                    ),
+                ),
+            )
+            if _updated_row_count(result.rowcount) > 0:
+                updated_ids.append(identifier)
         self._expire_parent_collection(session, mutation.owner)
-        return committed_models
+        return _AppliedRelationshipChanges(
+            related_models=committed_models,
+            updated=tuple(updated_ids),
+        )
 
     async def _apply_async_changes(
         self,
         session: AsyncSession,
-        mutation: _MorphPivotMutation,
-    ) -> tuple[_ModelHost, ...]:
+        mutation: _PivotMutation,
+    ) -> _AppliedRelationshipChanges:
         """Persist one relationship change set asynchronously.
 
         Args:
@@ -1021,28 +1303,25 @@ class ManyToManyRelation[ParentT: _ModelHost]:
             mutation: Prepared relation changes and trusted morph alias.
 
         Returns:
-            Models that will remain related after commit.
+            Related models after the mutation and updated existing pivots.
         """
         if self._morph_info is not None:
-            await self._write_morph_pivot_async(
+            morph_updated_ids = await self._write_morph_pivot_async(
                 session,
-                _MorphPivotMutation(
-                    owner=mutation.owner,
-                    current_by_id=mutation.current_by_id,
-                    related_models=mutation.related_models,
-                    attached=mutation.attached,
-                    detached=mutation.detached,
-                    alias=mutation.alias,
-                ),
+                mutation,
             )
             self._expire_parent_collection(session, mutation.owner)
-            return _desired_related_models(
-                mutation.current_by_id,
-                mutation.related_models,
-                mutation.attached,
-                mutation.detached,
+            return _AppliedRelationshipChanges(
+                related_models=_desired_related_models(
+                    mutation.current_by_id,
+                    mutation.related_models,
+                    mutation.attached,
+                    mutation.detached,
+                ),
+                updated=morph_updated_ids,
             )
-        if self._pivot_timestamps is None:
+        has_pivot_values = any(mutation.pivot_values.values())
+        if self._pivot_timestamps is None and not has_pivot_values:
             collection = getattr(mutation.owner, self._name)
             for identifier in mutation.detached:
                 _remove_related(
@@ -1055,7 +1334,10 @@ class ManyToManyRelation[ParentT: _ModelHost]:
                     mutation.related_models[identifier],
                 )
             await session.flush()
-            return tuple(cast("Iterable[_ModelHost]", collection))
+            return _AppliedRelationshipChanges(
+                related_models=tuple(cast("Iterable[_ModelHost]", collection)),
+                updated=(),
+            )
 
         committed_models = _desired_related_models(
             mutation.current_by_id,
@@ -1064,17 +1346,35 @@ class ManyToManyRelation[ParentT: _ModelHost]:
             mutation.detached,
         )
         if mutation.detached:
-            await session.execute(
-                self._timestamped_pivot_delete(mutation.detached),
+            statement = (
+                self._timestamped_pivot_delete(mutation.detached)
+                if self._pivot_timestamps is not None
+                else self._direct_pivot_delete(mutation)
             )
+            await session.execute(statement)
         if mutation.attached:
-            statement, parameters = self._timestamped_pivot_insert(
-                mutation.attached,
-            )
+            statement, parameters = self._pivot_insert_statement(mutation)
             # Core executemany keeps large attach batches within backend limits.
             await session.execute(statement, parameters)
+        updated_ids: list[object] = []
+        for identifier in self._pivot_update_identifiers(mutation):
+            result = cast(
+                "CursorResult[tuple[object, ...]]",
+                await session.execute(
+                    self._pivot_update_statement(
+                        identifier,
+                        mutation.pivot_values[identifier],
+                        mutation.service,
+                    ),
+                ),
+            )
+            if _updated_row_count(result.rowcount) > 0:
+                updated_ids.append(identifier)
         self._expire_parent_collection(session, mutation.owner)
-        return committed_models
+        return _AppliedRelationshipChanges(
+            related_models=committed_models,
+            updated=tuple(updated_ids),
+        )
 
     def _expire_parent_collection(
         self,
@@ -1100,6 +1400,7 @@ class ManyToManyRelation[ParentT: _ModelHost]:
         values: object | Sequence[object] | None,
         *,
         detaching: bool = True,
+        pivot_values: Mapping[str, object] | None = None,
     ) -> RelationshipChanges:
         """Apply one relationship operation through a synchronous session.
 
@@ -1107,11 +1408,18 @@ class ManyToManyRelation[ParentT: _ModelHost]:
             operation: Relationship change to perform.
             values: Input identifiers or mapped related models.
             detaching: Whether sync removes associations not in the input.
+            pivot_values: Shared pivot values for attach, sync, or toggle.
 
         Returns:
             The changed identifier groups.
         """
-        identifiers, input_models = self._normalize(values)
+        normalized = self._normalize(
+            values,
+            allow_pivot_values=operation != "detach",
+            pivot_values=pivot_values,
+        )
+        identifiers = normalized.identifiers
+        input_models = normalized.models
         if operation == "detach" and identifiers is None:
             requested_ids: tuple[object, ...] | None = None
         else:
@@ -1121,6 +1429,7 @@ class ManyToManyRelation[ParentT: _ModelHost]:
         if operation == "sync" and not requested_ids and not detaching:
             return RelationshipChanges()
 
+        updated: tuple[object, ...] = ()
         service = DB.resolve_service()
         morph_alias = (
             self._morph_alias(service) if self._morph_info is not None else None
@@ -1150,30 +1459,39 @@ class ManyToManyRelation[ParentT: _ModelHost]:
                 session,
                 to_attach,
             )
-            if to_attach or to_detach:
-                mutation = _MorphPivotMutation(
-                    owner=owner,
-                    current_by_id=current_by_id,
-                    related_models=related_models,
-                    attached=to_attach,
-                    detached=to_detach,
-                    alias=cast("str", morph_alias),
-                )
-                committed_models = self._apply_sync_changes(
+            mutation = _PivotMutation(
+                operation=operation,
+                owner=owner,
+                current_by_id=current_by_id,
+                related_models=related_models,
+                attached=to_attach,
+                detached=to_detach,
+                alias=cast("str", morph_alias),
+                pivot_values=normalized.pivot_values,
+                service=service,
+            )
+            if (
+                to_attach
+                or to_detach
+                or self._pivot_update_identifiers(mutation)
+            ):
+                applied = self._apply_sync_changes(
                     session,
                     mutation,
                 )
+                updated = applied.updated
                 service.after_commit(
                     lambda: set_committed_value(
                         self._parent,
                         self._name,
-                        list(committed_models),
+                        list(applied.related_models),
                     ),
                     self._parent_type.connection,
                 )
         return RelationshipChanges(
             attached=to_attach,
             detached=to_detach,
+            updated=updated,
         )
 
     async def _mutate_async(
@@ -1182,6 +1500,7 @@ class ManyToManyRelation[ParentT: _ModelHost]:
         values: object | Sequence[object] | None,
         *,
         detaching: bool = True,
+        pivot_values: Mapping[str, object] | None = None,
     ) -> RelationshipChanges:
         """Apply one relationship operation through an async session.
 
@@ -1189,11 +1508,18 @@ class ManyToManyRelation[ParentT: _ModelHost]:
             operation: Relationship change to perform.
             values: Input identifiers or mapped related models.
             detaching: Whether sync removes associations not in the input.
+            pivot_values: Shared pivot values for attach, sync, or toggle.
 
         Returns:
             The changed identifier groups.
         """
-        identifiers, input_models = self._normalize(values)
+        normalized = self._normalize(
+            values,
+            allow_pivot_values=operation != "detach",
+            pivot_values=pivot_values,
+        )
+        identifiers = normalized.identifiers
+        input_models = normalized.models
         if operation == "detach" and identifiers is None:
             requested_ids: tuple[object, ...] | None = None
         else:
@@ -1203,6 +1529,7 @@ class ManyToManyRelation[ParentT: _ModelHost]:
         if operation == "sync" and not requested_ids and not detaching:
             return RelationshipChanges()
 
+        updated: tuple[object, ...] = ()
         service = DB.resolve_service()
         morph_alias = (
             self._morph_alias(service) if self._morph_info is not None else None
@@ -1234,19 +1561,27 @@ class ManyToManyRelation[ParentT: _ModelHost]:
                 session,
                 to_attach,
             )
-            if to_attach or to_detach:
-                mutation = _MorphPivotMutation(
-                    owner=owner,
-                    current_by_id=current_by_id,
-                    related_models=related_models,
-                    attached=to_attach,
-                    detached=to_detach,
-                    alias=cast("str", morph_alias),
-                )
-                committed_models = await self._apply_async_changes(
+            mutation = _PivotMutation(
+                operation=operation,
+                owner=owner,
+                current_by_id=current_by_id,
+                related_models=related_models,
+                attached=to_attach,
+                detached=to_detach,
+                alias=cast("str", morph_alias),
+                pivot_values=normalized.pivot_values,
+                service=service,
+            )
+            if (
+                to_attach
+                or to_detach
+                or self._pivot_update_identifiers(mutation)
+            ):
+                applied = await self._apply_async_changes(
                     session,
                     mutation,
                 )
+                updated = applied.updated
 
                 async def update_parent_cache() -> None:
                     """Reflect committed state on the detached parent.
@@ -1257,7 +1592,7 @@ class ManyToManyRelation[ParentT: _ModelHost]:
                     set_committed_value(
                         self._parent,
                         self._name,
-                        list(committed_models),
+                        list(applied.related_models),
                     )
                     remember_service_graph(
                         self._parent,
@@ -1272,31 +1607,40 @@ class ManyToManyRelation[ParentT: _ModelHost]:
         return RelationshipChanges(
             attached=to_attach,
             detached=to_detach,
+            updated=updated,
         )
 
     def _normalize(
         self,
         values: object | Sequence[object] | None,
-    ) -> tuple[tuple[object, ...] | None, tuple[_ModelHost, ...]]:
-        """Validate and de-duplicate relation identifiers in input order.
+        *,
+        allow_pivot_values: bool,
+        pivot_values: Mapping[str, object] | None,
+    ) -> _NormalizedRelationInput:
+        """Validate identifiers and associate any requested pivot values.
 
         Args:
             values: Related identifiers or model instances.
+            allow_pivot_values: Whether this operation accepts keyed values.
+            pivot_values: Values to apply to each requested identifier.
 
         Returns:
-            Unique identifiers and any supplied mapped model instances.
+            Unique identifiers, supplied models, and per-row pivot values.
 
         Raises:
-            DatabaseQueryError: If an identifier or mapped model is invalid.
+            DatabaseQueryError: If identifiers or pivot value mappings are
+                invalid.
         """
+        shared_values = _shared_pivot_values(pivot_values)
         if values is None:
-            return None, ()
-        raw_values = _sequence_values(values)
+            return _NormalizedRelationInput(None, (), {})
+        raw_values = _related_value_pairs(values, allow_pivot_values)
 
         identifiers: list[object] = []
         input_models: list[_ModelHost] = []
+        values_by_id: dict[object, Mapping[str, object]] = {}
         seen: set[object] = set()
-        for value in raw_values:
+        for value, row_values in raw_values:
             identifier, model = _related_identifier(
                 value,
                 self._related_type,
@@ -1306,7 +1650,38 @@ class ManyToManyRelation[ParentT: _ModelHost]:
             if identifier not in seen:
                 identifiers.append(identifier)
                 seen.add(identifier)
-        return tuple(identifiers), tuple(input_models)
+            combined_values = dict(shared_values)
+            combined_values.update(row_values)
+            if combined_values:
+                self._validated_pivot_attributes(combined_values)
+                values_by_id[identifier] = combined_values
+        return _NormalizedRelationInput(
+            tuple(identifiers),
+            tuple(input_models),
+            values_by_id,
+        )
+
+    def _pivot_update_identifiers(
+        self,
+        mutation: _PivotMutation,
+    ) -> tuple[object, ...]:
+        """Select existing rows whose attributes a sync operation updates.
+
+        Args:
+            mutation: Prepared sync request and current mapped relation rows.
+
+        Returns:
+            Existing requested keys with at least one supplied pivot value.
+        """
+        if mutation.operation != "sync":
+            return ()
+        return tuple(
+            identifier
+            for identifier, attributes in mutation.pivot_values.items()
+            if attributes
+            and identifier in mutation.current_by_id
+            and identifier not in mutation.detached
+        )
 
     def _validate_input_ownership(
         self,
@@ -1535,6 +1910,72 @@ def _sequence_values(values: object | Sequence[object]) -> Sequence[object]:
     if isinstance(values, Sequence):
         return cast("Sequence[object]", values)
     return (values,)
+
+
+def _shared_pivot_values(
+    values: Mapping[str, object] | None,
+) -> dict[str, object]:
+    """Validate and copy values shared by requested association rows.
+
+    Args:
+        values: Optional mapping of association columns to values.
+
+    Returns:
+        A mutable copy of the caller mapping.
+
+    Raises:
+        DatabaseQueryError: If a shared association column name is invalid.
+    """
+    if values is None:
+        return {}
+    mapping = cast("Mapping[object, object]", values)
+    if not _mapping_has_string_keys(mapping):
+        raise DatabaseQueryError(_PIVOT_UPDATE_ATTRIBUTES_ERROR)
+    return dict(cast("Mapping[str, object]", mapping))
+
+
+def _related_value_pairs(
+    values: object | Sequence[object],
+    allow_pivot_values: bool,
+) -> tuple[tuple[object, Mapping[str, object]], ...]:
+    """Pair related identifiers with optional per-row association values.
+
+    Args:
+        values: Related identifiers, models, or a keyed pivot-value mapping.
+        allow_pivot_values: Whether a mapping denotes row-specific values.
+
+    Returns:
+        Ordered related values and their association mappings.
+
+    Raises:
+        DatabaseQueryError: If a per-row association mapping is malformed.
+    """
+    if not allow_pivot_values or not isinstance(values, Mapping):
+        return tuple((related, {}) for related in _sequence_values(values))
+    entries: list[tuple[object, Mapping[str, object]]] = []
+    mapping = cast("Mapping[object, object]", values)
+    for related, attributes in mapping.items():
+        if not isinstance(attributes, Mapping):
+            raise DatabaseQueryError(_PIVOT_UPDATE_ATTRIBUTES_ERROR)
+        attribute_mapping = cast("Mapping[object, object]", attributes)
+        if not _mapping_has_string_keys(attribute_mapping):
+            raise DatabaseQueryError(_PIVOT_UPDATE_ATTRIBUTES_ERROR)
+        entries.append(
+            (related, cast("Mapping[str, object]", attribute_mapping)),
+        )
+    return tuple(entries)
+
+
+def _mapping_has_string_keys(values: Mapping[object, object]) -> bool:
+    """Check that dynamically supplied mapping keys are strings.
+
+    Args:
+        values: Mapping received from a runtime caller.
+
+    Returns:
+        Whether every key is a string.
+    """
+    return all(isinstance(name, str) for name in values)
 
 
 def _association_columns(

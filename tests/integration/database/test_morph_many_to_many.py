@@ -158,13 +158,15 @@ async def test_morph_many_to_many_reads_and_mutates_scoped_pivots(
         second = await _MorphManyTag.create_async({"name": "second"})
 
         assert post.id == video.id
-        assert await post.relation("tags").attach_async(first.id) == (first.id,)
-        assert await video.relation("tags").attach_async(second.id) == (
-            second.id,
-        )
-        assert await post.relation("tags").attach_async(second.id) == (
-            second.id,
-        )
+        assert await post.relation("tags").attach_async(
+            {first.id: {"label": "post first"}},
+        ) == (first.id,)
+        assert await video.relation("tags").attach_async(
+            {second.id: {"label": "video second"}},
+        ) == (second.id,)
+        assert await post.relation("tags").attach_async(
+            {second.id: {"label": "post second"}},
+        ) == (second.id,)
         assert (
             await post.relation("tags").update_existing_pivot_async(
                 first.id,
@@ -199,14 +201,26 @@ async def test_morph_many_to_many_reads_and_mutates_scoped_pivots(
             "Post",
         ]
 
-        changes = await post.relation("tags").sync_async([second.id])
+        changes = await post.relation("tags").sync_async(
+            {second.id: {"label": "synced post second"}},
+        )
         assert changes.detached == (first.id,)
+        assert (
+            await DB.table(_TAGGABLES.name)
+            .where("taggable_id", post.id)
+            .where("taggable_type", "post")
+            .where("tag_id", second.id)
+            .value_async("label")
+            == "synced post second"
+        )
         assert await _MorphManyPost.query().where_has("tags").count_async() == 1
         assert (
             await _MorphManyVideo.query().where_has("tags").count_async() == 1
         )
 
-        changes = await video.relation("tags").toggle_async(second.id)
+        changes = await video.relation("tags").toggle_async(
+            {second.id: {"label": "ignored while detaching"}},
+        )
         assert changes.detached == (second.id,)
         assert (
             await _MorphManyVideo.query().where_has("tags").count_async() == 0
@@ -244,10 +258,40 @@ async def test_morph_many_to_many_sync_operations_use_active_alias(
         post = await _MorphManyPost.create_async({"title": "Article"})
         tag = await _MorphManyTag.create_async({"name": "shared"})
 
+        def attach_with_pivot_values() -> tuple[object, ...]:
+            """Attach one tag with a sync pivot row value.
+
+            Returns:
+                The related identifier added by the relation manager.
+            """
+            return post.relation("tags").attach(
+                {tag.id: {"label": "sync first"}},
+            )
+
         assert await anyio.to_thread.run_sync(
-            post.relation("tags").attach,
-            tag.id,
+            attach_with_pivot_values,
         ) == (tag.id,)
+        assert await DB.table(_TAGGABLES.name).value_async("label") == (
+            "sync first"
+        )
+
+        def sync_existing_pivot_value() -> None:
+            """Update the existing sync pivot row through sync semantics.
+
+            Returns:
+                None.
+            """
+            changes = post.relation("tags").sync(
+                {tag.id: {"label": "sync updated"}},
+            )
+            assert not changes.attached
+            assert not changes.detached
+            assert changes.updated == (tag.id,)
+
+        await anyio.to_thread.run_sync(sync_existing_pivot_value)
+        assert await DB.table(_TAGGABLES.name).value_async("label") == (
+            "sync updated"
+        )
         loaded = await (
             _MorphManyPost.query()
             .with_("tags")

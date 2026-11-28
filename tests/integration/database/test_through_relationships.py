@@ -77,6 +77,7 @@ _LEGACY_COUNTRY_TAGS = Table(
         ForeignKey("through_tags.id"),
         primary_key=True,
     ),
+    Column("label", String, nullable=True),
 )
 
 
@@ -476,6 +477,15 @@ async def test_many_to_many_operations_manage_pivot_timestamps(
             .where("tag_id", tag.id)
             .update_async({"updated_at": old_timestamp})
         )
+        with pytest.raises(DatabaseQueryError, match="non-key association"):
+            await relation.attach_async(
+                {sync_tag.id: {"created_at": old_timestamp}},
+            )
+        with pytest.raises(DatabaseQueryError, match="non-key association"):
+            await relation.update_existing_pivot_async(
+                tag.id,
+                {"created_at": old_timestamp},
+            )
         assert (
             await relation.update_existing_pivot_async(
                 tag.id,
@@ -698,6 +708,163 @@ async def test_timestamped_pivot_mutations_refresh_sync_transaction_state(
         assert {tag.id for tag in country.tags} == set(persisted_ids)
 
 
+async def test_many_to_many_pivot_values_follow_async_association_changes(
+    application: Application,
+) -> None:
+    """Write per-related pivot values during async attach and synchronization.
+
+    Args:
+        application: Isolated SQLite application for this test.
+    """
+    async with application:
+        await _create_schema()
+        country = await ThroughCountry.create_async({"name": "Async pivot"})
+        first = await ThroughTag.create_async({"name": "first"})
+        second = await ThroughTag.create_async({"name": "second"})
+        third = await ThroughTag.create_async({"name": "third"})
+        relation = country.relation("tags")
+
+        assert await relation.attach_async(
+            {
+                first.id: {"label": "first label"},
+                second.id: {"label": "second label"},
+            },
+            pivot_values={"label": "shared label"},
+        ) == (first.id, second.id)
+        assert (
+            await relation.attach_async(
+                {first.id: {"label": "ignored repeat"}},
+            )
+            == ()
+        )
+        with pytest.raises(DatabaseQueryError, match="non-key association"):
+            await relation.attach_async(
+                {first.id: {"unknown": "invalid"}},
+            )
+        with pytest.raises(DatabaseQueryError, match="non-key association"):
+            await relation.attach_async({first.id: ["invalid"]})
+        with pytest.raises(DatabaseQueryError, match="non-key association"):
+            await relation.attach_async({first.id: {1: "invalid"}})
+        with pytest.raises(DatabaseQueryError, match="non-key association"):
+            await relation.attach_async(
+                first.id,
+                pivot_values=cast("dict[str, object]", {1: "invalid"}),
+            )
+        assert await relation.sync_async(
+            {
+                first.id: {"label": "updated first"},
+                third.id: {"label": "third label"},
+            },
+        ) == RelationshipChanges(
+            attached=(third.id,),
+            detached=(second.id,),
+            updated=(first.id,),
+        )
+        assert await relation.sync_async(
+            [first.id, third.id],
+            pivot_values={"label": "synced common"},
+        ) == RelationshipChanges(updated=(first.id, third.id))
+        assert await relation.sync_without_detaching_async(
+            {third.id: {"label": "updated without detaching"}},
+        ) == RelationshipChanges(updated=(third.id,))
+        assert await relation.toggle_async(
+            {
+                first.id: {"label": "ignored while detaching"},
+                second.id: {"label": "toggled second"},
+            },
+        ) == RelationshipChanges(
+            attached=(second.id,),
+            detached=(first.id,),
+        )
+
+        first_label = await (
+            DB.table("through_country_tags")
+            .where("country_id", country.id)
+            .where("tag_id", first.id)
+            .value_async("label")
+        )
+        second_label = await (
+            DB.table("through_country_tags")
+            .where("country_id", country.id)
+            .where("tag_id", second.id)
+            .value_async("label")
+        )
+        third_label = await (
+            DB.table("through_country_tags")
+            .where("country_id", country.id)
+            .where("tag_id", third.id)
+            .value_async("label")
+        )
+        assert first_label is None
+        assert second_label == "toggled second"
+        assert third_label == "updated without detaching"
+
+
+async def test_many_to_many_pivot_values_follow_sync_association_changes(
+    application: Application,
+) -> None:
+    """Write per-related pivot values through sync relation operations.
+
+    Args:
+        application: Isolated SQLite application for this test.
+    """
+    async with application:
+        await _create_schema()
+        country = await ThroughCountry.create_async({"name": "Sync pivot"})
+        first = await ThroughTag.create_async({"name": "first"})
+        second = await ThroughTag.create_async({"name": "second"})
+        third = await ThroughTag.create_async({"name": "third"})
+        relation = country.relation("tags")
+
+        def mutate_pivot_values() -> None:
+            """Attach, update, and toggle pivots with row-specific values.
+
+            Returns:
+                None.
+            """
+            assert relation.attach(
+                {
+                    first.id: {"label": "first label"},
+                    second.id: {"label": "second label"},
+                },
+            ) == (first.id, second.id)
+            assert relation.sync(
+                {
+                    first.id: {"label": "updated first"},
+                    third.id: {"label": "third label"},
+                },
+            ) == RelationshipChanges(
+                attached=(third.id,),
+                detached=(second.id,),
+                updated=(first.id,),
+            )
+            assert relation.toggle(
+                {
+                    first.id: {"label": "ignored while detaching"},
+                    second.id: {"label": "toggled second"},
+                },
+            ) == RelationshipChanges(
+                attached=(second.id,),
+                detached=(first.id,),
+            )
+
+        await anyio.to_thread.run_sync(mutate_pivot_values)
+        second_label = await (
+            DB.table("through_country_tags")
+            .where("country_id", country.id)
+            .where("tag_id", second.id)
+            .value_async("label")
+        )
+        third_label = await (
+            DB.table("through_country_tags")
+            .where("country_id", country.id)
+            .where("tag_id", third.id)
+            .value_async("label")
+        )
+        assert second_label == "toggled second"
+        assert third_label == "third label"
+
+
 async def test_many_to_many_without_timestamps_uses_orm_collections(
     application: Application,
 ) -> None:
@@ -716,6 +883,7 @@ async def test_many_to_many_without_timestamps_uses_orm_collections(
         await DB.statement_async(
             "CREATE TABLE through_legacy_country_tags ("
             "country_id INTEGER NOT NULL, tag_id INTEGER NOT NULL, "
+            "label TEXT, "
             "PRIMARY KEY(country_id, tag_id), "
             "FOREIGN KEY(country_id) "
             "REFERENCES through_legacy_countries(id), "
@@ -726,6 +894,7 @@ async def test_many_to_many_without_timestamps_uses_orm_collections(
         )
         async_tag = await ThroughTag.create_async({"name": "async"})
         sync_tag = await ThroughTag.create_async({"name": "sync"})
+        core_tag = await ThroughTag.create_async({"name": "core"})
         relation = country.relation("tags")
 
         assert await relation.attach_async(async_tag.id) == (async_tag.id,)
@@ -740,7 +909,24 @@ async def test_many_to_many_without_timestamps_uses_orm_collections(
             assert relation.detach(sync_tag.id) == (sync_tag.id,)
 
         await anyio.to_thread.run_sync(mutate_sync_collection)
-        assert await DB.table("through_legacy_country_tags").count_async() == 0
+
+        assert await relation.attach_async(
+            {async_tag.id: {"label": "async core"}},
+        ) == (async_tag.id,)
+        assert await relation.sync_async(
+            {core_tag.id: {"label": "core replacement"}},
+        ) == RelationshipChanges(
+            attached=(core_tag.id,),
+            detached=(async_tag.id,),
+        )
+        assert (
+            await DB.table("through_legacy_country_tags")
+            .where("country_id", country.id)
+            .where("tag_id", core_tag.id)
+            .value_async("label")
+            == "core replacement"
+        )
+        assert await DB.table("through_legacy_country_tags").count_async() == 1
 
 
 async def test_many_to_many_relationship_operations_validate_mapping_and_ids(

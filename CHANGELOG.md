@@ -36,6 +36,9 @@ public release.
   app-scoped aliases and explicit sync and async pivot mutations.
 - Add sync and async many-to-many attach, detach, sync, toggle, and existing
   pivot-attribute update operations through the owning Database session.
+- Write shared and per-related pivot values during attach, sync, and toggle
+  operations on ordinary and polymorphic association tables; report updated
+  existing pivot identifiers from synchronization.
 - Stamp configured pivot timestamps during explicit relation-manager writes
   and refresh `updated_at` when updating existing pivot attributes.
 - Recycle persisted models into writable many-to-many factory relations and
