@@ -10,6 +10,7 @@ from typing import TYPE_CHECKING
 
 import anyio
 import pytest
+from sqlalchemy import ForeignKey
 from sqlalchemy.engine import make_url
 from sqlalchemy.orm import Mapped, mapped_column
 from tests.integration.database.postgresql_support import (
@@ -22,6 +23,8 @@ from titanspan.database import (
     MigrationManager,
     Model,
     Schema,
+    latest_of_many,
+    oldest_of_many,
 )
 from titanspan.facades.database import DB
 from titanspan.foundation import Application
@@ -70,6 +73,43 @@ class PostgreSQLUpsertRecord(Model):
     email: Mapped[str] = mapped_column(unique=True)
     name: Mapped[str] = mapped_column("display_name")
     is_admin: Mapped[bool] = mapped_column(default=False)
+
+
+class PostgreSQLOneOfManyChild(Model):
+    """Represent a PostgreSQL child row selected by parent and primary key.
+
+    The relationship loader must apply its row-number predicate on PostgreSQL.
+    """
+
+    table = "postgres_one_of_many_children"
+    timestamps = False
+    fillable = ("parent_id", "label")
+
+    parent_id: Mapped[int] = mapped_column(
+        ForeignKey("postgres_one_of_many_parents.id"),
+    )
+    label: Mapped[str]
+
+
+class PostgreSQLOneOfManyParent(Model):
+    """Represent a PostgreSQL parent with latest and oldest child views.
+
+    The row-limited relations are read-only SQLAlchemy mappings.
+    """
+
+    table = "postgres_one_of_many_parents"
+    timestamps = False
+    fillable = ("label",)
+
+    label: Mapped[str]
+    latest_child: Mapped[PostgreSQLOneOfManyChild | None] = latest_of_many(
+        PostgreSQLOneOfManyChild,
+        "parent_id",
+    )
+    oldest_child: Mapped[PostgreSQLOneOfManyChild | None] = oldest_of_many(
+        PostgreSQLOneOfManyChild,
+        "parent_id",
+    )
 
 
 if TYPE_CHECKING:
@@ -185,6 +225,65 @@ async def test_postgresql_transactions_and_concurrent_sessions(
         await migrations.rollback_async()
 
         assert not await Schema.has_table_async("postgres_migration_rows")
+
+
+async def test_postgresql_one_of_many_relationships_use_ranked_rows(
+    application: Application,
+) -> None:
+    """Load deterministic latest and oldest rows from real PostgreSQL.
+
+    Args:
+        application: Isolated Postgres integration application.
+    """
+    async with application:
+        await DB.statement_async(
+            "DROP TABLE IF EXISTS postgres_one_of_many_children",
+        )
+        await DB.statement_async(
+            "DROP TABLE IF EXISTS postgres_one_of_many_parents",
+        )
+        try:
+            await DB.statement_async(
+                "CREATE TABLE postgres_one_of_many_parents ("
+                "id SERIAL PRIMARY KEY, label TEXT NOT NULL, "
+                "created_at TIMESTAMPTZ, updated_at TIMESTAMPTZ)"
+            )
+            await DB.statement_async(
+                "CREATE TABLE postgres_one_of_many_children ("
+                "id SERIAL PRIMARY KEY, parent_id INTEGER NOT NULL, "
+                "label TEXT NOT NULL, created_at TIMESTAMPTZ, "
+                "updated_at TIMESTAMPTZ, "
+                "FOREIGN KEY(parent_id) "
+                "REFERENCES postgres_one_of_many_parents(id))"
+            )
+            parent = await PostgreSQLOneOfManyParent.create_async(
+                {"label": "parent"},
+            )
+            first = await PostgreSQLOneOfManyChild.create_async(
+                {"parent_id": parent.id, "label": "first"},
+            )
+            latest = await PostgreSQLOneOfManyChild.create_async(
+                {"parent_id": parent.id, "label": "latest"},
+            )
+
+            loaded = await (
+                PostgreSQLOneOfManyParent.query()
+                .with_("latest_child", "oldest_child")
+                .where("id", parent.id)
+                .first_or_fail_async()
+            )
+
+            assert loaded.latest_child is not None
+            assert loaded.latest_child.id == latest.id
+            assert loaded.oldest_child is not None
+            assert loaded.oldest_child.id == first.id
+        finally:
+            await DB.statement_async(
+                "DROP TABLE IF EXISTS postgres_one_of_many_children",
+            )
+            await DB.statement_async(
+                "DROP TABLE IF EXISTS postgres_one_of_many_parents",
+            )
 
 
 async def test_postgresql_model_increments_are_atomic(

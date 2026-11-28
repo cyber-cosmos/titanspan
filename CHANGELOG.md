@@ -21,6 +21,8 @@ public release.
   Console command.
 - Add sync and async deferred collection aggregates using one SQLAlchemy ORM
   query per aggregate and preserving each model's existing identity.
+- Add read-only `latest_of_many()`, `oldest_of_many()`, and `of_many()` model
+  relationships using SQLAlchemy window functions and deterministic key ties.
 - Add sync and async many-to-many attach, detach, sync, toggle, and existing
   pivot-attribute update operations through the owning Database session.
 - Add native Queue and Bus dispatch with typed jobs, bounded JSON envelopes,

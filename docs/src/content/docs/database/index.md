@@ -662,8 +662,9 @@ caller, but it cannot undo a database write that already committed.
 Relationship helpers delegate mapping and loading to SQLAlchemy. The current
 native declaration helpers include `has_one`, `has_many`, `belongs_to`,
 `belongs_to_many`, and read-only `has_one_through` and `has_many_through`.
-The related classes and foreign-key metadata must form a valid SQLAlchemy
-mapping.
+`latest_of_many`, `oldest_of_many`, and `of_many` also declare read-only,
+single-result relations selected by per-parent aggregate values. The related
+classes and foreign-key metadata must form a valid SQLAlchemy mapping.
 
 ```python
 from __future__ import annotations
@@ -712,6 +713,52 @@ class Country(Model):
 The intermediate `User` table must reference `Country`, and `Post` must
 reference `User`. A one-through relation also requires data and constraints
 that make its single-result semantics valid.
+
+Use one-of-many helpers when a parent needs one row from a has-many relation.
+SQLAlchemy loads the declared relation using a window function partitioned by
+the related foreign key. The database dialect must support window functions.
+The related model's primary key breaks ties so each parent receives a stable
+single result:
+
+```python
+from datetime import datetime
+
+from sqlalchemy import ForeignKey
+from sqlalchemy.orm import Mapped, mapped_column
+
+from titanspan.database import Model, latest_of_many, oldest_of_many
+
+
+class Post(Model):
+    """Represent a post that belongs to one user."""
+
+    table = "posts"
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"))
+    score: Mapped[int]
+    published_at: Mapped[datetime]
+
+
+class User(Model):
+    """Represent one user's newest and oldest posts."""
+
+    table = "users"
+    latest_post: Mapped[Post | None] = latest_of_many(Post, "user_id")
+    oldest_post: Mapped[Post | None] = oldest_of_many(Post, "user_id")
+    highest_scored_post: Mapped[Post | None] = latest_of_many(
+        Post,
+        "user_id",
+        column=("score", "published_at"),
+    )
+```
+
+The default latest and oldest helpers order by the related primary key.
+Pass `column` to select by one or more mapped attributes instead. `of_many()`
+accepts an ordered mapping of mapped attributes to `"min"` or `"max"`
+aggregates when different attributes need different directions. Primary-key
+columns are appended as tie breakers. For nullable selected attributes, rows
+without an aggregate value do not qualify; a parent with no qualifying row
+receives `None`. These relations are read-only; persist changes through a
+normal model or writable relationship.
 
 `belongs_to_many()` maps a writable SQLAlchemy secondary relationship.
 Use `relation()` for transactional attachment changes by identifier or
@@ -862,7 +909,7 @@ and mutators. A separate dynamic cast registry is not provided.
 model operations, safe conversion, and batch relationship loading. Ordinary
 collection behavior remains owned by `titanspan.collections`.
 
-Polymorphic relationships, one-of-many relationships, deferred aggregate
+Polymorphic relationships, deferred aggregate
 loading, and API resources are not implemented yet.
 
 ## Schema and migrations

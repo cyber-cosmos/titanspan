@@ -86,6 +86,9 @@ from titanspan.database.relationships import (
     has_many_through,
     has_one,
     has_one_through,
+    latest_of_many,
+    of_many,
+    oldest_of_many,
 )
 from titanspan.database.routing import bind_model
 from titanspan.database.schema import (
@@ -216,6 +219,9 @@ __all__ = [
     "has_many_through",
     "has_one",
     "has_one_through",
+    "latest_of_many",
+    "of_many",
+    "oldest_of_many",
     "run_migration",
     "unique_rule",
 ]
