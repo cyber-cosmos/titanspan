@@ -16,7 +16,16 @@ from titanspan.database.exceptions import (
 )
 from titanspan.facades.database import DB
 
+_MORPH_TO_CACHE_KEY = "titanspan_morph_to_targets"
+_MorphTargetCacheEntry = tuple[
+    object,
+    object | None,
+    object | None,
+    object | None,
+]
+
 if TYPE_CHECKING:
+    from titanspan.contracts.database import DatabaseService
     from titanspan.database.orm_builder import ModelQueryBuilder
 
     class _QueryableModel[ModelT](Protocol):
@@ -63,6 +72,16 @@ class MorphTo[TargetT]:
         self.type_column = type_column
         self.foreign_key = foreign_key
         self.owner_key = owner_key
+        self._relationship_name: str | None = None
+
+    def __set_name__(self, _owner: type[object], name: str) -> None:
+        """Remember the model attribute bound to this descriptor.
+
+        Args:
+            _owner: Model class that declares this descriptor.
+            name: Python attribute mapped to this polymorphic relation.
+        """
+        self._relationship_name = name
 
     def __get__(
         self,
@@ -91,6 +110,7 @@ class MorphTo[TargetT]:
             type_column=self.type_column,
             foreign_key=self.foreign_key,
             owner_key=self.owner_key,
+            relationship_name=self._relationship_name or "",
         )
 
 
@@ -109,6 +129,7 @@ class MorphToRelation[TargetT]:
         type_column: str,
         foreign_key: str,
         owner_key: str,
+        relationship_name: str = "",
     ) -> None:
         """Bind relationship columns to one declaring model instance.
 
@@ -118,12 +139,14 @@ class MorphToRelation[TargetT]:
             foreign_key: Declaring-model target key attribute.
             owner_key: Mapped target attribute selected by that key.
             target_models: Model classes allowed for this relationship.
+            relationship_name: Declaring model attribute used for cache state.
         """
         self._parent = parent
         self._target_models = target_models
         self._type_column = type_column
         self._foreign_key = foreign_key
         self._owner_key = owner_key
+        self._relationship_name = relationship_name
         if not _is_mapped_column(type(parent), type_column):
             message = "The polymorphic type attribute must be a mapped column."
             raise DatabaseConfigurationError(message)
@@ -141,10 +164,20 @@ class MorphToRelation[TargetT]:
             DatabaseConfigurationError: If the discriminator is untrusted.
             DatabaseQueryError: If only one association column is null.
         """
-        target_type, target_key = self._target()
+        target_type, target_key = self.target_for_eager_loading()
         if target_type is None:
             return None
-        return target_type.query().where(self._owner_key, target_key).first()
+        service = DB.resolve_service()
+        alias = cast("str", getattr(self._parent, self._type_column))
+        cached, target = self._cached_eager_target(
+            service,
+            alias,
+            target_key,
+        )
+        if cached:
+            return cast("TargetT | None", target)
+        query_type = cast("type[_QueryableModel[TargetT]]", target_type)
+        return query_type.query().where(self._owner_key, target_key).first()
 
     async def resolve_async(self) -> TargetT | None:
         """Asynchronously load the explicitly mapped target model.
@@ -156,11 +189,21 @@ class MorphToRelation[TargetT]:
             DatabaseConfigurationError: If the discriminator is untrusted.
             DatabaseQueryError: If only one association column is null.
         """
-        target_type, target_key = self._target()
+        target_type, target_key = self.target_for_eager_loading()
         if target_type is None:
             return None
+        service = DB.resolve_service()
+        alias = cast("str", getattr(self._parent, self._type_column))
+        cached, target = self._cached_eager_target(
+            service,
+            alias,
+            target_key,
+        )
+        if cached:
+            return cast("TargetT | None", target)
+        query_type = cast("type[_QueryableModel[TargetT]]", target_type)
         return (
-            await target_type.query()
+            await query_type.query()
             .where(
                 self._owner_key,
                 target_key,
@@ -189,6 +232,7 @@ class MorphToRelation[TargetT]:
         if target_key is None:
             message = "A polymorphic target must have a non-null owner key."
             raise DatabaseQueryError(message)
+        self._clear_eager_target()
         setattr(self._parent, self._foreign_key, target_key)
         setattr(self._parent, self._type_column, alias)
 
@@ -198,12 +242,101 @@ class MorphToRelation[TargetT]:
         The caller persists the declaring model through its ordinary model
         save operation.
         """
+        self._clear_eager_target()
         setattr(self._parent, self._foreign_key, None)
         setattr(self._parent, self._type_column, None)
 
-    def _target(
+    def remember_eager_target(
         self,
-    ) -> tuple[type[_QueryableModel[TargetT]] | None, object | None]:
+        service: DatabaseService,
+        alias: str | None,
+        target_key: object | None,
+        target: TargetT | None,
+    ) -> None:
+        """Cache one target loaded for this model query.
+
+        Args:
+            alias: Trusted stored discriminator, or ``None`` for no relation.
+            target_key: Stored target key, or ``None`` for no relation.
+            target: Loaded target row, or ``None`` when no row matches.
+            service: Application database service that loaded the target.
+        """
+        if not self._relationship_name:
+            return
+        info = cast("dict[str, object]", sa_inspect(self._parent).info)
+        cache_value = info.setdefault(_MORPH_TO_CACHE_KEY, {})
+        cache = cast(
+            "dict[str, _MorphTargetCacheEntry]",
+            cache_value,
+        )
+        cache[self._relationship_name] = (
+            service,
+            alias,
+            target_key,
+            target,
+        )
+
+    def _cached_eager_target(
+        self,
+        service: DatabaseService,
+        alias: str,
+        target_key: object,
+    ) -> tuple[bool, object | None]:
+        """Return an eager result only while its type and key still match.
+
+        Args:
+            alias: Current trusted stored discriminator.
+            target_key: Current mapped target key.
+            service: Application database service resolving this relation.
+
+        Returns:
+            Whether this relation has a matching eager result and that result.
+        """
+        if not self._relationship_name:
+            return False, None
+        info = cast("dict[str, object]", sa_inspect(self._parent).info)
+        cache_value = info.get(_MORPH_TO_CACHE_KEY)
+        if not isinstance(cache_value, dict):
+            return False, None
+        cache = cast(
+            "dict[str, _MorphTargetCacheEntry]",
+            cache_value,
+        )
+        entry = cache.get(self._relationship_name)
+        if entry is None:
+            return False, None
+        cached_service, cached_alias, cached_key, target = entry
+        if (
+            cached_service is not service
+            or cached_alias != alias
+            or cached_key != target_key
+        ):
+            cache.pop(self._relationship_name, None)
+            return False, None
+        return True, target
+
+    def _clear_eager_target(self) -> None:
+        """Discard cached eager data before changing relation columns.
+
+        The cached target belongs to the current polymorphic key pair, so a
+        relation mutation must invalidate it before either mapped value changes.
+        """
+        if not self._relationship_name:
+            return
+        info = cast("dict[str, object]", sa_inspect(self._parent).info)
+        cache_value = info.get(_MORPH_TO_CACHE_KEY)
+        if not isinstance(cache_value, dict):
+            return
+        cache = cast(
+            "dict[str, _MorphTargetCacheEntry]",
+            cache_value,
+        )
+        cache.pop(self._relationship_name, None)
+
+    def target_for_eager_loading(
+        self,
+        service: DatabaseService | None = None,
+    ) -> tuple[type[object] | None, object | None]:
         """Resolve a stored discriminator without importing database values.
 
         Returns:
@@ -222,7 +355,8 @@ class MorphToRelation[TargetT]:
             message = "Polymorphic type and key columns must both be set."
             raise DatabaseQueryError(message)
 
-        model_type = DB.resolve_service().morph_model_for(alias)
+        active_service = service or DB.resolve_service()
+        model_type = active_service.morph_model_for(alias)
         query_method = getattr(model_type, "query", None)
         if model_type is None or not callable(query_method):
             message = "The stored polymorphic type has no trusted mapped model."
@@ -232,7 +366,7 @@ class MorphToRelation[TargetT]:
                 "The stored polymorphic type is not allowed by this relation."
             )
             raise DatabaseConfigurationError(message)
-        return cast("type[_QueryableModel[TargetT]]", model_type), target_key
+        return model_type, target_key
 
 
 def morph_to[TargetT](

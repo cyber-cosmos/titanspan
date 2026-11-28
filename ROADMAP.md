@@ -100,8 +100,8 @@ with native `db:seed` and `make:seeder` commands.
   async query-count assertions are implemented. Trusted morph maps, explicit
   polymorphic belongs-to access, and parent-side morph-one and morph-many
   relations are implemented. Polymorphic many-to-many relations use explicit
-  pivot writes. Mixed-target eager morph-to loading and database test isolation
-  remain planned. Factory support includes nested association objects and
+  pivot writes. Database test isolation remains planned. Factory support
+  includes nested association objects and
   recycled many-to-many members; broader relationship-factory coverage remains
   in progress.
 - Structured concurrency, CPU parallelism, and bounded streaming pipelines.

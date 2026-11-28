@@ -27,6 +27,7 @@ from titanspan.database import (
     MorphPivot,
     MorphTo,
     Schema,
+    assert_query_count_async,
     latest_of_many,
     morph_many,
     morph_one,
@@ -542,6 +543,22 @@ async def test_postgresql_morph_to_resolves_trusted_target(
                     "subject_id": target.id,
                 },
             )
+
+            async with (
+                assert_query_count_async(2),
+                PostgreSQLMorphSource.query()
+                .with_("subject")
+                .stream_async(batch_size=1) as sources,
+            ):
+                eager_sources = [source async for source in sources]
+                eager_targets = [
+                    await source.subject.resolve_async()
+                    for source in eager_sources
+                ]
+
+            assert len(eager_sources) == 1
+            assert isinstance(eager_targets[0], PostgreSQLMorphTarget)
+            assert eager_targets[0].id == target.id
 
             resolved = await source.subject.resolve_async()
 

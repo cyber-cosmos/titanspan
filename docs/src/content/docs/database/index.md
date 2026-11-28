@@ -1187,8 +1187,12 @@ model operations, safe conversion, and batch relationship loading. Ordinary
 collection behavior remains owned by `titanspan.collections`.
 
 Morph-to, morph-one, morph-many, polymorphic many-to-many relationships, and
-trusted application maps are implemented. Automatic eager loading for a mixed
-set of morph-to targets and API resources are not implemented yet.
+trusted application maps are implemented. Use `with_()` with a direct
+`MorphTo` relationship to batch target loads by trusted model type. Sync and
+async retrieval and streaming retain the discriminator and foreign-key columns
+when a query projects other fields. Explicit `resolve()` and `resolve_async()`
+then use the application-scoped eager result. API resources are not implemented
+yet.
 
 ## Schema and migrations
 

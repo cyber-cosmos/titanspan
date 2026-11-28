@@ -43,6 +43,7 @@ from titanspan.database.exceptions import (
 )
 from titanspan.database.model_collection import ModelCollection
 from titanspan.database.model_state import remember_service_graph
+from titanspan.database.morph import MorphTo
 from titanspan.database.pagination import (
     CursorPaginator,
     LengthAwarePaginator,
@@ -52,6 +53,7 @@ from titanspan.database.query_builder import QueryBuilder
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Sequence
+    from typing import Protocol
 
     from sqlalchemy.engine import ScalarResult
     from sqlalchemy.ext.asyncio import AsyncScalarResult
@@ -64,12 +66,52 @@ if TYPE_CHECKING:
 
     from titanspan.contracts.database import DatabaseService
 
+    class _MorphToEagerRelation(Protocol):
+        """Describe MorphTo hooks needed by eager target loading.
+
+        The query builder uses this focused structural boundary to keep target
+        resolution and instance-state caching owned by the relation itself.
+        """
+
+        def target_for_eager_loading(
+            self,
+            service: DatabaseService,
+        ) -> tuple[type[object] | None, object | None]:
+            """Resolve one target through the trusted application map.
+
+            Args:
+                service: Database service that owns the trusted morph map.
+
+            Returns:
+                Target model type and owner key, or two ``None`` values.
+            """
+            ...
+
+        def remember_eager_target(
+            self,
+            service: DatabaseService,
+            alias: str | None,
+            target_key: object | None,
+            target: object | None,
+        ) -> None:
+            """Cache one loaded target on its source model instance.
+
+            Args:
+                service: Database service that loaded the target.
+                alias: Trusted polymorphic discriminator.
+                target_key: Target identifier stored by the source model.
+                target: Loaded target model, or ``None`` for no row.
+            """
+            ...
+
+
 _MISSING = object()
 _NO_MODELS_FOUND = "The query did not match a model."
 _MULTIPLE_MODELS_FOUND = "The query matched more than one model."
 _FIRST_PAGE = 1
 _MINIMUM_PAGE_SIZE = 1
 _DEFAULT_STREAM_BATCH_SIZE = 1000
+_MORPH_EAGER_LOAD_CHUNK_SIZE = 500
 _INVALID_GLOBAL_SCOPES_ERROR = (
     "Global model scopes must be named SQLAlchemy predicate factories."
 )
@@ -131,6 +173,7 @@ class ModelQueryBuilder[ModelT]:
         self._global_scope_conditions = _resolve_global_scopes(model)
         self._apply_scope_conditions()
         self._eager_paths: list[str] = []
+        self._morph_eager_paths: list[str] = []
         self._eager_constraints: dict[str, ColumnElement[bool]] = {}
         self._relationship_counts: dict[str, ColumnElement[object]] = {}
         self._prevent_lazy = False
@@ -824,7 +867,7 @@ class ModelQueryBuilder[ModelT]:
         return self
 
     def with_(self, *paths: str) -> Self:
-        """Eager-load mapped relationships through SQLAlchemy select-in load.
+        """Eager-load mapped and explicit polymorphic relationships.
 
         Args:
             paths: Relationship names or dot-separated nested paths.
@@ -836,8 +879,11 @@ class ModelQueryBuilder[ModelT]:
             DatabaseQueryError: If a path contains an unmapped relationship.
         """
         for path in paths:
-            self._validate_relationship_path(path)
-            self._eager_paths.append(path)
+            if _morph_to_descriptor(self._model, path) is not None:
+                self._morph_eager_paths.append(path)
+            else:
+                self._validate_relationship_path(path)
+                self._eager_paths.append(path)
         return self
 
     def with_count(
@@ -1208,6 +1254,9 @@ class ModelQueryBuilder[ModelT]:
         cloned = copy(self)
         cloned._query = self._query.clone()  # noqa: SLF001  # Copy query.
         cloned._eager_paths = self._eager_paths.copy()  # noqa: SLF001
+        cloned._morph_eager_paths = (  # noqa: SLF001
+            self._morph_eager_paths.copy()
+        )
         cloned._eager_constraints = (  # noqa: SLF001
             self._eager_constraints.copy()
         )
@@ -1248,12 +1297,21 @@ class ModelQueryBuilder[ModelT]:
         )
         options: list[ExecutableOption] = []
         if self._selected_columns:
+            selected_names = list(self._selected_columns)
+            for path in self._morph_eager_paths:
+                descriptor = _morph_to_descriptor(self._model, path)
+                if descriptor is None:
+                    _raise_invalid_relationship()
+                selected_names.extend(
+                    (descriptor.type_column, descriptor.foreign_key),
+                )
+            selected_names = list(dict.fromkeys(selected_names))
             selected = [
                 cast(
                     "QueryableAttribute[object]",
                     getattr(self._model, name),
                 )
-                for name in self._selected_columns
+                for name in selected_names
             ]
             options.append(load_only(*selected))
         options.extend(self._loader_option(path) for path in self._eager_paths)
@@ -1384,6 +1442,7 @@ class ModelQueryBuilder[ModelT]:
                     self._service,
                     self._connection_name,
                 )
+            self._eager_load_morph_targets(results)
             return ModelCollection(results)
 
     async def get_async(self) -> ModelCollection[ModelT]:
@@ -1406,6 +1465,7 @@ class ModelQueryBuilder[ModelT]:
                     self._service,
                     self._connection_name,
                 )
+            await self._eager_load_morph_targets_async(models)
             return ModelCollection(models)
 
     @contextmanager
@@ -1440,13 +1500,25 @@ class ModelQueryBuilder[ModelT]:
 
                 SQLAlchemy retains identity tracking only for this scope.
                 """
-                for model in results:
-                    remember_service_graph(
-                        model,
-                        self._service,
-                        self._connection_name,
-                    )
-                    yield model
+                if not self._morph_eager_paths:
+                    for model in results:
+                        remember_service_graph(
+                            model,
+                            self._service,
+                            self._connection_name,
+                        )
+                        yield model
+                    return
+                for batch in results.partitions(batch_size):
+                    models = list(batch)
+                    for model in models:
+                        remember_service_graph(
+                            model,
+                            self._service,
+                            self._connection_name,
+                        )
+                    self._eager_load_morph_targets(models)
+                    yield from models
 
             try:
                 yield models()
@@ -1487,13 +1559,26 @@ class ModelQueryBuilder[ModelT]:
 
                 SQLAlchemy retains identity tracking only for this scope.
                 """
-                async for model in results:
-                    remember_service_graph(
-                        model,
-                        self._service,
-                        self._connection_name,
-                    )
-                    yield model
+                if not self._morph_eager_paths:
+                    async for model in results:
+                        remember_service_graph(
+                            model,
+                            self._service,
+                            self._connection_name,
+                        )
+                        yield model
+                    return
+                async for batch in results.partitions(batch_size):
+                    models = list(batch)
+                    for model in models:
+                        remember_service_graph(
+                            model,
+                            self._service,
+                            self._connection_name,
+                        )
+                    await self._eager_load_morph_targets_async(models)
+                    for model in models:
+                        yield model
 
             try:
                 yield models()
@@ -1925,6 +2010,111 @@ class ModelQueryBuilder[ModelT]:
         """
         return await self._query.decrement_async(column_name, amount)
 
+    def _morph_target_groups(
+        self,
+        models: Sequence[ModelT],
+        path: str,
+    ) -> tuple[
+        str,
+        dict[
+            type[object],
+            list[tuple[object, _MorphToEagerRelation, str]],
+        ],
+    ]:
+        """Collect trusted polymorphic keys for one eager path.
+
+        Args:
+            models: Bounded models fetched by the current query operation.
+            path: One declared polymorphic relationship attribute.
+
+        Returns:
+            Its mapped owner key and targets grouped by trusted model class.
+        """
+        descriptor = _morph_to_descriptor(self._model, path)
+        if descriptor is None:
+            _raise_invalid_relationship()
+        groups: dict[
+            type[object],
+            list[tuple[object, _MorphToEagerRelation, str]],
+        ] = {}
+        for model in models:
+            relation = cast(
+                "_MorphToEagerRelation",
+                getattr(model, path),
+            )
+            target_type, target_key = relation.target_for_eager_loading(
+                self._service,
+            )
+            if target_type is None or target_key is None:
+                continue
+            alias = cast("str", getattr(model, descriptor.type_column))
+            groups.setdefault(target_type, []).append(
+                (target_key, relation, alias),
+            )
+        return descriptor.owner_key, groups
+
+    def _eager_load_morph_targets(
+        self,
+        models: Sequence[ModelT],
+    ) -> None:
+        """Resolve polymorphic targets in bounded per-type queries.
+
+        Args:
+            models: Root models hydrated by the active session.
+        """
+        for path in self._morph_eager_paths:
+            owner_key, groups = self._morph_target_groups(models, path)
+            for target_type, entries in groups.items():
+                keys = list(dict.fromkeys(key for key, _, _ in entries))
+                targets_by_key: dict[object, object] = {}
+                for start in range(0, len(keys), _MORPH_EAGER_LOAD_CHUNK_SIZE):
+                    chunk = keys[start : start + _MORPH_EAGER_LOAD_CHUNK_SIZE]
+                    targets = (
+                        ModelQueryBuilder(target_type, self._service)
+                        .where_in(owner_key, chunk)
+                        .get()
+                    )
+                    for target in targets:
+                        targets_by_key[getattr(target, owner_key)] = target
+                for key, relation, alias in entries:
+                    relation.remember_eager_target(
+                        self._service,
+                        alias,
+                        key,
+                        targets_by_key.get(key),
+                    )
+
+    async def _eager_load_morph_targets_async(
+        self,
+        models: Sequence[ModelT],
+    ) -> None:
+        """Resolve polymorphic targets asynchronously in bounded batches.
+
+        Args:
+            models: Root models hydrated by the active async session.
+        """
+        for path in self._morph_eager_paths:
+            owner_key, groups = self._morph_target_groups(models, path)
+            for target_type, entries in groups.items():
+                keys = list(dict.fromkeys(key for key, _, _ in entries))
+                targets_by_key: dict[object, object] = {}
+                for start in range(0, len(keys), _MORPH_EAGER_LOAD_CHUNK_SIZE):
+                    chunk = keys[start : start + _MORPH_EAGER_LOAD_CHUNK_SIZE]
+                    targets = await (
+                        ModelQueryBuilder(target_type, self._service)
+                        .where_in(owner_key, chunk)
+                        .get_async()
+                    )
+                    for target in targets:
+                        targets_by_key[getattr(target, owner_key)] = target
+                for key, relation, alias in entries:
+                    relation.remember_eager_target(
+                        self._service,
+                        alias,
+                        key,
+                        targets_by_key.get(key),
+                    )
+
     def _validate_relationship_path(self, path: str) -> None:
         """Validate every segment against the mapped relationship graph.
 
@@ -2307,6 +2497,26 @@ def _mapper(model: type[object]) -> Mapper[object]:
         SQLAlchemy's public mapper inspection object.
     """
     return sa_inspect(model)
+
+
+def _morph_to_descriptor(
+    model: type[object],
+    name: str,
+) -> MorphTo[object] | None:
+    """Find a declared polymorphic descriptor without invoking it.
+
+    Args:
+        model: Model class whose inheritance graph is inspected.
+        name: Candidate direct relationship attribute.
+
+    Returns:
+        The descriptor declared on the class, if it is a MorphTo relation.
+    """
+    for parent in model.__mro__:
+        descriptor = vars(parent).get(name)
+        if isinstance(descriptor, MorphTo):
+            return cast("MorphTo[object]", descriptor)
+    return None
 
 
 def _is_mapped_column(model: type[object], name: str) -> bool:

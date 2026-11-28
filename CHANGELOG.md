@@ -45,6 +45,8 @@ public release.
   and refresh `updated_at` when updating existing pivot attributes.
 - Support sync and async relationship mutations through custom mapped pivot
   models exposed by SQLAlchemy association proxies.
+- Batch eager loading for direct MorphTo relationships during sync and async
+  retrieval and bounded streaming.
 - Recycle persisted models into writable many-to-many factory relations and
   build nested mapped association objects through factories.
 - Add `with_where_has()` to filter parent models and eager-load matching rows
