@@ -30,6 +30,8 @@ public release.
   dissociation. Persisted aliases resolve only to configured mapped classes.
 - Add explicit `morph_one()` and `morph_many()` relations with scoped model
   queries, trusted owner aliases, and sync and async child persistence.
+- Add mapped `morph_to_many()` and `morphed_by_many()` relationships with
+  app-scoped aliases and explicit sync and async pivot mutations.
 - Add sync and async many-to-many attach, detach, sync, toggle, and existing
   pivot-attribute update operations through the owning Database session.
 - Stamp configured pivot timestamps during explicit relation-manager writes

@@ -10,7 +10,7 @@ from typing import TYPE_CHECKING, ClassVar
 
 import anyio
 import pytest
-from sqlalchemy import ForeignKey
+from sqlalchemy import Column, ForeignKey, Integer, String, Table
 from sqlalchemy.engine import make_url
 from sqlalchemy.orm import Mapped, mapped_column
 from tests.integration.database.postgresql_support import (
@@ -24,12 +24,14 @@ from titanspan.database import (
     Model,
     MorphMany,
     MorphOne,
+    MorphPivot,
     MorphTo,
     Schema,
     latest_of_many,
     morph_many,
     morph_one,
     morph_to,
+    morph_to_many,
     oldest_of_many,
 )
 from titanspan.facades.database import DB
@@ -42,6 +44,24 @@ _EXPECTED_UPSERTED_SCORE = 2
 _EXPECTED_INCREMENT_VALUES = [1, 2]
 _UNKNOWN_ROWCOUNT = -1
 _ROLLBACK_MARKER = "rollback marker"
+_POSTGRESQL_MORPH_TAGGABLES = Table(
+    "postgres_morph_taggables",
+    Model.metadata,
+    Column("taggable_id", Integer, primary_key=True),
+    Column("taggable_type", String, primary_key=True),
+    Column(
+        "tag_id",
+        Integer,
+        ForeignKey("postgres_morph_many_tags.id"),
+        primary_key=True,
+    ),
+    Column("position", Integer, nullable=True),
+)
+_POSTGRESQL_MORPH_PIVOT = MorphPivot(
+    type_column="taggable_type",
+    morph_key="taggable_id",
+    other_key="tag_id",
+)
 _MIGRATION_UP = '''    def up(self) -> None:
         """Apply this revision's schema changes."""
         with Schema.create("postgres_migration_rows") as table:
@@ -146,6 +166,19 @@ class PostgreSQLMorphChild(Model):
     subject_id: Mapped[int | None]
 
 
+class PostgreSQLMorphTag(Model):
+    """Represent a tag joined to a polymorphic PostgreSQL owner.
+
+    The pivot discriminator isolates associations by configured owner alias.
+    """
+
+    table = "postgres_morph_many_tags"
+    timestamps = False
+    fillable = ("label",)
+
+    label: Mapped[str]
+
+
 class PostgreSQLMorphOwner(Model):
     """Represent the owner of PostgreSQL morph-one and morph-many rows.
 
@@ -166,6 +199,24 @@ class PostgreSQLMorphOwner(Model):
         PostgreSQLMorphChild,
         type_column="subject_type",
         foreign_key="subject_id",
+    )
+
+
+class PostgreSQLMorphManyOwner(Model):
+    """Represent the owner class used by the PostgreSQL morph pivot test.
+
+    The mapped relation verifies app-scoped morph aliases on PostgreSQL.
+    """
+
+    table = "postgres_morph_many_owners"
+    timestamps = False
+    fillable = ("label",)
+
+    label: Mapped[str]
+    tags: Mapped[list[PostgreSQLMorphTag]] = morph_to_many(
+        PostgreSQLMorphTag,
+        _POSTGRESQL_MORPH_TAGGABLES,
+        _POSTGRESQL_MORPH_PIVOT,
     )
 
 
@@ -220,6 +271,7 @@ def application(tmp_path: Path) -> Application:
                 "morph_map": {
                     "postgres_target": PostgreSQLMorphTarget,
                     "postgres_owner": PostgreSQLMorphOwner,
+                    "postgres_many_owner": PostgreSQLMorphManyOwner,
                 },
             },
         },
@@ -474,6 +526,83 @@ async def test_postgresql_morph_one_and_many_persist_and_resolve(
             )
             await DB.statement_async(
                 "DROP TABLE IF EXISTS postgres_morph_owners",
+            )
+
+
+async def test_postgresql_morph_many_to_many_reads_and_writes(
+    application: Application,
+) -> None:
+    """Verify app-scoped polymorphic pivots against live PostgreSQL.
+
+    Args:
+        application: Isolated PostgreSQL integration application.
+    """
+    async with application:
+        await DB.statement_async(
+            "DROP TABLE IF EXISTS postgres_morph_taggables",
+        )
+        await DB.statement_async(
+            "DROP TABLE IF EXISTS postgres_morph_many_tags",
+        )
+        await DB.statement_async(
+            "DROP TABLE IF EXISTS postgres_morph_many_owners",
+        )
+        try:
+            await DB.statement_async(
+                "CREATE TABLE postgres_morph_many_owners ("
+                "id SERIAL PRIMARY KEY, label TEXT NOT NULL)"
+            )
+            await DB.statement_async(
+                "CREATE TABLE postgres_morph_many_tags ("
+                "id SERIAL PRIMARY KEY, label TEXT NOT NULL)"
+            )
+            await DB.statement_async(
+                "CREATE TABLE postgres_morph_taggables ("
+                "taggable_id INTEGER NOT NULL, taggable_type TEXT NOT NULL, "
+                "tag_id INTEGER NOT NULL REFERENCES postgres_morph_many_tags, "
+                "position INTEGER, "
+                "PRIMARY KEY(taggable_id, taggable_type, tag_id))"
+            )
+            owner = await PostgreSQLMorphManyOwner.create_async(
+                {"label": "owner"},
+            )
+            tag = await PostgreSQLMorphTag.create_async({"label": "tag"})
+
+            assert await owner.relation("tags").attach_async(tag.id) == (
+                tag.id,
+            )
+            loaded_owner = await (
+                PostgreSQLMorphManyOwner.query()
+                .with_("tags")
+                .where("id", owner.id)
+                .first_or_fail_async()
+            )
+            assert [related.id for related in loaded_owner.tags] == [tag.id]
+            assert (
+                await PostgreSQLMorphManyOwner.query()
+                .where_has("tags")
+                .count_async()
+                == 1
+            )
+            assert (
+                await owner.relation("tags").update_existing_pivot_async(
+                    tag.id,
+                    {"position": 4},
+                )
+                == 1
+            )
+            assert await owner.relation("tags").detach_async(tag.id) == (
+                tag.id,
+            )
+        finally:
+            await DB.statement_async(
+                "DROP TABLE IF EXISTS postgres_morph_taggables",
+            )
+            await DB.statement_async(
+                "DROP TABLE IF EXISTS postgres_morph_many_tags",
+            )
+            await DB.statement_async(
+                "DROP TABLE IF EXISTS postgres_morph_many_owners",
             )
 
 

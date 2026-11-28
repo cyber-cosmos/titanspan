@@ -541,6 +541,163 @@ async def test_many_to_many_operations_manage_pivot_timestamps(
         await anyio.to_thread.run_sync(manage_sync_pivot_timestamp)
 
 
+async def test_timestamped_pivot_mutations_refresh_async_transaction_state(
+    application: Application,
+) -> None:
+    """Observe Core pivot mutations through one async Unit of Work.
+
+    Args:
+        application: Isolated SQLite application for this test.
+    """
+    async with application:
+        await _create_schema()
+        country = await ThroughCountry.create_async({"name": "Async UoW"})
+        first = await ThroughTag.create_async({"name": "first"})
+        second = await ThroughTag.create_async({"name": "second"})
+        third = await ThroughTag.create_async({"name": "third"})
+        rolled_back = await ThroughTag.create_async({"name": "rolled back"})
+        relation = country.relation("tags")
+
+        async with DB.transaction_async():
+            assert await relation.attach_async(first.id) == (first.id,)
+            assert await relation.attach_async(second.id) == (second.id,)
+            assert await relation.attach_async(first.id) == ()
+            assert await relation.detach_async(second.id) == (second.id,)
+            assert await relation.attach_async(second.id) == (second.id,)
+            assert await relation.sync_async([first.id, third.id]) == (
+                RelationshipChanges(
+                    attached=(third.id,),
+                    detached=(second.id,),
+                )
+            )
+            assert await relation.toggle_async(first.id) == (
+                RelationshipChanges(detached=(first.id,))
+            )
+            assert await relation.toggle_async(first.id) == (
+                RelationshipChanges(attached=(first.id,))
+            )
+
+            async with DB.transaction_async():
+                assert await relation.attach_async(second.id) == (second.id,)
+
+            async def rollback_nested_changes() -> None:
+                """Roll back two changes to the active savepoint.
+
+                Returns:
+                    None.
+                """
+                async with DB.transaction_async():
+                    assert await relation.detach_async(third.id) == (third.id,)
+                    assert await relation.attach_async(rolled_back.id) == (
+                        rolled_back.id,
+                    )
+                    raise RuntimeError(_RELATIONSHIP_ROLLBACK_MESSAGE)
+
+            with pytest.raises(
+                RuntimeError,
+                match=_RELATIONSHIP_ROLLBACK_MESSAGE,
+            ):
+                await rollback_nested_changes()
+
+            assert (
+                await relation.sync_async(
+                    [first.id, second.id, third.id],
+                )
+                == RelationshipChanges()
+            )
+
+        persisted_ids = await (
+            DB.table("through_country_tags")
+            .where("country_id", country.id)
+            .pluck_async("tag_id")
+        )
+        assert isinstance(persisted_ids, list)
+        assert set(persisted_ids) == {first.id, second.id, third.id}
+        assert {tag.id for tag in country.tags} == set(persisted_ids)
+
+
+async def test_timestamped_pivot_mutations_refresh_sync_transaction_state(
+    application: Application,
+) -> None:
+    """Observe sync Core pivot mutations through one Unit of Work.
+
+    Args:
+        application: Isolated SQLite application for this test.
+    """
+    async with application:
+        await _create_schema()
+        country = await ThroughCountry.create_async({"name": "Sync UoW"})
+        first = await ThroughTag.create_async({"name": "first"})
+        second = await ThroughTag.create_async({"name": "second"})
+        third = await ThroughTag.create_async({"name": "third"})
+        rolled_back = await ThroughTag.create_async({"name": "rolled back"})
+        relation = country.relation("tags")
+
+        def mutate_relationships() -> None:
+            """Exercise repeated writes, savepoints, and rollback in one thread.
+
+            Returns:
+                None.
+            """
+            with DB.transaction():
+                assert relation.attach(first.id) == (first.id,)
+                assert relation.attach(second.id) == (second.id,)
+                assert relation.attach(first.id) == ()
+                assert relation.detach(second.id) == (second.id,)
+                assert relation.attach(second.id) == (second.id,)
+                assert relation.sync([first.id, third.id]) == (
+                    RelationshipChanges(
+                        attached=(third.id,),
+                        detached=(second.id,),
+                    )
+                )
+                assert relation.toggle(first.id) == RelationshipChanges(
+                    detached=(first.id,),
+                )
+                assert relation.toggle(first.id) == RelationshipChanges(
+                    attached=(first.id,),
+                )
+
+                with DB.transaction():
+                    assert relation.attach(second.id) == (second.id,)
+
+                def rollback_nested_changes() -> None:
+                    """Roll back two changes to the active savepoint.
+
+                    Returns:
+                        None.
+                    """
+                    with DB.transaction():
+                        assert relation.detach(third.id) == (third.id,)
+                        assert relation.attach(rolled_back.id) == (
+                            rolled_back.id,
+                        )
+                        raise RuntimeError(_RELATIONSHIP_ROLLBACK_MESSAGE)
+
+                with pytest.raises(
+                    RuntimeError,
+                    match=_RELATIONSHIP_ROLLBACK_MESSAGE,
+                ):
+                    rollback_nested_changes()
+
+                assert (
+                    relation.sync(
+                        [first.id, second.id, third.id],
+                    )
+                    == RelationshipChanges()
+                )
+
+        await anyio.to_thread.run_sync(mutate_relationships)
+        persisted_ids = await (
+            DB.table("through_country_tags")
+            .where("country_id", country.id)
+            .pluck_async("tag_id")
+        )
+        assert isinstance(persisted_ids, list)
+        assert set(persisted_ids) == {first.id, second.id, third.id}
+        assert {tag.id for tag in country.tags} == set(persisted_ids)
+
+
 async def test_many_to_many_without_timestamps_uses_orm_collections(
     application: Application,
 ) -> None:

@@ -6,20 +6,71 @@ Mapped annotations identify related types without duplicating class metadata.
 
 from __future__ import annotations
 
+from dataclasses import dataclass
 from typing import TYPE_CHECKING, Literal, cast
 
-from sqlalchemy import Table, and_, func, select
+from sqlalchemy import String, Table, and_, bindparam, func, select
 from sqlalchemy import inspect as sa_inspect
 from sqlalchemy.orm import aliased, declared_attr, foreign, relationship
+
+from titanspan.database.exceptions import DatabaseConfigurationError
+from titanspan.facades.database import DB
 
 type _AggregateFunction = Literal["min", "max"]
 _MAX_AGGREGATE: _AggregateFunction = "max"
 _MIN_AGGREGATE: _AggregateFunction = "min"
 _PIVOT_TIMESTAMP_INFO_KEY = "titanspan_pivot_timestamps"
 _PIVOT_TIMESTAMP_COLUMN_COUNT = 2
+_MORPH_PIVOT_COLUMN_COUNT = 3
+
+
+@dataclass(frozen=True, slots=True)
+class MorphPivot:
+    """Name the mapped keys used by a polymorphic many-to-many pivot.
+
+    Attributes:
+        type_column: Pivot column that stores the trusted morph alias.
+        morph_key: Pivot key paired with the polymorphic endpoint identifier.
+        other_key: Pivot key paired with the other endpoint identifier.
+        owner_key: Key attribute on the model declaring the relation.
+        related_key: Key attribute on the model passed to the relation helper.
+    """
+
+    type_column: str
+    morph_key: str
+    other_key: str
+    owner_key: str = "id"
+    related_key: str = "id"
+
+    def __post_init__(self) -> None:
+        """Reject empty names and ambiguous pivot key columns.
+
+        Raises:
+            ValueError: If a name is empty or pivot columns are repeated.
+        """
+        names = cast(
+            "tuple[object, ...]",
+            (
+                self.type_column,
+                self.morph_key,
+                self.other_key,
+                self.owner_key,
+                self.related_key,
+            ),
+        )
+        if any(not isinstance(name, str) or not name.strip() for name in names):
+            message = "Morph pivot column and key names must be non-empty."
+            raise ValueError(message)
+        if (
+            len({self.type_column, self.morph_key, self.other_key})
+            != _MORPH_PIVOT_COLUMN_COUNT
+        ):
+            message = "Morph pivot type and key columns must be distinct."
+            raise ValueError(message)
+
 
 if TYPE_CHECKING:
-    from collections.abc import Mapping, Sequence
+    from collections.abc import Callable, Mapping, Sequence
     from typing import Any
 
     from sqlalchemy import Column
@@ -465,6 +516,248 @@ def _validate_pivot_timestamps(
     if any(name not in table.c for name in timestamps):
         message = "Pivot timestamps must name columns on a SQLAlchemy Table."
         raise ValueError(message)
+
+
+def morph_to_many[RelatedT](
+    related_model: type[RelatedT] | Callable[[], type[RelatedT]],
+    secondary: FromClause,
+    pivot: MorphPivot,
+    *,
+    back_populates: str | None = None,
+) -> Mapped[list[RelatedT]]:
+    """Map a parent-to-related polymorphic pivot relationship.
+
+    The pivot stores the declaring model's trusted alias and identifier in
+    ``type_column`` and ``morph_key``. ``other_key`` stores the related key.
+    Alias values resolve from the active application's immutable morph map.
+
+    Args:
+        related_model: Mapped class or deferred provider for the related type.
+        secondary: Trusted SQLAlchemy association table.
+        pivot: Column names and model keys used by the association table.
+        back_populates: Optional inverse ``morphed_by_many`` attribute.
+
+    Returns:
+        SQLAlchemy relationship instrumentation for related objects.
+    """
+    return _morph_many_to_many(
+        "morph_to_many",
+        related_model,
+        secondary,
+        pivot,
+        back_populates=back_populates,
+    )
+
+
+def morphed_by_many[RelatedT](
+    related_model: type[RelatedT] | Callable[[], type[RelatedT]],
+    secondary: FromClause,
+    pivot: MorphPivot,
+    *,
+    back_populates: str | None = None,
+) -> Mapped[list[RelatedT]]:
+    """Map the inverse related-to-polymorphic-parent pivot relationship.
+
+    The pivot stores the related model's trusted alias and identifier in
+    ``type_column`` and ``morph_key``. ``other_key`` stores this model's key.
+
+    Args:
+        related_model: Mapped class or deferred provider for the morph type.
+        secondary: Trusted SQLAlchemy association table.
+        pivot: Column names and model keys used by the association table.
+        back_populates: Optional inverse ``morph_to_many`` attribute.
+
+    Returns:
+        SQLAlchemy relationship instrumentation for related objects.
+    """
+    return _morph_many_to_many(
+        "morphed_by_many",
+        related_model,
+        secondary,
+        pivot,
+        back_populates=back_populates,
+    )
+
+
+def _morph_many_to_many[RelatedT](
+    direction: Literal["morph_to_many", "morphed_by_many"],
+    related_model: type[RelatedT] | Callable[[], type[RelatedT]],
+    secondary: FromClause,
+    pivot: MorphPivot,
+    back_populates: str | None,
+) -> Mapped[list[RelatedT]]:
+    """Create a mapped many-to-many join with an app-scoped discriminator.
+
+    Args:
+        direction: Side of the relation whose class selects the morph alias.
+        related_model: Mapped related class.
+        secondary: SQLAlchemy association table or selectable.
+        pivot: Column names and model keys used by the association table.
+        back_populates: Optional inverse relationship attribute.
+
+    Returns:
+        A deferred SQLAlchemy relationship descriptor.
+    """
+
+    def mapped_relation(owner_model: type[object]) -> Mapped[list[RelatedT]]:
+        """Build join conditions after Declarative knows the owner class.
+
+        Args:
+            owner_model: Model class declaring this relationship.
+
+        Returns:
+            SQLAlchemy relationship instrumentation for the owner class.
+        """
+        type_column_value = _pivot_column(secondary, pivot.type_column)
+        morph_column = _pivot_column(secondary, pivot.morph_key)
+        other_column = _pivot_column(secondary, pivot.other_key)
+        owner_column = cast(
+            "ColumnElement[object]",
+            getattr(owner_model, pivot.owner_key),
+        )
+        alias_parameter = bindparam(
+            None,
+            callable_=_trusted_morph_alias_callable(
+                owner_model
+                if direction == "morph_to_many"
+                else _related_model_callable(related_model),
+            ),
+            type_=String(),
+        )
+        if direction == "morph_to_many":
+            primary_join = and_(
+                owner_column == foreign(morph_column),
+                type_column_value == alias_parameter,
+            )
+        else:
+            primary_join = owner_column == foreign(other_column)
+
+        def secondary_join() -> ColumnElement[bool]:
+            """Build the deferred join after the target class is available.
+
+            Returns:
+                SQLAlchemy join criteria between the pivot and target model.
+            """
+            related_column = cast(
+                "ColumnElement[object]",
+                getattr(
+                    _related_model_callable(related_model)(),
+                    pivot.related_key,
+                ),
+            )
+            if direction == "morph_to_many":
+                return foreign(other_column) == related_column
+            return and_(
+                foreign(morph_column) == related_column,
+                type_column_value == alias_parameter,
+            )
+
+        return cast(
+            "Mapped[list[RelatedT]]",
+            relationship(
+                _related_model_callable(related_model),
+                secondary=secondary,
+                primaryjoin=primary_join,
+                secondaryjoin=secondary_join,
+                back_populates=back_populates,
+                foreign_keys=[morph_column, other_column],
+                uselist=True,
+                # The active application's alias is not a mapper constant.
+                # The relation manager writes that bound value explicitly.
+                viewonly=True,
+                info={
+                    "titanspan_morph_many_to_many": (direction, pivot),
+                },
+            ),
+        )
+
+    return cast(
+        "Mapped[list[RelatedT]]",
+        declared_attr(mapped_relation),
+    )
+
+
+def _pivot_column(
+    secondary: FromClause,
+    name: str,
+) -> ColumnElement[object]:
+    """Resolve one configured association column without evaluating strings.
+
+    Args:
+        secondary: SQLAlchemy selectable used as the relationship pivot.
+        name: Explicit column name from trusted application code.
+
+    Returns:
+        The matching SQL expression.
+
+    Raises:
+        ValueError: If the selectable does not expose the requested column.
+    """
+    try:
+        return cast("ColumnElement[object]", secondary.c[name])
+    except KeyError as error:
+        message = f"The morph pivot has no {name!r} column."
+        raise ValueError(message) from error
+
+
+def _trusted_morph_alias_callable(
+    model_type: type[object] | Callable[[], type[object]],
+) -> Callable[[], str]:
+    """Create a bind-parameter callback for the active application's alias.
+
+    Args:
+        model_type: Mapped class or deferred class provider whose alias scopes
+            the pivot rows.
+
+    Returns:
+        A callback evaluated when SQLAlchemy executes the mapped query.
+    """
+
+    def resolve_alias() -> str:
+        """Resolve the exact mapped class through the active service.
+
+        Returns:
+            The configured alias for the requested model class.
+
+        Raises:
+            DatabaseConfigurationError: If the active map has no alias.
+        """
+        selected_model = (
+            model_type if isinstance(model_type, type) else model_type()
+        )
+        alias = DB.resolve_service().morph_alias_for(selected_model)
+        if alias is None:
+            message = "The active database morph map has no model alias."
+            raise DatabaseConfigurationError(message)
+        return alias
+
+    return resolve_alias
+
+
+def _related_model_callable[RelatedT](
+    related_model: type[RelatedT] | Callable[[], type[RelatedT]],
+) -> Callable[[], type[RelatedT]]:
+    """Normalize a model class or a deferred class provider.
+
+    Args:
+        related_model: Mapped class or callable returning that class.
+
+    Returns:
+        A callable that resolves the selected mapped class.
+    """
+    if isinstance(related_model, type):
+        selected_model = cast("type[RelatedT]", related_model)
+
+        def provide_model() -> type[RelatedT]:
+            """Return the class supplied directly to the relationship helper.
+
+            Returns:
+                The mapped related class.
+            """
+            return selected_model
+
+        return provide_model
+    return related_model
 
 
 def has_one_through[RelatedT](

@@ -94,6 +94,7 @@ from titanspan.database.pagination import (
 )
 from titanspan.database.query_builder import QueryBuilder
 from titanspan.database.relationships import (
+    MorphPivot,
     belongs_to,
     belongs_to_many,
     has_many,
@@ -101,6 +102,8 @@ from titanspan.database.relationships import (
     has_one,
     has_one_through,
     latest_of_many,
+    morph_to_many,
+    morphed_by_many,
     of_many,
     oldest_of_many,
 )
@@ -202,6 +205,7 @@ __all__ = [
     "MorphMap",
     "MorphOne",
     "MorphOneRelation",
+    "MorphPivot",
     "MorphTo",
     "MorphToRelation",
     "MultipleModelsFoundError",
@@ -248,6 +252,8 @@ __all__ = [
     "morph_many",
     "morph_one",
     "morph_to",
+    "morph_to_many",
+    "morphed_by_many",
     "of_many",
     "oldest_of_many",
     "run_migration",

@@ -853,7 +853,7 @@ code to query the target. These explicit methods avoid hidden database I/O.
 `associate(model)` sets both mapped source fields, and `dissociate()` clears
 them. Persist the source model through its normal sync or async save method.
 The target must have a trusted alias and a non-null owner key. Polymorphic
-many-to-many relations and eager polymorphic loading are not implemented yet.
+eager loading across a mixed set of target types is not implemented yet.
 
 ### Polymorphic one-to-one and one-to-many relations
 
@@ -920,6 +920,77 @@ change. Dissociation requires nullable mapped columns.
 Morph-one and morph-many relations do not perform implicit I/O or eager
 polymorphic loading. A morph-one relation selects the first matching child;
 use a database uniqueness constraint when the schema requires one child.
+
+### Polymorphic many-to-many relationships
+
+Use `morph_to_many()` and `morphed_by_many()` for a shared pivot table whose
+type and identifier columns point to different model tables. Declare both
+columns explicitly and configure every polymorphic model in the active
+application's trusted `morph_map`:
+
+```python
+from __future__ import annotations
+
+from sqlalchemy import Column, ForeignKey, Integer, String, Table
+from sqlalchemy.orm import Mapped
+
+from titanspan.database import MorphPivot, Model, morph_to_many, morphed_by_many
+
+
+taggables = Table(
+    "taggables",
+    Model.metadata,
+    Column("taggable_id", Integer, primary_key=True),
+    Column("taggable_type", String, primary_key=True),
+    Column(
+        "tag_id",
+        Integer,
+        ForeignKey("tags.id"),
+        primary_key=True,
+    ),
+)
+
+pivot = MorphPivot(
+    type_column="taggable_type",
+    morph_key="taggable_id",
+    other_key="tag_id",
+)
+
+
+class Tag(Model):
+    """Represent a tag assigned to polymorphic owners."""
+
+    table = "tags"
+    name: Mapped[str]
+    articles: Mapped[list[Article]] = morphed_by_many(
+        lambda: Article,
+        taggables,
+        pivot,
+        back_populates="tags",
+    )
+
+
+class Article(Model):
+    """Represent an owner with tags stored through a morph pivot."""
+
+    table = "articles"
+    title: Mapped[str]
+    tags: Mapped[list[Tag]] = morph_to_many(
+        Tag,
+        taggables,
+        pivot,
+        back_populates="articles",
+    )
+```
+
+Map `"article"` to `Article` in `database.morph_map`. The relationship
+queries use SQLAlchemy's mapped loaders, eager options, and relationship
+predicates. Call `article.relation("tags")` to attach or detach related
+models; its sync and async mutation methods write the active app's alias
+explicitly in the same transaction as the pivot changes. `update_existing_pivot`
+can update non-key values on a direct SQLAlchemy `Table`. ORM-managed pivot
+timestamps and custom pivot models require a separately mapped association
+model.
 
 `belongs_to_many()` maps a writable SQLAlchemy secondary relationship.
 Use `relation()` for transactional attachment changes by identifier or
@@ -1076,9 +1147,9 @@ and mutators. A separate dynamic cast registry is not provided.
 model operations, safe conversion, and batch relationship loading. Ordinary
 collection behavior remains owned by `titanspan.collections`.
 
-Morph-to, morph-one, morph-many, and trusted application maps are implemented.
-Polymorphic many-to-many relationships, eager polymorphic loading, and API
-resources are not implemented yet.
+Morph-to, morph-one, morph-many, polymorphic many-to-many relationships, and
+trusted application maps are implemented. Automatic eager loading for a mixed
+set of morph-to targets and API resources are not implemented yet.
 
 ## Schema and migrations
 
