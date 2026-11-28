@@ -42,6 +42,7 @@ import anyio
 
 from titanspan._application_context import active_application_context
 from titanspan.console._backends.typer import TyperBridge
+from titanspan.console.events import CommandFinished, CommandStarting
 from titanspan.console.exceptions import (
     CommandDiscoveryError,
     CommandInvocationError,
@@ -54,6 +55,7 @@ from titanspan.console.parameters import Argument, Option
 from titanspan.console.results import ConsoleResult
 from titanspan.console.service_provider import ConsoleServiceProvider
 from titanspan.contracts.console import ConsoleOutput
+from titanspan.contracts.events import EventDispatcher
 from titanspan.foundation import Application
 
 if TYPE_CHECKING:
@@ -662,6 +664,10 @@ class Console:
 
             Foundation owns application context and resource cleanup.
             """
+            dispatcher = application.container.make(EventDispatcher)
+            await dispatcher.dispatch_async(CommandStarting(command_path))
+            exit_code: int | None = 0
+            exception_type: str | None = None
             try:
                 async with AsyncExitStack() as stack:
                     if silent:
@@ -679,14 +685,30 @@ class Console:
                         handler,
                         values,
                     )
-            except ConsoleExitError:
+            except ConsoleExitError as error:
+                exit_code = error.code
                 raise
             except Exception as error:
+                exit_code = 1
+                exception_type = type(error).__name__
                 application.report_exception(
                     error,
                     context={"component": "console", "command": command_path},
                 )
                 raise
+            except BaseException as error:
+                exit_code = None
+                exception_type = type(error).__name__
+                raise
+            finally:
+                with anyio.CancelScope(shield=True):
+                    await dispatcher.dispatch_async(
+                        CommandFinished(
+                            command_path,
+                            exit_code,
+                            exception_type,
+                        )
+                    )
 
         if owns_application:
             await application.run(operation)

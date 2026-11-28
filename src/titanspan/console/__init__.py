@@ -4,6 +4,7 @@ Parser and terminal libraries remain behind private adapters.
 """
 
 from titanspan.console.application import Console
+from titanspan.console.events import CommandFinished, CommandStarting
 from titanspan.console.exceptions import (
     CommandDiscoveryError,
     CommandGenerationError,
@@ -24,9 +25,11 @@ __all__ = [
     "Argument",
     "ArtifactKind",
     "CommandDiscoveryError",
+    "CommandFinished",
     "CommandGenerationError",
     "CommandInvocationError",
     "CommandRegistrationError",
+    "CommandStarting",
     "Console",
     "ConsoleError",
     "ConsoleExitError",

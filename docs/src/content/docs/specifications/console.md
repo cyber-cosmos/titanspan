@@ -29,6 +29,7 @@ application composition and resource cleanup.
 | Async programmatic execution | Implemented | Active app reuse, standalone lifecycle, input checks, and cancellation tests |
 | Nested command execution | Implemented | `test_sync_command_executes_nested_command_in_the_same_application` and `test_async_nested_command_reuses_the_application` |
 | Silent nested execution | Implemented | `test_silent_sync_nested_command_hides_output_and_preserves_status` and `test_silent_async_nested_command_hides_failure_output` |
+| Command lifecycle events | Implemented for application-aware commands | `test_command_lifecycle_events_bracket_nested_execution`; standalone commands do not initialize application events |
 | Parser-backed command tests | Implemented | `ConsoleTester` delegates to the production parser |
 | Configuration commands | Implemented | `tests/unit/config/test_config_cli.py` |
 | Framework information command | Implemented | `about` reports Titanspan and Python versions without starting an application |
@@ -170,6 +171,11 @@ application scaffold. Event cache commands require `events.manifest_path`.
 
 `execute_async()` does not invoke the parser or coerce input strings. Callers
 must provide typed values for the command's declared arguments and options.
+Application-aware commands dispatch `CommandStarting` before handler execution
+and `CommandFinished` with their status afterward. Events include only the
+registered command path, exit code, and exception class. Standalone commands
+do not initialize the application event dispatcher. The process-level
+`ArtisanStarting` equivalent is not implemented.
 
 ## Verification
 

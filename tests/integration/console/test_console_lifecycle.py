@@ -18,7 +18,9 @@ from titanspan._application_context import (
 )
 from titanspan.console import (
     Argument,
+    CommandFinished,
     CommandInvocationError,
+    CommandStarting,
     Console,
     ConsoleExitError,
     ConsoleRuntimeError,
@@ -30,6 +32,7 @@ from titanspan.contracts import (
     CommandRegistrar,
     ConfigRepository,
     ConsoleOutput,
+    EventDispatcher,
     ServiceProvider,
     ServiceRegistry,
 )
@@ -40,6 +43,7 @@ pytestmark = pytest.mark.integration
 _APPLICATION_NAME = "Console integration"
 _UNEXPECTED_FACTORY_MESSAGE = "Active execution created another app."
 _COMMAND_FAILURE_SENTINEL = "synthetic-command-error-marker"
+_LIFECYCLE_EXIT_CODE = 7
 _PROGRAMMATIC_EXIT_CODE = 17
 _NESTED_COMMAND_COUNT = 2
 
@@ -419,6 +423,98 @@ async def test_silent_async_nested_command_hides_failure_output(
     assert "hidden async child output" not in captured.out
     assert _COMMAND_FAILURE_SENTINEL not in captured.out
     assert _COMMAND_FAILURE_SENTINEL not in captured.err
+
+
+@pytest.mark.anyio
+async def test_command_lifecycle_events_bracket_nested_execution() -> None:
+    """Publish start and finish events around nested command handlers.
+
+    Finish events retain process status and safe exception classification.
+    """
+    console = Console()
+    timeline: list[str] = []
+    finished_events: list[CommandFinished] = []
+
+    @console.command("success")
+    def success() -> None:
+        """Record successful handler execution.
+
+        The test checks handler ordering against lifecycle notifications.
+        """
+        timeline.append("handler:success")
+
+    @console.command("failure")
+    def failure() -> None:
+        """Raise one failure for lifecycle status reporting.
+
+        The message contains a sentinel that must not enter event metadata.
+        """
+        raise RuntimeError(_COMMAND_FAILURE_SENTINEL)
+
+    @console.command("exit")
+    def exit_command() -> None:
+        """Return a caller-selected process status.
+
+        ConsoleExitError models an intentional nonzero process result.
+        """
+        raise ConsoleExitError(_LIFECYCLE_EXIT_CODE)
+
+    @console.command("parent")
+    async def parent(
+        command_host: Console,
+        dispatcher: EventDispatcher,
+    ) -> None:
+        """Register lifecycle listeners and invoke two child commands.
+
+        Args:
+            command_host: Host for nested command execution.
+            dispatcher: Application-owned event service.
+        """
+
+        def record_start(event: CommandStarting) -> None:
+            """Add the command start to the observed timeline.
+
+            Args:
+                event: Command metadata published by Console.
+            """
+            timeline.append(f"starting:{event.command_path}")
+
+        def record_finish(event: CommandFinished) -> None:
+            """Retain completion metadata without exception text.
+
+            Args:
+                event: Command status published by Console.
+            """
+            finished_events.append(event)
+            timeline.append(f"finished:{event.command_path}:{event.exit_code}")
+
+        dispatcher.listen(CommandStarting, record_start)
+        dispatcher.listen(CommandFinished, record_finish)
+
+        assert await command_host.execute_async("success") == 0
+        assert await command_host.execute_async("failure", silent=True) == 1
+        assert await command_host.execute_async("exit") == _LIFECYCLE_EXIT_CODE
+
+    assert await console.execute_async("parent") == 0
+
+    assert timeline == [
+        "starting:success",
+        "handler:success",
+        "finished:success:0",
+        "starting:failure",
+        "finished:failure:1",
+        "starting:exit",
+        f"finished:exit:{_LIFECYCLE_EXIT_CODE}",
+        "finished:parent:0",
+    ]
+    failed_event = next(
+        event for event in finished_events if event.command_path == "failure"
+    )
+    assert failed_event.exception_type == "RuntimeError"
+    exit_event = next(
+        event for event in finished_events if event.command_path == "exit"
+    )
+    assert exit_event.exception_type is None
 
 
 def test_default_factory_uses_conventional_application_bootstrap(
@@ -815,6 +911,7 @@ async def test_async_execution_cancellation_shuts_down_owned_application() -> (
     """
     lifecycle: list[str] = []
     started = anyio.Event()
+    finished_events: list[CommandFinished] = []
 
     def make_application(provider: ServiceProvider) -> Application:
         """Create an application whose cleanup is visible to the test.
@@ -825,13 +922,25 @@ async def test_async_execution_cancellation_shuts_down_owned_application() -> (
         Returns:
             A fresh application with startup and shutdown callbacks.
         """
-        return (
+        application = (
             Application.builder()
             .with_service_provider(provider)
             .on_startup(lambda: lifecycle.append("startup"))
             .on_shutdown(lambda: lifecycle.append("shutdown"))
             .build()
         )
+        dispatcher = application.container.make(EventDispatcher)
+
+        def record_finished(event: CommandFinished) -> None:
+            """Retain the cancellation status published by Console.
+
+            Args:
+                event: Completed command metadata.
+            """
+            finished_events.append(event)
+
+        dispatcher.listen(CommandFinished, record_finished)
+        return application
 
     console = Console(application_factory=make_application)
 
@@ -859,3 +968,9 @@ async def test_async_execution_cancellation_shuts_down_owned_application() -> (
 
     assert cancellation.cancel_called
     assert lifecycle == ["startup", "shutdown"]
+    assert len(finished_events) == 1
+    assert finished_events[0].exit_code is None
+    assert (
+        finished_events[0].exception_type
+        == anyio.get_cancelled_exc_class().__name__
+    )
