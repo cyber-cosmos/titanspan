@@ -1054,13 +1054,26 @@ def titled_posts(
     return query.where_not_null("title")
 
 
-async def users_with_titled_posts() -> ModelCollection[User]:
+async def users_with_matching_posts() -> ModelCollection[User]:
     """Return users with only titled posts loaded."""
     return await User.query().with_where("posts", titled_posts).get_async()
 ```
 
 The callback mutates and returns its related query builder. Nested relationship
 paths may be constrained with the same method.
+
+Use `with_where_has()` when the parent query must also find a matching related
+row. Titanspan applies the callback to both the existence predicate and the
+eager load, so keep the callback focused on query composition:
+
+```python
+async def users_with_titled_posts() -> ModelCollection[User]:
+    """Return users with at least one titled post and load those posts."""
+    return await User.query().with_where_has(
+        "posts",
+        titled_posts,
+    ).get_async()
+```
 
 Load a relationship count through a typed SQLAlchemy query expression:
 

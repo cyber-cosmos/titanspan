@@ -38,6 +38,8 @@ public release.
   and refresh `updated_at` when updating existing pivot attributes.
 - Recycle persisted models into writable many-to-many factory relations and
   build nested mapped association objects through factories.
+- Add `with_where_has()` to filter parent models and eager-load matching rows
+  with the same typed relationship constraint.
 - Add native Queue and Bus dispatch with typed jobs, bounded JSON envelopes,
   and Taskiq-backed Redis workers.
 - Keep handler scopes, middleware, retries, delayed delivery, ordered chains,

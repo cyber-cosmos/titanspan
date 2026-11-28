@@ -13,6 +13,7 @@ from sqlalchemy import ForeignKey
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from titanspan.database import (
+    DatabaseQueryError,
     DatabaseServiceProvider,
     Model,
     ModelQueryBuilder,
@@ -244,6 +245,45 @@ async def test_global_scopes_filter_relationship_queries_and_eager_loads(
             [comment.body for comment in post.comments] for post in filtered
         ] == [["published"], []]
 
+        matching = await (
+            ScopedPost.query()
+            .with_where_has("comments", _published_comment)
+            .order_by("id")
+            .get_async()
+        )
+        assert [post.name for post in matching] == ["visible"]
+        assert [
+            [comment.body for comment in post.comments] for post in matching
+        ] == [["published"]]
+
+        with_any_comment = await (
+            ScopedPost.query().with_where_has("comments").get_async()
+        )
+        assert [post.name for post in with_any_comment] == ["visible"]
+        assert [
+            [comment.body for comment in post.comments]
+            for post in with_any_comment
+        ] == [["published", "internal"]]
+
+
+async def test_with_where_has_rejects_replaced_query_builder(
+    application: Application,
+) -> None:
+    """Reject eager constraints that return a different query builder.
+
+    Args:
+        application: Isolated Database application for this test.
+    """
+    async with application:
+        with pytest.raises(
+            DatabaseQueryError,
+            match="eager-load constraint must return its related query builder",
+        ):
+            ScopedPost.query().with_where_has(
+                "comments",
+                _replaced_comment_query,
+            )
+
 
 async def test_sync_global_scope_queries_accept_orm_expressions(
     application: Application,
@@ -316,6 +356,21 @@ def _published_comment(
         The configured related query builder.
     """
     return query.where("body", "published")
+
+
+def _replaced_comment_query(
+    query: ModelQueryBuilder[ScopedComment],
+) -> ModelQueryBuilder[ScopedComment]:
+    """Return a separate related query to exercise builder identity checks.
+
+    Args:
+        query: Related query builder replaced by this callback.
+
+    Returns:
+        A new query builder for the mapped comment model.
+    """
+    del query
+    return ScopedComment.query()
 
 
 async def _create_scope_tables() -> None:

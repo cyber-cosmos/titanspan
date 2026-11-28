@@ -1047,6 +1047,58 @@ class ModelQueryBuilder[ModelT]:
             self._eager_paths.append(path)
         return self
 
+    def with_where_has[RelatedT](
+        self,
+        path: str,
+        constraint: Callable[
+            [ModelQueryBuilder[RelatedT]],
+            ModelQueryBuilder[RelatedT],
+        ]
+        | None = None,
+    ) -> Self:
+        """Filter parents and eager-load only matching related models.
+
+        The callback runs once for the existence predicate and once for the
+        eager-load constraint. Keep it focused on query composition.
+
+        Args:
+            path: Relationship name or dot-separated nested path.
+            constraint: Optional related-model query transformation.
+
+        Returns:
+            This builder with its relationship predicate and eager load.
+
+        Raises:
+            DatabaseQueryError: If the path is invalid or the callback
+                replaces its related query builder.
+        """
+        if constraint is None:
+            return self.where_has(path).with_(path)
+
+        def constrain_existence(
+            query: ModelQueryBuilder[object],
+        ) -> object:
+            """Apply the typed callback to the mapped relationship target.
+
+            Args:
+                query: Query builder for the path's final related model.
+
+            Returns:
+                The constrained related-model query.
+
+            Raises:
+                DatabaseQueryError: If the callback replaces the builder.
+            """
+            # The relationship path validation determines this mapped type.
+            related_query = cast("ModelQueryBuilder[RelatedT]", query)
+            constrained = constraint(related_query)
+            if constrained is not related_query:
+                raise DatabaseQueryError(_INVALID_EAGER_CONSTRAINT_ERROR)
+            return constrained
+
+        self.where_has(path, constrain_existence)
+        return self.with_where(path, constraint)
+
     def with_trashed(self) -> Self:
         """Include soft-deleted rows in this query when supported.
 
