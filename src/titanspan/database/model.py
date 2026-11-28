@@ -183,6 +183,8 @@ _SNAKE_CASE_ACRONYM = re.compile(r"([A-Z]+)([A-Z][a-z])")
 _MODEL_NOT_FOUND_MESSAGE = "The requested model was not found."
 _MYSQL_DUPLICATE_ENTRY_CODE = 1062
 _OMIT_SERIALIZED_VALUE = object()
+_MODEL_HIDDEN_INFO_KEY = "titanspan_model_hidden_attributes"
+_MODEL_VISIBLE_INFO_KEY = "titanspan_model_visible_attributes"
 _DESTROY_CHUNK_SIZE = 500
 _DEFAULT_PRUNE_CHUNK_SIZE = 1000
 _INVALID_PRUNE_CHUNK_SIZE_ERROR = (
@@ -2216,6 +2218,115 @@ class Model(DeclarativeBase):
         }
         return type(self)().force_fill(values)
 
+    def make_hidden(self, *attributes: str) -> Self:
+        """Hide selected attributes for this model instance.
+
+        Args:
+            *attributes: Attribute names omitted by serialization.
+
+        Returns:
+            This model after its instance visibility policy is updated.
+        """
+        return self.merge_hidden(attributes)
+
+    def merge_hidden(self, attributes: Sequence[str]) -> Self:
+        """Add attributes to this instance's hidden set.
+
+        Args:
+            attributes: Attribute names omitted by serialization.
+
+        Returns:
+            This model after its instance visibility policy is updated.
+        """
+        if not attributes:
+            return self
+        info = sa_inspect(self).info
+        hidden = cast(
+            "tuple[str, ...]",
+            info.get(_MODEL_HIDDEN_INFO_KEY, type(self).hidden),
+        )
+        info[_MODEL_HIDDEN_INFO_KEY] = tuple(
+            dict.fromkeys((*hidden, *attributes)),
+        )
+        return self
+
+    def set_hidden(self, attributes: Sequence[str]) -> Self:
+        """Replace this instance's hidden attribute set.
+
+        Args:
+            attributes: Attribute names omitted by serialization.
+
+        Returns:
+            This model after its instance visibility policy is updated.
+        """
+        sa_inspect(self).info[_MODEL_HIDDEN_INFO_KEY] = tuple(attributes)
+        return self
+
+    def make_visible(self, *attributes: str) -> Self:
+        """Show selected attributes for this model instance.
+
+        Selected attributes are removed from the hidden set and added to an
+        explicit allowlist only when this model currently has one.
+
+        Args:
+            *attributes: Attribute names included by serialization.
+
+        Returns:
+            This model after its instance visibility policy is updated.
+        """
+        if not attributes:
+            return self
+        info = sa_inspect(self).info
+        hidden = cast(
+            "tuple[str, ...]",
+            info.get(_MODEL_HIDDEN_INFO_KEY, type(self).hidden),
+        )
+        info[_MODEL_HIDDEN_INFO_KEY] = tuple(
+            name for name in hidden if name not in attributes
+        )
+        visible = cast(
+            "tuple[str, ...]",
+            info.get(_MODEL_VISIBLE_INFO_KEY, type(self).visible),
+        )
+        if visible:
+            info[_MODEL_VISIBLE_INFO_KEY] = tuple(
+                dict.fromkeys((*visible, *attributes)),
+            )
+        return self
+
+    def merge_visible(self, attributes: Sequence[str]) -> Self:
+        """Add attributes to this instance's visible allowlist.
+
+        Args:
+            attributes: Attribute names included by serialization.
+
+        Returns:
+            This model after its instance visibility policy is updated.
+        """
+        if not attributes:
+            return self
+        info = sa_inspect(self).info
+        visible = cast(
+            "tuple[str, ...]",
+            info.get(_MODEL_VISIBLE_INFO_KEY, type(self).visible),
+        )
+        info[_MODEL_VISIBLE_INFO_KEY] = tuple(
+            dict.fromkeys((*visible, *attributes)),
+        )
+        return self
+
+    def set_visible(self, attributes: Sequence[str]) -> Self:
+        """Replace this instance's visible attribute allowlist.
+
+        Args:
+            attributes: Attribute names included by serialization.
+
+        Returns:
+            This model after its instance visibility policy is updated.
+        """
+        sa_inspect(self).info[_MODEL_VISIBLE_INFO_KEY] = tuple(attributes)
+        return self
+
     def to_dict(self) -> dict[str, object]:
         """Serialize a bounded graph of loaded model attributes.
 
@@ -3404,8 +3515,16 @@ def _serialize_model(
     try:
         state = sa_inspect(model)
         mapper = sa_inspect(type(model))
-        allowed = set(type(model).visible) if type(model).visible else None
-        hidden = set(type(model).hidden)
+        visible = cast(
+            "tuple[str, ...]",
+            state.info.get(_MODEL_VISIBLE_INFO_KEY, type(model).visible),
+        )
+        hidden_names = cast(
+            "tuple[str, ...]",
+            state.info.get(_MODEL_HIDDEN_INFO_KEY, type(model).hidden),
+        )
+        allowed = set(visible) if visible else None
+        hidden = set(hidden_names)
         values = _serialize_mapped_attributes(
             state,
             mapper,

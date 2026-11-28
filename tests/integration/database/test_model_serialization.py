@@ -218,6 +218,71 @@ async def test_model_graph_serialization_is_cycle_safe_and_redacted(
         assert "<redacted>" in repr(loaded)
 
 
+async def test_collection_visibility_changes_are_instance_scoped(
+    application: Application,
+) -> None:
+    """Apply visible and hidden attributes to collection members only.
+
+    Args:
+        application: Application configured by the test fixture.
+    """
+    async with application:
+        await _create_schema()
+        await SerializationParent.create_async(
+            {
+                "name": "first",
+                "private_value": "first private",
+                "payload": {"status": "ready"},
+            },
+        )
+        await SerializationParent.create_async(
+            {
+                "name": "second",
+                "private_value": "second private",
+                "payload": {"status": "ready"},
+            },
+        )
+        outside = await SerializationParent.create_async(
+            {
+                "name": "outside",
+                "private_value": "outside private",
+                "payload": {"status": "ready"},
+            },
+        )
+        parents = await SerializationParent.query().order_by("id").get_async()
+        collection = ModelCollection(parents[:2])
+        initial_values = collection.to_dicts()
+
+        assert collection.merge_hidden(()) is collection
+        assert collection.make_visible() is collection
+        assert collection.merge_visible(()) is collection
+        assert collection.to_dicts() == initial_values
+
+        assert collection.make_visible("private_value") is collection
+        assert [value["private_value"] for value in collection.to_dicts()] == [
+            "first private",
+            "second private",
+        ]
+        assert "private_value" not in outside.to_dict()
+        assert SerializationParent.hidden == ("private_value",)
+        assert "private_value" not in SerializationParent.visible
+
+        assert collection.set_visible(("id", "name")) is collection
+        assert [set(value) for value in collection.to_dicts()] == [
+            {"id", "name"},
+            {"id", "name"},
+        ]
+        assert collection.merge_visible(("private_value",)) is collection
+        assert collection.to_dicts()[0]["private_value"] == "first private"
+        assert collection.make_visible("private_value") is collection
+        assert collection.merge_hidden(("name",)) is collection
+        assert "name" not in collection.to_dicts()[0]
+        assert collection.set_hidden(()) is collection
+        assert collection.to_dicts()[0]["name"] == "first"
+        assert collection.make_hidden("name") is collection
+        assert "name" not in collection.to_dicts()[0]
+
+
 async def test_serialization_skips_unloaded_appends_without_database_io(
     application: Application,
 ) -> None:

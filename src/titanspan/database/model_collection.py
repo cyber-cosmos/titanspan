@@ -1,7 +1,7 @@
-"""Extend native Collections with database model identity operations.
+"""Extend native Collections with database model collection operations.
 
 SQLAlchemy remains the source of model identity and mapped state. This
-collection adds model-aware comparison and refresh behavior only.
+collection delegates persistence and serialization behavior to each model.
 """
 
 from __future__ import annotations
@@ -28,9 +28,10 @@ from titanspan.database.model_state import (
 from titanspan.facades.database import DB
 
 if TYPE_CHECKING:
-    from collections.abc import Iterable
+    from collections.abc import Iterable, Sequence
 
     from titanspan.contracts.database import DatabaseService
+    from titanspan.database.model import Model
     from titanspan.database.orm_builder import ModelQueryBuilder
 
 type _Identity = tuple[
@@ -246,6 +247,84 @@ class ModelCollection[ModelT](Collection[ModelT]):
                 serialization limit or a model graph exceeds its limits.
         """
         return json.dumps(self.to_dicts(), ensure_ascii=False)
+
+    def make_hidden(self, *attributes: str) -> Self:
+        """Hide selected attributes across all models in this collection.
+
+        Args:
+            *attributes: Attribute names omitted by model serialization.
+
+        Returns:
+            This collection after each model visibility policy is updated.
+        """
+        for model in self:
+            cast("Model", model).make_hidden(*attributes)
+        return self
+
+    def merge_hidden(self, attributes: Sequence[str]) -> Self:
+        """Add hidden attributes across all models in this collection.
+
+        Args:
+            attributes: Attribute names omitted by model serialization.
+
+        Returns:
+            This collection after each model visibility policy is updated.
+        """
+        for model in self:
+            cast("Model", model).merge_hidden(attributes)
+        return self
+
+    def set_hidden(self, attributes: Sequence[str]) -> Self:
+        """Replace hidden attributes across all models in this collection.
+
+        Args:
+            attributes: Attribute names omitted by model serialization.
+
+        Returns:
+            This collection after each model visibility policy is updated.
+        """
+        for model in self:
+            cast("Model", model).set_hidden(attributes)
+        return self
+
+    def make_visible(self, *attributes: str) -> Self:
+        """Make selected attributes visible across the collection.
+
+        Args:
+            *attributes: Attribute names included by model serialization.
+
+        Returns:
+            This collection after each model visibility policy is updated.
+        """
+        for model in self:
+            cast("Model", model).make_visible(*attributes)
+        return self
+
+    def merge_visible(self, attributes: Sequence[str]) -> Self:
+        """Add visible attributes across all models in this collection.
+
+        Args:
+            attributes: Attribute names included by model serialization.
+
+        Returns:
+            This collection after each model visibility policy is updated.
+        """
+        for model in self:
+            cast("Model", model).merge_visible(attributes)
+        return self
+
+    def set_visible(self, attributes: Sequence[str]) -> Self:
+        """Replace visible attributes across all models in this collection.
+
+        Args:
+            attributes: Attribute names included by model serialization.
+
+        Returns:
+            This collection after each model visibility policy is updated.
+        """
+        for model in self:
+            cast("Model", model).set_visible(attributes)
+        return self
 
     def load(self, *paths: str) -> Self:
         """Load related models in bounded batches through SQLAlchemy ORM.
