@@ -72,6 +72,12 @@ from titanspan.database.model_relationships import (
     ManyToManyRelation,
     RelationshipChanges,
 )
+from titanspan.database.morph import (
+    MorphTo,
+    MorphToRelation,
+    morph_to,
+)
+from titanspan.database.morph_map import MorphMap
 from titanspan.database.orm_builder import ModelQueryBuilder
 from titanspan.database.pagination import (
     CursorPaginator,
@@ -183,6 +189,9 @@ __all__ = [
     "ModelSoftDeleting",
     "ModelUpdated",
     "ModelUpdating",
+    "MorphMap",
+    "MorphTo",
+    "MorphToRelation",
     "MultipleModelsFoundError",
     "Paginator",
     "QueryBuilder",
@@ -224,6 +233,7 @@ __all__ = [
     "has_one",
     "has_one_through",
     "latest_of_many",
+    "morph_to",
     "of_many",
     "oldest_of_many",
     "run_migration",

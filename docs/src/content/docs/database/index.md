@@ -760,6 +760,71 @@ without an aggregate value do not qualify; a parent with no qualifying row
 receives `None`. These relations are read-only; persist changes through a
 normal model or writable relationship.
 
+### Polymorphic belongs-to access
+
+Use `morph_to()` when a model stores a type discriminator and foreign key for
+one of several mapped target classes. Declare the allowed classes and map
+each stored alias to an imported class in the application's `database`
+configuration:
+
+```python
+from typing import ClassVar
+
+from sqlalchemy.orm import Mapped, mapped_column
+
+from titanspan.database import Model, MorphTo, morph_to
+
+
+class Article(Model):
+    """Represent one polymorphic target type."""
+
+    table = "articles"
+    title: Mapped[str]
+
+
+class Video(Model):
+    """Represent another polymorphic target type."""
+
+    table = "videos"
+    title: Mapped[str]
+
+
+class Asset(Model):
+    """Represent media that belongs to one declared target type."""
+
+    table = "assets"
+    subject_type: Mapped[str | None] = mapped_column(nullable=True)
+    subject_id: Mapped[int | None] = mapped_column(nullable=True)
+    subject: ClassVar[MorphTo[Article | Video]] = morph_to(
+        Article,
+        Video,
+        type_column="subject_type",
+        foreign_key="subject_id",
+    )
+
+
+database_config = {
+    "morph_map": {
+        "article": Article,
+        "video": Video,
+    },
+}
+```
+
+Pass `database_config` under the application's `database` configuration.
+The alias map accepts Titanspan mapped model classes and is immutable after
+the Database service is constructed. A discriminator from a database row
+resolves only through that application's map and the relation's declared
+target classes; Titanspan never imports a class named by stored data.
+
+Call `resolve()` in synchronous code or `resolve_async()` in asynchronous
+code to query the target. These explicit methods avoid hidden database I/O.
+`associate(model)` sets both mapped source fields, and `dissociate()` clears
+them. Persist the source model through its normal sync or async save method.
+The target must have a trusted alias and a non-null owner key. Polymorphic
+one-to-one and one-to-many declarations, polymorphic many-to-many relations,
+and eager polymorphic loading are not implemented yet.
+
 `belongs_to_many()` maps a writable SQLAlchemy secondary relationship.
 Use `relation()` for transactional attachment changes by identifier or
 persisted related model. Titanspan loads the current collection in its owning
@@ -909,7 +974,8 @@ and mutators. A separate dynamic cast registry is not provided.
 model operations, safe conversion, and batch relationship loading. Ordinary
 collection behavior remains owned by `titanspan.collections`.
 
-Polymorphic relationships and API resources are not implemented yet.
+Morph-to access and trusted application maps are implemented. Other
+polymorphic relationship forms and API resources are not implemented yet.
 
 ## Schema and migrations
 

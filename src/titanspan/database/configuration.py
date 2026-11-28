@@ -7,7 +7,7 @@ quotes connection URLs and delegates dialect behavior.
 from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from types import MappingProxyType
 from typing import TYPE_CHECKING, cast
@@ -16,6 +16,7 @@ from sqlalchemy.engine import URL, make_url
 from sqlalchemy.exc import ArgumentError
 
 from titanspan.database.exceptions import DatabaseConfigurationError
+from titanspan.database.morph_map import MorphMap
 
 if TYPE_CHECKING:
     from titanspan.contracts.config import ConfigRepository
@@ -119,10 +120,12 @@ class DatabaseConfiguration:
     Attributes:
         default: Name selected when a connection is not specified.
         connections: Immutable mapping of configured connection definitions.
+        morph_map: Immutable app-owned aliases for polymorphic model classes.
     """
 
     default: str | None
     connections: Mapping[str, ConnectionConfiguration]
+    morph_map: MorphMap[object] = field(default_factory=MorphMap.empty)
 
     @classmethod
     def from_repository(
@@ -187,9 +190,13 @@ class DatabaseConfiguration:
         if default is not None and default not in connections:
             msg = "The default database connection is not configured."
             raise DatabaseConfigurationError(msg)
+        morph_map = MorphMap.from_config(
+            database_values.get("morph_map", {}),
+        )
         return cls(
             default=default,
             connections=MappingProxyType(connections),
+            morph_map=morph_map,
         )
 
 

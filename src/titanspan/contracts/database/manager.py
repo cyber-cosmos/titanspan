@@ -77,6 +77,28 @@ class DatabaseService(Protocol):
         """
         ...
 
+    def morph_model_for(self, alias: str) -> type[object] | None:
+        """Resolve one persisted morph alias through app-owned classes.
+
+        Args:
+            alias: Stored discriminator value read from a database row.
+
+        Returns:
+            The explicitly trusted mapped class, or ``None`` if unknown.
+        """
+        ...
+
+    def morph_alias_for(self, model_type: type[object]) -> str | None:
+        """Return the stored alias for one explicitly trusted model class.
+
+        Args:
+            model_type: Mapped class whose alias will be persisted.
+
+        Returns:
+            The configured alias, or ``None`` if the class is not mapped.
+        """
+        ...
+
     def session(
         self,
         name: str | None = None,

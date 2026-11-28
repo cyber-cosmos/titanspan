@@ -287,6 +287,28 @@ class DatabaseManager:
         """
         return tuple(self._configuration.connections)
 
+    def morph_model_for(self, alias: str) -> type[object] | None:
+        """Resolve a persisted alias through this app's trusted map.
+
+        Args:
+            alias: Stored discriminator value read from a database row.
+
+        Returns:
+            The configured mapped model class, or ``None`` if unknown.
+        """
+        return self._configuration.morph_map.model_for(alias)
+
+    def morph_alias_for(self, model_type: type[object]) -> str | None:
+        """Return the configured alias for one exact mapped class.
+
+        Args:
+            model_type: Mapped class whose alias will be stored.
+
+        Returns:
+            The trusted alias, or ``None`` if the class is not configured.
+        """
+        return self._configuration.morph_map.alias_for(model_type)
+
     def dialect_name(self, name: str | None = None) -> str:
         """Return a connection's normalized dialect without engine creation.
 

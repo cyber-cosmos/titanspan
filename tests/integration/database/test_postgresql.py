@@ -6,7 +6,7 @@ The required CI flag turns a missing URL into a test failure.
 from __future__ import annotations
 
 from datetime import UTC, date, datetime, time
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, ClassVar
 
 import anyio
 import pytest
@@ -22,8 +22,10 @@ from titanspan.database import (
     DatabaseTransactionError,
     MigrationManager,
     Model,
+    MorphTo,
     Schema,
     latest_of_many,
+    morph_to,
     oldest_of_many,
 )
 from titanspan.facades.database import DB
@@ -112,6 +114,39 @@ class PostgreSQLOneOfManyParent(Model):
     )
 
 
+class PostgreSQLMorphTarget(Model):
+    """Represent one explicitly mapped PostgreSQL polymorphic target.
+
+    The class is selected by an application-owned discriminator alias.
+    """
+
+    table = "postgres_morph_targets"
+    timestamps = False
+    fillable = ("label",)
+
+    label: Mapped[str]
+
+
+class PostgreSQLMorphSource(Model):
+    """Represent one PostgreSQL row with a polymorphic target reference.
+
+    The target class is resolved through the app-scoped trusted morph map.
+    """
+
+    table = "postgres_morph_sources"
+    timestamps = False
+    fillable = ("label", "subject_type", "subject_id")
+
+    label: Mapped[str]
+    subject_type: Mapped[str | None]
+    subject_id: Mapped[int | None]
+    subject: ClassVar[MorphTo[PostgreSQLMorphTarget]] = morph_to(
+        PostgreSQLMorphTarget,
+        type_column="subject_type",
+        foreign_key="subject_id",
+    )
+
+
 if TYPE_CHECKING:
     from pathlib import Path
 
@@ -139,6 +174,9 @@ def application(tmp_path: Path) -> Application:
                         "url": url,
                         "async_url": url,
                     },
+                },
+                "morph_map": {
+                    "postgres_target": PostgreSQLMorphTarget,
                 },
             },
         },
@@ -283,6 +321,60 @@ async def test_postgresql_one_of_many_relationships_use_ranked_rows(
             )
             await DB.statement_async(
                 "DROP TABLE IF EXISTS postgres_one_of_many_parents",
+            )
+
+
+async def test_postgresql_morph_to_resolves_trusted_target(
+    application: Application,
+) -> None:
+    """Resolve and persist a polymorphic association on real PostgreSQL.
+
+    Args:
+        application: Isolated PostgreSQL integration application.
+    """
+    async with application:
+        await DB.statement_async(
+            "DROP TABLE IF EXISTS postgres_morph_sources",
+        )
+        await DB.statement_async(
+            "DROP TABLE IF EXISTS postgres_morph_targets",
+        )
+        try:
+            await DB.statement_async(
+                "CREATE TABLE postgres_morph_targets ("
+                "id SERIAL PRIMARY KEY, label TEXT NOT NULL, "
+                "created_at TIMESTAMPTZ, updated_at TIMESTAMPTZ)"
+            )
+            await DB.statement_async(
+                "CREATE TABLE postgres_morph_sources ("
+                "id SERIAL PRIMARY KEY, label TEXT NOT NULL, "
+                "subject_type TEXT, subject_id INTEGER, "
+                "created_at TIMESTAMPTZ, updated_at TIMESTAMPTZ)"
+            )
+            target = await PostgreSQLMorphTarget.create_async(
+                {"label": "target"},
+            )
+            source = await PostgreSQLMorphSource.create_async(
+                {
+                    "label": "source",
+                    "subject_type": "postgres_target",
+                    "subject_id": target.id,
+                },
+            )
+
+            resolved = await source.subject.resolve_async()
+
+            assert isinstance(resolved, PostgreSQLMorphTarget)
+            assert resolved.id == target.id
+            source.subject.dissociate()
+            assert source.subject_type is None
+            assert source.subject_id is None
+        finally:
+            await DB.statement_async(
+                "DROP TABLE IF EXISTS postgres_morph_sources",
+            )
+            await DB.statement_async(
+                "DROP TABLE IF EXISTS postgres_morph_targets",
             )
 
 
