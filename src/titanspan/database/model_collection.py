@@ -365,6 +365,39 @@ class ModelCollection[ModelT](Collection[ModelT]):
         )
         return self
 
+    def refresh(self) -> Self:
+        """Refresh each model in place using its owning Database service.
+
+        Returns:
+            This collection after every model has been refreshed.
+
+        Raises:
+            DatabaseTransactionOwnershipError: If the active application does
+                not own a selected model.
+            ModelNotFoundError: If a selected model no longer exists.
+        """
+        for model in self:
+            cast("_RefreshableModel", model).refresh()
+        return self
+
+    async def refresh_async(self) -> Self:
+        """Asynchronously refresh models sequentially in place.
+
+        Sequential refresh gives each model operation exclusive ownership of
+        its async session and preserves the collection's original instances.
+
+        Returns:
+            This collection after every model has been refreshed.
+
+        Raises:
+            DatabaseTransactionOwnershipError: If the active application does
+                not own a selected model.
+            ModelNotFoundError: If a selected model no longer exists.
+        """
+        for model in self:
+            await cast("_RefreshableModel", model).refresh_async()
+        return self
+
     def fresh(self) -> ModelCollection[ModelT]:
         """Retrieve current database versions for persisted model keys.
 
@@ -588,6 +621,29 @@ class _SerializableModel(Protocol):
 
         Returns:
             Serialized public attributes.
+        """
+        ...
+
+
+class _RefreshableModel(Protocol):
+    """Describe the in-place refresh operations supplied by mapped models.
+
+    The collection delegates persistence and session ownership to each model.
+    """
+
+    def refresh(self) -> object:
+        """Reload mapped values through the model's owning service.
+
+        Returns:
+            The refreshed model instance.
+        """
+        ...
+
+    async def refresh_async(self) -> object:
+        """Reload mapped values asynchronously through the owning service.
+
+        Returns:
+            The refreshed model instance.
         """
         ...
 

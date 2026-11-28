@@ -1184,7 +1184,10 @@ and mutators. A separate dynamic cast registry is not provided.
 
 `ModelCollection` extends the native Collections component for identity-aware
 model operations, safe conversion, and batch relationship loading. Ordinary
-collection behavior remains owned by `titanspan.collections`.
+collection behavior remains owned by `titanspan.collections`. Use
+`fresh()` or `fresh_async()` to return current database instances, and
+`refresh()` or `refresh_async()` to update collection members in place through
+their owning model operations.
 
 Morph-to, morph-one, morph-many, polymorphic many-to-many relationships, and
 trusted application maps are implemented. Use `with_()` with a direct

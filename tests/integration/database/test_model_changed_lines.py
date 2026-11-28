@@ -180,6 +180,67 @@ async def test_sync_collection_refresh_and_load_respect_application_ownership(
             _assert_collection_owner_rejected,
             collection,
         )
+        with pytest.raises(DatabaseTransactionOwnershipError):
+            await collection.refresh_async()
+
+
+async def test_model_collection_refreshes_existing_instances(
+    application: Application,
+) -> None:
+    """Refresh collection members in place through sync and async APIs.
+
+    Args:
+        application: Application configured by the test fixture.
+    """
+    async with application:
+        await _create_collection_tables()
+        first = await ChangedLineParent.create_async({"name": "first"})
+        second = await ChangedLineParent.create_async({"name": "second"})
+        collection = await ChangedLineParent.query().order_by("id").get_async()
+        first_member, second_member = collection
+        first_member.name = "stale first"
+        second_member.name = "stale second"
+        await (
+            DB.table("changed_line_parents")
+            .where("id", first.id)
+            .update_async({"name": "async first"})
+        )
+        await (
+            DB.table("changed_line_parents")
+            .where("id", second.id)
+            .update_async({"name": "async second"})
+        )
+
+        refreshed = await collection.refresh_async()
+
+        assert refreshed is collection
+        assert collection[0] is first_member
+        assert collection[1] is second_member
+        assert [model.name for model in collection] == [
+            "async first",
+            "async second",
+        ]
+
+        await (
+            DB.table("changed_line_parents")
+            .where("id", first.id)
+            .update_async({"name": "sync first"})
+        )
+        await (
+            DB.table("changed_line_parents")
+            .where("id", second.id)
+            .update_async({"name": "sync second"})
+        )
+        for model in collection:
+            model.name = "stale sync"
+        sync_values = await anyio.to_thread.run_sync(
+            _refresh_collection_synchronously,
+            collection,
+        )
+
+        assert sync_values == ("sync first", "sync second")
+        assert collection[0] is first_member
+        assert collection[1] is second_member
 
 
 async def test_sync_soft_delete_counter_updates_are_scoped_to_active_rows(
@@ -292,6 +353,22 @@ def _refresh_and_load_collection(
     )
 
 
+def _refresh_collection_synchronously(
+    collection: ModelCollection[ChangedLineParent],
+) -> tuple[str, ...]:
+    """Refresh a collection through the synchronous model API.
+
+    Args:
+        collection: Models whose persisted values must replace stale values.
+
+    Returns:
+        Refreshed names in collection order.
+    """
+    refreshed = collection.refresh()
+    assert refreshed is collection
+    return tuple(parent.name for parent in collection)
+
+
 def _assert_collection_owner_rejected(
     collection: ModelCollection[ChangedLineParent],
 ) -> None:
@@ -304,6 +381,8 @@ def _assert_collection_owner_rejected(
         collection.fresh()
     with pytest.raises(DatabaseTransactionOwnershipError):
         collection.load("children")
+    with pytest.raises(DatabaseTransactionOwnershipError):
+        collection.refresh()
 
 
 def _exercise_soft_delete_counter(
