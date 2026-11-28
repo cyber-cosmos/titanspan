@@ -6,10 +6,10 @@ These tests exercise validation that does not require a database connection.
 from __future__ import annotations
 
 import pytest
-from sqlalchemy import Column, Integer, Table
+from sqlalchemy import Column, DateTime, ForeignKey, Integer, Table
 from sqlalchemy.orm import Mapped, foreign, mapped_column, relationship
 
-from titanspan.database import DatabaseQueryError, Model
+from titanspan.database import DatabaseQueryError, Model, belongs_to_many
 
 pytestmark = pytest.mark.unit
 
@@ -38,6 +38,24 @@ _COMPOSITE_PIVOT_TABLE = Table(
     Model.metadata,
     Column("parent_id", Integer, primary_key=True),
     Column("related_id", Integer, primary_key=True),
+)
+_TIMESTAMPED_PIVOT_TABLE = Table(
+    "unit_timestamped_pivot_links",
+    Model.metadata,
+    Column(
+        "parent_id",
+        Integer,
+        ForeignKey("unit_timestamped_pivot_parents.id"),
+        primary_key=True,
+    ),
+    Column(
+        "related_id",
+        Integer,
+        ForeignKey("unit_pivot_related.id"),
+        primary_key=True,
+    ),
+    Column("created_at", DateTime(timezone=True)),
+    Column("updated_at", DateTime(timezone=True)),
 )
 
 
@@ -95,6 +113,21 @@ class _CompositePivotParent(Model):
     )
 
 
+class _TimestampedPivotParent(Model):
+    """Represent a parent with validated timestamped pivot metadata.
+
+    Tests mutate its public relationship info to cover runtime validation.
+    """
+
+    table = "unit_timestamped_pivot_parents"
+    name: Mapped[str]
+    related: Mapped[list[_PivotRelated]] = belongs_to_many(
+        _PivotRelated,
+        _TIMESTAMPED_PIVOT_TABLE,
+        timestamps=("created_at", "updated_at"),
+    )
+
+
 def test_pivot_update_rejects_association_without_foreign_keys() -> None:
     """Reject a direct association that does not identify both models.
 
@@ -136,3 +169,59 @@ def test_pivot_update_rejects_composite_model_identifiers() -> None:
             1,
             {"label": "featured"},
         )
+
+
+def test_pivot_timestamps_require_distinct_table_columns() -> None:
+    """Reject timestamp settings that cannot describe stored pivot values.
+
+    Timestamp configuration must identify two real, separate table columns.
+    """
+    with pytest.raises(ValueError, match="two distinct column names"):
+        belongs_to_many(
+            _PivotRelated,
+            _UNLINKED_PIVOT_TABLE,
+            timestamps=("created_at", "created_at"),
+        )
+    with pytest.raises(ValueError, match="SQLAlchemy Table"):
+        belongs_to_many(
+            _PivotRelated,
+            _UNLINKED_PIVOT_TABLE,
+            timestamps=("created_at", "updated_at"),
+        )
+    with pytest.raises(TypeError, match="SQLAlchemy Table"):
+        belongs_to_many(
+            _PivotRelated,
+            _PIVOT_TABLE_ALIAS,
+            timestamps=("created_at", "updated_at"),
+        )
+
+
+def test_pivot_timestamp_relationship_info_is_validated_at_use() -> None:
+    """Reject mutated timestamp settings before constructing relation APIs.
+
+    SQLAlchemy exposes relationship info as mutable public metadata.
+    """
+    timestamp_key = "titanspan_pivot_timestamps"
+    parent_info = _TimestampedPivotParent.related.property.info
+    valid_parent_timestamps = parent_info[timestamp_key]
+    parent_info[timestamp_key] = ["created_at", "updated_at"]
+    try:
+        with pytest.raises(DatabaseQueryError, match="direct association"):
+            _TimestampedPivotParent(name="Parent").relation("related")
+    finally:
+        parent_info[timestamp_key] = valid_parent_timestamps
+
+    alias_info = _AliasedPivotParent.related.property.info
+    alias_info[timestamp_key] = ("created_at", "updated_at")
+    try:
+        with pytest.raises(DatabaseQueryError, match="direct association"):
+            _AliasedPivotParent(name="Parent").relation("related")
+    finally:
+        alias_info.pop(timestamp_key)
+
+    parent_info[timestamp_key] = ("parent_id", "updated_at")
+    try:
+        with pytest.raises(DatabaseQueryError, match="non-key association"):
+            _TimestampedPivotParent(name="Parent").relation("related")
+    finally:
+        parent_info[timestamp_key] = valid_parent_timestamps

@@ -8,18 +8,23 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Literal, cast
 
-from sqlalchemy import and_, func, select
+from sqlalchemy import Table, and_, func, select
 from sqlalchemy import inspect as sa_inspect
 from sqlalchemy.orm import aliased, declared_attr, foreign, relationship
 
 type _AggregateFunction = Literal["min", "max"]
 _MAX_AGGREGATE: _AggregateFunction = "max"
 _MIN_AGGREGATE: _AggregateFunction = "min"
+_PIVOT_TIMESTAMP_INFO_KEY = "titanspan_pivot_timestamps"
+_PIVOT_TIMESTAMP_COLUMN_COUNT = 2
 
 if TYPE_CHECKING:
     from collections.abc import Mapping, Sequence
+    from typing import Any
 
+    from sqlalchemy import Column
     from sqlalchemy.orm import Mapped
+    from sqlalchemy.sql.base import ReadOnlyColumnCollection
     from sqlalchemy.sql.elements import ColumnElement
     from sqlalchemy.sql.selectable import FromClause
 
@@ -389,17 +394,30 @@ def belongs_to_many[RelatedT](
     secondary: FromClause,
     *,
     back_populates: str | None = None,
+    timestamps: tuple[str, str] | None = None,
 ) -> Mapped[list[RelatedT]]:
     """Declare a many-to-many relationship with an explicit association.
 
     Args:
         secondary: Trusted SQLAlchemy association table or selectable.
         back_populates: Optional inverse relationship attribute name.
+        timestamps: Optional created-at and updated-at pivot column names.
         related_model: Mapped related class.
 
     Returns:
         SQLAlchemy relationship instrumentation for related objects.
+
+    Raises:
+        TypeError: If timestamping uses a non-table association.
+        ValueError: If timestamping does not name two distinct table columns.
     """
+    if timestamps is not None:
+        _validate_pivot_timestamps(secondary, timestamps)
+    info = (
+        {_PIVOT_TIMESTAMP_INFO_KEY: timestamps}
+        if timestamps is not None
+        else None
+    )
     return cast(
         "Mapped[list[RelatedT]]",
         relationship(
@@ -407,8 +425,46 @@ def belongs_to_many[RelatedT](
             secondary=secondary,
             back_populates=back_populates,
             uselist=True,
+            info=info,
         ),
     )
+
+
+def _validate_pivot_timestamps(
+    secondary: FromClause,
+    timestamps: tuple[str, str],
+) -> None:
+    """Validate configured pivot timestamp columns before mapping.
+
+    Args:
+        secondary: Association object supplied to the relationship helper.
+        timestamps: Created-at and updated-at column names.
+
+    Raises:
+        TypeError: If the association is not a SQLAlchemy table.
+        ValueError: If the configuration does not identify two table columns.
+    """
+    timestamp_values = cast("tuple[object, ...]", timestamps)
+    if (
+        len(timestamp_values) != _PIVOT_TIMESTAMP_COLUMN_COUNT
+        or any(
+            not isinstance(name, str) or not name.strip()
+            for name in timestamp_values
+        )
+        or timestamps[0] == timestamps[1]
+    ):
+        message = "Pivot timestamps require two distinct column names."
+        raise ValueError(message)
+    if not isinstance(secondary, Table):
+        message = "Pivot timestamps must name columns on a SQLAlchemy Table."
+        raise TypeError(message)
+    table = cast(
+        "Table[ReadOnlyColumnCollection[str, Column[Any]]]",
+        secondary,
+    )
+    if any(name not in table.c for name in timestamps):
+        message = "Pivot timestamps must name columns on a SQLAlchemy Table."
+        raise ValueError(message)
 
 
 def has_one_through[RelatedT](

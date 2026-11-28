@@ -920,14 +920,18 @@ The manager provides sync and async `attach`, `detach`, `sync`,
 `detach()` without IDs removes every association. `sync()` removes omitted
 associations by default; pass `detaching=False` to retain them. These
 operations use the application's Database session and transaction lifecycle.
+Pass `timestamps=("created_at", "updated_at")` to `belongs_to_many()` when
+the association table contains both columns. The `relation()` manager writes
+one timezone-aware UTC value to both columns for new associations and updates
+`updated_at` when `update_existing_pivot()` changes a row. Direct SQLAlchemy
+collection changes use the table's own defaults.
 
 `update_existing_pivot()` and its async form update non-key columns on one
 existing association row and return the affected-row count. They support a
 direct SQLAlchemy `Table` with one unambiguous foreign key to each model's
 single primary key. Key columns and unknown column names are rejected. An
-identifier with no matching association returns zero. For richer pivot
-behavior, timestamps managed by the ORM, or custom pivot models, map an
-association object and use its normal model persistence APIs.
+identifier with no matching association returns zero. Map an association
+object for custom pivot models or per-row attributes during attachment.
 
 ```python
 updated = await user.relation("tags").update_existing_pivot_async(

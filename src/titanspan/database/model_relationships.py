@@ -8,6 +8,7 @@ from __future__ import annotations
 
 from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass
+from datetime import UTC, datetime
 from typing import (
     TYPE_CHECKING,
     ClassVar,
@@ -16,7 +17,7 @@ from typing import (
     cast,
 )
 
-from sqlalchemy import Select, Table, and_, select, update
+from sqlalchemy import Select, Table, and_, delete, insert, select, update
 from sqlalchemy import inspect as sa_inspect
 from sqlalchemy.orm import Session, selectinload
 from sqlalchemy.orm.attributes import set_committed_value
@@ -35,10 +36,9 @@ if TYPE_CHECKING:
     from sqlalchemy.engine import CursorResult
     from sqlalchemy.ext.asyncio import AsyncSession
     from sqlalchemy.sql.base import ReadOnlyColumnCollection
-    from sqlalchemy.sql.dml import Update
+    from sqlalchemy.sql.dml import Delete, Insert, Update
 
     from titanspan.contracts.database import DatabaseService
-
 _RELATIONSHIP_NOT_FOUND_ERROR = "The mapped relation was not found."
 _MANY_TO_MANY_REQUIRED_ERROR = (
     "Relationship operations require a writable many-to-many relation."
@@ -69,6 +69,13 @@ _PIVOT_UPDATE_SINGLE_RELATED_ERROR = (
 _PIVOT_UPDATE_ROWCOUNT_ERROR = (
     "The database backend did not report the pivot update row count."
 )
+_PIVOT_TIMESTAMP_MAPPING_ERROR = (
+    "Pivot timestamp operations require a direct association table."
+)
+_PIVOT_TIMESTAMP_COLUMNS_ERROR = (
+    "Pivot timestamps must use non-key association columns."
+)
+_PIVOT_TIMESTAMP_COLUMN_COUNT = 2
 _RELATIONSHIP_QUERY_CHUNK_SIZE = 500
 _RelationOperation = Literal["attach", "detach", "sync", "toggle"]
 
@@ -146,6 +153,56 @@ class ManyToManyRelation[ParentT: _ModelHost]:
             raise DatabaseQueryError(_CROSS_CONNECTION_ERROR)
         self._relationship_attribute = getattr(self._parent_type, name)
         self._secondary: object = secondary
+        timestamp_names = relationship.info.get(
+            "titanspan_pivot_timestamps",
+        )
+        if timestamp_names is None:
+            self._pivot_timestamps: tuple[str, str] | None = None
+        elif not isinstance(timestamp_names, tuple):
+            raise DatabaseQueryError(_PIVOT_TIMESTAMP_MAPPING_ERROR)
+        else:
+            timestamp_values = cast("tuple[object, ...]", timestamp_names)
+            if len(timestamp_values) != _PIVOT_TIMESTAMP_COLUMN_COUNT or any(
+                not isinstance(name, str) for name in timestamp_values
+            ):
+                raise DatabaseQueryError(_PIVOT_TIMESTAMP_MAPPING_ERROR)
+            self._pivot_timestamps = cast(
+                "tuple[str, str]",
+                timestamp_values,
+            )
+        self._timestamped_secondary: (
+            Table[ReadOnlyColumnCollection[str, Column[Any]]] | None
+        ) = None
+        self._timestamped_columns: (
+            tuple[
+                Column[object],
+                Column[object],
+            ]
+            | None
+        ) = None
+        if self._pivot_timestamps is not None:
+            if not isinstance(secondary, Table):
+                raise DatabaseQueryError(_PIVOT_TIMESTAMP_MAPPING_ERROR)
+            timestamped_secondary = cast(
+                "Table[ReadOnlyColumnCollection[str, Column[Any]]]",
+                secondary,
+            )
+            parent_column, related_column = _association_columns(
+                timestamped_secondary,
+                self._parent_type,
+                self._related_type,
+            )
+            timestamp_columns = set(self._pivot_timestamps)
+            key_columns = {
+                column.key
+                for column in timestamped_secondary.primary_key.columns
+            } | {parent_column.key, related_column.key}
+            if not timestamp_columns.issubset(
+                timestamped_secondary.c.keys()
+            ) or timestamp_columns.intersection(key_columns):
+                raise DatabaseQueryError(_PIVOT_TIMESTAMP_COLUMNS_ERROR)
+            self._timestamped_secondary = timestamped_secondary
+            self._timestamped_columns = (parent_column, related_column)
 
     def attach(
         self,
@@ -452,6 +509,8 @@ class ManyToManyRelation[ParentT: _ModelHost]:
             raise DatabaseQueryError(_PIVOT_UPDATE_ATTRIBUTES_ERROR)
         if set(updates).intersection(protected):
             raise DatabaseQueryError(_PIVOT_UPDATE_ATTRIBUTES_ERROR)
+        if self._pivot_timestamps is not None:
+            updates[self._pivot_timestamps[1]] = datetime.now(UTC)
         return (
             update(secondary)
             .where(
@@ -466,6 +525,162 @@ class ManyToManyRelation[ParentT: _ModelHost]:
             )
             .values(**updates)
         )
+
+    def _timestamped_pivot_insert(
+        self,
+        identifiers: tuple[object, ...],
+    ) -> tuple[Insert, list[dict[str, object]]]:
+        """Build timestamped association rows for one attachment batch.
+
+        Args:
+            identifiers: Related primary-key values to attach.
+
+        Returns:
+            Core insert and bound parameter mappings for SQLAlchemy.
+
+        Raises:
+            DatabaseQueryError: If the relationship lacks a validated table.
+        """
+        secondary = self._timestamped_secondary
+        columns = self._timestamped_columns
+        timestamps = self._pivot_timestamps
+        if secondary is None or columns is None or timestamps is None:
+            raise DatabaseQueryError(_PIVOT_TIMESTAMP_MAPPING_ERROR)
+        timestamp = datetime.now(UTC)
+        parent_identifier = _persisted_identifier(
+            self._parent,
+            self._parent_key,
+        )
+        parameters = [
+            {
+                columns[0].key: parent_identifier,
+                columns[1].key: identifier,
+                timestamps[0]: timestamp,
+                timestamps[1]: timestamp,
+            }
+            for identifier in identifiers
+        ]
+        return insert(secondary), parameters
+
+    def _timestamped_pivot_delete(
+        self,
+        identifiers: tuple[object, ...],
+    ) -> Delete:
+        """Build a bound deletion for one parent and selected associations.
+
+        Args:
+            identifiers: Related primary-key values to detach.
+
+        Returns:
+            Core delete statement scoped to this parent.
+
+        Raises:
+            DatabaseQueryError: If the relationship lacks a validated table.
+        """
+        secondary = self._timestamped_secondary
+        columns = self._timestamped_columns
+        if secondary is None or columns is None:
+            raise DatabaseQueryError(_PIVOT_TIMESTAMP_MAPPING_ERROR)
+        parent_identifier = _persisted_identifier(
+            self._parent,
+            self._parent_key,
+        )
+        return delete(secondary).where(
+            and_(
+                columns[0] == parent_identifier,
+                columns[1].in_(identifiers),
+            ),
+        )
+
+    def _apply_sync_changes(
+        self,
+        session: Session,
+        owner: _ModelHost,
+        current_by_id: Mapping[object, _ModelHost],
+        related_models: Mapping[object, _ModelHost],
+        to_attach: tuple[object, ...],
+        to_detach: tuple[object, ...],
+    ) -> tuple[_ModelHost, ...]:
+        """Persist one relationship change set synchronously.
+
+        Args:
+            session: Database session owning the operation.
+            owner: Session-loaded parent model.
+            current_by_id: Existing relation members in load order.
+            related_models: Newly loaded models indexed by identifier.
+            to_attach: Related identifiers to attach.
+            to_detach: Related identifiers to detach.
+
+        Returns:
+            Models that will remain related after commit.
+        """
+        if self._pivot_timestamps is None:
+            collection = getattr(owner, self._name)
+            for identifier in to_detach:
+                _remove_related(collection, current_by_id[identifier])
+            for identifier in to_attach:
+                _append_related(collection, related_models[identifier])
+            session.flush()
+            return tuple(cast("Iterable[_ModelHost]", collection))
+
+        committed_models = _desired_related_models(
+            current_by_id,
+            related_models,
+            to_attach,
+            to_detach,
+        )
+        if to_detach:
+            session.execute(self._timestamped_pivot_delete(to_detach))
+        if to_attach:
+            statement, parameters = self._timestamped_pivot_insert(to_attach)
+            # Core executemany keeps large attach batches within backend limits.
+            session.execute(statement, parameters)
+        return committed_models
+
+    async def _apply_async_changes(
+        self,
+        session: AsyncSession,
+        owner: _ModelHost,
+        current_by_id: Mapping[object, _ModelHost],
+        related_models: Mapping[object, _ModelHost],
+        to_attach: tuple[object, ...],
+        to_detach: tuple[object, ...],
+    ) -> tuple[_ModelHost, ...]:
+        """Persist one relationship change set asynchronously.
+
+        Args:
+            session: Async Database session owning the operation.
+            owner: Session-loaded parent model.
+            current_by_id: Existing relation members in load order.
+            related_models: Newly loaded models indexed by identifier.
+            to_attach: Related identifiers to attach.
+            to_detach: Related identifiers to detach.
+
+        Returns:
+            Models that will remain related after commit.
+        """
+        if self._pivot_timestamps is None:
+            collection = getattr(owner, self._name)
+            for identifier in to_detach:
+                _remove_related(collection, current_by_id[identifier])
+            for identifier in to_attach:
+                _append_related(collection, related_models[identifier])
+            await session.flush()
+            return tuple(cast("Iterable[_ModelHost]", collection))
+
+        committed_models = _desired_related_models(
+            current_by_id,
+            related_models,
+            to_attach,
+            to_detach,
+        )
+        if to_detach:
+            await session.execute(self._timestamped_pivot_delete(to_detach))
+        if to_attach:
+            statement, parameters = self._timestamped_pivot_insert(to_attach)
+            # Core executemany keeps large attach batches within backend limits.
+            await session.execute(statement, parameters)
+        return committed_models
 
     def _mutate_sync(
         self,
@@ -520,18 +735,14 @@ class ManyToManyRelation[ParentT: _ModelHost]:
                 session,
                 to_attach,
             )
-            collection = getattr(owner, self._name)
-            for identifier in to_detach:
-                _remove_related(
-                    collection,
-                    current_by_id[identifier],
-                )
-            for identifier in to_attach:
-                _append_related(collection, related_models[identifier])
             if to_attach or to_detach:
-                session.flush()
-                committed_models = tuple(
-                    cast("Iterable[_ModelHost]", collection),
+                committed_models = self._apply_sync_changes(
+                    session,
+                    owner,
+                    current_by_id,
+                    related_models,
+                    to_attach,
+                    to_detach,
                 )
                 service.after_commit(
                     lambda: set_committed_value(
@@ -601,18 +812,14 @@ class ManyToManyRelation[ParentT: _ModelHost]:
                 session,
                 to_attach,
             )
-            collection = getattr(owner, self._name)
-            for identifier in to_detach:
-                _remove_related(
-                    collection,
-                    current_by_id[identifier],
-                )
-            for identifier in to_attach:
-                _append_related(collection, related_models[identifier])
             if to_attach or to_detach:
-                await session.flush()
-                committed_models = tuple(
-                    cast("Iterable[_ModelHost]", collection),
+                committed_models = await self._apply_async_changes(
+                    session,
+                    owner,
+                    current_by_id,
+                    related_models,
+                    to_attach,
+                    to_detach,
                 )
 
                 async def update_parent_cache() -> None:
@@ -931,6 +1138,32 @@ def _updated_row_count(rowcount: int | None) -> int:
     if rowcount is None or rowcount < 0:
         raise DatabaseQueryError(_PIVOT_UPDATE_ROWCOUNT_ERROR)
     return rowcount
+
+
+def _desired_related_models(
+    current: Mapping[object, _ModelHost],
+    added: Mapping[object, _ModelHost],
+    to_attach: tuple[object, ...],
+    to_detach: tuple[object, ...],
+) -> tuple[_ModelHost, ...]:
+    """Build the collection cache resulting from timestamped pivot changes.
+
+    Args:
+        current: Existing related models in relationship load order.
+        added: Newly loaded related models indexed by their identifiers.
+        to_attach: Related identifiers to append after existing models.
+        to_detach: Existing related identifiers to remove.
+
+    Returns:
+        Existing retained models followed by newly attached models.
+    """
+    detached = set(to_detach)
+    retained = tuple(
+        model
+        for identifier, model in current.items()
+        if identifier not in detached
+    )
+    return retained + tuple(added[identifier] for identifier in to_attach)
 
 
 def _related_identifier(

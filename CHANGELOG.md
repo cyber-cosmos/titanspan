@@ -32,6 +32,8 @@ public release.
   queries, trusted owner aliases, and sync and async child persistence.
 - Add sync and async many-to-many attach, detach, sync, toggle, and existing
   pivot-attribute update operations through the owning Database session.
+- Stamp configured pivot timestamps during explicit relation-manager writes
+  and refresh `updated_at` when updating existing pivot attributes.
 - Add native Queue and Bus dispatch with typed jobs, bounded JSON envelopes,
   and Taskiq-backed Redis workers.
 - Keep handler scopes, middleware, retries, delayed delivery, ordered chains,

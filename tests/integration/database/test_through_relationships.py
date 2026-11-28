@@ -5,11 +5,12 @@ The tests use SQLAlchemy's relationship loader and real SQLite foreign keys.
 
 from __future__ import annotations
 
+from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Literal, cast
 
 import anyio
 import pytest
-from sqlalchemy import Column, ForeignKey, Integer, String, Table
+from sqlalchemy import Column, DateTime, ForeignKey, Integer, String, Table
 from sqlalchemy.orm import Mapped, mapped_column, query_expression, relationship
 
 from titanspan.database import (
@@ -58,6 +59,24 @@ _COUNTRY_TAGS = Table(
         primary_key=True,
     ),
     Column("label", String, nullable=True),
+    Column("created_at", DateTime(timezone=True), nullable=True),
+    Column("updated_at", DateTime(timezone=True), nullable=True),
+)
+_LEGACY_COUNTRY_TAGS = Table(
+    "through_legacy_country_tags",
+    Model.metadata,
+    Column(
+        "country_id",
+        Integer,
+        ForeignKey("through_legacy_countries.id"),
+        primary_key=True,
+    ),
+    Column(
+        "tag_id",
+        Integer,
+        ForeignKey("through_tags.id"),
+        primary_key=True,
+    ),
 )
 
 
@@ -160,6 +179,23 @@ class ThroughCountry(Model):
     tags: Mapped[list[ThroughTag]] = belongs_to_many(
         ThroughTag,
         _COUNTRY_TAGS,
+        timestamps=("created_at", "updated_at"),
+    )
+
+
+class LegacyThroughCountry(Model):
+    """Represent a country using ordinary SQLAlchemy pivot persistence.
+
+    Its relation omits Titanspan-managed pivot timestamps.
+    """
+
+    table = "through_legacy_countries"
+    fillable = ("name",)
+
+    name: Mapped[str]
+    tags: Mapped[list[ThroughTag]] = belongs_to_many(
+        ThroughTag,
+        _LEGACY_COUNTRY_TAGS,
     )
 
 
@@ -384,6 +420,170 @@ async def test_many_to_many_relationship_operations_are_transactional(
         ) == (first.id,)
         assert await relation.detach_async() == (second.id,)
         assert await DB.table("through_country_tags").count_async() == 0
+
+
+async def test_many_to_many_operations_manage_pivot_timestamps(
+    application: Application,
+) -> None:
+    """Stamp new pivots and preserve times for unchanged associations.
+
+    Args:
+        application: Isolated SQLite application for this test.
+    """
+    async with application:
+        await _create_schema()
+        country = await ThroughCountry.create_async({"name": "Example"})
+        tag = await ThroughTag.create_async({"name": "featured"})
+        sync_tag = await ThroughTag.create_async({"name": "popular"})
+        relation = country.relation("tags")
+        assert await relation.attach_async(tag.id) == (tag.id,)
+
+        created_at = await (
+            DB.table("through_country_tags")
+            .where("country_id", country.id)
+            .where("tag_id", tag.id)
+            .value_async("created_at")
+        )
+        updated_at = await (
+            DB.table("through_country_tags")
+            .where("country_id", country.id)
+            .where("tag_id", tag.id)
+            .value_async("updated_at")
+        )
+        assert isinstance(created_at, str)
+        assert isinstance(updated_at, str)
+        assert created_at == updated_at
+        assert await relation.sync_async(tag.id) == RelationshipChanges()
+        assert (
+            await DB.table("through_country_tags")
+            .where("country_id", country.id)
+            .where("tag_id", tag.id)
+            .value_async("created_at")
+            == created_at
+        )
+        assert (
+            await DB.table("through_country_tags")
+            .where("country_id", country.id)
+            .where("tag_id", tag.id)
+            .value_async("updated_at")
+            == updated_at
+        )
+
+        old_timestamp = datetime(2000, 1, 1, tzinfo=UTC)
+        await (
+            DB.table("through_country_tags")
+            .where("country_id", country.id)
+            .where("tag_id", tag.id)
+            .update_async({"updated_at": old_timestamp})
+        )
+        assert (
+            await relation.update_existing_pivot_async(
+                tag.id,
+                {"label": "new label"},
+            )
+            == 1
+        )
+        changed_at = await (
+            DB.table("through_country_tags")
+            .where("country_id", country.id)
+            .where("tag_id", tag.id)
+            .value_async("updated_at")
+        )
+        assert isinstance(changed_at, str)
+        assert datetime.fromisoformat(changed_at).year > old_timestamp.year
+
+        def manage_sync_pivot_timestamp() -> None:
+            """Exercise synchronous pivot writes in a worker thread.
+
+            Synchronous SQLAlchemy sessions must not block the async test task.
+            """
+            assert relation.attach(sync_tag.id) == (sync_tag.id,)
+            sync_created_at = (
+                DB.table("through_country_tags")
+                .where("country_id", country.id)
+                .where("tag_id", sync_tag.id)
+                .value("created_at")
+            )
+            sync_updated_at = (
+                DB.table("through_country_tags")
+                .where("country_id", country.id)
+                .where("tag_id", sync_tag.id)
+                .value("updated_at")
+            )
+            assert isinstance(sync_created_at, str)
+            assert sync_created_at == sync_updated_at
+
+            (
+                DB.table("through_country_tags")
+                .where("country_id", country.id)
+                .where("tag_id", sync_tag.id)
+                .update({"updated_at": old_timestamp})
+            )
+            assert (
+                relation.update_existing_pivot(
+                    sync_tag.id,
+                    {"label": "sync label"},
+                )
+                == 1
+            )
+            sync_changed_at = (
+                DB.table("through_country_tags")
+                .where("country_id", country.id)
+                .where("tag_id", sync_tag.id)
+                .value("updated_at")
+            )
+            assert isinstance(sync_changed_at, str)
+            assert (
+                datetime.fromisoformat(sync_changed_at).year
+                > old_timestamp.year
+            )
+
+        await anyio.to_thread.run_sync(manage_sync_pivot_timestamp)
+
+
+async def test_many_to_many_without_timestamps_uses_orm_collections(
+    application: Application,
+) -> None:
+    """Keep existing sync and async collection operations for plain pivots.
+
+    Args:
+        application: Isolated SQLite application for this test.
+    """
+    async with application:
+        await _create_schema()
+        await DB.statement_async(
+            "CREATE TABLE through_legacy_countries ("
+            "id INTEGER PRIMARY KEY, name TEXT NOT NULL, "
+            "created_at TIMESTAMP, updated_at TIMESTAMP)"
+        )
+        await DB.statement_async(
+            "CREATE TABLE through_legacy_country_tags ("
+            "country_id INTEGER NOT NULL, tag_id INTEGER NOT NULL, "
+            "PRIMARY KEY(country_id, tag_id), "
+            "FOREIGN KEY(country_id) "
+            "REFERENCES through_legacy_countries(id), "
+            "FOREIGN KEY(tag_id) REFERENCES through_tags(id))"
+        )
+        country = await LegacyThroughCountry.create_async(
+            {"name": "Legacy"},
+        )
+        async_tag = await ThroughTag.create_async({"name": "async"})
+        sync_tag = await ThroughTag.create_async({"name": "sync"})
+        relation = country.relation("tags")
+
+        assert await relation.attach_async(async_tag.id) == (async_tag.id,)
+        assert await relation.detach_async(async_tag.id) == (async_tag.id,)
+
+        def mutate_sync_collection() -> None:
+            """Exercise sync collection changes in a worker thread.
+
+            The synchronous session stays off the async test task.
+            """
+            assert relation.attach(sync_tag.id) == (sync_tag.id,)
+            assert relation.detach(sync_tag.id) == (sync_tag.id,)
+
+        await anyio.to_thread.run_sync(mutate_sync_collection)
+        assert await DB.table("through_legacy_country_tags").count_async() == 0
 
 
 async def test_many_to_many_relationship_operations_validate_mapping_and_ids(
@@ -919,7 +1119,7 @@ async def _create_schema() -> None:
     await DB.statement_async(
         "CREATE TABLE through_country_tags ("
         "country_id INTEGER NOT NULL, tag_id INTEGER NOT NULL, "
-        "label TEXT, "
+        "label TEXT, created_at TIMESTAMP, updated_at TIMESTAMP, "
         "PRIMARY KEY(country_id, tag_id), "
         "FOREIGN KEY(country_id) REFERENCES through_countries(id), "
         "FOREIGN KEY(tag_id) REFERENCES through_tags(id))"
